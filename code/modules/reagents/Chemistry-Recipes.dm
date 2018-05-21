@@ -1201,9 +1201,7 @@
 		holder.my_atom.visible_message("<span class='warning'>The slime extract begins to vibrate violently!</span>")
 		sleep(50)
 
-	var/blocked = list(
-		/mob/living/simple_animal/hostile/alien/queen/large,
-		/mob/living/simple_animal/hostile/faithless,
+	var/blocked = existing_typesof(
 		/mob/living/simple_animal/hostile/faithless/cult,
 		/mob/living/simple_animal/hostile/scarybat/cult,
 		/mob/living/simple_animal/hostile/creature/cult,
@@ -1211,12 +1209,8 @@
 		/mob/living/simple_animal/hostile/mushroom,
 		/mob/living/simple_animal/hostile/carp/holocarp,
 		/mob/living/simple_animal/hostile/slime,
-		/mob/living/simple_animal/hostile/mining_drone,
 		/mob/living/simple_animal/hostile/mimic,
-		/mob/living/simple_animal/hostile/mimic/crate,
-		/mob/living/simple_animal/hostile/mimic/crate/chest,
-		/mob/living/simple_animal/hostile/mimic/crate/item,
-		) + typesof(/mob/living/simple_animal/hostile/humanoid) + typesof(/mob/living/simple_animal/hostile/asteroid) //Exclusion list for things you don't want the reaction to create.
+		) + existing_typesof(boss_mobs) + existing_typesof(blacklisted_mobs)//Exclusion list for things you don't want the reaction to create.
 
 	var/list/critters = existing_typesof(/mob/living/simple_animal/hostile) - blocked //List of possible hostile mobs
 
@@ -1257,8 +1251,7 @@
 		holder.my_atom.visible_message("<span class='warning'>The slime extract begins to vibrate violently !</span>")
 		sleep(50)
 
-	var/blocked = list(
-		/mob/living/simple_animal/hostile/alien/queen/large,
+	var/blocked = existing_typesof(
 		/mob/living/simple_animal/hostile/retaliate/clown,
 		/mob/living/simple_animal/hostile/mushroom,
 		/mob/living/simple_animal/hostile/carp/holocarp,
@@ -1266,9 +1259,8 @@
 		/mob/living/simple_animal/hostile/scarybat/cult,
 		/mob/living/simple_animal/hostile/creature/cult,
 		/mob/living/simple_animal/hostile/slime,
-		/mob/living/simple_animal/hostile/hivebot/tele, //This thing spawns hostile mobs
-		/mob/living/simple_animal/hostile/mining_drone,
-		) + typesof(/mob/living/simple_animal/hostile/humanoid) + typesof(/mob/living/simple_animal/hostile/asteroid) //Exclusion list for things you don't want the reaction to create.
+		) + existing_typesof(boss_mobs) + existing_typesof(blacklisted_mobs)//Exclusion list for things you don't want the reaction to create.
+
 	var/list/critters = existing_typesof(/mob/living/simple_animal/hostile) - blocked //List of possible hostile mobs
 
 	playsound(holder.my_atom, 'sound/effects/phasein.ogg', 100, 1)
@@ -2175,6 +2167,14 @@
 	required_reagents = list(SOYMILK = 4, FORMIC_ACID = 1)
 
 /datum/chemical_reaction/vinegar
+	name = "Vinegar"
+	id = VINEGAR
+	result = VINEGAR
+	required_reagents = list(WINE = 1, WATER = 1)
+	required_catalysts = list(ENZYME = 1)
+	result_amount = 2
+
+/datum/chemical_reaction/vinegar/malt
 	name = "Malt Vinegar"
 	id = VINEGAR
 	result = VINEGAR
@@ -2201,7 +2201,7 @@
 /datum/chemical_reaction/cheesewheel/on_reaction(var/datum/reagents/holder, var/created_volume)
 	var/location = get_turf(holder.my_atom)
 	new /obj/item/weapon/reagent_containers/food/snacks/sliceable/cheesewheel(location)
-	
+
 /datum/chemical_reaction/butter
 	name = "Butter"
 	id = "butter"
@@ -2866,14 +2866,6 @@
 	required_reagents = list(SPACEMOUNTAINWIND = 1, COFFEE = 1)
 	result_amount = 2
 
-/datum/chemical_reaction/vinegar
-	name = "Vinegar"
-	id = VINEGAR
-	result = VINEGAR
-	required_reagents = list(WINE = 5)
-	required_catalysts = list(ENZYME = 5)
-	result_amount = 5
-
 //Cafe stuff!
 /datum/chemical_reaction/acidtea
 	name = "Earl's Grey Tea"
@@ -3079,6 +3071,16 @@
 	result = SALINE
 	required_reagents = list(SALTWATER = 10, AMMONIA = 1)
 	result_amount = 10
+
+/datum/chemical_reaction/calciumhydroxide
+	name = "Calcium Hydroxide"
+	id = CALCIUMHYDROXIDE
+	result = CALCIUMHYDROXIDE
+	required_reagents = list(WATER = 1, CALCIUMOXIDE = 1)
+	result_amount = 1
+	reaction_temp_change = 47
+	react_discretely = TRUE
+
 
 #undef ALERT_AMOUNT_ONLY
 #undef ALERT_ALL_REAGENTS

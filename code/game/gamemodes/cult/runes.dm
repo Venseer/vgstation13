@@ -770,6 +770,7 @@
 			imbued_from = R
 			break
 	if (imbued_from)
+		T.uses = talisman_charges(T.imbue)
 		for (var/mob/V in viewers(src))
 			V.show_message("<span class='warning'>The runes turn into dust, which then forms into an arcane image on the paper.</span>", 1)
 		usr.say("H'drak v[pick("'","`")]loso, mir'kanas verbot!")
@@ -1160,7 +1161,19 @@
 		if(iscultist(C) && !C.stat)
 			users+=C
 	if(users.len>=2)
-		var/mob/living/carbon/cultist = input("Choose the one who you want to summon", "Followers of Geometer") as null|anything in ((cultists - users) - user)
+		cultists-=users
+		var/list/mob/living/carbon/annotated_cultists = new
+		var/status = ""
+		var/list/visible_mobs = viewers(user)
+		for(var/mob/living/carbon/C in cultists)
+			status = ""
+			if(C in visible_mobs)
+				status = "(Present)"
+			else if(C.isDead())
+				status = "(Dead)"
+			annotated_cultists["[C.name] [status]"] = C
+		var/choice = input("Choose the one who you want to summon", "Followers of Geometer") as null|anything in annotated_cultists
+		var/mob/living/carbon/cultist = annotated_cultists[choice]
 		if(!cultist)
 			return fizzle()
 		if (cultist == user) //just to be sure.
