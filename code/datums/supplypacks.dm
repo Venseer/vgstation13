@@ -179,6 +179,14 @@ var/list/all_supply_groups = list("Supplies","Clothing","Security","Hospitality"
 	containername = "showers crate"
 	group = "Supplies"
 
+/datum/supply_packs/clock
+	name = "Grandfather Clock"
+	contains = list(/obj/structure/clock/unanchored)
+	cost = 40
+	containertype = /obj/structure/largecrate
+	containername = "ticking crate"
+	group = "Supplies"
+
 /datum/supply_packs/metal50
 	name = "50 metal sheets"
 	contains = list(/obj/item/stack/sheet/metal)
@@ -828,7 +836,7 @@ var/list/all_supply_groups = list("Supplies","Clothing","Security","Hospitality"
 					/obj/item/weapon/shield/riot,
 					/obj/item/weapon/shield/riot)
 	cost = 120
-	containertype = /obj/structure/closet/crate/secure/anti_tamper
+	containertype = /obj/structure/closet/crate/secure
 	containername = "tactical assault gear crate"
 	access = list(access_armory)
 	group = "Security"
