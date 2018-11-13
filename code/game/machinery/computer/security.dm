@@ -201,7 +201,7 @@ What a mess.*/
 		active1 = null
 	if (!( data_core.security.Find(active2) ))
 		active2 = null
-	if ((usr.contents.Find(src) || (in_range(src, usr) && istype(loc, /turf))) || (istype(usr, /mob/living/silicon)))
+	if ((usr.contents.Find(src) || (in_range(src, usr) && istype(loc, /turf))) || isAdminGhost(usr) || (istype(usr, /mob/living/silicon)))
 		usr.set_machine(src)
 		switch(href_list["choice"])
 // SORTING!
@@ -245,6 +245,12 @@ What a mess.*/
 				active2 = null
 
 			if("Log In")
+				if(isAdminGhost(usr))
+					active1 = null
+					active2 = null
+					authenticated = "Commander Green"
+					rank = "Central Commander"
+					screen = 1
 				if (istype(usr, /mob/living/silicon))
 					active1 = null
 					active2 = null
@@ -396,7 +402,7 @@ What a mess.*/
 			if ("New Record (General)")
 				var/datum/data/record/G = new /datum/data/record()
 				G.fields["name"] = "New Record"
-				G.fields["id"] = text("[]", add_zero(num2hex(rand(1, 1.6777215E7)), 6))
+				G.fields["id"] = num2hex(rand(1, 1.6777215E7), 6)
 				G.fields["rank"] = "Unassigned"
 				G.fields["real_rank"] = "Unassigned"
 				G.fields["sex"] = "Male"

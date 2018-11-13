@@ -13,6 +13,7 @@
 #define TOXIN 			"toxin"
 #define PLASTICIDE 			"plasticide"
 #define CYANIDE "cyanide"
+#define POTASSIUM_HYDROXIDE 			"potassium_hydroxide"
 #define CHEFSPECIAL 			"chefspecial"
 #define MINTTOXIN 			"minttoxin"
 #define MUTATIONTOXIN 			"mutationtoxin"
@@ -37,6 +38,7 @@
 #define PHOSPHORUS 			"phosphorus"
 #define LITHIUM 			"lithium"
 #define SUGAR 			"sugar"
+#define CARAMEL 			"caramel"
 #define SACID 			"sacid"
 #define PACID 			"pacid"
 #define GLYCEROL 			"glycerol"
@@ -81,10 +83,12 @@
 #define HYRONALIN 			"hyronalin"
 #define ARITHRAZINE 			"arithrazine"
 #define ALKYSINE 			"alkysine"
+#define ALKYCOSINE 			"alkycosine"
 #define IMIDAZOLINE 			"imidazoline"
 #define INACUSIATE 			"inacusiate"
 #define PERIDAXON 			"peridaxon"
 #define BICARIDINE 			"bicaridine"
+#define SYNTHOCARISOL 			"synthocarisol"
 #define HYPERZINE 			"hyperzine"
 #define HYPOZINE 			"hypozine"
 #define CRYOXADONE 			"cryoxadone"
@@ -94,10 +98,12 @@
 #define CARPOTOXIN 			"carpotoxin"
 #define ZOMBIEPOWDER 			"zombiepowder"
 #define MINDBREAKER 			"mindbreaker"
+#define HEARTBREAKER 			"heartbreaker"
 #define SPIRITBREAKER 			"spiritbreaker"
 #define METHYLIN 			"methylin"
 #define BICARODYNE 			"bicarodyne"
 #define STABILIZINE 			"stabilizine"
+#define PRESLOMITE			"preslomite"
 #define NANITES 			"nanites"
 #define AUTISTNANITES 			"autistnanites"
 #define XENOMICROBES 			"xenomicrobes"
@@ -105,6 +111,7 @@
 #define MEDNANOBOTS 			"mednanobots"
 #define COMNANOBOTS 			"comnanobots"
 #define FLUOROSURFACTANT 			"fluorosurfactant"
+#define PICCOLYN			"piccolyn"
 #define NICOTINE 			"nicotine"
 #define AMMONIA 			"ammonia"
 #define SALINE				"saline"
@@ -336,6 +343,19 @@
 #define MUSTARD			"mustard"
 #define RELISH			"relish"
 #define UNTABLE_MUTAGEN		"untable"
+#define ELECTRIC_SHEEP		"electric_sheep"
+#define SCIENTISTS_SERENDIPITY		"scientists_serendipity"
+#define METABUDDY		"metabuddy"
+#define SPIDERS			"spiders"
+#define WEED_EATER		"weed_eater"
+#define RAGSTORICHES	"ragstoriches"
+#define WAIFU			"waifu"
+#define BEEPSKY_CLASSIC	"beepsky_classic"
+#define SMOKYROOM		"smokyroom"
+#define BAD_TOUCH		"bad_touch"
+#define SUICIDE			"suicide"
+#define KARMOTRINE		"karmotrine"
+#define DEGENERATECALCIUM "degeneratecalcium"
 
 #define TUNGSTEN 			"tungsten"
 #define LITHIUMSODIUMTUNGSTATE 			"lithiumsodiumtungstate"
@@ -369,6 +389,7 @@
 #define APETRINE		"apetrine"
 #define SODIUMSILICATE	"sodiumsilicate"
 #define COLORFUL_REAGENT "colorful_reagent"
+#define AMINOMICIN		"aminomicin"
 
 // How many units of reagent are consumed per tick, by default.
 #define REAGENTS_METABOLISM 0.2
@@ -379,6 +400,7 @@
 #define TEMPERATURE_FLAME 700
 #define TEMPERATURE_WELDER 3480
 #define TEMPERATURE_PLASMA 4500
+#define TEMPERATURE_ETHANOL (T0C+1560)
 #define HEAT_TRANSFER_MULTIPLIER 7 //Multiplies the numbers above when heating a reagent container. A truly magical number.
 
 // By defining the effect multiplier this way, it'll exactly adjust

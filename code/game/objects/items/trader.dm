@@ -58,9 +58,26 @@
 	icon_opened = "cabinetdetective_open"
 	icon_broken = "cabinetdetective_broken"
 	icon_off = "cabinetdetective_broken"
-	var/wonder_whitelist = list(/obj/item/clothing/shoes/clown_shoes/advanced, /obj/item/clothing/mask/morphing/corgi, list(/obj/item/clothing/suit/space/plasmaman/security/captain, /obj/item/clothing/head/helmet/space/plasmaman/security/captain), /obj/item/clothing/shoes/magboots/magnificent, /obj/item/clothing/under/aqua, /obj/item/clothing/under/purple, /obj/item/clothing/under/lightgreen, /obj/item/clothing/under/lightblue, /obj/item/clothing/under/lightbrown, /obj/item/clothing/under/brown, /obj/item/clothing/under/yellowgreen, /obj/item/clothing/under/darkblue, /obj/item/clothing/under/lightred, /obj/item/clothing/under/darkred, /obj/item/clothing/under/bluepants, /obj/item/clothing/under/blackpants, /obj/item/clothing/under/redpants, /obj/item/clothing/under/greypants, /obj/item/clothing/under/dress/plaid_purple, /obj/item/clothing/under/dress/plaid_red, /obj/item/clothing/under/dress/plaid_blue, /obj/item/clothing/under/greaser, /obj/item/clothing/under/sl_suit, /obj/item/clothing/under/syndicate/tacticool, /obj/item/clothing/under/color/orange, /obj/item/clothing/under/psyche, /obj/item/clothing/under/rainbow)
+	var/wonder_whitelist = list(
+	/obj/item/clothing/mask/morphing/corgi,
+	/obj/item/clothing/under/rank/vice,
+	/obj/item/clothing/shoes/clown_shoes/advanced,
+	list(/obj/item/clothing/suit/space/clown, /obj/item/clothing/head/helmet/space/clown),
+	/obj/item/clothing/shoes/magboots/magnificent,
+	list(/obj/item/clothing/suit/space/plasmaman/bee, /obj/item/clothing/head/helmet/space/plasmaman/bee),
+	list(/obj/item/clothing/head/wizard/lich, /obj/item/clothing/suit/wizrobe/lich, /obj/item/clothing/suit/wizrobe/skelelich),
+	list(/obj/item/clothing/suit/space/plasmaman/cultist, /obj/item/clothing/head/helmet/space/plasmaman/cultist),
+	list(/obj/item/clothing/head/helmet/space/plasmaman/security/captain, /obj/item/clothing/suit/space/plasmaman/security/captain),
+	/obj/item/clothing/under/skelevoxsuit,
+	list(/obj/item/clothing/suit/wintercoat/ce, /obj/item/clothing/suit/wintercoat/cmo, /obj/item/clothing/suit/wintercoat/security/hos, /obj/item/clothing/suit/wintercoat/hop, /obj/item/clothing/suit/wintercoat/captain, /obj/item/clothing/suit/wintercoat/clown, /obj/item/clothing/suit/wintercoat/slimecoat),
+	list(/obj/item/clothing/head/helmet/space/rig/wizard, /obj/item/clothing/suit/space/rig/wizard, /obj/item/clothing/gloves/purple, /obj/item/clothing/shoes/sandal),
+	list(/obj/item/clothing/head/helmet/space/rig/knight, /obj/item/clothing/head/helmet/space/rig/knight),
+	list(/obj/item/clothing/suit/space/ancient, /obj/item/clothing/suit/space/ancient),
+	list(/obj/item/clothing/shoes/clockwork_boots, /obj/item/clothing/head/clockwork_hood, /obj/item/clothing/suit/clockwork_robes),
+	/obj/item/clothing/mask/necklace/xeno_claw
+	)
 
-/obj/structure/closet/secure_closet/wonderful/New()
+/obj/structure/closet/secure_closet/wonderful/spawn_contents()
 	..()
 	for(var/amount = 1 to 10)
 		var/wonder_clothing = pick_n_take(wonder_whitelist)
@@ -132,3 +149,41 @@
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/collector,100)
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/tiler,100)
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/switchtool,100)
+
+/obj/item/crackerbox
+	name = "crackerbox"
+	desc = "The greatest invention known to birdkind. Converts unwanted, unneeded cash, into useful, beautiful crackers!"
+	icon = 'icons/obj/toy.dmi'
+	icon_state = "fingerbox"
+	var/status //if true, is in use.
+
+/obj/item/crackerbox/examine(mob/user)
+	..()
+	to_chat(user, "<span class = 'notice'>Currently the conversion rate reads at [get_cash2cracker_rate()] per cracker.</span>")
+
+/obj/item/crackerbox/proc/get_cash2cracker_rate()
+	return round(10, nanocoins_rates)
+
+/obj/item/crackerbox/attackby(obj/item/I, mob/user)
+	if(!status && istype(I, /obj/item/weapon/spacecash) && user.drop_item(I, src))
+		status = TRUE
+		var/obj/item/weapon/spacecash/S = I
+		var/crackers_to_dispense = round((S.worth*S.amount)/get_cash2cracker_rate())
+		playsound(loc, 'sound/items/polaroid2.ogg', 50, 1)
+		if(!crackers_to_dispense)
+			say("Not enough! Never enough!")
+		spawn(3 SECONDS)
+			say("That is enough for [crackers_to_dispense] crackers!")
+			if(crackers_to_dispense > 100)
+				visible_message("<span class = 'warning'>\The [src]'s matter fabrication unit overloads!</span>")
+				explosion(loc, 0, prob(15), 2, 0)
+				qdel(src)
+				return
+			for(var/x = 1 to crackers_to_dispense)
+				var/obj/II = new /obj/item/weapon/reagent_containers/food/snacks/cracker(get_turf(src))
+				II.throw_at(get_turf(pick(orange(7,src))), 1*crackers_to_dispense, 1*crackers_to_dispense)
+				sleep(1)
+			status = FALSE
+		qdel(S)
+		return
+	..()

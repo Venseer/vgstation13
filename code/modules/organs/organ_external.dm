@@ -120,6 +120,15 @@
 	owner.visible_message("<span class='danger'>[msg]</span>")
 	droplimb(1, spawn_limb = 0, display_message = FALSE)
 
+/datum/organ/external/proc/dust()
+	if(is_peg())
+		return droplimb(1)
+	var/obj/O = generate_dropped_organ()
+	var/obj/I = O.ashtype()
+	qdel(O)
+	new I(owner.loc)
+	droplimb(1, spawn_limb = 0, display_message = FALSE)
+
 /datum/organ/external/proc/take_damage(brute, burn, sharp, edge, used_weapon = null, list/forbidden_limbs = list())
 	if((brute <= 0) && (burn <= 0))
 		return 0
@@ -179,7 +188,7 @@
 				brute -= brute / 2
 
 	if(is_broken() && prob(40) && brute)
-		owner.emote("scream", , , 1) //Getting hit on broken and unsplinted limbs hurts
+		owner.audible_scream() //Getting hit on broken and unsplinted limbs hurts
 
 	if(used_weapon)
 		add_autopsy_data("[used_weapon]", brute + burn)
@@ -925,7 +934,7 @@ Note that amputating the affected organ does in fact remove the infection from t
 	"<span class='danger'>You hear a sickening crack.</span>")
 
 	if(owner.feels_pain())
-		owner.emote("scream", , , 1)
+		owner.audible_scream()
 
 	playsound(owner.loc, "fracture", 100, 1, -2)
 	status |= ORGAN_BROKEN
@@ -1425,8 +1434,8 @@ Note that amputating the affected organ does in fact remove the infection from t
 
 /datum/organ/external/head/explode()
 	owner.remove_internal_organ(owner, owner.internal_organs_by_name["brain"], src)
-
 	.=..()
+	owner.update_hair()
 
 /datum/organ/external/head/get_icon()
 	if(!owner)

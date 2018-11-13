@@ -574,7 +574,7 @@ proc/move_mining_shuttle()
 	mob_property_flags = MOB_ROBOTIC
 
 /mob/living/simple_animal/hostile/mining_drone/attackby(obj/item/I as obj, mob/user as mob)
-	if(istype(I, /obj/item/weapon/weldingtool))
+	if(iswelder(I))
 		var/obj/item/weapon/weldingtool/W = I
 		if(W.welding && !stat)
 			if(stance != HOSTILE_STANCE_IDLE)
@@ -596,7 +596,7 @@ proc/move_mining_shuttle()
 		if(!P.pai)
 			to_chat(user, "<span class = 'warning'>\The [P] has no intelligence within it.</span>")
 			return
-		var/response = alert(user, "Are you sure you want to put \the [P] into \the [src]? This can not be undone.","Yes","No")
+		var/response = alert(user, "Are you sure you want to put \the [P] into \the [src]? This can not be undone.","Insert \the [P]?","Yes","No")
 		if(response != "Yes")
 			return
 		if(do_after(user, src, 30))
@@ -928,7 +928,7 @@ proc/move_mining_shuttle()
 		var/list/L = list()
 		var/turf/unsimulated/mineral/M
 		for(M in range(7, user))
-			if(M.scan_state)
+			if(M.GetScanState())
 				L += M
 		if(!L.len)
 			to_chat(user, "<span class='notice'>\The [src] reports that nothing was detected nearby.</span>")
@@ -936,7 +936,7 @@ proc/move_mining_shuttle()
 		else
 			for(M in L)
 				var/turf/T = get_turf(M)
-				var/image/I = image('icons/turf/walls.dmi', loc = T, icon_state = M.scan_state, layer = UNDER_HUD_LAYER)
+				var/image/I = image('icons/turf/mine_overlays.dmi', loc = T, icon_state = M.GetScanState(), layer = UNDER_HUD_LAYER)
 				I.plane = HUD_PLANE
 				C.images += I
 				spawn(30)

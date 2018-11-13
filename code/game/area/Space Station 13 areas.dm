@@ -187,6 +187,7 @@ proc/process_adminbus_teleport_locs()
 
 /area/shuttle/escape_pod1
 	name = "\improper Escape Pod One"
+	icon_state = "shuttle2"
 	music = "music/escape.ogg"
 	holomap_color = HOLOMAP_AREACOLOR_ESCAPE
 
@@ -201,6 +202,7 @@ proc/process_adminbus_teleport_locs()
 
 /area/shuttle/escape_pod2
 	name = "\improper Escape Pod Two"
+	icon_state = "shuttle2"
 	music = "music/escape.ogg"
 	holomap_color = HOLOMAP_AREACOLOR_ESCAPE
 
@@ -215,6 +217,7 @@ proc/process_adminbus_teleport_locs()
 
 /area/shuttle/escape_pod3
 	name = "\improper Escape Pod Three"
+	icon_state = "shuttle2"
 	music = "music/escape.ogg"
 	holomap_color = HOLOMAP_AREACOLOR_ESCAPE
 
@@ -227,8 +230,15 @@ proc/process_adminbus_teleport_locs()
 /area/shuttle/escape_pod3/transit
 	icon_state = "shuttle"
 
+/area/shuttle/escape_pod4
+	name = "\improper Escape Pod Four"
+	icon_state = "shuttle2"
+	music = "music/escape.ogg"
+	holomap_color = HOLOMAP_AREACOLOR_ESCAPE
+
 /area/shuttle/escape_pod5 //Pod 4 was lost to meteors
 	name = "\improper Escape Pod Five"
+	icon_state = "shuttle2"
 	music = "music/escape.ogg"
 	holomap_color = HOLOMAP_AREACOLOR_ESCAPE
 
@@ -439,45 +449,6 @@ proc/process_adminbus_teleport_locs()
 /area/shuttle/salvage/trading_post
 	name = "\improper Trading Post"
 	icon_state = "yellow"
-
-// Taxi Shuttle
-
-/area/shuttle/taxi_a
-	name = "Taxi A"
-	requires_power = 0
-
-/area/shuttle/taxi_a/medcal_silicon_station
-	icon_state = "bluenew"
-
-/area/shuttle/taxi_a/engineering_cargo_station
-	icon_state = "bluenew"
-
-/area/shuttle/taxi_a/security_science_station
-	icon_state = "bluenew"
-
-/area/shuttle/taxi_a/abandoned_station
-	icon_state = "bluenew"
-
-// B
-
-/area/shuttle/taxi_b
-	name = "Taxi B"
-	requires_power = 0
-
-/area/shuttle/taxi_b/medcal_silicon_station
-	icon_state = "dk_yellow"
-
-/area/shuttle/taxi_b/engineering_cargo_station
-	icon_state = "dk_yellow"
-
-/area/shuttle/taxi_b/security_science_station
-	icon_state = "dk_yellow"
-
-/area/shuttle/taxi_b/abandoned_station
-	icon_state = "dk_yellow"
-
-// End Taxi Shuttle
-
 
 
 /area/airtunnel1/      // referenced in airtunnel.dm:759
@@ -1484,6 +1455,11 @@ proc/process_adminbus_teleport_locs()
 	name = "\improper Morgue"
 	icon_state = "morgue"
 
+/area/medical/coldstorage
+	name = "Morgue"
+	icon_state = "morgue"
+//for Roidstation - this area is radshielded.
+
 /area/medical/chemistry
 	name = "Chemistry"
 	icon_state = "chem"
@@ -1812,6 +1788,10 @@ proc/process_adminbus_teleport_locs()
 /area/science/podbay
 	name = "\improper Pod Bay"
 	icon_state = "pod"
+
+/area/science/breakroom
+	name = "\improper Research Break Room"
+	icon_state = "toxmisc"
 
 /area/science/server
 	name = "\improper Server Room"
@@ -2435,6 +2415,14 @@ proc/process_adminbus_teleport_locs()
 /area/awaymission/snowplanet
 	name = "snowplanet"
 	icon_state = "mining_production"
+
+/area/awaymission/articwasteland
+	name = "artic wasteland"
+	icon_state = "away"
+
+/area/awaymission/articwasteland/gateway
+	name = "artic wasteland gateway shelter"
+	icon_state = "away2"
 
 /////////////////////////////////////////////////////////////////////
 /*

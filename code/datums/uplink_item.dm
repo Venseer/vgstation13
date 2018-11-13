@@ -58,6 +58,9 @@ var/list/uplink_items = list()
 	var/only_on_day		//two-digit day as string
 	var/num_in_stock = 0	// Number of times this can be bought, globally. 0 is infinite
 	var/static/times_bought = 0
+	var/refundable = FALSE
+	var/refund_amount // specified refund amount in case there needs to be a TC penalty for refunds.
+
 
 /datum/uplink_item/proc/spawn_item(var/turf/loc, var/obj/item/device/uplink/U, mob/user)
 	U.uses -= max(cost, 0)
@@ -357,6 +360,13 @@ var/list/uplink_items = list()
 	cost = 4
 	job = list("Chemist", "Medical Doctor", "Chief Medical Officer")
 
+/datum/uplink_item/jobspecific/organ_remover
+	name = "Modified Organics Extractor"
+	desc = "A tool used by vox raiders to extract organs from unconscious victims has been reverse-engineered by syndicate scientists to be used by anyone, but it cannot extract hearts. It works twice as fast as the vox-only variant. Click on it to select the type of organ to extract, and then select the appropiate body zone."
+	item = /obj/item/weapon/organ_remover/traitor
+	cost = 6
+	job = list("Medical Doctor", "Chief Medical Officer")
+
 //Engineer
 /datum/uplink_item/jobspecific/powergloves
 	name = "Power Gloves"
@@ -561,6 +571,12 @@ var/list/uplink_items = list()
 	cost = 2
 	excludefrom = list("nuclear emergency")
 
+/datum/uplink_item/stealthy_tools/cold_jumpsuit
+	name = "Quick Vent Jumpsuit"
+	desc = "A variant of the Chameleon Jumpsuit that quickly vents the wearer's body heat, causing them to suffer latent hypothermia"
+	item = /obj/item/clothing/under/chameleon/cold
+	cost = 2
+
 /datum/uplink_item/stealthy_tools/syndigaloshes
 	name = "No-Slip Syndicate Shoes"
 	desc = "Allows you to run on wet floors. They do not work on lubricated surfaces and are distinguishable by their extra grip when examined closely."
@@ -722,6 +738,14 @@ var/list/uplink_items = list()
 	item = /obj/item/device/does_not_tip_backdoor
 	num_in_stock = 1
 	cost = 10
+
+//datum/uplink_item/dangerous/robot
+//	name = "Syndicate Robot Teleporter"
+//	desc = "A single-use teleporter used to deploy a syndicate robot that will help with your mission. Keep in mind that unlike NT cyborgs/androids these don't have access to most of the station's machinery."
+//	item = /obj/item/weapon/robot_spawner/syndicate
+//	cost = 40
+//	gamemodes = list("nuclear emergency")
+//	refundable = TRUE
 
 // IMPLANTS
 
