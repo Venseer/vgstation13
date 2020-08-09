@@ -37,6 +37,8 @@
 // Proximity_flag is 1 if this afterattack was called on something adjacent, in your square, or on your person.
 // Click parameters is the params string from byond Click() code, see that documentation.
 /obj/item/proc/afterattack(atom/target, mob/user, proximity_flag, click_parameters)
+	if(daemon && daemon.flags & DAEMON_AFTATT)
+		daemon.afterattack(target, user, proximity_flag, click_parameters)
 	return
 
 // Overrides the weapon attack so it can attack any atoms like when we want to have an effect on an object independent of attackby
@@ -47,9 +49,9 @@
 
 obj/item/proc/get_clamped_volume()
 	if(src.force && src.w_class)
-		return Clamp((src.force + src.w_class) * 4, 30, 100)// Add the item's force to its weight class and multiply by 4, then clamp the value between 30 and 100
+		return clamp((src.force + src.w_class) * 4, 30, 100)// Add the item's force to its weight class and multiply by 4, then clamp the value between 30 and 100
 	else if(!src.force && src.w_class)
-		return Clamp(src.w_class * 6, 10, 100) // Multiply the item's weight class by 6, then clamp the value between 10 and 100
+		return clamp(src.w_class * 6, 10, 100) // Multiply the item's weight class by 6, then clamp the value between 10 and 100
 
 /obj/item/proc/attack(mob/living/M as mob, mob/living/user as mob, def_zone, var/originator = null)
 	if(restraint_resist_time > 0)

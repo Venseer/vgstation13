@@ -24,10 +24,10 @@ FLOOR SAFES
 
 /obj/structure/safe/New()
 	tumbler_1_pos = rand(0, 71)
-	tumbler_1_open = rand(0, 71)
+	tumbler_1_open = rand(2, 71)
 
 	tumbler_2_pos = rand(0, 71)
-	tumbler_2_open = rand(0, 71)
+	tumbler_2_open = rand(2, 71)
 
 /obj/structure/safe/initialize()
 	for(var/obj/item/I in loc)
@@ -36,10 +36,6 @@ FLOOR SAFES
 		if(I.w_class + space <= maxspace)
 			space += I.w_class
 			I.forceMove(src)
-
-	//Trying to track down issue #18719		
-	log_debug("[get_area(src).name] safe has starting tumbler positions [tumbler_1_pos]-[tumbler_2_pos] and opening positions [tumbler_1_open]-[tumbler_2_open].")
-
 
 /obj/structure/safe/proc/check_unlocked(mob/user as mob, canhear)
 	if(user && canhear)
@@ -75,7 +71,7 @@ FLOOR SAFES
 		icon_state = initial(icon_state)
 
 
-/obj/structure/safe/attack_hand(mob/user as mob)
+/obj/structure/safe/attack_hand(mob/user,params,proximity)
 	user.set_machine(src)
 
 	var/dat = {"<center>
@@ -94,9 +90,8 @@ FLOOR SAFES
 	if(!ishigherbeing(usr))
 		return
 	var/mob/living/carbon/human/user = usr
-
 	var/canhear = 0
-	if(user.find_held_item_by_type(/obj/item/clothing/accessory/stethoscope))
+	if(Adjacent(user) && user.find_held_item_by_type(/obj/item/clothing/accessory/stethoscope))
 		canhear = 1
 
 	if(href_list["open"])
@@ -208,7 +203,7 @@ obj/structure/safe/ex_act(severity)
 		/obj/item/weapon/gun/energy/staff/change,
 		/obj/item/weapon/gun/energy/staff/animate,
 		/obj/item/weapon/gun/energy/staff/focus,
-		/obj/abstract/loadout/gemsuit
+		/obj/item/weapon/storage/box/smartbox/clothing_box/gemsuit,
 		)
 
 /obj/structure/safe/floor/wizard/New()

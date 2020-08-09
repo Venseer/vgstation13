@@ -40,11 +40,6 @@
 			return L[index]
 	return
 
-/proc/islist(list/L)
-	if(istype(L))
-		return 1
-	return 0
-
 //Return either pick(list) or null if list is not of type /list or is empty
 /proc/safepick(list/L)
 	if(istype(L) && L.len)
@@ -79,6 +74,18 @@
 	for(var/type in L)
 		for(var/T in typesof(type)) //Gather all possible typepaths into an associative list
 			L[T] = MAX_VALUE //Set them equal to the max value which is unlikely to collide with any other pregenerated value
+
+//Removes returns a new list which only contains elements from the original list of a certain type
+/proc/prune_list_to_type(list/L, datum/A)
+	if(!L || !L.len || !A)
+		return 0
+	if(!ispath(A))
+		A = A.type
+	var/list/nu = L.Copy()
+	for(var/element in nu)
+		if(!istype(element,A))
+			nu -= element
+	return nu
 
 //Empties the list by setting the length to 0. Hopefully the elements get garbage collected
 /proc/clearlist(list/list)
@@ -128,14 +135,14 @@
 		result = first ^ second
 	return result
 
-//Pretends to pick an element based on its weight but really just seems to pick a random element.
+//Picks an element based on its weight
 /proc/pickweight(list/L)
 	if(!L || !L.len)
 		return
 	var/total = 0
 	var/item
 	for (item in L)
-		if (!L[item])
+		if (isnull(L[item]))
 			L[item] = 1
 		total += L[item]
 
@@ -290,6 +297,19 @@
 			return key
 	return null
 
+//In an associative list, get only the elements and not the keys.
+/proc/get_list_of_elements(var/list/L)
+	var/list/elements = list()
+	for(var/key in L)
+		elements += L[key]
+	return elements
+
+//In an associative list, get only the keys and not the elements.
+/proc/get_list_of_keys(var/list/L)
+	var/list/keys = list()
+	for(var/key in L)
+		keys += key
+	return keys
 
 /proc/count_by_type(var/list/L, type)
 	var/i = 0
@@ -303,6 +323,15 @@
 		if(R.fields[field] == value)
 			return R
 
+//get total of nums in a list, ignores non-num values
+//great with get_list_of_elements!
+/proc/total_list(var/list/L)
+	var/total = 0
+	for(var/element in L)
+		if(!isnum(element))
+			continue
+		total += element
+	return total
 
 //Move a single element from position fromIndex within a list, to position toIndex
 //All elements in the range [1,toIndex) before the move will be before the pivot afterwards

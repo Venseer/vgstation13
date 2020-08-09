@@ -38,7 +38,6 @@ var/runedec = 0 // Rune cap ?
 	if (!my_cult)
 		CRASH("Creating a rune without an active cult")
 	cultwords = my_cult.cult_words
-	stat_collection.cult_runes_written++
 
 /obj/effect/rune_legacy/Destroy()
 	if(istype(ajourn))
@@ -64,10 +63,9 @@ var/runedec = 0 // Rune cap ?
 		to_chat(user, "You retrace your steps, carefully undoing the lines of the rune.")
 		qdel(src)
 		return
-	else if(istype(I, /obj/item/weapon/nullrod))
+	else if(isholyweapon(I))
 		to_chat(user, "<span class='notice'>You disrupt the vile magic with the deadening field of \the [I]!</span>")
 		qdel(src)
-		stat_collection.cult_runes_nulled++
 		return
 	return
 
@@ -142,7 +140,6 @@ var/runedec = 0 // Rune cap ?
 
 
 /obj/effect/rune_legacy/proc/fizzle()
-	stat_collection.cult_runes_fumbled++
 	if(istype(src,/obj/effect/rune))
 		usr.say(pick("B'ADMINES SP'WNIN SH'T","IC'IN O'OC","RO'SHA'M I'SA GRI'FF'N ME'AI","TOX'IN'S O'NM FI'RAH","IA BL'AME TOX'IN'S","FIR'A NON'AN RE'SONA","A'OI I'RS ROUA'GE","LE'OAN JU'STA SP'A'C Z'EE SH'EF","IA PT'WOBEA'RD, IA A'DMI'NEH'LP"))
 	else
@@ -157,8 +154,8 @@ var/runedec = 0 // Rune cap ?
 /obj/item/weapon/tome_legacy
 	name = "arcane tome"
 	desc = "An old, dusty tome with frayed edges and a sinister looking cover."
-	icon = 'icons/obj/cult.dmi'
-	icon_state ="tome"
+	icon = 'icons/obj/weapons.dmi'
+	icon_state ="tomeold"
 	throw_speed = 1
 	throw_range = 5
 	w_class = W_CLASS_SMALL

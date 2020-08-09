@@ -3,8 +3,8 @@
 /obj/item/weapon/disk/shuttle_coords
 	name = "shuttle destination disk"
 	desc = "A small disk containing encrypted coordinates and tracking data."
-	icon = 'icons/obj/cloning.dmi'
-	icon_state = "datadisk0"
+	icon = 'icons/obj/datadisks.dmi'
+	icon_state = "disk_shuttle"
 
 	var/obj/docking_port/destination/destination //Docking port linked to this disk.
 	//If this variable contains a path like (/obj/structure/docking_port/destination/my_dungeon), the disk will find a destination docking port of that type and automatically link to it
@@ -13,11 +13,23 @@
 	var/header = "SDC Data Disk" //Name of the disk, shown on the console. SDC stands Shuttle Destination Coordinates
 
 	var/list/allowed_shuttles = list() //List of allowed shuttles. Accepts paths (for example /datum/shuttle/arrival). If empty, all shuttles are allowed
-
+	starting_materials = list(MAT_GLASS = 1250)
 //Example:
 /obj/item/weapon/disk/shuttle_coords/station_arrivals
 	destination = /obj/docking_port/destination/transport/station
 	header = "station arrivals"
+
+/obj/item/weapon/disk/shuttle_coords/station_auxillary
+	name = "auxillary docking disk"
+	header = "station auxillary docking"
+	destination = /obj/docking_port/destination/salvage/arrivals
+	allowed_shuttles = list(/datum/shuttle/custom)
+
+/obj/item/weapon/disk/shuttle_coords/disk_jockey
+	name = "Russian propaganda station destination disk"
+	header = "DJ station"
+	destination = /obj/docking_port/destination/salvage/dj
+	starting_materials = list(MAT_GLASS = 1250, MAT_GOLD = 1250)
 
 /obj/item/weapon/disk/shuttle_coords/vault
 	allowed_shuttles = list(/datum/shuttle/mining, /datum/shuttle/research, /datum/shuttle/security)
@@ -104,6 +116,7 @@
 
 /obj/item/weapon/card/shuttle_pass/Destroy()
 	destination = null
+	..()
 
 /obj/item/weapon/card/shuttle_pass/ert
 	name = "\improper ERT shuttle pass"
@@ -174,9 +187,6 @@
 		span_s = "<i>"
 		span_e = "</i>"
 
-	if(shuttle && !shuttle.linked_port)
-		span_s = ""
-		span_e = ""
 
 	return "[span_s][name][span_e]"
 
@@ -212,12 +222,10 @@
 				dat += "Additional information has not been provided."
 		else if(!shuttle.linked_area)
 			dat = "<h2><font color='red'>UNABLE TO FIND [uppertext(shuttle.name)]</font></h2>"
-		else if(!shuttle.linked_port)
-			dat += {"<h2><font color='red'>This shuttle has no docking port specified.</font></h2><br>
-				<a href='?src=\ref[src];link_to_port=1'>Scan for docking ports</a>"}
 		else if(shuttle.moving)
 			dat += "<center><h3>Currently moving [shuttle.destination_port.areaname ? "to [shuttle.destination_port.areaname]" : ""]</h3></center>"
 		else
+			dat += {"<a href='?src=\ref[src];link_to_port=1'>Scan for docking ports</a><br>"}
 			if(shuttle.current_port)
 				dat += "Location: <b>[shuttle.current_port.areaname]</b><br>"
 			else
@@ -290,9 +298,10 @@
 	src.add_fingerprint(usr)
 	if(href_list["move"])
 		if(!shuttle)
+			to_chat(usr, "<span class = 'warning'>No shuttle detected.</span>")
 			return
 		if(!allowed(usr))
-			to_chat(usr, "<font color='red'>Access denied.</font>")
+			to_chat(usr, "<span class='red'>Access denied.</span>")
 			return
 
 		if(!selected_port && shuttle.docking_ports.len >= 2)
@@ -302,9 +311,11 @@
 		if(!allow_selecting_all && !(selected_port in shuttle.docking_ports))
 			//Check disks too
 			if(!disk || !disk.compactible(shuttle) || (disk.destination != selected_port))
+				to_chat(usr, "<span class = 'warning'>[!disk?"No disk detected":!disk.compactible(shuttle)?"Current disk not conpatable with current shuttle.":"Currently selected docking port not valid."]</span>")
 				return
 
 		if(selected_port.docked_with) //If used by another shuttle, don't try to move this shuttle
+			to_chat(usr, "<span class = 'warning'>Selected port is currently in use.</span>")
 			return
 
 		//Send a message to the shuttle to move
@@ -318,7 +329,7 @@
 		if(!shuttle.linked_area)
 			return
 		if(!allowed(usr))
-			to_chat(usr, "<font color='red'>Access denied.</font>")
+			to_chat(usr, "<span class='red'>Access denied.</span>")
 			return
 
 		var/list/ports = list()
@@ -341,7 +352,7 @@
 
 	if(href_list["select"])
 		if(!allowed(usr))
-			to_chat(usr, "<font color='red'>Access denied.</font>")
+			to_chat(usr, "<span class='red'>Access denied.</span>")
 			return
 		var/obj/docking_port/A = locate(href_list["select"]) in all_docking_ports
 		if(!A)
@@ -351,27 +362,30 @@
 		src.updateUsrDialog()
 	if(href_list["link_to_shuttle"])
 		if(!allowed(usr))
-			to_chat(usr, "<font color='red'>Access denied.</font>")
+			to_chat(usr, "<span class='red'>Access denied.</span>")
 			return
 		var/list/L = list()
+		var/area/this_area = get_area(src)
 		for(var/datum/shuttle/S in shuttles)
-			var/name = S.name
-			switch(S.can_link_to_computer)
-				if(LINK_PASSWORD_ONLY)
-					name = "[name] (requires password)"
-				if(LINK_FORBIDDEN)
-					continue
-
+			var/name
+			if(S.can_link_to_computer == LINK_FORBIDDEN)
+				continue
+			else if(S.can_link_to_computer == LINK_FREE || this_area.get_shuttle() == S)
+				name = S.name
+			else if(S.password)
+				name = "[S.name] (requires password)"
+			else
+				continue
 			L += name
 			L[name] = S
 
-		var/choice = input(usr,"Select a shuttle to link this computer to", "Shuttle control console") in L as text|null
+		var/choice = input(usr,"Select a shuttle to link this computer to", "Shuttle control console") as null|anything in L
 		if(!Adjacent(usr) && !isAdminGhost(usr) && !isAI(usr))
 			return
 		if(L[choice] && istype(L[choice],/datum/shuttle))
 			var/datum/shuttle/S = L[choice]
 
-			if(S.can_link_to_computer == LINK_PASSWORD_ONLY)
+			if(S.password)
 				var/password_attempt = input(usr,"Please input [capitalize(S.name)]'s interface password:", "Shuttle control console", 00000) as num
 
 				if(!Adjacent(usr) && !isAdminGhost(usr) && !isAI(usr))
@@ -431,18 +445,21 @@
 			return
 
 		var/list/L = list()
+		var/area/this_area = get_area(src)
 		for(var/datum/shuttle/S in shuttles)
-			var/name = S.name
-			switch(S.can_link_to_computer)
-				if(LINK_PASSWORD_ONLY)
-					name = "[name] (password)"
-				if(LINK_FORBIDDEN)
-					name = "[name] (private)"
-
+			var/name
+			if(S.can_link_to_computer == LINK_FORBIDDEN)
+				continue
+			else if(S.can_link_to_computer == LINK_FREE || this_area.get_shuttle() == S)
+				name = S.name
+			else if(S.password)
+				name = "[S.name] (requires password)"
+			else
+				continue
 			L += name
 			L[name] = S
 
-		var/choice = input(usr,"Select a shuttle to link this computer to", "Admin abuse") in L as text|null
+		var/choice = input(usr,"Select a shuttle to link this computer to", "Admin abuse") as null|anything in L
 		if(L[choice] && istype(L[choice],/datum/shuttle))
 			shuttle = L[choice]
 
@@ -520,18 +537,24 @@
 
 /obj/machinery/computer/shuttle_control/proc/insert_disk(obj/item/weapon/disk/shuttle_coords/SC, mob/user)
 	if(!shuttle)
-		to_chat(usr, "<span class='info'>\The [src] is unresponsive.</span>")
+		to_chat(user, "<span class='info'>\The [src] is unresponsive.</span>")
 		return
 
 	if(!istype(SC))
 		if(istype(SC, /obj/item/weapon/disk)) //It's a disk, but not a compactible one
-			to_chat(usr, "<span class='info'>The disk is rejected by \the [src].</span>")
+			to_chat(user, "<span class='info'>The disk is rejected by \the [src].</span>")
 
 		return
 
+	if(disk)
+		//An old disk is already inserted.
+		to_chat(user, "<span class='warning'>The old [disk.name] pops out of the disk slot!</span>")
+		disk.forceMove(src.loc)
+		disk = null
+
 	if(user.drop_item(SC, src))
 		disk = SC
-		to_chat(usr, "<span class='info'>You insert \the [SC] into \the [src].</span>")
+		to_chat(user, "<span class='info'>You insert \the [SC] into \the [src].</span>")
 		src.updateUsrDialog()
 
 /obj/machinery/computer/shuttle_control/proc/use_pass(obj/item/weapon/card/shuttle_pass/P, mob/user)

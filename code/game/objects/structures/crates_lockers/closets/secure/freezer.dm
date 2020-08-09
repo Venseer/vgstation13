@@ -8,6 +8,7 @@
 	processing_objects.Add(src)
 
 /obj/structure/closet/secure_closet/freezer/process()
+	..()
 	if(exploded)
 		processing_objects.Remove(src)
 		return
@@ -118,7 +119,8 @@
 	return list(
 		/obj/item/weapon/reagent_containers/food/drinks/milk = 5,
 		/obj/item/weapon/reagent_containers/food/drinks/soymilk = 5,
-		/obj/item/weapon/storage/fancy/egg_box = 2
+		/obj/item/weapon/storage/fancy/egg_box = 2,
+		/obj/item/weapon/reagent_containers/food/snacks/mint = 1
 	)
 
 

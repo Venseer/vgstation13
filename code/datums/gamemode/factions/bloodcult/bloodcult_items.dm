@@ -55,14 +55,14 @@ var/list/arcane_tomes = list()
 			<a href='byond://?src=\ref[src];page=[PAGE_FOREWORD]'><label> * </label> <li> Foreword</a> </li>"}
 
 	var i = 1
-	for(var/subtype in subtypesof(/datum/rune_spell))
-		var/datum/rune_spell/instance = subtype
+	for(var/subtype in subtypesof(/datum/rune_spell/blood_cult))
+		var/datum/rune_spell/blood_cult/instance = subtype
 		if (initial(instance.Act_restriction) <= veil_thickness)
 			dat += "<a href='byond://?src=\ref[src];page=[i]'><label> \Roman[i] </label> <li>  [initial(instance.name)] </li></a>"
 			if (i == current_page)
-				var/datum/cultword/word1 = initial(instance.word1)
-				var/datum/cultword/word2 = initial(instance.word2)
-				var/datum/cultword/word3 = initial(instance.word3)
+				var/datum/runeword/word1 = initial(instance.word1)
+				var/datum/runeword/word2 = initial(instance.word2)
+				var/datum/runeword/word3 = initial(instance.word3)
 				page_data = {"<div align="center"><b>\Roman[i]<br>[initial(instance.name)]</b><br><i>[initial(word1.english)], [initial(word2.english)], [word3 ? "[initial(word3.english)]" : "<any>"]</i></div><br>"}
 				page_data += initial(instance.page)
 		else
@@ -74,13 +74,7 @@ var/list/arcane_tomes = list()
 			<div class="column">      <div align="left">      <b><ul>"}
 
 	for (var/obj/item/weapon/talisman/T in talismans)
-		var/datum/rune_spell/instance = T.spell_type
-		var/talisman_name = "\[blank\]"
-		if (T.blood_text)
-			talisman_name = "\[blood message\]"
-		if (instance)
-			talisman_name = initial(instance.name)
-		dat += {"<label> * </label><li>  <a style="color:#AE250F" href='byond://?src=\ref[src];talisman=\ref[T]'>[talisman_name][(T.uses > 1) ? " [T.uses] uses" : ""]</a> <a style="color:#AE250F" href='byond://?src=\ref[src];remove=\ref[T]'>(x)</a> </li>"}
+		dat += {"<label> * </label><li>  <a style="color:#AE250F" href='byond://?src=\ref[src];talisman=\ref[T]'>[T.talisman_name()][(T.uses > 1) ? " [T.uses] uses" : ""]</a> <a style="color:#AE250F" href='byond://?src=\ref[src];remove=\ref[T]'>(x)</a> </li>"}
 
 	dat += {"</ul></b></div><div style="margin: 0px 20px;" align="justify">"}
 
@@ -119,6 +113,7 @@ var/list/arcane_tomes = list()
 	if(href_list["page"])
 		current_page = text2num(href_list["page"])
 		flick("tome-flick",src)
+		playsound(usr, "pageturn", 50, 1, -5)
 
 	if(href_list["talisman"])
 		var/obj/item/weapon/talisman/T = locate(href_list["talisman"])
@@ -201,6 +196,7 @@ var/list/arcane_tomes = list()
 			icon_state = "tome-open"
 			item_state = "tome-open"
 			flick("tome-flickopen",src)
+			playsound(user, "pageturn", 50, 1, -5)
 			state = TOME_OPEN
 			usr << browse_rsc('icons/tomebg.png', "tomebg.png")
 			usr << browse(tome_text(), "window=arcanetome;size=537x375")
@@ -221,6 +217,7 @@ var/list/arcane_tomes = list()
 		if (Adjacent(user))
 			to_chat(user, "You flick a page.")
 			flick("tome-flick",src)
+			playsound(user, "pageturn", 50, 1, -3)
 			can_flick = 0
 			spawn(5)
 				can_flick = 1
@@ -242,6 +239,36 @@ var/list/arcane_tomes = list()
 		else
 			to_chat(user, "<span class='warning'>This tome cannot contain any more talismans. Use or remove some first.</span>")
 
+/obj/item/weapon/tome/AltClick(var/mob/user)
+	var/list/choices = list()
+	var/datum/rune_spell/blood_cult/instance
+	var/list/choice_to_talisman = list()
+	var/image/talisman_image
+	for(var/obj/item/weapon/talisman/T in talismans)
+		talisman_image = new(T)
+		instance = T.spell_type
+		choices += list(list(T, talisman_image, initial(instance.desc_talisman), T.talisman_name()))
+		choice_to_talisman[initial(instance.name)] = T
+
+	if (state == TOME_CLOSED)
+		icon_state = "tome-open"
+		item_state = "tome-open"
+		flick("tome-flickopen",src)
+		playsound(user, "pageturn", 50, 1, -5)
+		state = TOME_OPEN
+	var/choice = show_radial_menu(user,loc,choices,'icons/obj/cult_radial3.dmi', "radial-cult2")
+	if(!choice_to_talisman[choice])
+		return
+	var/obj/item/weapon/talisman/chosen_talisman = choice_to_talisman[choice]
+	if(!usr.held_items.Find(src))
+		return
+	if (state == TOME_OPEN)
+		icon_state = "tome"
+		item_state = "tome"
+		flick("tome-stun",src)
+		state = TOME_CLOSED
+	talismans.Remove(chosen_talisman)
+	usr.put_in_hands(chosen_talisman)
 
 #undef PAGE_FOREWORD
 #undef PAGE_LORE1
@@ -274,6 +301,15 @@ var/list/arcane_tomes = list()
 	pixel_x=0
 	pixel_y=0
 
+/obj/item/weapon/talisman/proc/talisman_name()
+	var/datum/rune_spell/blood_cult/instance = spell_type
+	if (blood_text)
+		return "\[blood message\]"
+	if (instance)
+		return initial(instance.name)
+	else
+		return "\[blank\]"
+
 /obj/item/weapon/talisman/examine(var/mob/user)
 	..()
 	if (blood_text)
@@ -286,7 +322,7 @@ var/list/arcane_tomes = list()
 		to_chat(user, "<span class='info'>This one however seems pretty unremarkable.</span>")
 		return
 
-	var/datum/rune_spell/instance = spell_type
+	var/datum/rune_spell/blood_cult/instance = spell_type
 
 	if (iscultist(user) || isobserver(user))
 		if (attuned_rune)
@@ -311,7 +347,7 @@ var/list/arcane_tomes = list()
 
 /obj/item/weapon/talisman/attack(var/mob/living/target, var/mob/living/user)
 	if(iscultist(user) && spell_type)
-		var/datum/rune_spell/instance = spell_type
+		var/datum/rune_spell/blood_cult/instance = spell_type
 		if (initial(instance.touch_cast))
 			new spell_type(user, src, "touch", target)
 			qdel(src)
@@ -330,12 +366,12 @@ var/list/arcane_tomes = list()
 
 	if (!spell_type)
 		if (!(src in user.held_items))//triggering an empty rune from a tome removes it.
-			user.put_in_hands(src)
 			if (istype(loc, /obj/item/weapon/tome))
 				var/obj/item/weapon/tome/T = loc
 				T.talismans.Remove(src)
 				user << browse_rsc('icons/tomebg.png', "tomebg.png")
 				user << browse(T.tome_text(), "window=arcanetome;size=537x375")
+				user.put_in_hands(src)
 		return
 
 	if (attuned_rune)
@@ -356,7 +392,7 @@ var/list/arcane_tomes = list()
 		T.talismans.Remove(src)
 	qdel(src)
 
-/obj/item/weapon/talisman/proc/imbue(var/mob/user, var/obj/effect/rune/R)
+/obj/item/weapon/talisman/proc/imbue(var/mob/user, var/obj/effect/rune/blood_cult/R)
 	if (!user || !R)
 		return
 
@@ -364,7 +400,7 @@ var/list/arcane_tomes = list()
 		to_chat(user, "<span class='warning'>Cannot imbue a talisman that has been written on.</span>")
 		return
 
-	var/datum/rune_spell/spell = get_rune_spell(user,null,"examine",R.word1, R.word2, R.word3)
+	var/datum/rune_spell/blood_cult/spell = get_rune_spell(user,null,"examine",R.word1, R.word2, R.word3)
 	if(initial(spell.talisman_absorb) == RUNE_CANNOT)//placing a talisman on a Conjure Talisman rune to try and fax it
 		user.drop_item(src)
 		src.forceMove(get_turf(R))
@@ -398,16 +434,21 @@ var/list/arcane_tomes = list()
 		uses = initial(spell.talisman_uses)
 
 		var/talisman_interaction = initial(spell.talisman_absorb)
-		if (R.active_spell)//some runes may change their interaction type dynamically (ie: Path Exit runes)
-			talisman_interaction = R.active_spell.talisman_absorb
-			if (istype(R.active_spell,/datum/rune_spell/portalentrance))
-				var/datum/rune_spell/portalentrance/entrance = R.active_spell
+		var/datum/rune_spell/blood_cult/active_spell = R.active_spell
+		if(!istype(R))
+			return
+		if (active_spell)//some runes may change their interaction type dynamically (ie: Path Exit runes)
+			talisman_interaction = active_spell.talisman_absorb
+			if (istype(active_spell,/datum/rune_spell/blood_cult/portalentrance))
+				var/datum/rune_spell/blood_cult/portalentrance/entrance = active_spell
 				if (entrance.network)
-					word_pulse(cultwords[entrance.network])
-			else if (istype(R.active_spell,/datum/rune_spell/portalexit))
-				var/datum/rune_spell/portalentrance/exit = R.active_spell
+					var/datum/runeset/rune_set = global_runesets["blood_cult"]
+					word_pulse(rune_set.words[entrance.network])
+			else if (istype(active_spell,/datum/rune_spell/blood_cult/portalexit))
+				var/datum/rune_spell/blood_cult/portalentrance/exit = active_spell
 				if (exit.network)
-					word_pulse(cultwords[exit.network])
+					var/datum/runeset/rune_set = global_runesets["blood_cult"]
+					word_pulse(rune_set.words[exit.network])
 
 		switch(talisman_interaction)
 			if (RUNE_CAN_ATTUNE)
@@ -422,7 +463,7 @@ var/list/arcane_tomes = list()
 				message_admins("Error! ([key_name(user)]) managed to imbue a Conjure Talisman rune. That shouldn't be possible!")
 				return
 
-/obj/item/weapon/talisman/proc/word_pulse(var/datum/cultword/W)
+/obj/item/weapon/talisman/proc/word_pulse(var/datum/runeword/W)
 	var/image/I1 = image(icon,"talisman-[W.icon_state]a")
 	animate(I1, color = list(2,0.67,0.27,0,0.27,2,0.67,0,0.67,0.27,2,0,0,0,0,1,0,0,0,0), time = 5, loop = -1)
 	animate(color = list(1.875,0.56,0.19,0,0.19,1.875,0.56,0,0.56,0.19,1.875,0,0,0,0,1,0,0,0,0), time = 1)
@@ -512,7 +553,12 @@ var/list/arcane_tomes = list()
 		for(var/mob/living/simple_animal/shade/A in I)
 			A.forceMove(SB)
 			SB.shade = A
-			A.give_blade_powers()
+			if (A.mind)
+				A.give_blade_powers()
+			else
+				to_chat(user,"<span class='warning'>Although the game appears to hold a shade, it somehow doesn't appear to have a mind capable of manipulating the blade.</span>")
+				to_chat(user,"<span class='danger'>(that's a bug, call Deity, and tell him exactly how you obtained that shade).</span>")
+				message_admins("[key_name(usr)] somehow placed a soul gem containing a shade with no mind inside a soul blade.")
 			break
 		SB.update_icon()
 		qdel(I)
@@ -543,7 +589,7 @@ var/list/arcane_tomes = list()
 
 /obj/item/weapon/melee/soulblade
 	name = "soul blade"
-	desc = "An obsidian blade fitted with a soul gem, giving it soul catching propertiess."
+	desc = "An obsidian blade fitted with a soul gem, giving it soul catching properties."
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/swords_axes.dmi', "right_hand" = 'icons/mob/in-hand/right/swords_axes.dmi')
 	icon = 'icons/obj/cult_64x64.dmi'
 	pixel_x = -16 * PIXEL_MULTIPLIER
@@ -563,8 +609,8 @@ var/list/arcane_tomes = list()
 	var/maxregenblood = 8//the maximum amount of blood you can regen by waiting around.
 	var/maxblood = 100
 	var/movespeed = 2//smaller = faster
-	health = 50
-	var/maxHealth = 50
+	health = 40
+	var/maxHealth = 40
 
 /obj/item/weapon/melee/soulblade/Destroy()
 	var/turf/T = get_turf(src)
@@ -675,7 +721,7 @@ var/list/arcane_tomes = list()
 		var/turf/target = get_turf(A)
 		var/obj/item/projectile/bloodslash/BS = new (starting)
 		BS.firer = user
-		BS.original = target
+		BS.original = A
 		BS.target = target
 		BS.current = starting
 		BS.starting = starting
@@ -707,7 +753,7 @@ var/list/arcane_tomes = list()
 					blood = min(100,blood+5)
 					to_chat(user, "<span class='warning'>You steal a bit of their blood, but not much.</span>")
 
-			if (shade)
+			if (shade && shade.hud_used && shade.gui_icons && shade.gui_icons.soulblade_bloodbar)
 				var/matrix/MAT = matrix()
 				MAT.Scale(1,blood/maxblood)
 				var/total_offset = (60 + (100*(blood/maxblood))) * PIXEL_MULTIPLIER
@@ -945,12 +991,12 @@ var/list/arcane_tomes = list()
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/cultstuff.dmi', "right_hand" = 'icons/mob/in-hand/right/cultstuff.dmi')
 	icon_state = "culthood"
 	desc = "A hood worn by the followers of Nar-Sie."
-	flags = FPRINT
 	armor = list(melee = 30, bullet = 10, laser = 10,energy = 5, bomb = 10, bio = 25, rad = 0)
-	body_parts_covered = EARS|HEAD
+	body_parts_covered = EARS|HEAD|HIDEHAIR
+	body_parts_visible_override = FACE
 	siemens_coefficient = 0
 	heat_conductivity = SPACESUIT_HEAT_CONDUCTIVITY
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/head/culthood/get_cult_power()
 	return 20
@@ -972,7 +1018,7 @@ var/list/arcane_tomes = list()
 	max_heat_protection_temperature = SHOE_MAX_HEAT_PROTECTION_TEMPERATURE
 	species_fit = list(VOX_SHAPED)
 
-/obj/item/clothing/head/culthood/get_cult_power()
+/obj/item/clothing/shoes/cult/get_cult_power()
 	return 10
 
 /obj/item/clothing/shoes/cult/cultify()
@@ -990,7 +1036,7 @@ var/list/arcane_tomes = list()
 	allowed = list(/obj/item/weapon/melee/cultblade,/obj/item/weapon/melee/soulblade,/obj/item/weapon/tome,/obj/item/weapon/talisman,/obj/item/weapon/blood_tesseract)
 	armor = list(melee = 50, bullet = 30, laser = 30,energy = 20, bomb = 25, bio = 25, rad = 0)
 	siemens_coefficient = 0
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 	clothing_flags = ONESIZEFITSALL
 
 /obj/item/clothing/suit/cultrobes/get_cult_power()
@@ -1049,7 +1095,7 @@ var/list/arcane_tomes = list()
 	item_state = "culthelmet"
 	armor = list(melee = 60, bullet = 50, laser = 50,energy = 15, bomb = 50, bio = 30, rad = 30)
 	siemens_coefficient = 0
-	species_fit = list(VOX_SHAPED, UNDEAD_SHAPED)
+	species_fit = list(VOX_SHAPED, UNDEAD_SHAPED, INSECT_SHAPED)
 	clothing_flags = PLASMAGUARD|CONTAINPLASMAMAN
 	max_heat_protection_temperature = FIRE_HELMET_MAX_HEAT_PROTECTION_TEMPERATURE
 
@@ -1073,7 +1119,7 @@ var/list/arcane_tomes = list()
 	slowdown = HARDSUIT_SLOWDOWN_MED
 	armor = list(melee = 60, bullet = 50, laser = 50,energy = 15, bomb = 50, bio = 30, rad = 30)
 	siemens_coefficient = 0
-	species_fit = list(VOX_SHAPED, UNDEAD_SHAPED)
+	species_fit = list(VOX_SHAPED, UNDEAD_SHAPED, INSECT_SHAPED)
 	clothing_flags = PLASMAGUARD|CONTAINPLASMAMAN|ONESIZEFITSALL
 	max_heat_protection_temperature = FIRESUIT_MAX_HEAT_PROTECTION_TEMPERATURE
 
@@ -1119,13 +1165,11 @@ var/list/arcane_tomes = list()
 	siemens_coefficient = 0
 
 
-
-
 ///////////////////////////////////////DEBUG ITEMS////////////////////////////////////////////////
 //Pamphlet: turns you into a cultist
 /obj/item/weapon/bloodcult_pamphlet
 	name = "cult of Nar-Sie pamphlet"
-	desc = "Looks like a page torn from a tome. One glimpse at it surely can't hurt you."
+	desc = "Looks like a page torn from one of those cultist tomes. It is titled \"Ten reasons why Nar-Sie can improve your life!\""
 	icon = 'icons/obj/cult.dmi'
 	icon_state ="pamphlet"
 	throwforce = 0
@@ -1184,18 +1228,38 @@ var/list/arcane_tomes = list()
 	starting_materials = list(MAT_IRON = 3750)
 	w_type=RECYK_METAL
 
+/obj/item/weapon/storage/cult/sponsored
+	name = "sponsored coffer"
+	desc = "A sponsor-sticker-plastered storage chest."
+
+/obj/item/weapon/storage/cult/sponsored/New()
+	..()
+	var/obj/item/weapon/reagent_containers/food/drinks/cult/cup = new(src)
+	cup.reagents.add_reagent(BLOOD, 50)
+	for(var/i in 1 to 2)
+		new /obj/item/weapon/reagent_containers/food/drinks/soda_cans/geometer(src)
 ///////////////////////////////////////CULT GLASS////////////////////////////////////////////////
 
 /obj/item/weapon/reagent_containers/food/drinks/cult
-	name = "cup"
-	desc = "A cup carved from a skull."
+	name = "tempting goblet"
+	desc = "An obsidian cup in the shape of a skull. Used by the followers of Nar-Sie to collect the blood of their sacrifices."
 	icon_state = "cult"
 	item_state = "cult"
 	isGlass = 0
 	amount_per_transfer_from_this = 10
 	volume = 60
-	starting_materials = list(MAT_IRON = 500)
+	force = 5
+	throwforce = 7
 
+/obj/item/weapon/reagent_containers/food/drinks/cult/examine(var/mob/user)
+	..()
+	if (iscultist(user))
+		if(issilicon(user))
+			to_chat(user, "<span class='info'>Drinking blood from this cup will always safely replenish the vessels of cultists, regardless of blood type. It's a shame you're a robot.</span>")
+		else
+			to_chat(user, "<span class='info'>Drinking blood from this cup will always safely replenish your own vessels, regardless of blood types. The opposite is true to non-cultists. Throwing this cup at them may force them to swallow some of its content if their face isn't covered.</span>")
+	else if (get_blood(reagents))
+		to_chat(user, "<span class='sinister'>Its contents look delicious though. Surely a sip won't hurt...</span>")
 
 /obj/item/weapon/reagent_containers/food/drinks/cult/on_reagent_change()
 	..()
@@ -1205,6 +1269,20 @@ var/list/arcane_tomes = list()
 		filling.icon += mix_color_from_reagents(reagents.reagent_list)
 		filling.alpha = mix_alpha_from_reagents(reagents.reagent_list)
 		overlays += filling
+
+/obj/item/weapon/reagent_containers/food/drinks/cult/throw_impact(var/atom/hit_atom)
+	if(reagents.total_volume)
+		if (ishuman(hit_atom))
+			var/mob/living/carbon/human/H = hit_atom
+			if(!(H.species.chem_flags & NO_DRINK) && !(H.get_body_part_coverage(MOUTH)))
+				H.visible_message("<span class='warning'>Some of \the [src]'s content spills into \the [H]'s mouth.</span>","<span class='danger'>Some of \the [src]'s content spills into your mouth.</span>")
+				reagents.reaction(H, INGEST)
+				reagents.trans_to(H, gulp_size)
+	transfer(get_turf(hit_atom), null, splashable_units = -1)
+
+/obj/item/weapon/reagent_containers/food/drinks/cult/gamer
+	name = "gamer goblet"
+	desc = "A plastic cup in the shape of a skull. Typically full of Geometer-Fuel."
 
 ///////////////////////////////////////BLOOD TESSERACT////////////////////////////////////////////////
 

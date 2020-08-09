@@ -427,7 +427,7 @@
 		derez(item)
 
 	for(var/obj/effect/decal/cleanable/blood/B in linkedholodeck)
-		returnToPool(B)
+		qdel(B)
 
 	for(var/mob/living/simple_animal/hostile/carp/holocarp/holocarp in linkedholodeck)
 		qdel(holocarp)
@@ -475,16 +475,16 @@
 	icon_state = "grass1"
 	floor_tile = new/obj/item/stack/tile/grass
 
-	New()
-		floor_tile.New() //I guess New() isn't run on objects spawned without the definition of a turf to house them, ah well.
-		icon_state = "grass[pick("1","2","3","4")]"
-		..()
-		spawn(4)
-			update_icon()
-			for(var/direction in cardinal)
-				if(istype(get_step(src,direction),/turf/simulated/floor))
-					var/turf/simulated/floor/FF = get_step(src,direction)
-					FF.update_icon() //so siding get updated properly
+/turf/simulated/floor/holofloor/grass/New()
+	floor_tile.New() //I guess New() isn't run on objects spawned without the definition of a turf to house them, ah well.
+	icon_state = "grass[pick("1","2","3","4")]"
+	..()
+	spawn(4)
+		update_icon()
+		for(var/direction in cardinal)
+			if(istype(get_step(src,direction),/turf/simulated/floor))
+				var/turf/simulated/floor/FF = get_step(src,direction)
+				FF.update_icon() //so siding get updated properly
 
 /turf/simulated/floor/holofloor/light
 	name = "light floor"
@@ -514,11 +514,8 @@
 	icon_state = "boxingred"
 	item_state = "boxingred"
 
-/obj/structure/window/reinforced/holo/spawnBrokenPieces()
-	return
-
 /obj/structure/window/reinforced/holo/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(isscrewdriver(W))
+	if(W.is_screwdriver(user))
 		to_chat(user, "It's a holowindow! It has no frame!")
 		return
 
@@ -527,11 +524,8 @@
 /obj/structure/window/reinforced/holo/spawnBrokenPieces()
 	return
 
-/obj/structure/window/holo/spawnBrokenPieces()
-	return
-
 /obj/structure/window/holo/attackby(obj/item/weapon/W, mob/user)
-	if(isscrewdriver(W))
+	if(W.is_screwdriver(user))
 		to_chat(user, "It's a holowindow! It has no frame!")
 		return
 
@@ -562,15 +556,13 @@
 	flags = FPRINT | NOBLOODY
 	var/active = 0
 
-/obj/item/weapon/holo/esword/green
-	New()
-		..()
-		_color = "green"
+/obj/item/weapon/holo/esword/green/New()
+	..()
+	_color = "green"
 
-/obj/item/weapon/holo/esword/red
-	New()
-		..()
-		_color = "red"
+/obj/item/weapon/holo/esword/red/New()
+	..()
+	_color = "red"
 
 /obj/item/weapon/holo/esword/IsShield()
 	if(active)
@@ -578,7 +570,6 @@
 	return 0
 
 /obj/item/weapon/holo/esword/New()
-	AddToProfiler()
 	_color = pick("red","blue","green","purple")
 
 /obj/item/weapon/holo/esword/attack_self(mob/living/user as mob)
@@ -626,6 +617,7 @@
 
 		G.affecting.forceMove(src.loc)
 		G.affecting.Knockdown(5)
+		G.affecting.Stun(5)
 		visible_message("<span class='warning'>[G.assailant] dunks [G.affecting] into the [src]!</span>")
 		qdel(W)
 		return
@@ -639,7 +631,8 @@
 		var/obj/item/I = mover
 		if(istype(I, /obj/item/weapon/dummy) || istype(I, /obj/item/projectile))
 			return
-		if(prob(50))
+		var/mob/mob = get_mob_by_key(mover.fingerprintslast)
+		if(prob(50) || (mob && mob.reagents.get_sportiness()>=5))
 			I.forceMove(src.loc)
 			visible_message("<span class='notice'>Swish! \the [I] lands in \the [src].</span>")
 		else
@@ -673,9 +666,6 @@
 
 /obj/machinery/readybutton/attack_paw(mob/user as mob)
 	to_chat(user, "<span='warning'>You are too primitive to use this device.</span>")
-
-/obj/machinery/readybutton/New()
-	..()
 
 /obj/machinery/readybutton/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	to_chat(user, "<span='warning'>The device is a solid button, there's nothing you can do with it!</span>")

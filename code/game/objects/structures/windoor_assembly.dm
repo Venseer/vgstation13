@@ -69,6 +69,29 @@ obj/structure/windoor_assembly/Destroy()
 			return !density
 	return TRUE
 
+/obj/structure/windoor_assembly/proc/make_windoor(var/mob/user)
+	var/spawn_type = secure ? secure_type : windoor_type
+	var/obj/machinery/door/window/windoor = new spawn_type(loc)
+	windoor.dir = dir
+	windoor.base_state = (facing == "l" ? "left" : "right")
+	windoor.icon_state = windoor.base_state
+	transfer_fingerprints_to(windoor)
+	set_windoor_electronics(windoor)
+	return windoor
+
+/obj/structure/windoor_assembly/proc/set_windoor_electronics(var/obj/machinery/door/window/windoor)
+	if(electronics)
+		if(electronics.one_access)
+			windoor.req_access = null
+			windoor.req_one_access = electronics.conf_access
+		else
+			windoor.req_access = electronics.conf_access
+		electronics.forceMove(windoor)
+		windoor.electronics = electronics
+		electronics.installed = TRUE
+		windoor.set_electronics()
+		electronics = null
+
 
 /obj/structure/windoor_assembly/attackby(obj/item/W, mob/user)
 	if(iswelder(W) && (!anchored && !wired && !electronics))
@@ -79,9 +102,9 @@ obj/structure/windoor_assembly/Destroy()
 				return
 			to_chat(user, "<span class='notice'>You dissasembled [src]!</span>")
 			if(glass_type)
-				getFromPool(glass_type,loc,5)
+				new glass_type(loc, 5)
 			if(secure)
-				getFromPool(reinforce_material,loc,2)
+				new reinforce_material(loc, 2)
 			qdel(src)
 		else
 			to_chat(user, "<span class='rose'>You need more welding fuel to dissassemble [src].</span>")
@@ -104,8 +127,8 @@ obj/structure/windoor_assembly/Destroy()
 				update_name()
 
 	//Wrenching an un/secure assembly un/anchors it in place. Step 4 complete/undone
-	if(iswrench(W))
-		playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
+	if(W.is_wrench(user))
+		W.playtoolsound(src, 100)
 		user.visible_message("[user] is [anchored ? "un":""]securing [src] [anchored ? "from" : "to"] the floor.", "You start to [anchored ? "un":""]secure [src] to the floor.")
 
 		if(do_after(user, src, 40))
@@ -133,7 +156,7 @@ obj/structure/windoor_assembly/Destroy()
 
 	//Removing wire from the assembly. Step 5 undone.
 	if(iswirecutter(W) && (anchored && wired))
-		playsound(src, 'sound/items/Wirecutter.ogg', 100, 1)
+		W.playtoolsound(src, 100)
 		user.visible_message("[user] is cutting the wires from [src].", "You start to cut the wires from [src].")
 
 		if(do_after(user, src, 40))
@@ -151,21 +174,22 @@ obj/structure/windoor_assembly/Destroy()
 		if(AE.icon_state =="door_electronics_smoked")
 			to_chat(user, "<span class='notice'>\The [AE.name] is too damaged to work.</span>")
 			return
-		if(user.drop_item(AE, src)) // To prevent you using the airlock electronics on 2 windoors at once.
-			playsound(src, 'sound/items/Screwdriver.ogg', 100, 1)
-			user.visible_message("[user] installs [AE] into [src].", "You start to install [AE] into [src].")
 
-			if(do_after(user, src, 40))
-				if(gcDestroyed)
-					return
-				to_chat(user, "<span class='notice'>You've installed [AE]!</span>")
-				electronics = AE
-				electronics.installed = TRUE
-				update_name()
+		W.playtoolsound(src, 100)
+		user.visible_message("[user] installs [AE] into [src].", "You start to install [AE] into [src].")
+
+		if(do_after(user, src, 40))
+			if(gcDestroyed)
+				return
+			to_chat(user, "<span class='notice'>You've installed [AE]!</span>")
+			electronics = AE
+			electronics.installed = TRUE
+			update_name()
+			user.drop_item(AE, src, force_drop = 1)
 
 	//Screwdriver to remove airlock electronics. Step 6 undone.
-	if(isscrewdriver(W) && (anchored && electronics))
-		playsound(src, 'sound/items/Screwdriver.ogg', 100, 1)
+	if(W.is_screwdriver(user) && (anchored && electronics))
+		W.playtoolsound(src, 100)
 		user.visible_message("[user] removes the [electronics] from [src].", "You start to uninstall [electronics] from [src].")
 
 		if(do_after(user, src, 40))
@@ -189,23 +213,14 @@ obj/structure/windoor_assembly/Destroy()
 			to_chat(usr, "<span class='rose'>\The [name] is missing electronics.</span>")
 			return
 		usr << browse(null, "window=windoor_access")
-		playsound(src, 'sound/items/Crowbar.ogg', 100, 1)
+		W.playtoolsound(src, 100)
 		user.visible_message("[user] is prying [src] into the frame.", "You start prying [src] into the frame.")
 
 		if(do_after(user, src, 40))
 			if(gcDestroyed)
 				return
-			var/spawn_type = secure ? secure_type : windoor_type
-			var/obj/machinery/door/window/windoor = new spawn_type(loc)
+			var/obj/machinery/door/window/windoor = make_windoor()
 			to_chat(user, "<span class='notice'>You finish the [windoor.name]!</span>")
-			windoor.dir = dir
-			transfer_fingerprints_to(windoor)
-			if(electronics.one_access)
-				windoor.req_access = null
-				windoor.req_one_access = electronics.conf_access
-			else
-				windoor.req_access = electronics.conf_access
-			electronics.forceMove(windoor)
 			qdel(src)
 
 	else

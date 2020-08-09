@@ -1,6 +1,6 @@
 /obj/item/weapon/gun/energy/ionrifle
 	name = "ion rifle"
-	desc = "A man portable anti-armor weapon designed to disable mechanical threats"
+	desc = "A man portable anti-armor weapon designed to disable mechanical threats."
 	icon_state = "ionrifle"
 	item_state = null
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
@@ -16,16 +16,22 @@
 /obj/item/weapon/gun/energy/ionrifle/emp_act(severity)
 	return
 
-/obj/item/weapon/gun/energy/ionrifle/ionpistol
-	name = "ion pistol"
-	desc = "A small, low capacity ion weapon designed to disable mechanical threats"
-	icon_state = "ionpistol"
+/obj/item/weapon/gun/energy/ionrifle/ioncarbine
+	name = "ion carbine"
+	desc = "A stopgap ion weapon designed to disable smaller mechanical threats."
+	icon_state = "ioncarbine"
 	w_class = W_CLASS_MEDIUM
 	slot_flags = SLOT_BELT
-	cell_type = "/obj/item/weapon/cell/crap"
-	projectile_type = "/obj/item/projectile/ionsmall"
+	cell_type = "/obj/item/weapon/cell/crap/better"
+	projectile_type = "/obj/item/projectile/ion/small"
 
-/obj/item/weapon/gun/energy/ionrifle/ionpistol/isHandgun()
+/obj/item/weapon/gun/energy/ionrifle/ioncarbine/ionpistol
+	name = "ion pistol"
+	desc = "A small, low capacity ion weapon designed to disrupt smaller mechanical threats."
+	icon_state = "ionpistol"
+	cell_type = "/obj/item/weapon/cell/crap"
+
+/obj/item/weapon/gun/energy/ionrifle/ioncarbine/ionpistol/isHandgun()
 	return TRUE
 
 /obj/item/weapon/gun/energy/decloner
@@ -62,7 +68,7 @@
 
 /obj/item/weapon/gun/energy/staff
 	name = "staff of change"
-	desc = "An artefact that spits bolts of coruscating energy which cause the target's very form to reshape itself"
+	desc = "An artefact that spits bolts of coruscating energy which cause the target's very form to reshape itself."
 	icon = 'icons/obj/wizard.dmi'
 	icon_state = "staffofchange"
 	item_state = "staffofchange"
@@ -134,6 +140,15 @@
 			changetype=selected
 	next_changetype=world.time+SOC_CHANGETYPE_COOLDOWN
 
+/obj/item/weapon/gun/energy/staff/sinterklaas
+	name = "staff of sinterklaas"
+	desc = "There's a knock on the door, a hard knock, a soft knock, there's a knock on the door, who could it be?"
+	icon_state = "staffofsinterklaas"
+	item_state = "sinterklaas"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/wiz_left.dmi', "right_hand" = 'icons/mob/in-hand/right/wiz_right.dmi')
+	projectile_type = "/obj/item/projectile/zwartepiet"
+	charge_cost = 100
+
 /obj/item/weapon/gun/energy/staff/animate
 	name = "staff of animation"
 	desc = "An artefact that spits bolts of life-force which causes objects which are hit by it to animate and come to life! This magic doesn't affect machines."
@@ -187,11 +202,12 @@
 	to_chat(user, "<span class='notice'>You will now raise [raisetype < 2 ? (raisetype ? "skeletal" : "zombified") : "unknown"] minions from corpses.</span>")
 	next_change = world.timeofday + 30
 
-/obj/item/weapon/gun/energy/staff/necro/afterattack(atom/target, mob/user, proximity)
+/obj/item/weapon/gun/energy/staff/necro/afterattack(atom/target, mob/living/user, flag, params, struggle = 0)
 	if(!ishuman(target) || !charges || get_dist(target, user) > 7)
 		return 0
 	var/mob/living/carbon/human/H = target
-	if(!H.stat || H.health > config.health_threshold_crit)
+	if(!H.stat || (H.stat < DEAD && H.health > config.health_threshold_crit))
+		to_chat(user, "<span class = 'warning'>[!H.stat?"\The [target] needs to be dead or in a critical state first.":H.health>config.health_threshold_crit?"\The [target] has not received enough damage.":"Something went wrong with the conversion process."]</span>")
 		return 0
 
 	//Pretty particles
@@ -283,7 +299,7 @@
 	else
 		src.Fire(target,user,0,0,0)
 
-/obj/item/weapon/gun/energy/staff/destruction_wand/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0)
+/obj/item/weapon/gun/energy/staff/destruction_wand/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	if(power_supply.charge == charge_cost || lifekiller)
 		if(!istype(target, /turf/simulated/wall) && !istype(target, /turf/simulated/floor))
 			if(!istype(target, /mob/living))
@@ -400,17 +416,17 @@
 		if(0)
 			mode = 1
 			charge_cost = 100
-			to_chat(user, "<span class='warning'>The [src.name] is now set to improve harvests.</span>")
+			to_chat(user, "<span class='warning'>\The [src] is now set to improve harvests.</span>")
 			projectile_type = "/obj/item/projectile/energy/florayield"
 			modifystate = "florayield"
 		if(1)
 			mode = 0
 			charge_cost = mutstrength * 10
-			to_chat(user, "<span class='warning'>The [src.name] is now set to induce mutations.</span>")
+			to_chat(user, "<span class='warning'>\The [src] is now set to induce mutations.</span>")
 			projectile_type = "/obj/item/projectile/energy/floramut"
 			modifystate = "floramut"
 		if(2)
-			to_chat(user, "<span class='warning'>The [src.name] appears to be locked into one mode.</span>")
+			to_chat(user, "<span class='warning'>\The [src] appears to be locked into one mode.</span>")
 			return
 	update_icon()
 	return
@@ -420,10 +436,10 @@
 	set category = "Object"
 	if(mode == 2)
 		mutstrength = input(usr, "Enter new mutation strength level (15-25):", "Somatoray Gamma Ray Threshold", mutstrength) as num
-		mutstrength = Clamp(round(mutstrength), 15, 25)
+		mutstrength = clamp(round(mutstrength), 15, 25)
 	else
 		mutstrength = input(usr, "Enter new mutation strength level (1-15):", "Somatoray Alpha Ray Threshold", mutstrength) as num
-		mutstrength = Clamp(round(mutstrength), 1, 15)
+		mutstrength = clamp(round(mutstrength), 1, 15)
 
 /obj/item/weapon/gun/energy/floragun/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(isEmag(W) || issolder(W))
@@ -440,7 +456,7 @@
 			modifystate = "floraemag"
 			update_icon()
 
-/obj/item/weapon/gun/energy/floragun/afterattack(obj/target, mob/user, flag)
+/obj/item/weapon/gun/energy/floragun/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	if(flag && istype(target,/obj/machinery/portable_atmospherics/hydroponics))
 		var/obj/machinery/portable_atmospherics/hydroponics/tray = target
 		if(process_chambered())
@@ -524,6 +540,7 @@ obj/item/weapon/gun/energy/staff/focus/attack_self(mob/living/user as mob)
 	desc = "According to Nanotrasen accounting, this is mining equipment. It's been modified for extreme power output to crush rocks, but often serves as a miner's first defense against hostile alien life; it's not very powerful unless used in a low pressure environment."
 	icon_state = "kineticgun"
 	item_state = "kineticgun"
+	fire_sound = 'sound/weapons/kinetic_accelerator.ogg'
 	projectile_type = "/obj/item/projectile/kinetic"
 	cell_type = "/obj/item/weapon/cell/crap"
 	charge_cost = 50
@@ -538,7 +555,7 @@ obj/item/weapon/gun/energy/staff/focus/attack_self(mob/living/user as mob)
 		recent_reload = 0
 	..()
 */
-/obj/item/weapon/gun/energy/kinetic_accelerator/attack_self(var/mob/living/user/L)
+/obj/item/weapon/gun/energy/kinetic_accelerator/attack_self(var/mob/living/user)
 	if(overheat || recent_reload)
 		return
 	power_supply.give(500)
@@ -637,7 +654,7 @@ obj/item/weapon/gun/energy/staff/focus/attack_self(mob/living/user as mob)
 	cell_type = "/obj/item/weapon/cell"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guns_experimental.dmi', "right_hand" = 'icons/mob/in-hand/right/guns_experimental.dmi')
 
-obj/item/weapon/gun/energy/ricochet/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0)
+obj/item/weapon/gun/energy/ricochet/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	if(defective && prob(30))
 		target = get_ranged_target_turf(user, pick(diagonal), 7)
 	..()
@@ -718,7 +735,7 @@ obj/item/weapon/gun/energy/ricochet/Fire(atom/target as mob|obj|turf|area, mob/l
 	..()
 	playsound(src, 'sound/weapons/spur_spawn.ogg', 50, 0, null, FALLOFF_SOUNDS, 0)
 
-/obj/item/weapon/gun/energy/polarstar/afterattack(atom/A as mob|obj|turf|area, mob/living/user as mob|obj, flag, params, struggle = 0)
+/obj/item/weapon/gun/energy/polarstar/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	levelChange()
 	..()
 

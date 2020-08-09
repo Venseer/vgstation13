@@ -9,8 +9,15 @@
 
 /datum/spellbook_artifact/proc/purchased(mob/living/user)
 	to_chat(user, "<span class='info'>You have purchased [name].</span>")
-	for(var/T in spawned_items)
-		new T(get_turf(user))
+	for(var/path in spawned_items)
+		var/obj/item/I = new path(get_turf(user))
+		if(user.mind)
+			var/datum/role/wizard/W = user.mind.GetRole(WIZARD)
+			if(W)
+				var/icon/tempimage = icon(I.icon, I.icon_state)
+				end_icons += tempimage
+				var/tempstate = end_icons.len
+				W.artifacts_bought += {"<img src="logo_[tempstate].png"> [name]<BR>"}
 
 /datum/spellbook_artifact/proc/can_buy(var/mob/user)
 	return TRUE
@@ -21,6 +28,23 @@
 	abbreviation = "ST"
 	price = 2 * Sp_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/gun/energy/staff/change)
+
+/datum/spellbook_artifact/staff_of_swapping
+	name = "Staff of Swapping"
+	desc = "An artefact that fires a glowing bolt of energy which transfers the caster and targets position in space. Wielding in it both hands increases the power of the staff, and allows it to pass through certain objects.."
+	abbreviation = "SW"
+	price = 20
+	spawned_items = list(/obj/item/weapon/gun/energy/staff/swapper)
+
+/datum/spellbook_artifact/staff_of_sinterklaas
+	name = "Staff of Sinterklaas"
+	desc = "An artefact that fires a glowing bolt of energy which turns the target into a jovial helper."
+	abbreviation = "SS"
+	price = 5
+	spawned_items = list(/obj/item/weapon/gun/energy/staff/sinterklaas, /obj/item/clothing/head/wizard/sinterklaas)
+
+/datum/spellbook_artifact/staff_of_sinterklaas/can_buy(var/mob/user)
+	return (Holiday == SINTERKLAAS)
 
 /datum/spellbook_artifact/mental_focus
 	name = "Mental Focus"
@@ -47,9 +71,9 @@
 	abbreviation = "HS"
 	spawned_items = list(
 	/obj/item/clothing/shoes/sandal,\
-	/obj/item/clothing/gloves/purple,\
+	/obj/item/clothing/gloves/purple/wizard,\
 	/obj/item/clothing/suit/space/rig/wizard,\
-	/obj/item/clothing/head/helmet/space/rig/wizard)
+	/obj/item/weapon/tank/emergency_oxygen/double/wizard)
 
 /datum/spellbook_artifact/staff_of_animation
 	name = "Staff of Animation"
@@ -62,33 +86,30 @@
 	desc = "An arcane staff capable of summoning undying minions from the corpses of your enemies. This magic doesn't affect machines."
 	abbreviation = "SN"
 	spawned_items = list(/obj/item/weapon/gun/energy/staff/necro)
-/*
-#define APPRENTICE_PRICE Sp_BASE_PRICE
+
 /datum/spellbook_artifact/apprentice
 	name = "Contract of Apprenticeship"
-	desc = "A magical contract binding an apprentice wizard to your service, using it will summon them to your side."
+	desc = "A magical contract binding an apprentice wizard to your service. Using it will summon them to your side."
 	abbreviation = "CT"
-	spawned_items = list(/obj/item/weapon/antag_spawner/contract)
-	price = APPRENTICE_PRICE
-*/
+	spawned_items = list(/obj/item/wizard_apprentice_contract)
 
 /datum/spellbook_artifact/bundle
 	name = "Spellbook Bundle"
 	desc = "Feeling adventurous? Buy this bundle and recieve seven random spellbooks! Who knows what spells you will get? (Warning, each spell book may only be used once! No refunds)."
 	abbreviation = "SB"
-	price = 5 * Sp_BASE_PRICE
-	spawned_items = list(/obj/item/weapon/storage/box/spellbook/random)
+	price = 4 * Sp_BASE_PRICE
+	spawned_items = list(/obj/item/weapon/storage/box/spellbook)
 
 /datum/spellbook_artifact/potion_bundle
 	name = "Potion bundle"
 	desc = "As a dead wizard once said, life is a bag of potions. You never know what you're gonna get."
 	abbreviation = "PB"
-	price = 5 * Sp_BASE_PRICE
+	price = 4 * Sp_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/bundle)
 
 /datum/spellbook_artifact/lesser_potion_bundle
 	name = "Lesser potion bundle"
-	desc = "Contains 10 unknown potions. For wizards that are unwilling to go all-in."
+	desc = "Contains 12 unknown potions. For wizards that are unwilling to go all-in."
 	abbreviation = "LPB"
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/lesser_bundle)
 
@@ -96,12 +117,12 @@
 	name = "Predicted potion bundle"
 	desc = "Contains 40 potions. I like the blue ones myself."
 	abbreviation = "LPB"
-	price = 5 * Sp_BASE_PRICE
+	price = 4 * Sp_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/predicted_potion_bundle)
 
 /datum/spellbook_artifact/lesser_predicted_potion_bundle
 	name = "Lesser predicted potion bundle"
-	desc = "Contains 8  potions. Don't go using them all in one place!"
+	desc = "Contains 10 potions. Don't go using them all in one place!"
 	abbreviation = "LPB"
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/lesser_predicted_potion_bundle)
 
@@ -246,7 +267,7 @@
 	H.real_name = pick("Santa Claus","Jolly St. Nick","Sandy Claws","Sinterklaas","Father Christmas","Kris Kringle")
 	H.nutrition += 1000
 
-	H.add_spell(new/spell/noclothes)
+	H.add_spell(new/spell/passive/noclothes)
 	H.add_spell(new/spell/aoe_turf/conjure/snowmobile)
 	H.add_spell(new/spell/targeted/wrapping_paper)
 	H.add_spell(new/spell/aoe_turf/conjure/gingerbreadman)
@@ -261,7 +282,7 @@
 /datum/spellbook_artifact/phylactery
 	name = "phylactery"
 	desc = "Creates a soulbinding artifact that, upon the death of the user, resurrects them as best it can. You must bind yourself to this through making an incision on your palm, holding the phylactery in that hand, and squeezing it."
-	spawned_items = list(/obj/item/phylactery)
+	spawned_items = list(/obj/item/phylactery, /obj/item/clothing/head/wizard/lich, /obj/item/clothing/suit/wizrobe/lich)
 
 
 /datum/spellbook_artifact/darkness
@@ -277,3 +298,26 @@
 	for(var/obj/machinery/power/apc/apc in power_machines)
 		if(apc.z == STATION_Z)
 			apc.overload_lighting()
+
+
+/datum/spellbook_artifact/prestidigitation
+	name = "Prestidigitation Bundle"
+	abbreviation = "PTDB"
+	desc = "A group of spells for general utility."
+	price = Sp_BASE_PRICE
+
+/datum/spellbook_artifact/prestidigitation/purchased(mob/living/carbon/human/H)
+	..()
+	H.add_spell(new/spell/targeted/spark)
+	H.add_spell(new/spell/targeted/extinguish)
+	H.add_spell(new/spell/targeted/clean)
+	H.add_spell(new/spell/targeted/unclean)
+	H.add_spell(new/spell/targeted/create_trinket)
+	H.add_spell(new/spell/targeted/cool_object)
+	H.add_spell(new/spell/targeted/warm_object)
+
+/datum/spellbook_artifact/blindingspeed
+	name = "Boots of Blinding Speed"
+	abbreviation = "BS"
+	desc = "Makes you much faster, but blinds you while you move."
+	spawned_items = list(/obj/item/clothing/shoes/blindingspeed)

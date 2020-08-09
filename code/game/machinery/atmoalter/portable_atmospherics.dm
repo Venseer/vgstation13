@@ -86,8 +86,9 @@
 	return 1
 
 /obj/machinery/portable_atmospherics/proc/eject_holding()
-	holding.forceMove(loc)
-	holding = null
+	if(holding)
+		holding.forceMove(loc)
+		holding = null
 
 /obj/machinery/portable_atmospherics/attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
 
@@ -101,7 +102,7 @@
 			update_icon()
 			return 1
 
-	else if (iswrench(W))
+	else if (W.is_wrench(user))
 		if(connected_port)
 			disconnect()
 			to_chat(user, "<span class='notice'>You disconnect [name] from the port.</span>")

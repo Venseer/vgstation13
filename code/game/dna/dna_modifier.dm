@@ -21,6 +21,7 @@
 	var/mind=null
 	var/list/languages = list()
 	var/times_cloned=0
+	var/talkcount
 
 /datum/dna2/record/proc/GetData()
 	var/list/ser=list("data" = null, "owner" = null, "label" = null, "type" = null, "ue" = 0)
@@ -67,7 +68,7 @@
 	var/locked = 0
 	var/mob/living/carbon/occupant = null
 	var/obj/item/weapon/reagent_containers/glass/beaker = null
-	var/injector_cooldown = 300 //Used by attachment
+	var/injector_cooldown = 150 //Used by attachment
 	machine_flags = SCREWTOGGLE | CROWDESTROY
 	var/obj/machinery/computer/connected
 	var/last_message // Used by go_out()
@@ -93,7 +94,7 @@
 /obj/machinery/dna_scannernew/RefreshParts()
 	var/efficiency = 0
 	for(var/obj/item/weapon/stock_parts/SP in component_parts) efficiency += SP.rating-1
-	injector_cooldown = initial(injector_cooldown) - 30*(efficiency)
+	injector_cooldown = initial(injector_cooldown) - 15*(efficiency)
 
 /obj/machinery/dna_scannernew/allow_drop()
 	return 0
@@ -118,10 +119,10 @@
 	add_fingerprint(usr)
 	return
 
-/obj/machinery/dna_scannernew/crowbarDestroy(mob/user)
+/obj/machinery/dna_scannernew/crowbarDestroy(mob/user, obj/item/weapon/crowbar/I)
 	if(occupant)
 		to_chat(user, "<span class='warning'>\the [src] is occupied.</span>")
-		return
+		return FALSE
 	return ..()
 
 /obj/machinery/dna_scannernew/Destroy()
@@ -149,7 +150,7 @@
 	if (!ishuman(usr) && !ismonkey(usr)) //Make sure they're a mob that has dna
 		to_chat(usr, "<span class='notice'>You cannot enter \the [src].</span>")
 		return
-	if (istype(usr, /mob/living/carbon/human/manifested))
+	if (ismanifested(usr))
 		to_chat(usr, "<span class='notice'> For some reason, the scanner is unable to read your genes.</span>")//to prevent a loophole that allows cultist to turn manifested ghosts into normal humans
 
 		return
@@ -185,7 +186,7 @@
 	if(occupant)
 		to_chat(user, "<span class='notice'>\The [src] is already occupied!</span>")
 		return
-	if(istype(O, /mob/living/carbon/human/manifested))
+	if(ismanifested(O))
 		to_chat(usr, "<span class='notice'> For some reason, the scanner is unable to read that person's genes.</span>")//to prevent a loophole that allows cultist to turn manifested ghosts into normal humans
 
 		return
@@ -434,7 +435,7 @@
 			connected.connected = null
 		connected = null
 	for(var/datum/block_label/label in labels)
-		returnToPool(label)
+		qdel(label)
 	labels.Cut()
 	buffers.Cut()
 	if(disk)
@@ -462,9 +463,9 @@
 /obj/machinery/computer/scan_consolenew/New()
 	..()
 	for(var/i=1;i<=3;i++)
-		buffers[i] = getFromPool(/datum/dna2/record)
+		buffers[i] = new /datum/dna2/record
 	for(var/i=1;i<=DNA_SE_LENGTH;i++)
-		labels[i] = getFromPool(/datum/block_label)
+		labels[i] = new /datum/block_label
 	spawn(5)
 		connected = findScanner()
 		connected.connected = src

@@ -22,6 +22,7 @@
 	key = "grumble"
 	key_third_person = "grumbles"
 	message = "grumbles!"
+	message_mime = "grumbles silently!"
 	emote_type = EMOTE_AUDIBLE
 
 /datum/emote/living/carbon/human/handshake
@@ -43,6 +44,7 @@
 	key = "mumble"
 	key_third_person = "mumbles"
 	message = "mumbles!"
+	message_mime = "mumbles silently!"
 	emote_type = EMOTE_AUDIBLE
 
 /datum/emote/living/carbon/human/pale
@@ -72,7 +74,9 @@
 	key = "fart"
 	key_third_person = "farts"
 
-/datum/emote/living/carbon/human/fart/run_emote(mob/user, params, type_override)
+/datum/emote/living/carbon/human/fart/run_emote(mob/user, params, type_override, ignore_status = FALSE)
+	if(!(type_override) && !(can_run_emote(user, !ignore_status))) // ignore_status == TRUE means that status_check should be FALSE and vise-versa
+		return FALSE
 	var/mob/living/carbon/human/H = user
 	if(H.op_stage.butt == SURGERY_NO_BUTT)
 		return FALSE // Can't fart without an arse (dummy)
@@ -84,7 +88,7 @@
 
 	for(var/mob/living/M in view(0))
 		if(M != H && M.loc == H.loc)
-			if(!H.mind.miming)
+			if(H.mind && !H.mind.miming)
 				H.visible_message("<span class = 'warning'><b>[H]</b> farts in <b>[M]</b>'s face!</span>")
 			else
 				H.visible_message("<span class = 'warning'><b>[H]</b> silently farts in <b>[M]</b>'s face!</span>")
@@ -149,6 +153,7 @@
 					continue
 				to_chat(V, "<span class = 'danger'>You're sent flying!</span>")
 				V.Knockdown(5) // why the hell was this set to 12 christ
+				V.Stun(5)
 				step_away(V,location,15)
 				step_away(V,location,15)
 				step_away(V,location,15)
@@ -167,7 +172,7 @@
 		"farts [pick("lightly", "tenderly", "softly", "with care")].",
 	)
 
-	if(H.mind.miming)
+	if(H.mind?.miming)
 		farts = list("silently farts.", "acts out a fart.", "lets out a silent fart.")
 
 	message = pick(farts)
@@ -205,4 +210,5 @@
 						H.attack_log += text("\[[time_stamp()]\] <font color='orange'>Farted on a bible and suffered [B.my_rel.deity_name]'s wrath.</font>")
 						explosion(get_turf(H),-1,-1,1,5) //Tiny explosion with flash
 						H.dust()
-//Ayy lmao
+
+//There was a cancer here, it's gone now.

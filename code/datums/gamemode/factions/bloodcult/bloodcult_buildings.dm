@@ -13,6 +13,7 @@
 	var/list/contributors = list()//list of cultists currently participating in the ritual
 	var/image/progbar = null//progress bar
 	var/cancelling = 3//check to abort the ritual if interrupted
+	var/custom_process = 0
 
 /obj/structure/cult/proc/conceal()
 	var/obj/structure/cult/concealed/C = new(loc)
@@ -62,6 +63,8 @@
 //duh
 /obj/structure/cult/cultify()
 	return
+/obj/structure/cult/clockworkify()
+	return
 
 //nuh-uh
 /obj/structure/cult/acidable()
@@ -89,17 +92,23 @@
 		var/obj/item/weapon/grab/G = W
 		if(iscarbon(G.affecting))
 			MouseDropTo(G.affecting,user)
-			returnToPool(W)
+			qdel(W)
 	else if (istype(W))
 		if(user.a_intent == I_HELP || W.force == 0)
 			visible_message("<span class='warning'>\The [user] gently taps \the [src] with \the [W].</span>")
 			MouseDropTo(W,user)
 		else
 			user.delayNextAttack(8)
+			user.do_attack_animation(src, W)
+			if (W.hitsound)
+				playsound(src, W.hitsound, 50, 1, -1)
 			if (sound_damaged)
 				playsound(get_turf(src), sound_damaged, 75, 1)
 			takeDamage(W.force)
-			visible_message("<span class='warning'>\The [user] [pick(W.attack_verb)] \the [src] with \the [W].</span>")
+			if (W.attack_verb)
+				visible_message("<span class='warning'>\The [user] [pick(W.attack_verb)] \the [src] with \the [W].</span>")
+			else
+				visible_message("<span class='warning'>\The [user] hits \the [src] with \the [W].</span>")
 			..()
 
 
@@ -138,6 +147,43 @@
 		return 1
 	return 0
 
+
+/obj/structure/cult/beam_connect(var/obj/effect/beam/B)
+	..()
+	last_beamchecks["\ref[B]"]=world.time+1
+	apply_beam_damage(B) // Contact damage for larger beams (deals 1/10th second of damage)
+	if(!custom_process && !(src in processing_objects))
+		processing_objects.Add(src)
+
+
+/obj/structure/cult/beam_disconnect(var/obj/effect/beam/B)
+	..()
+	apply_beam_damage(B)
+	last_beamchecks.Remove("\ref[B]") // RIP
+	if(beams.len == 0)
+		if(!custom_process)
+			processing_objects.Remove(src)
+
+/obj/structure/cult/apply_beam_damage(var/obj/effect/beam/B)
+	var/lastcheck=last_beamchecks["\ref[B]"]
+
+	// Standard damage formula / 2
+	var/damage = ((world.time - lastcheck)/10)  * (B.get_damage() / 20)
+
+	// Actually apply damage
+	takeDamage(damage)
+
+	// Update check time.
+	last_beamchecks["\ref[B]"]=world.time
+
+/obj/structure/cult/handle_beams()
+	// New beam damage code (per-tick)
+	for(var/obj/effect/beam/B in beams)
+		apply_beam_damage(B)
+
+/obj/structure/cult/process()
+	handle_beams()
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                       //Spawned from the Raise Structure rune. Available from the beginning. Trigger progress to ACT I
 //      CULT ALTAR       //Allows communication with Nar-Sie for advice and info on the Cult's current objective.
@@ -161,6 +207,10 @@
 	var/altar_task = ALTARTASK_NONE
 	var/gem_delay = 300
 
+	var/list/watching_mobs = list()
+	var/list/watcher_maps = list()
+	var/datum/station_holomap/cult/holomap_datum
+
 
 /obj/structure/cult/altar/New()
 	..()
@@ -171,8 +221,21 @@
 	for (var/mob/living/carbon/C in loc)
 		Crossed(C)
 
+	var/datum/holomap_marker/holomarker = new()
+	holomarker.id = HOLOMAP_MARKER_CULT_ALTAR
+	holomarker.filter = HOLOMAP_FILTER_CULT
+	holomarker.x = src.x
+	holomarker.y = src.y
+	holomarker.z = src.z
+	holomap_markers[HOLOMAP_MARKER_CULT_ALTAR+"_\ref[src]"] = holomarker
+
+	holomap_datum = new
+	holomap_datum.initialize_holomap(get_turf(src), cursor_icon = "altar-here")
+
 
 /obj/structure/cult/altar/Destroy()
+
+	stopWatching()
 	if (blade)
 		if (loc)
 			blade.forceMove(loc)
@@ -180,6 +243,9 @@
 			qdel(blade)
 	blade = null
 	flick("[icon_state]-break", src)
+
+	holomap_markers -= HOLOMAP_MARKER_CULT_ALTAR+"_\ref[src]"
+
 	..()
 
 /obj/structure/cult/altar/attackby(var/obj/item/I, var/mob/user)
@@ -207,12 +273,15 @@
 				user.visible_message("<span class='danger'>\The [user] holds \the [I] above \the [C]'s stomach and impales them on \the [src]!</span>","<span class='danger'>You hold \the [I] above \the [C]'s stomach and impale them on \the [src]!</span>")
 		else
 			to_chat(user, "You plant \the [blade] on top of \the [src]</span>")
-		if (istype(blade))
-			var/icon/logo_icon = icon('icons/logos.dmi', "shade-blade")
-			for(var/mob/M in observers)
-				if(!M.client || jobban_isbanned(M, ROLE_CULTIST) || M.client.is_afk())
-					continue
-				to_chat(M, "[bicon(logo_icon)]<span class='recruit'>\The [user] has planted a Soul Blade on an altar, opening a small crack in the veil that allows you to become the blade's resident shade. (<a href='?src=\ref[src];signup=\ref[M]'>Possess now!</a>)</span>[bicon(logo_icon)]")
+			if (istype(blade) && !blade.shade)
+				var/icon/logo_icon = icon('icons/logos.dmi', "shade-blade")
+				for(var/mob/M in observers)
+					if(!M.client || isantagbanned(M) || jobban_isbanned(M, CULTIST) || M.client.is_afk())
+						continue
+					if (M.mind && M.mind.GetRole(CULTIST))
+						var/datum/role/cultist/cultist = M.mind.GetRole(CULTIST)
+						if (cultist.second_chance)
+							to_chat(M, "[bicon(logo_icon)]<span class='recruit'>\The [user] has planted a Soul Blade on an altar, opening a small crack in the veil that allows you to become the blade's resident shade. (<a href='?src=\ref[src];signup=\ref[M]'>Possess now!</a>)</span>[bicon(logo_icon)]")
 		return 1
 	if (istype(I, /obj/item/weapon/grab))
 		if (blade)
@@ -228,7 +297,7 @@
 				C.resting = 1
 				C.update_canmove()
 			C.forceMove(loc)
-			returnToPool(G)
+			qdel(G)
 			to_chat(user, "<span class='warning'>You move \the [C] on top of \the [src]</span>")
 			return 1
 	..()
@@ -282,6 +351,8 @@
 /obj/structure/cult/altar/MouseDropTo(var/atom/movable/O, var/mob/user)
 	if (altar_task)
 		return
+	if (!istype(O))
+		return
 	if (!O.anchored && (istype(O, /obj/item) || user.get_active_hand() == O))
 		if(!user.drop_item(O))
 			return
@@ -319,6 +390,33 @@
 	O.forceMove(loc)
 	to_chat(user, "<span class='warning'>You move \the [O] on top of \the [src]</span>")
 
+
+/obj/structure/cult/altar/proc/checkPosition()
+	for(var/mob/M in watching_mobs)
+		if(get_dist(src,M) > 1)
+			stopWatching(M)
+
+/obj/structure/cult/altar/proc/stopWatching(var/mob/user)
+	if(!user)
+		for(var/mob/M in watching_mobs)
+			if(M.client)
+				spawn(5)//we give it time to fade out
+					M.client.images -= watcher_maps["\ref[M]"]
+				M.callOnFace -= "\ref[src]"
+				animate(watcher_maps["\ref[M]"], alpha = 0, time = 5, easing = LINEAR_EASING)
+
+		watching_mobs = list()
+	else
+		if(user.client)
+			spawn(5)//we give it time to fade out
+				if(!(user in watching_mobs))
+					user.client.images -= watcher_maps["\ref[user]"]
+					watcher_maps -= "\ref[user]"
+			user.callOnFace -= "\ref[src]"
+			animate(watcher_maps["\ref[user]"], alpha = 0, time = 5, easing = LINEAR_EASING)
+
+			watching_mobs -= user
+
 /obj/structure/cult/altar/conceal()
 	if (blade || altar_task)
 		return
@@ -337,6 +435,9 @@
 	.=..()
 	if (!.)
 		return
+	if(user in watching_mobs)
+		stopWatching(user)
+		return
 	if (altar_task)
 		if (altar_task == ALTARTASK_SACRIFICE)
 			if (user in contributors)
@@ -352,7 +453,7 @@
 		return
 	if(is_locking(lock_type))
 		var/choices = list(
-			list("Remove Blade", "radial_altar_remove", "Transfer some of your blood to the blade to repair it and refuel its blood level, or you could just slash someone."),
+			list("Remove Blade", "radial_altar_remove", "Pull the blade off, freeing the victim."),
 			list("Sacrifice", "radial_altar_sacrifice", "Initiate the sacrifice ritual. The ritual can only proceed if the proper victim has been nailed to the altar."),
 			)
 		var/task = show_radial_menu(user,loc,choices,'icons/obj/cult_radial3.dmi',"radial-cult2")
@@ -378,7 +479,7 @@
 					var/datum/objective/bloodcult_sacrifice/O = locate() in cult.objective_holder.objectives
 					if (O && is_locking(lock_type))
 						var/mob/victim = get_locked(lock_type)[1]
-						if (victim == O.sacrifice_target)
+						if (victim == O.sacrifice_target || (victim.mind && victim.mind == O.sacrifice_mind))
 							altar_task = ALTARTASK_SACRIFICE
 							timeleft = 30
 							timetotal = timeleft
@@ -422,6 +523,7 @@
 	else
 		var/choices = list(
 			list("Consult Roster", "radial_altar_roster", "Check the names and status of all of the cult's members."),
+			list("Look through Veil", "radial_altar_map", "Check the veil for tears to locate other occult constructions."),
 			list("Commune with Nar-Sie", "radial_altar_commune", "Obtain guidance from Nar-Sie to help you complete your objectives."),
 			list("Conjure Soul Gem", "radial_altar_gem", "Order the altar to sculpt you a Soul Gem, to capture the soul of your enemies."),
 			)
@@ -449,6 +551,8 @@
 							origin_text = "Soul captured by [C.conversion[conversion]]"
 						if ("altar")
 							origin_text = "Volunteer shade"
+						if ("sacrifice")
+							origin_text = "Sacrifice"
 						else
 							origin_text = "Founder"
 					var/mob/living/carbon/H = C.antag.current
@@ -462,6 +566,27 @@
 				dat += {"</ul></body>"}
 				user << browse("<TITLE>Cult Roster</TITLE>[dat]", "window=cultroster;size=500x300")
 				onclose(user, "cultroster")
+			if ("Look through Veil")
+				if(user.hud_used && user.hud_used.holomap_obj)
+					if(!("\ref[user]" in watcher_maps))
+						var/image/personnal_I = prepare_cult_holomap()
+						var/turf/T = get_turf(src)
+						if(map.holomap_offset_x.len >= T.z)
+							holomap_datum.cursor.pixel_x = (T.x-8+map.holomap_offset_x[T.z])*PIXEL_MULTIPLIER
+							holomap_datum.cursor.pixel_y = (T.y-8+map.holomap_offset_y[T.z])*PIXEL_MULTIPLIER
+						else
+							holomap_datum.cursor.pixel_x = (T.x-8)*PIXEL_MULTIPLIER
+							holomap_datum.cursor.pixel_y = (T.y-8)*PIXEL_MULTIPLIER
+						if (T.z == STATION_Z)
+							personnal_I.overlays += holomap_datum.cursor
+						watcher_maps["\ref[user]"] = personnal_I
+					var/image/I = watcher_maps["\ref[user]"]
+					I.loc = user.hud_used.holomap_obj
+					I.alpha = 0
+					animate(watcher_maps["\ref[user]"], alpha = 255, time = 5, easing = LINEAR_EASING)
+					watching_mobs |= user
+					user.client.images |= watcher_maps["\ref[user]"]
+					user.callOnFace["\ref[src]"] = "checkPosition"
 			if ("Commune with Nar-Sie")
 				switch(veil_thickness)
 					if (CULT_MENDED)
@@ -471,6 +596,26 @@
 					if (CULT_ACT_I)
 						to_chat(user, "<span class='game say'><span class='danger'>Nar-Sie</span> murmurs, <span class='sinister'>The conversion rune is <span class='danger'>Join Blood Self</span>, but you now have many new runes at your disposal to help you in your task, therefore I recommend you first summon an Arcane Tome to easily scribe them. The rune that conjures a tome is <span class='danger'>See Blood Hell</span>.</span></span>")
 					if (CULT_ACT_II)
+						var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
+						if (cult)
+							var/datum/objective/bloodcult_sacrifice/O = locate() in cult.objective_holder.objectives
+							if (O && !O.IsFulfilled())
+								if (!O.sacrifice_target || !O.sacrifice_target.loc)//if there's no target or its body was destroyed, immediate reroll
+									replace_target()
+									return
+								else
+									var/turf/T = get_turf(O.sacrifice_target)
+									var/datum/shuttle/S = is_on_shuttle(T)
+									if ((T.z == CENTCOMM_Z) && (emergency_shuttle.shuttle == S || emergency_shuttle.escape_pods.Find(S)))
+										to_chat(user,"<b>\The [O.sacrifice_target] has fled the station along with the rest of the crew. Unless we can bring them back in time with a Path rune or sacrifice him where he stands, it's over.</b>")
+										return
+									else if (T.z != STATION_Z)//if the target fled the station, offer to reroll the target. May or not add penalties for that later.
+										var/choice = alert(user,"The target has fled the station, do you wish for another sacrifice target to be selected?","[name]","Yes","No")
+										if (choice == "Yes")
+											replace_target(user)
+											return
+									else
+										to_chat(user,"<b>\The [O.sacrifice_target] is in [get_area_name(O, 1)].</b>")
 						to_chat(user, "<span class='game say'><span class='danger'>Nar-Sie</span> murmurs, <span class='sinister'>To perform the sacrifice, you'll have to forge a cult blade first. It doesn't matter if the target is alive of not, lay their body down on the altar and plant the blade on their stomach. Next, touch the altar to perform the next step of the ritual. The more of you, the quicker it will be done.</span></span>")
 					if (CULT_ACT_III)
 						to_chat(user, "<span class='game say'><span class='danger'>Nar-Sie</span> murmurs, <span class='sinister'>The crew is now aware of our presence, prepare to draw blood. Your priority is to spill as much blood as you can all over the station, bloody trails left by foot steps count toward this goal. How you obtain the blood, I leave to your ambition, but remember that if the crew destroys every blood stones, you will be doomed.</span></span>")
@@ -499,6 +644,26 @@
 					update_icon()
 					var/obj/item/device/soulstone/gem/gem = new (loc)
 					gem.pixel_y = 4
+
+/obj/structure/cult/altar/proc/replace_target(var/mob/user)
+	var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
+	if (cult)
+		var/datum/objective/bloodcult_sacrifice/O = locate() in cult.objective_holder.objectives
+		if (O && !O.IsFulfilled())
+			if (O.replace_target(user))
+				for(var/datum/role/cultist/C in cult.members)
+					var/mob/M = C.antag.current
+					if (M && iscultist(M))
+						to_chat(M,"<b>A new target has been assigned. [O.explanation_text]</b>")
+						if (M == O.sacrifice_target)
+							to_chat(M,"<b>There is no greater honor than purposefuly relinquishing your body for the coming of Nar-Sie.</b>")
+						to_chat(M,"<b>Should the target's body be annihilated, or should they flee the station, you may commune with Nar-Sie at an altar to have him designate a new target.</b>")
+			else
+				for(var/datum/role/cultist/C in cult.members)
+					var/mob/M = C.antag.current
+					if (M && iscultist(M))
+						to_chat(M,"<b>There are no elligible targets aboard the station, how did you guys even manage that one?</b>")//if there's literally no humans aboard the station
+						to_chat(M,"<b>There needs to be humans aboard the station, cultist or not, for a target to be selected.</b>")
 
 /obj/structure/cult/altar/noncultist_act(var/mob/user)//Non-cultists can still remove blades planted on altars.
 	if(is_locking(lock_type))
@@ -531,11 +696,12 @@
 /obj/structure/cult/altar/Topic(href, href_list)
 	if(href_list["signup"])
 		var/mob/M = usr
-		if(!isobserver(M))
+		if(!isobserver(M) || !iscultist(M))
 			return
+		var/mob/dead/observer/O = M
 		var/obj/item/weapon/melee/soulblade/blade = locate() in src
 		if (!istype(blade))
-			to_chat(usr, "<span class='warning'>\The [blade] was removed from \the [src]</span>")
+			to_chat(usr, "<span class='warning'>The blade was removed from \the [src].</span>")
 			return
 		if (blade.shade)
 			to_chat(usr, "<span class='warning'>Another shade was faster, and is currently possessing \the [blade].</span>")
@@ -543,7 +709,15 @@
 		var/mob/living/simple_animal/shade/shadeMob = new(blade)
 		shadeMob.status_flags |= GODMODE
 		shadeMob.canmove = 0
-		shadeMob.ckey = usr.ckey
+		var/datum/role/cultist/cultist = M.mind.GetRole(CULTIST)
+		cultist.second_chance = 0
+		shadeMob.real_name = M.mind.name
+		shadeMob.name = "[shadeMob.real_name] the Shade"
+		M.mind.transfer_to(shadeMob)
+		O.can_reenter_corpse = 1
+		O.reenter_corpse()
+
+		/* Only cultists get brought back this way now, so let's assume they kept their identity.
 		spawn()
 			var/list/shade_names = list("Orenmir","Felthorn","Sparda","Vengeance","Klinge")
 			shadeMob.real_name = pick(shade_names)
@@ -551,6 +725,7 @@
 			shadeMob.name = "[shadeMob.real_name] the Shade"
 			if (shadeMob.mind)
 				shadeMob.mind.name = shadeMob.real_name
+		*/
 		shadeMob.cancel_camera()
 		shadeMob.give_blade_powers()
 		blade.dir = NORTH
@@ -563,12 +738,13 @@
 		var/datum/role/cultist/newCultist = cult.HandleRecruitedMind(shadeMob.mind, TRUE)
 		newCultist.Greet(GREET_SOULBLADE)
 		newCultist.conversion.Add("altar")
+		cult_risk()//risk of exposing the cult early if too many soul blades created
 
 
 /obj/structure/cult/altar/dance_start()//This is executed at the end of the sacrifice ritual
-	var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
-	if (cult)
-		cult.change_cooldown = max(cult.change_cooldown,60 SECONDS)
+	//var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
+	//if (cult)
+	//	cult.change_cooldown = max(cult.change_cooldown,60 SECONDS)
 	. = ..()//true if the ritual was successful
 	altar_task = ALTARTASK_NONE
 	update_icon()
@@ -582,6 +758,18 @@
 			new_shade.forceMove(blade)
 			blade.update_icon()
 			blade = null
+
+			if (!iscultist(new_shade))
+				var/datum/role/cultist/newCultist = new
+				newCultist.AssignToRole(new_shade.mind,1)
+				var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
+				if (!cult)
+					cult = ticker.mode.CreateFaction(/datum/faction/bloodcult, null, 1)
+				cult.HandleRecruitedRole(newCultist)
+				newCultist.OnPostSetup()
+				newCultist.Greet(GREET_SACRIFICE)
+				newCultist.conversion.Add("sacrifice")
+
 			new_shade.status_flags |= GODMODE
 			new_shade.canmove = 0
 			new_shade.name = "[M.real_name] the Shade"
@@ -592,9 +780,12 @@
 			M.gib()
 		var/turf/T = loc
 
-		cult = find_active_faction_by_type(/datum/faction/bloodcult)
+		var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
 		if (cult)
-			cult.progress(CULT_ACT_III,T)
+			if (emergency_shuttle.direction == 2) // Going to centcomm
+				cult.minor_victory()
+			else
+				cult.stage(CULT_ACT_III,T)
 		else
 			message_admins("Blood Cult: A sacrifice was completed...but we cannot find the cult faction...")//failsafe in case of admin varedit fuckery
 		qdel(src)
@@ -630,17 +821,26 @@ var/list/cult_spires = list()
 	..()
 	cult_spires.Add(src)
 	set_light(1)
-	stage = min(3,max(1,veil_thickness-1))
+	stage = clamp(veil_thickness, 1, 3)
 	flick("spire[stage]-spawn",src)
 	spawn(10)
 		update_stage()
 
+	var/datum/holomap_marker/holomarker = new()
+	holomarker.id = HOLOMAP_MARKER_CULT_SPIRE
+	holomarker.filter = HOLOMAP_FILTER_CULT
+	holomarker.x = src.x
+	holomarker.y = src.y
+	holomarker.z = src.z
+	holomap_markers[HOLOMAP_MARKER_CULT_SPIRE+"_\ref[src]"] = holomarker
+
 /obj/structure/cult/spire/Destroy()
 	cult_spires.Remove(src)
+	holomap_markers -= HOLOMAP_MARKER_CULT_SPIRE+"_\ref[src]"
 	..()
 
 /obj/structure/cult/spire/proc/upgrade()
-	var/new_stage = min(3,max(1,veil_thickness-1))
+	var/new_stage = clamp(veil_thickness, 1, 3)
 	if (new_stage>stage)
 		stage = new_stage
 		alpha = 255
@@ -781,7 +981,7 @@ var/list/cult_spires = list()
 
 /obj/structure/cult/forge
 	name = "forge"
-	desc = "A ."
+	desc = "Molten rocks flow down its cracks producing a searing heat, better not stand too close for long."
 	icon = 'icons/obj/cult_64x64.dmi'
 	icon_state = ""
 	health = 100
@@ -793,6 +993,7 @@ var/list/cult_spires = list()
 	plane = EFFECTS_PLANE
 	layer = BELOW_PROJECTILE_LAYER
 	light_color = LIGHT_COLOR_ORANGE
+	custom_process = 1
 	var/heating_power = 40000
 	var/set_temperature = 50
 	var/mob/forger = null
@@ -808,12 +1009,21 @@ var/list/cult_spires = list()
 	spawn(10)
 		setup_overlays()
 
+	var/datum/holomap_marker/holomarker = new()
+	holomarker.id = HOLOMAP_MARKER_CULT_FORGE
+	holomarker.filter = HOLOMAP_FILTER_CULT
+	holomarker.x = src.x
+	holomarker.y = src.y
+	holomarker.z = src.z
+	holomap_markers[HOLOMAP_MARKER_CULT_FORGE+"_\ref[src]"] = holomarker
+
 /obj/structure/cult/forge/Destroy()
 	if (forging)
 		qdel(forging)
 	forging = null
 	forger = null
 	processing_objects.Remove(src)
+	holomap_markers -= HOLOMAP_MARKER_CULT_FORGE+"_\ref[src]"
 	..()
 
 /obj/structure/cult/forge/proc/setup_overlays()
@@ -846,6 +1056,7 @@ var/list/cult_spires = list()
 	overlays += I_lave
 
 /obj/structure/cult/forge/process()
+	..()
 	if (isturf(loc))
 		var/turf/simulated/L = loc
 		if(istype(L))
@@ -888,6 +1099,7 @@ var/list/cult_spires = list()
 						forger = null
 						template = null
 					else
+						anim(target = loc, a_icon = 'icons/obj/cult_64x64.dmi', flick_anim = "forge-work", lay = NARSIE_GLOW, plane = LIGHTING_PLANE)
 						playsound(L, 'sound/effects/forge.ogg', 50, 0, -4)
 						forging.overlays.len = 0
 						var/image/I = image('icons/obj/cult_64x64.dmi',"[forging.icon_state]-mask")
@@ -947,7 +1159,7 @@ var/list/cult_spires = list()
 		var/obj/item/clothing/mask/cigarette/fag = I
 		fag.light("<span class='notice'>\The [user] lights \the [fag] by bringing its tip close to \the [src]'s molten flow.</span>")
 		return 1
-	if(istype(I,/obj/item/weapon/talisman) || istype(I,/obj/item/weapon/paper))
+	if(istype(I,/obj/item/weapon/talisman) || istype(I,/obj/item/weapon/paper) || istype(I,/obj/item/weapon/tome))
 		I.ashify_item(user)
 		return 1
 	..()
@@ -1059,6 +1271,9 @@ var/list/cult_spires = list()
 /obj/structure/cult/pillar/New()
 	..()
 	var/turf/T = loc
+	if (!T)
+		qdel(src)
+		return
 	for (var/obj/O in loc)
 		if(O == src)
 			continue
@@ -1119,9 +1334,20 @@ var/list/bloodstone_list = list()
 
 /obj/structure/cult/bloodstone/New()
 	..()
+	var/datum/holomap_marker/newMarker = new()
+	newMarker.id = HOLOMAP_MARKER_BLOODSTONE
+	newMarker.filter = HOLOMAP_FILTER_CULT
+	newMarker.x = x
+	newMarker.y = y
+	newMarker.z = z
+	holomap_markers[HOLOMAP_MARKER_BLOODSTONE+"_\ref[src]"] = newMarker
+
+	holomap_datum = new /datum/station_holomap/cult()
+	holomap_datum.initialize_holomap(get_turf(src))
+
 	bloodstone_list.Add(src)
 	for (var/obj/O in loc)
-		if (O != src)
+		if (O != src && !istype(O,/obj/item/weapon/melee/soulblade))
 			O.ex_act(2)
 	safe_space()
 	set_light(3)
@@ -1170,7 +1396,7 @@ var/list/bloodstone_list = list()
 	bloodstone_list.Remove(src)
 	new /obj/effect/decal/cleanable/ash(loc)
 	new /obj/item/weapon/ectoplasm(loc)
-	var/icon/updated_map = icon(extraMiniMaps[HOLOMAP_EXTRA_CULTMAP])
+
 	var/datum/holomap_marker/holomarker = new()
 	holomarker.id = HOLOMAP_MARKER_BLOODSTONE_BROKEN
 	holomarker.filter = HOLOMAP_FILTER_CULT
@@ -1178,19 +1404,33 @@ var/list/bloodstone_list = list()
 	holomarker.y = src.y
 	holomarker.z = src.z
 	holomap_markers[HOLOMAP_MARKER_BLOODSTONE+"_\ref[src]"] = holomarker
+
+	/* --no need to update the map
 	if(holomarker.z == map.zMainStation && holomarker.filter & HOLOMAP_FILTER_CULT)
 		if(map.holomap_offset_x.len >= map.zMainStation)
 			updated_map.Blend(icon(holomarker.icon,holomarker.id), ICON_OVERLAY, holomarker.x-8+map.holomap_offset_x[map.zMainStation]	, holomarker.y-8+map.holomap_offset_y[map.zMainStation])
 		else
 			updated_map.Blend(icon(holomarker.icon,holomarker.id), ICON_OVERLAY, holomarker.x-8, holomarker.y-8)
 	extraMiniMaps[HOLOMAP_EXTRA_CULTMAP] = updated_map
+	*/
 	for(var/obj/structure/cult/bloodstone/B in bloodstone_list)
-		B.holomap_datum.initialize_holomap(B.loc)
+		if (B != src && !B.loc)
+			message_admins("Blood Cult: A blood stone was somehow spawned in nullspace. It has been destroyed.")
+			qdel(B)
+
 	if (bloodstone_list.len <= 0 || anchor)
 		var/datum/faction/bloodcult/cult = find_active_faction_by_type(/datum/faction/bloodcult)
 		if (cult)
 			cult.fail()
+		if(anchor)
+			global_anchor_bloodstone = null
 	..()
+
+/obj/structure/cult/bloodstone/attack_construct(var/mob/user)
+	if (!Adjacent(user))
+		return 0
+	cultist_act(user)
+	return 1
 
 /obj/structure/cult/bloodstone/cultist_act(var/mob/user)
 	.=..()
@@ -1210,10 +1450,20 @@ var/list/bloodstone_list = list()
 						user.say("Tok-lyr rqa'nap g'lt-ulotf!","C")
 				contributors.Add(user)
 				if (user.client)
+					update_progbar()
 					user.client.images |= progbar
 			else if(user.hud_used && user.hud_used.holomap_obj)
 				if(!("\ref[user]" in watcher_maps))
-					watcher_maps["\ref[user]"] = image(holomap_datum.station_map)
+					var/image/personnal_I = prepare_cult_holomap()
+					var/turf/T = get_turf(src)
+					if(map.holomap_offset_x.len >= T.z)
+						holomap_datum.cursor.pixel_x = (T.x-9+map.holomap_offset_x[T.z])*PIXEL_MULTIPLIER
+						holomap_datum.cursor.pixel_y = (T.y-9+map.holomap_offset_y[T.z])*PIXEL_MULTIPLIER
+					else
+						holomap_datum.cursor.pixel_x = (T.x-9)*PIXEL_MULTIPLIER
+						holomap_datum.cursor.pixel_y = (T.y-9)*PIXEL_MULTIPLIER
+					personnal_I.overlays += holomap_datum.cursor
+					watcher_maps["\ref[user]"] = personnal_I
 				var/image/I = watcher_maps["\ref[user]"]
 				I.loc = user.hud_used.holomap_obj
 				I.alpha = 0
@@ -1248,16 +1498,9 @@ var/list/bloodstone_list = list()
 
 			watching_mobs -= user
 
-/datum/station_holomap/cult/initialize_holomap(var/turf/T, var/isAI=null, var/mob/user=null)
+/datum/station_holomap/cult/initialize_holomap(var/turf/T, var/isAI=null, var/mob/user=null, var/cursor_icon = "bloodstone-here")
 	station_map = image(extraMiniMaps[HOLOMAP_EXTRA_CULTMAP])
-	cursor = image('icons/holomap_markers.dmi', "bloodstone-here")
-	if(map.holomap_offset_x.len >= T.z)
-		cursor.pixel_x = (T.x-9+map.holomap_offset_x[T.z])*PIXEL_MULTIPLIER
-		cursor.pixel_y = (T.y-9+map.holomap_offset_y[T.z])*PIXEL_MULTIPLIER
-	else
-		cursor.pixel_x = (T.x-9)*PIXEL_MULTIPLIER
-		cursor.pixel_y = (T.y-9)*PIXEL_MULTIPLIER
-	station_map.overlays |= cursor
+	cursor = image('icons/holomap_markers.dmi', cursor_icon)
 
 /obj/structure/cult/bloodstone/update_icon()
 	icon_state = "bloodstone-0"
@@ -1298,6 +1541,8 @@ var/list/bloodstone_list = list()
 	return
 
 /obj/structure/cult/bloodstone/takeDamage(var/damage)
+	if(veil_thickness == CULT_EPILOGUE)
+		return
 	var/backup = (health > (2*maxHealth/3)) + (health > (maxHealth/3))
 	health -= damage
 	if (health <= 0)
@@ -1311,19 +1556,21 @@ var/list/bloodstone_list = list()
 
 /obj/structure/cult/bloodstone/proc/summon_backup()
 	var/list/possible_floors = list()
-	for (var/turf/simulated/floor/F in orange(1,src))
+	for (var/turf/simulated/floor/F in orange(1,get_turf(src)))
 		possible_floors.Add(F)
 	var/monsters_to_spawn = 1
 	if (health < (maxHealth / 2))
 		monsters_to_spawn++
 	for (var/i = 1 to monsters_to_spawn)
+		if (possible_floors.len <= 0)
+			break
 		var/turf/T = pick(possible_floors)
 		if (T)
 			possible_floors.Remove(T)
 			new /obj/effect/cult_ritual/backup_spawn(T)
 
 /obj/structure/cult/bloodstone/dance_start()
-	while(src && loc && anchor)
+	while(!gcDestroyed && loc && anchor)
 		for (var/mob/M in contributors)
 			if (!iscultist(M) || get_dist(src,M) > 1 || (M.stat != CONSCIOUS))
 				if (M.client)
@@ -1351,8 +1598,9 @@ var/list/bloodstone_list = list()
 	anchor = FALSE
 	for (var/obj/structure/teleportwarp/TW in src.loc)
 		qdel(TW)
-	new /obj/machinery/singularity/narsie/large(src.loc)
-	stat_collection.cult_narsie_summoned = TRUE
+	if (!gcDestroyed && loc)
+		new /obj/machinery/singularity/narsie/large(src.loc)
+		SSpersistence_map.setSavingFilth(FALSE)
 	return 1
 
 /obj/structure/cult/bloodstone/ex_act(var/severity)

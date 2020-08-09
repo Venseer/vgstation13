@@ -91,7 +91,7 @@
 	//WE DON'T ATTACK INVULNERABLE MOBS (such as etheral jaunting mobs, or passengers of the adminbus)
 	var/list/target_prox = view(the_target, vision_range)
 	for(var/obj/machinery/space_heater/campfire/fire in target_prox)
-		var/dist = get_dist(the_target, fire)
+		var/dist = get_dist(src, fire)
 		if(dist < (fire.light_range*2))//Just sitting on the edge of the fire
 			alpha_stance = WOLF_ALPHANONE
 			visible_message("<span class = 'notice'>\The [src] whimpers and runs from \the [fire]</span>")
@@ -178,6 +178,8 @@
 				if(!pack_alpha)
 					pack_alpha = user
 					to_chat(user, "<span class='info'>You have gained \the [src]'s trust.</span>")
+					message_admins("[key_name(user)] has tamed a wolf: @[formatJumpTo(user, "JMP")]")
+					log_admin("[key_name(user)] has tamed a wolf:  @([user.x], [user.y], [user.z])")
 					name_mob(user)
 				else
 					if(istype(pack_alpha, /mob/living/simple_animal/hostile/wolf))
@@ -284,9 +286,14 @@
 			stop_automated_movement = 0
 
 
-		if((health < (maxHealth/2)) && nutrition >= WOLF_REGENCOST)
-			health += rand(1,3)
-			nutrition -= WOLF_REGENCOST
+		if(health < maxHealth/2)
+			if(nutrition >= WOLF_REGENCOST)
+				health += rand(1,3)
+				nutrition -= WOLF_REGENCOST
+		else
+			if(hunger_status >= WOLF_WELLFED)
+				health += 1
+				nutrition -= WOLF_REGENCOST
 
 /mob/living/simple_animal/hostile/wolf/proc/handle_hunger()
 	switch(nutrition)
@@ -382,6 +389,8 @@
 			stance = HOSTILE_STANCE_ATTACK
 			alpha_stance = WOLF_ALPHAATTACK
 			alpha_target = target
+			add_attacklogs(pack_alpha, target, "set [src] (wolf) on", admin_warn = TRUE)
+			log_admin("[key_name(pack_alpha)] has ordered a wolf named \[src] to attack [key_name(target)] @([src.x], [src.y], [src.z])")
 		if(istype (target, /turf)) //We go!
 			alpha_stance = WOLF_ALPHAMOVE
 			alpha_target = target

@@ -26,7 +26,7 @@
 /obj/item/mecha_parts/mecha_equipment/tool/jail/allow_drop()
 	return 0
 
-/obj/item/mecha_parts/mecha_equipment/tool/jail/destroy()
+/obj/item/mecha_parts/mecha_equipment/tool/jail/Destroy()
 	for(var/atom/movable/AM in src)
 		AM.forceMove(get_turf(src))
 	for(var/cell in cells) //safety nets
@@ -119,7 +119,7 @@
 		return
 	prisoner.Stun(10)
 	prisoner.Knockdown(10)
-	prisoner.apply_effect(STUTTER, 10)
+	prisoner.apply_effect(10, STUTTER)
 	chassis.use_power(energy_drain)
 	playsound(chassis, 'sound/weapons/Egloves.ogg', 50, 1)
 	occupant_message("[prisoner] has been subdued.")
@@ -155,7 +155,7 @@
 	return
 
 /obj/item/mecha_parts/mecha_equipment/tool/jail/alt_action()
-	for(var/i = i; i <= cells.len; i++)
+	for(var/i in 1 to cells.len)
 		subdue(i)
 
 /datum/global_iterator/mech_jail/process(var/obj/item/mecha_parts/mecha_equipment/tool/jail/J)

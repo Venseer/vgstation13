@@ -42,7 +42,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 
 	initroletype = /datum/role/legacy_cultist
 	roletype = /datum/role/legacy_cultist
-	required_pref = ROLE_LEGACY_CULTIST
+	required_pref = CULTIST
 
 /datum/faction/cult/narsie/GetObjectivesMenuHeader()
 	var/icon/logo = icon('icons/logos.dmi', "cult-logo")
@@ -52,7 +52,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 /datum/faction/cult/narsie/OnPostSetup()
 	rune_controller = new()
 	forgeObjectives()
-	for(var/datum/role/R in members)
+	for(var/datum/role/legacy_cultist/R in members)
 		R.OnPostSetup(equip = TRUE)
 
 // Related to word randomisation

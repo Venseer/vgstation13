@@ -78,8 +78,8 @@
 
 	if(istype(M,/mob/living/carbon/human))
 		var/mob/living/carbon/human/H=M
-		H.apply_damage(3, BURN, LIMB_LEFT_LEG, 0, 0, "Slag")
-		H.apply_damage(3, BURN, LIMB_RIGHT_LEG, 0, 0, "Slag")
+		H.apply_damage(3, BURN, LIMB_LEFT_LEG, 0, 0, used_weapon = "Slag")
+		H.apply_damage(3, BURN, LIMB_RIGHT_LEG, 0, 0, used_weapon = "Slag")
 	else if(istype(M,/mob/living))
 		var/mob/living/L=M
 		L.apply_damage(125, BURN)
@@ -92,7 +92,7 @@
 		user.visible_message("<span class=\"danger\">\The [src] is broken apart with the [W.name] by [user.name]!</span>", \
 			"<span class=\"danger\">You break apart \the [src] with your [W.name]!", \
 			"You hear the sound of rock crumbling.")
-		var/obj/item/weapon/ore/slag/slag = new /obj/item/weapon/ore/slag(loc)
+		var/obj/item/stack/ore/slag/slag = drop_stack(/obj/item/stack/ore/slag, loc)
 		slag.materials = src.materials
 		slag.materials.holder = slag
 		qdel(src)

@@ -16,6 +16,7 @@
 	melee_damage_lower = 8
 	melee_damage_upper = 8
 	attacktext = "torments"
+	attack_sound = 'sound/hallucinations/growl1.ogg'
 	minbodytemp = 0
 	maxbodytemp = 4000
 	min_oxy = 0
@@ -23,7 +24,6 @@
 	max_tox = 0
 	speed = 1
 	stop_automated_movement = TRUE
-	status_flags = 0
 	faction = "cult"
 	status_flags = CANPUSH
 	supernatural = TRUE
@@ -31,9 +31,15 @@
 	meat_type = /obj/item/weapon/ectoplasm
 	mob_property_flags = MOB_SUPERNATURAL
 
-/mob/living/simple_animal/construct/New()
+/mob/living/simple_animal/shade/New()
 	..()
 	add_language(LANGUAGE_CULT)
+
+/mob/living/simple_animal/shade/death(var/gibbed = FALSE)
+	var/turf/T = get_turf(src)
+	if (T)
+		playsound(T, get_sfx("soulstone"), 50,1)
+	..(gibbed)
 
 /mob/living/simple_animal/shade/Login()
 	..()
@@ -49,7 +55,7 @@
 /mob/living/simple_animal/shade/say(var/message)
 	. = ..(message, "C")
 
-/mob/living/simple_animal/shade/gib()
+/mob/living/simple_animal/shade/gib(var/animation = 0, var/meat = 1)
 	death(TRUE)
 	monkeyizing = TRUE
 	canmove = FALSE
@@ -67,6 +73,7 @@
 	if(timestopped)
 		return FALSE //under effects of time magick
 	..()
+	regular_hud_updates()
 	if(isDead())
 		for(var/i=0;i<3;i++)
 			new /obj/item/weapon/ectoplasm (src.loc)
@@ -99,7 +106,7 @@
 			var/damage = O.force
 			if (O.damtype == HALLOSS)
 				damage = 0
-			if(istype(O,/obj/item/weapon/nullrod))
+			if(isholyweapon(O))
 				damage *= 2
 				purge = 3
 			adjustBruteLoss(damage)
@@ -122,38 +129,25 @@
 
 ////////////////HUD//////////////////////
 
-/mob/living/simple_animal/shade/Life()
-	if(timestopped)
-		return 0 //under effects of time magick
-	. = ..()
-
-	regular_hud_updates()
-
 /mob/living/simple_animal/shade/regular_hud_updates()
 	update_pull_icon() //why is this here?
 
 	if(istype(loc, /obj/item/weapon/melee/soulblade) && hud_used && gui_icons && gui_icons.soulblade_bloodbar)
 		var/obj/item/weapon/melee/soulblade/SB = loc
-		if(fire)
+		if(healths2)
 			switch(SB.health)
-				if (-INFINITY to 18)
-					fire.icon_state = "blade_reallynotok"
-				if (18 to 36)
-					fire.icon_state = "blade_notok"
-				if (36 to INFINITY)
-					fire.icon_state = "blade_ok"
+				if(-INFINITY to 18)
+					healths2.icon_state = "blade_reallynotok"
+				if(18 to 36)
+					healths2.icon_state = "blade_notok"
+				if(36 to INFINITY)
+					healths2.icon_state = "blade_ok"
 		var/matrix/M = matrix()
 		M.Scale(1,SB.blood/SB.maxblood)
 		var/total_offset = (60 + (100*(SB.blood/SB.maxblood))) * PIXEL_MULTIPLIER
 		hud_used.mymob.gui_icons.soulblade_bloodbar.transform = M
 		hud_used.mymob.gui_icons.soulblade_bloodbar.screen_loc = "WEST,CENTER-[8-round(total_offset/WORLD_ICON_SIZE)]:[total_offset%WORLD_ICON_SIZE]"
 		hud_used.mymob.gui_icons.soulblade_coverLEFT.maptext = "[SB.blood]"
-
-	if(purged)
-		if(purge > 0)
-			purged.icon_state = "purge1"
-		else
-			purged.icon_state = "purge0"
 
 	if(client && hud_used && healths)
 		switch(health)
@@ -174,11 +168,25 @@
 			else
 				healths.icon_state = "shade_health7"
 
-/mob/living/simple_animal/shade/happiest/death(var/gibbed = FALSE)
+/mob/living/simple_animal/shade/noncult/happiest/death(var/gibbed = FALSE)
 	..(TRUE)
 	transmogrify()
 	if(!gcDestroyed)
 		qdel(src)
+
+/mob/living/simple_animal/shade/gondola
+	name = "Gondola Shade"
+	real_name = "Gondola Shade"
+	desc = "A wandering spirit"
+	icon = 'icons/mob/gondola.dmi'
+	icon_state = "gondola_shade"
+	icon_living = "gondola_shade"
+	icon_dead = "gondola_skull"
+
+/mob/living/simple_animal/shade/gondola/say()
+	return
+
+
 
 ///////////////////////////////CHAOS SWORD STUFF///////////////////////////////////////////////////
 
@@ -218,3 +226,14 @@
 			BS.perform(src)
 			return
 	..()
+
+/mob/living/simple_animal/shade/noncult
+	desc = "A bound spirit. This one appears more in tune with the realm of the dead."
+	universal_understand = 1 //They're closer to their observer selves, hence can understand any language
+	faction = "neutral"
+	icon_state = "ghost-narsie"
+	icon_living = "ghost-narsie"
+
+/mob/living/simple_animal/shade/noncult/New()
+	..()
+	remove_language(LANGUAGE_CULT)

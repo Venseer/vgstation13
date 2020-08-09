@@ -89,21 +89,27 @@
 	return(SUICIDE_ACT_BRUTELOSS)
 
 /obj/item/weapon/katana/IsShield()
-		return 1
+	return 1
+
+//Special weeb katana in ninja.dm
 
 /obj/item/weapon/katana/magic
-	name = "enchanted sword"
+	name = "moonlight-enchanted sword"
 	desc = "Capable of cutting through anything except the things it can't cut through."
-	icon_state = "cultblade"
-	item_state = "cultblade"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/swords_axes.dmi', "right_hand" = 'icons/mob/in-hand/right/swords_axes.dmi')
+	icon_state = "enchanted"
+	item_state = "enchanted"
+	w_class = W_CLASS_GIANT//don't want it stored anywhere"
 
 /obj/item/weapon/katana/magic/dropped(mob/user)
 	..()
 	qdel(src)
 
-/obj/item/weapon/katana/magic/equipped(mob/living/carbon/human/H, slot)
-	if(slot)
-		qdel(src)
+/obj/item/weapon/katana/magic/Destroy()
+	var/turf/T = get_turf(src)
+	if (T)
+		anim(target = T, a_icon = 'icons/effects/effects.dmi', flick_anim = "empdisable")
+	..()
 
 /obj/item/weapon/harpoon
 	name = "harpoon"
@@ -209,6 +215,13 @@ obj/item/weapon/wirerod/attackby(var/obj/item/I, mob/user as mob)
 	icon_state = "tacknife"
 	item_state = "knife"
 	force = 10
+	flags = FPRINT | SLOWDOWN_WHEN_CARRIED
+	slowdown = 0.999
+
+/obj/item/weapon/kitchen/utensil/knife/tactical/New()
+	..()
+	if(Holiday == APRIL_FOOLS_DAY)
+		slowdown = 0.8
 
 /obj/item/weapon/kitchen/utensil/knife/skinning
 	name = "skinning knife"
@@ -279,35 +292,6 @@ obj/item/weapon/banhammer/admin
 	else
 		parent_borer.chemicals -= 10
 		sleep(10)
-
-/obj/item/weapon/bullwhip
-	name = "bullwhip"
-	desc = "An archaeologist's best friend."
-	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/swords_axes.dmi', "right_hand" = 'icons/mob/in-hand/right/swords_axes.dmi')
-	icon_state = "bullwhip"
-	item_state = null
-	hitsound = "sound/weapons/whip_crack.ogg"
-	flags = FPRINT
-	slot_flags = SLOT_BELT
-	force = 15
-	throwforce = 0
-	w_class = W_CLASS_MEDIUM
-	attack_verb = list("whips", "lashes", "thrashes", "flagellates", "flogs")
-
-/obj/item/weapon/bullwhip/afterattack(atom/A, mob/living/user)
-	if(user.Adjacent(A))
-		user.delayNextAttack(10)
-		return
-	var/obj/item/projectile/beam/bullwhip/projectile = new(get_turf(user), get_dir(user, A), src, user)
-	var/targeting = "chest"
-	if(user.zone_sel)
-		targeting = user.zone_sel.selecting
-	projectile.launch_at(A,tar_zone = targeting,from = user)
-
-/obj/item/weapon/bullwhip/attack(mob/M, mob/user)
-	sharpness = 1.2	//a whip can only cut things when it is actually whipping
-	..()
-	sharpness = 0
 
 /obj/item/weapon/macuahuitl
 	name = "wooden paddle"
@@ -471,6 +455,19 @@ obj/item/weapon/banhammer/admin
 /obj/item/weapon/hammer
 	name = "smithing hammer"
 	desc = "for those with a predeliction for applying concussive maintenance"
+	icon = 'icons/obj/blacksmithing/hammer.dmi'
 	icon_state = "hammer"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/hammer_left.dmi', "right_hand" = 'icons/mob/in-hand/right/hammer_right.dmi')
 	force = 8
 	hitsound = 'sound/weapons/toolbox.ogg'
+
+/obj/item/weapon/pitchfork
+	name = "pitchfork"
+	desc = "Down with the current state of things!"
+	icon = 'icons/obj/weapons.dmi'
+	icon_state = "pitchspoon"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/swords_axes.dmi', "right_hand" = 'icons/mob/in-hand/right/swords_axes.dmi')
+	force = 8
+	sharpness = 2
+	sharpness = SHARP_TIP
+	hitsound = 'sound/weapons/bladeslice.ogg'

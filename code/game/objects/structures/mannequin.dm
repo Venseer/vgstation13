@@ -85,7 +85,7 @@
 		Awaken()
 
 /obj/structure/mannequin/HasProximity(var/atom/movable/AM)
-	if(trapped_prox)
+	if(trapped_prox && isliving(AM))
 		Awaken()
 		return 1
 	return 0
@@ -138,15 +138,15 @@
 /obj/structure/mannequin/attack_paw(mob/user as mob)
 	return attack_hand(user)
 
-/obj/structure/mannequin/wrenchAnchor(var/mob/user)
+/obj/structure/mannequin/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(trapped_strip)
 		Awaken()
 		return FALSE
 	. = ..()
 
 /obj/structure/mannequin/attackby(var/obj/item/weapon/W,var/mob/user)
-	if(iswrench(W))
-		return wrenchAnchor(user, 5 SECONDS)
+	if(W.is_wrench(user))
+		return wrenchAnchor(user, W, 5 SECONDS)
 	else if(user.a_intent == I_HURT)
 		user.delayNextAttack(8)
 		getDamage(W.force)
@@ -242,17 +242,19 @@
 				to_chat(user, "<span class='info'>You pick up \the [I] from \the [src].</span>")
 		else
 			if(get_held_item_by_index(hand_index))
-				user.drop_from_inventory(item_in_hand)
-				item_in_hand.forceMove(src)
-				var/obj/item/I = held_items[hand_index]
-				user.put_in_hands(I)
-				held_items[hand_index] = item_in_hand
-				to_chat(user, "<span class='info'>You switch \the [item_in_hand] and \the [I] on the [src].</span>")
+				if(user.drop_item(item_in_hand,src))
+					var/obj/item/I = held_items[hand_index]
+					user.put_in_hands(I)
+					held_items[hand_index] = item_in_hand
+					to_chat(user, "<span class='info'>You switch \the [item_in_hand] and \the [I] on the [src].</span>")
+				else
+					to_chat(user, "<span class='warning'>You can't drop that!</span>")
 			else
-				user.drop_from_inventory(item_in_hand)
-				item_in_hand.forceMove(src)
-				held_items[hand_index] = item_in_hand
-				to_chat(user, "<span class='info'>You place \the [item_in_hand] on \the [src].</span>")
+				if(user.drop_item(item_in_hand,src))
+					held_items[hand_index] = item_in_hand
+					to_chat(user, "<span class='info'>You place \the [item_in_hand] on \the [src].</span>")
+				else
+					to_chat(user, "<span class='warning'>You can't drop that!</span>")
 
 	else if(href_list["item"])
 		if(trapped_strip)
@@ -271,22 +273,24 @@
 		else
 			if(clothing[item_slot])
 				if(canEquip(user, item_slot,item_in_hand))
-					user.drop_from_inventory(item_in_hand)
-					item_in_hand.forceMove(src)
-					var/obj/item/I = clothing[item_slot]
-					user.put_in_hands(I)
-					clothing[item_slot] = item_in_hand
-					add_fingerprint(user)
-					to_chat(user, "<span class='info'>You switch \the [item_in_hand] and \the [I] on the [src].</span>")
+					if(user.drop_item(item_in_hand,src))
+						var/obj/item/I = clothing[item_slot]
+						user.put_in_hands(I)
+						clothing[item_slot] = item_in_hand
+						add_fingerprint(user)
+						to_chat(user, "<span class='info'>You switch \the [item_in_hand] and \the [I] on the [src].</span>")
+					else
+						to_chat(user, "<span class='warning'>You can't drop that!</span>")
 				else
 					return
 			else
 				if(canEquip(user, item_slot,item_in_hand))
-					user.drop_from_inventory(item_in_hand)
-					item_in_hand.forceMove(src)
-					clothing[item_slot] = item_in_hand
-					add_fingerprint(user)
-					to_chat(user, "<span class='info'>You place \the [item_in_hand] on \the [src].</span>")
+					if(user.drop_item(item_in_hand,src))
+						clothing[item_slot] = item_in_hand
+						add_fingerprint(user)
+						to_chat(user, "<span class='info'>You place \the [item_in_hand] on \the [src].</span>")
+					else
+						to_chat(user, "<span class='warning'>You can't drop that!</span>")
 				else
 					return
 
@@ -308,7 +312,7 @@
 
 
 /obj/structure/mannequin/proc/breakDown()
-	getFromPool(/obj/effect/decal/cleanable/dirt,loc)
+	new /obj/effect/decal/cleanable/dirt(loc)
 	for(var/cloth in clothing)
 		if(clothing[cloth])
 			var/obj/item/cloth_to_drop = clothing[cloth]
@@ -426,7 +430,7 @@
 /obj/structure/mannequin/update_icon()
 	..()
 	overlays.len = 0
-	var/obj/abstract/Overlays/O = getFromPool(/obj/abstract/Overlays/)
+	var/obj/abstract/Overlays/O = new /obj/abstract/Overlays/
 	O.layer = FLOAT_LAYER
 	O.overlays.len = 0
 
@@ -442,7 +446,7 @@
 	I.pixel_x = clothing_offset_x
 	I.pixel_y = clothing_offset_y
 	overlays += I
-	returnToPool(O)
+	qdel(O)
 
 /obj/structure/mannequin/proc/update_icon_slot(var/obj/abstract/Overlays/O, var/slot)
 	var/obj/item/clothing/clothToUpdate = clothing[slot]
@@ -689,7 +693,7 @@
 	trueForm = /mob/living/simple_animal/hostile/mannequin/wood
 
 /obj/structure/mannequin/wood/breakDown()
-	getFromPool(/obj/item/stack/sheet/wood, loc, 5)//You get half the materials used to make a block back
+	new /obj/item/stack/sheet/wood(loc, 5)//You get half the materials used to make a block bac)
 	..()
 
 /obj/structure/mannequin/wood/fat
@@ -717,7 +721,7 @@
 	awakening = 1
 	for(var/obj/structure/mannequin/M in range(src,chaintrap_range))
 		M.Awaken()
-	var/obj/item/trash/mannequin/newPedestal = getFromPool(pedestal,loc)
+	var/obj/item/trash/mannequin/newPedestal = new pedestal(loc)
 	newPedestal.dir = dir
 	var/mob/living/simple_animal/hostile/mannequin/livingMannequin = new trueForm(loc)
 	livingMannequin.name = name
@@ -770,8 +774,8 @@
 
 
 /obj/structure/block/attackby(var/obj/item/weapon/W,var/mob/user)
-	if(iswrench(W))
-		return wrenchAnchor(user, 5 SECONDS)
+	if(W.is_wrench(user))
+		return wrenchAnchor(user, W, 5 SECONDS)
 	else if(istype(W, /obj/item/weapon/chisel))
 
 		var/chosen_sculpture = input("Choose a sculpture type.", "[name]") as null|anything in available_sculptures
@@ -783,7 +787,7 @@
 		var/turf/T=get_turf(src)
 
 		if(do_after(user, src, time_to_sculpt))
-			getFromPool(/obj/effect/decal/cleanable/dirt,T)
+			new /obj/effect/decal/cleanable/dirt(T)
 			var/mannequin_type = available_sculptures[chosen_sculpture]
 			var/obj/structure/mannequin/M = new mannequin_type(T)
 			M.anchored = anchored
@@ -837,7 +841,7 @@
 	update_icon()
 
 /obj/structure/mannequin/cyber/breakDown()
-	getFromPool(/obj/item/stack/sheet/metal, loc, 5)//You get half the materials used to make a mannequin frame back.
+	new /obj/item/stack/sheet/metal(loc, 5)//You get half the materials used to make a mannequin frame back)
 	var/parts_list = list(
 		/obj/item/robot_parts/head,
 		/obj/item/robot_parts/chest,
@@ -870,7 +874,7 @@
 				qdel(src)
 			else
 				destroyed = 1
-				getFromPool(/obj/item/weapon/shard, loc)
+				new /obj/item/weapon/shard(loc)
 				playsound(src, "shatter", 100, 1)
 				shield = 0
 				update_icon()
@@ -905,7 +909,7 @@
 		if(shield <= 0)
 			destroyed = 1
 			locked = 0
-			getFromPool(/obj/item/weapon/shard, loc)
+			new /obj/item/weapon/shard(loc)
 			playsound(src, "shatter", 100, 1)
 			update_icon()
 		else
@@ -935,7 +939,7 @@
 			"You pry \the [src] apart.", \
 			"You hear something pop.")
 		var/turf/T=get_turf(src)
-		playsound(T, 'sound/items/Crowbar.ogg', 50, 1)
+		W.playtoolsound(T, 50)
 
 		if(do_after(user, src, 100))
 			var/obj/item/weapon/circuitboard/airlock/C = new(src)
@@ -947,7 +951,7 @@
 				C.conf_access=req_one_access
 
 			if(!destroyed)
-				getFromPool(/obj/item/stack/sheet/glass/glass, T, 1)
+				new /obj/item/stack/sheet/glass/glass(T, 1)
 
 			C.forceMove(T)
 
@@ -966,7 +970,7 @@
 				return
 			var/obj/item/weapon/weldingtool/WT = W
 			if(WT.remove_fuel(5))
-				playsound(loc, 'sound/items/Welder.ogg', 50, 1)
+				WT.playtoolsound(loc, 50)
 				health = min(health + 20, maxHealth)
 				to_chat(user, "<span class='notice'>You fix some of the dents on \the [src]!</span>")
 			else
@@ -982,7 +986,7 @@
 				return
 			var/obj/item/weapon/weldingtool/WT = W
 			if(WT.remove_fuel(5))
-				playsound(loc, 'sound/items/Welder.ogg', 50, 1)
+				WT.playtoolsound(loc, 50)
 				health = min(health + 20, maxHealth)
 				to_chat(user, "<span class='notice'>You fix some of the dents on \the [src]!</span>")
 			else

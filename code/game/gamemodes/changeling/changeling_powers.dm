@@ -54,7 +54,7 @@
 	if(!verb_holder)
 		return
 	if(!path)
-		returnToPool(verb_holder)
+		qdel(verb_holder)
 		verb_holder = null
 		return
 
@@ -208,7 +208,7 @@
 		if(P.isVerb)
 			verb_holder.verbs -= P.verbpath
 
-	returnToPool(verb_holder)
+	qdel(verb_holder)
 	verb_holder = null
 
 
@@ -527,7 +527,8 @@
 	animation.icon_state = "blank"
 	animation.icon = 'icons/mob/mob.dmi'
 	animation.master = src
-	flick("monkey2h", animation)
+	var/anim_name = C.get_unmonkey_anim()
+	flick(anim_name, animation)
 	sleep(48)
 	qdel(animation)
 	animation = null
@@ -665,7 +666,7 @@
 	C.update_canmove()
 	C.remove_changeling_powers()
 
-	C.emote("deathgasp")
+	C.emote("deathgasp", message = TRUE)
 	C.tod = worldtime2text()
 	var/time_to_take = rand(800, 1200)
 	to_chat(C, "<span class='notice'>This will take [round((time_to_take/10))] seconds.</span>")
@@ -960,7 +961,7 @@ var/list/datum/dna/hivemind_bank = list()
 		return 0 //One is inside, the other is outside something.
 	if(sting_range < 2)
 		return Adjacent(M)
-	if(AStar(src.loc, M.loc, /turf/proc/AdjacentTurfs, /turf/proc/Distance, sting_range)) //If a path exists, good!
+	if(quick_AStar(src.loc, M.loc, /turf/proc/AdjacentTurfs, /turf/proc/Distance, sting_range, reference="\ref[src]")) //If a path exists, good!
 		return 1
 	return 0
 
@@ -1000,11 +1001,187 @@ var/list/datum/dna/hivemind_bank = list()
 	spawn(10)
 		add_changeling_verb(verb_path)
 
-	to_chat(src, "<span class='notice'>We stealthily sting [T].</span>")
+	to_chat(src, "<span class='notice'>We stealthily sting [T==src?"ourselves":"\the [T]"].</span>")
 	if(!T.mind || !T.mind.GetRole(CHANGELING) || (allow_self && T == src))
 		return T	//T will be affected by the sting
 	to_chat(T, "<span class='warning'>You feel a tiny prick.</span>")
-	return
+
+/obj/item/verbs/changeling/proc/changeling_chemsting()
+	set category = "Changeling"
+	set name = "Chemical sting (misc)"
+	set desc = "Injects our victim with some chemicals, that we have sampled previously."
+
+	var/mob/M = loc
+	if(!istype(M))
+		return
+
+	var/datum/role/changeling/changeling = M.changeling_power(0)
+	if(!changeling)
+		return 0
+
+	var/S = input(M, "Select the chemical: ", "Chemical IDs", null) as null|anything in changeling.absorbed_chems
+	if(!S)
+		return
+
+	var/bool = alert(M, "Do we wish to target ourselves?", "Yes or no, we may not know", "Yes", "No")
+
+	var/amount = input(M, "Select how much you wish to inject. This will be how much chems we will have to muster from ourselves: ", "Chemical amount", null) as num
+	if(amount == 0)
+		return
+
+	var/mob/living/carbon/target
+	if (bool=="Yes")
+		target = M.changeling_sting(amount, /obj/item/verbs/changeling/proc/changeling_chemsting, allow_self = TRUE)
+	else
+		target = M.changeling_sting(amount, /obj/item/verbs/changeling/proc/changeling_chemsting, allow_self = FALSE)
+	if(!target || !target.reagents)
+		return
+
+	target.reagents.add_reagent(S, amount)
+
+/obj/item/verbs/changeling/proc/changeling_chemspit()
+	set category = "Changeling"
+	set name = "Chemical spit (misc)"
+	set desc = "Fires a globule of chemicals in the direction we are facing."
+
+	var/mob/M = loc
+	if(!istype(M))
+		return
+
+	var/datum/role/changeling/changeling = M.changeling_power(0)
+	if(!changeling)
+		return 0
+
+	var/S = input(M, "Select the chemical: ", "Chemical IDs", null) as null|anything in changeling.absorbed_chems
+	if(!S)
+		return
+
+	var/amount = input(M, "Select how much you wish to spit. This will be how much chems we will have to muster from ourselves: ", "Chemical amount", null) as num
+	if(amount == 0)
+		return
+
+	if(M.changeling_power(amount) && (changeling.chem_charges -= amount < 0))
+		var/obj/item/projectile/puke/P = new /obj/item/projectile/puke/clear
+		P.reagents.add_reagent(S, amount)
+		M.visible_message("<span class = 'warning'>\The [M] spits a globule of chemicals!</span>")
+		generic_projectile_fire(get_ranged_target_turf(M, M.dir, 10), M, P, 'sound/weapons/pierce.ogg', M)
+
+/obj/item/verbs/changeling/proc/changeling_transformation_sting()
+	set category = "Changeling"
+	set name = "Transformation Sting (40)"
+	set desc = "Injects our victim with some of our absorbed DNA, turning them into somebody else."
+
+	var/mob/M = loc
+	if(!istype(M))
+		return
+
+	var/datum/role/changeling/changeling = M.changeling_power(40)
+	if(!changeling)
+		return 0
+
+	var/list/names = list()
+	for(var/datum/dna/DNA in changeling.absorbed_dna)
+		names += "[DNA.real_name]"
+
+	var/S = input(M, "Select the target DNA: ", "Target DNA", null) as null|anything in names
+	if(!S)
+		return
+
+	var/datum/dna/chosen_dna = changeling.GetDNA(S)
+	if(!chosen_dna)
+		return
+
+	var/mob/living/carbon/target = M.changeling_sting(40, /obj/item/verbs/changeling/proc/changeling_transformation_sting)
+	if(!target)
+		return
+	if((M_HUSK in target.mutations) || (!ishuman(target) && !ismonkey(target)))
+		to_chat(src, "<span class='warning'>Our sting appears ineffective against its DNA.</span>")
+		return 0
+	target.visible_message("<span class='warning'>[target] transforms!</span>")
+	target.dna = chosen_dna.Clone()
+	target.real_name = chosen_dna.real_name
+	target.flavor_text = chosen_dna.flavor_text
+	target.UpdateAppearance()
+	domutcheck(target, null)
+	feedback_add_details("changeling_powers","TS")
+
+	return 1
+
+/obj/item/verbs/changeling/proc/changeling_extract_dna_sting()
+	set category = "Changeling"
+	set name = "Extract DNA Sting (40)"
+	set desc = "We stealthily sting a target and extract their DNA."
+
+	var/mob/M = loc
+	if(!istype(M) || !M.mind)
+		return
+
+	var/datum/role/changeling/changeling = M.mind.GetRole(CHANGELING)
+	if(!changeling)
+		return 0
+
+	var/mob/living/carbon/human/target = M.changeling_sting(40, /obj/item/verbs/changeling/proc/changeling_extract_dna_sting)
+	if(!istype(target))
+		return
+
+	target.dna.real_name = target.real_name
+	target.dna.flavor_text = target.flavor_text
+	changeling.absorbed_dna |= target.dna
+	if(target.species && !(changeling.absorbed_species.Find(target.species.name)))
+		changeling.absorbed_species += target.species.name
+
+	feedback_add_details("changeling_powers", "ED")
+	return 1
+
+/obj/item/verbs/changeling/proc/changeling_armblade()
+	set category = "Changeling"
+	set name = "Generate Arm Blade (20)"
+	set desc = "Transform one of our arms into a deadly blade."
+
+	var/mob/M = loc
+	if(!istype(M))
+		return
+
+	M.changeling_armblade()
+
+/mob/proc/changeling_armblade()
+	if(!istype(src, /mob/living/carbon/human))
+		return
+	var/mob/living/carbon/human/H = src
+	if(!src.mind)
+		return
+	var/datum/role/changeling/changeling = mind.GetRole(CHANGELING)
+	if(!changeling)
+		return 0
+	for(var/obj/item/weapon/armblade/W in src)
+		visible_message("<span class='warning'>With a sickening crunch, [src] reforms their arm blade into an arm!</span>",
+		"<span class='notice'>We assimilate the weapon back into our body.</span>",
+		"<span class='italics'>You hear organic matter ripping and tearing!</span>")
+		playsound(src, 'sound/weapons/bloodyslice.ogg', 30, 1)
+		qdel(W)
+		return 1
+	var/check_chems = changeling_power(20,1)
+	if(!check_chems)
+		return
+	var/good_hand
+	if(H.can_use_hand(active_hand))
+		good_hand = active_hand
+	else
+		for(var/i = 1 to held_items.len)
+			if(H.can_use_hand(i))
+				good_hand = i
+				break
+	if(good_hand)
+		drop_item(held_items[good_hand], force_drop = 1)
+		var/obj/item/weapon/armblade/A = new (src)
+		put_in_hand(good_hand, A)
+		H.visible_message("<span class='warning'>A grotesque blade forms around [name]\'s arm!</span>",
+			"<span class='warning'>Our arm twists and mutates, transforming it into a deadly blade.</span>",
+			"<span class='italics'>You hear organic matter ripping and tearing!</span>")
+		playsound(H, 'sound/weapons/bloodyslice.ogg', 30, 1)
+		changeling.chem_charges -= 20
+		feedback_add_details("changeling_powers","AB")
+		return 1
 
 /obj/item/verbs/changeling/proc/changeling_lsdsting()
 	set category = "Changeling"
@@ -1092,9 +1269,9 @@ var/list/datum/dna/hivemind_bank = list()
 		return
 
 	to_chat(target, "<span class='notice'>The world around you suddenly becomes quiet.</span>")
-	target.sdisabilities |= DEAF
+	target.disabilities |= DEAF
 	spawn(300)
-		target.sdisabilities &= ~DEAF
+		target.disabilities &= ~DEAF
 
 	feedback_add_details("changeling_powers", "DS")
 	return 1
@@ -1117,46 +1294,6 @@ var/list/datum/dna/hivemind_bank = list()
 	feedback_add_details("changeling_powers", "PS")
 	return 1
 
-/obj/item/verbs/changeling/proc/changeling_transformation_sting()
-	set category = "Changeling"
-	set name = "Transformation Sting (40)"
-	set desc = "Injects our victim with some of our absorbed DNA, turning them into somebody else."
-
-	var/mob/M = loc
-	if(!istype(M))
-		return
-
-	var/datum/role/changeling/changeling = M.changeling_power(40)
-	if(!changeling)
-		return 0
-
-	var/list/names = list()
-	for(var/datum/dna/DNA in changeling.absorbed_dna)
-		names += "[DNA.real_name]"
-
-	var/S = input(M, "Select the target DNA: ", "Target DNA", null) as null|anything in names
-	if(!S)
-		return
-
-	var/datum/dna/chosen_dna = changeling.GetDNA(S)
-	if(!chosen_dna)
-		return
-
-	var/mob/living/carbon/target = M.changeling_sting(40, /obj/item/verbs/changeling/proc/changeling_transformation_sting)
-	if(!target)
-		return
-	if((M_HUSK in target.mutations) || (!ishuman(target) && !ismonkey(target)))
-		to_chat(src, "<span class='warning'>Our sting appears ineffective against its DNA.</span>")
-		return 0
-	target.visible_message("<span class='warning'>[target] transforms!</span>")
-	target.dna = chosen_dna.Clone()
-	target.real_name = chosen_dna.real_name
-	target.flavor_text = chosen_dna.flavor_text
-	target.UpdateAppearance()
-	domutcheck(target, null)
-	feedback_add_details("changeling_powers","TS")
-
-	return 1
 
 /obj/item/verbs/changeling/proc/changeling_unfat_sting()
 	set category = "Changeling"
@@ -1202,79 +1339,3 @@ var/list/datum/dna/hivemind_bank = list()
 
 	feedback_add_details("changeling_powers", "FS")
 	return 1
-
-/obj/item/verbs/changeling/proc/changeling_extract_dna_sting()
-	set category = "Changeling"
-	set name = "Extract DNA Sting (40)"
-	set desc = "We stealthily sting a target and extract their DNA."
-
-	var/mob/M = loc
-	if(!istype(M) || !M.mind)
-		return
-
-	var/datum/role/changeling/changeling = M.mind.GetRole(CHANGELING)
-	if(!changeling)
-		return 0
-
-	var/mob/living/carbon/human/target = M.changeling_sting(40, /obj/item/verbs/changeling/proc/changeling_extract_dna_sting)
-	if(!istype(target))
-		return
-
-	target.dna.real_name = target.real_name
-	target.dna.flavor_text = target.flavor_text
-	changeling.absorbed_dna |= target.dna
-	if(target.species && !(changeling.absorbed_species.Find(target.species.name)))
-		changeling.absorbed_species += target.species.name
-
-	feedback_add_details("changeling_powers", "ED")
-	return 1
-
-/obj/item/verbs/changeling/proc/changeling_armblade()
-	set category = "Changeling"
-	set name = "Generate Arm Blade (20)"
-	set desc = "Transform one of our arms into a deadly blade."
-
-	var/mob/M = loc
-	if(!istype(M))
-		return
-
-	M.changeling_armblade()
-
-/mob/proc/changeling_armblade()
-	if(!istype(src, /mob/living/carbon/human))
-		return
-	var/mob/living/carbon/human/H = src
-	if(!src.mind)
-		return
-	var/datum/role/changeling/changeling = mind.GetRole(CHANGELING)
-	if(!changeling)
-		return 0
-	for(var/obj/item/weapon/armblade/W in src)
-		visible_message("<span class='warning'>With a sickening crunch, [src] reforms their arm blade into an arm!</span>",
-		"<span class='notice'>We assimilate the weapon back into our body.</span>",
-		"<span class='italics'>You hear organic matter ripping and tearing!</span>")
-		playsound(src, 'sound/weapons/bloodyslice.ogg', 30, 1)
-		qdel(W)
-		return 1
-	var/check_chems = changeling_power(20,1)
-	if(!check_chems)
-		return
-	var/good_hand
-	if(H.can_use_hand(active_hand))
-		good_hand = active_hand
-	else
-		for(var/i = 1 to held_items.len)
-			if(H.can_use_hand(i))
-				good_hand = i
-				break
-	if(good_hand)
-		drop_item(held_items[good_hand], force_drop = 1)
-		var/obj/item/weapon/armblade/A = new (src)
-		put_in_hand(good_hand, A)
-		H.visible_message("<span class='warning'>A grotesque blade forms around [name]\'s arm!</span>",
-			"<span class='warning'>Our arm twists and mutates, transforming it into a deadly blade.</span>",
-			"<span class='italics'>You hear organic matter ripping and tearing!</span>")
-		playsound(H, 'sound/weapons/bloodyslice.ogg', 30, 1)
-		changeling.chem_charges -= 20
-		feedback_add_details("changeling_powers","AB")
-		return 1

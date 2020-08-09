@@ -67,6 +67,8 @@
 	max_health = round(seed.endurance/2)
 	if(seed.spread == 1)
 		limited_growth = 1
+		layer = CREEPER_LAYER
+		plane = ABOVE_TURF_PLANE
 	mature_time = Ceiling(seed.maturation/2)
 	spread_chance = round(40 + triangular_seq(seed.potency*2, 30)) // Diminishing returns formula, see maths.dm
 	spread_distance_limit = limited_growth ? (CREEPER_GROWTH_DISTANCE) : 0
@@ -78,6 +80,7 @@
 
 	spawn(1) // Plants will sometimes be spawned in the turf adjacent to the one they need to end up in, for the sake of correct dir/etc being set.
 		SSplant.add_plant(src)
+		score["kudzugrowth"]++
 		// Some plants eat through plating.
 		if(seed.chems && !isnull(seed.chems[PHENOL]))
 			var/turf/T = get_turf(src)
@@ -127,6 +130,14 @@
 		arbitrary_measurement_of_how_lush_I_am_right_now -= round(-(health - max_health)/(max_health/3))
 
 	arbitrary_measurement_of_how_lush_I_am_right_now = max(1, arbitrary_measurement_of_how_lush_I_am_right_now)
+
+	color = null
+	if (seed.hematophage && seed.ligneous)
+		color = "#804040"
+	else if (seed.hematophage)
+		color = "#800000"
+	else if (seed.ligneous)
+		color = "#808080"
 
 	switch(arbitrary_measurement_of_how_lush_I_am_right_now)
 		if(1)

@@ -24,8 +24,10 @@
 	100;/obj/machinery/auto_cloner,
 	100;/obj/structure/bed/chair/vehicle/gigadrill,
 	100;/obj/mecha/working/hoverpod,
+	100;/obj/structure/essence_printer,
 	100;/obj/machinery/replicator,
 	100;/obj/machinery/communication,
+	100;/mob/living/simple_animal/hostile/roboduck,
 	1000;/obj/machinery/artifact)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +57,7 @@
 	excavation_level = rand(5,50)
 
 /obj/structure/boulder/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if (istype(W, /obj/item/device/core_sampler))
+	if (istype(W, /obj/item/device/core_sampler) && geological_data)
 		src.geological_data.artifact_distance = rand(-100,100) / 100
 		src.geological_data.artifact_id = artifact_find.artifact_id
 
@@ -71,7 +73,7 @@
 	if (istype(W, /obj/item/device/measuring_tape))
 		var/obj/item/device/measuring_tape/P = W
 		user.visible_message("<span class='notice>[user] extends [P] towards [src].","<span class='notice'>You extend [P] towards [src].</span></span>")
-		to_chat(user, "<span class='notice'>[bicon(P)] [src] has been excavated to a depth of [2*src.excavation_level]cm.</span>")
+		to_chat(user, "<span class='notice'>[bicon(P)] [src] has been excavated to a depth of [src.excavation_level]cm.</span>")
 		return
 
 	if (istype(W, /obj/item/weapon/pickaxe))
@@ -84,7 +86,7 @@
 
 		busy = 1
 
-		if(do_after(user,src, P.digspeed))
+		if(do_after(user,src, (MINE_DURATION * P.toolspeed)))
 
 			busy = 0
 
@@ -95,7 +97,7 @@
 				//failure
 				src.visible_message("<span class='danger'>\The [src] suddenly crumbles away.</span>")
 				to_chat(user, "<span class='rose'>\The [src] has disintegrated under your onslaught, any secrets it was holding are long gone.</span>")
-				returnToPool(src)
+				qdel(src)
 				return
 
 			if(prob(excavation_level))
@@ -109,7 +111,7 @@
 						new spawn_type(get_turf(src))
 				else
 					to_chat(user, "<span class='notice'>[src] has been whittled away under your careful excavation, but there was nothing of interest inside.</span>")
-				returnToPool(src)
+				qdel(src)
 		else
 			busy = 0
 		return
@@ -120,7 +122,7 @@
 	if(istype(user,/mob/living/simple_animal/construct/armoured))
 		playsound(loc, 'sound/weapons/heavysmash.ogg', 75, 1)
 		if(do_after(user, src, 20))
-			returnToPool(src)
+			qdel(src)
 		return 1
 	return 0
 

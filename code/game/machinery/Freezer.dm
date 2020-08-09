@@ -54,10 +54,10 @@
 		icon_state = "freezer_0"
 	..()
 
-/obj/machinery/atmospherics/unary/cold_sink/freezer/crowbarDestroy(mob/user)
+/obj/machinery/atmospherics/unary/cold_sink/freezer/crowbarDestroy(mob/user, obj/item/weapon/crowbar/I)
 	if(on)
 		to_chat(user, "You have to turn off \the [src]!")
-		return
+		return FALSE
 	return ..()
 
 /obj/machinery/atmospherics/unary/cold_sink/freezer/togglePanelOpen(var/obj/toggleitem, mob/user)
@@ -66,7 +66,7 @@
 		return
 	return ..()
 
-/obj/machinery/atmospherics/unary/cold_sink/freezer/wrenchAnchor(var/mob/user)
+/obj/machinery/atmospherics/unary/cold_sink/freezer/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(on)
 		to_chat(user, "You have to turn off \the [src] first!")
 		return FALSE
@@ -89,7 +89,8 @@
 		if(network)
 			qdel(network)
 			network = null
-		
+		update_icon()
+
 
 /obj/machinery/atmospherics/unary/cold_sink/freezer/attack_hand(mob/user as mob)
 	user.set_machine(src)
@@ -146,7 +147,7 @@
 	if (src.anchored || usr:stat)
 		to_chat(usr, "It is fastened to the floor!")
 		return 0
-	src.dir = turn(src.dir, 270)
+	src.dir = turn(src.dir, -90)
 	return 1
 
 /obj/machinery/atmospherics/unary/cold_sink/freezer/verb/rotate_ccw()
@@ -227,10 +228,10 @@
 	..()
 	return
 
-/obj/machinery/atmospherics/unary/heat_reservoir/heater/crowbarDestroy(mob/user)
+/obj/machinery/atmospherics/unary/heat_reservoir/heater/crowbarDestroy(mob/user, obj/item/weapon/crowbar/I)
 	if(on)
 		to_chat(user, "You have to turn off \the [src]!")
-		return
+		return FALSE
 	return ..()
 
 /obj/machinery/atmospherics/unary/heat_reservoir/heater/togglePanelOpen(var/obj/toggleitem, mob/user)
@@ -239,7 +240,7 @@
 		return
 	return ..()
 
-/obj/machinery/atmospherics/unary/heat_reservoir/heater/wrenchAnchor(var/mob/user)
+/obj/machinery/atmospherics/unary/heat_reservoir/heater/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(on)
 		to_chat(user, "You have to turn off \the [src] first!")
 		return FALSE
@@ -262,7 +263,7 @@
 		if(network)
 			qdel(network)
 			network = null
-		
+
 
 /obj/machinery/atmospherics/unary/heat_reservoir/heater/attack_hand(mob/user as mob)
 	user.set_machine(src)
@@ -317,7 +318,7 @@
 	if (src.anchored || usr:stat)
 		to_chat(usr, "It is fastened to the floor!")
 		return 0
-	src.dir = turn(src.dir, 270)
+	src.dir = turn(src.dir, -90)
 	return 1
 
 /obj/machinery/atmospherics/unary/heat_reservoir/heater/verb/rotate_ccw()

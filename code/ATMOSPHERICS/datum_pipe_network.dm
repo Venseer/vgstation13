@@ -1,5 +1,6 @@
 /datum/pipe_network
 	var/list/datum/gas_mixture/gases = list() //All of the gas_mixtures continuously connected in this network
+	var/volume = 0	//caches the total volume for atmos machines to use in gas calculations
 
 	var/list/obj/machinery/atmospherics/normal_members = list()
 	var/list/datum/pipeline/line_members = list()
@@ -15,21 +16,15 @@
 
 	..()
 
-/datum/pipeline/Del()
-	pipe_networks -= src
-	..()
-
 /datum/pipe_network/Destroy()
 	for(var/datum/pipeline/pipeline in line_members) //This will remove the pipeline references for us
 		pipeline.network = null
+	line_members = null
 	for(var/obj/machinery/atmospherics/objects in normal_members) //Procs for the different bases will remove the references
 		objects.unassign_network(src)
-
-/datum/pipe_network/resetVariables()
-	..("gases", "normal_members", "line_members")
-	gases = list()
-	normal_members = list()
-	line_members = list()
+	normal_members = null
+	pipe_networks -= src
+	..()
 
 /datum/pipe_network/proc/process()
 	set waitfor = FALSE
@@ -50,7 +45,7 @@
 	//Notes: Assuming that members will add themselves to appropriate roster in network_expandz()
 
 	if(!start_normal)
-		returnToPool(src)
+		qdel(src)
 		return
 
 	start_normal.network_expand(src, reference)
@@ -60,7 +55,7 @@
 	if((normal_members.len>0)||(line_members.len>0))
 		pipe_networks |= src
 	else
-		returnToPool(src)
+		qdel(src)
 		return
 	return 1
 
@@ -86,6 +81,7 @@
 	//Go through membership roster and make sure gases is up to date
 
 	gases = list()
+	volume = 0
 
 	for(var/obj/machinery/atmospherics/normal_member in normal_members)
 		var/result = normal_member.return_network_air(src)
@@ -94,6 +90,9 @@
 
 	for(var/datum/pipeline/line_member in line_members)
 		gases += line_member.air
+
+	for(var/datum/gas_mixture/air in gases)
+		volume += air.volume
 
 /datum/pipe_network/proc/reconcile_air()
 	//Perfectly equalize all gases members instantly
@@ -117,7 +116,7 @@
 
 	return 1
 
-/proc/equalize_gases(datum/gas_mixture/list/gases)
+/proc/equalize_gases(list/datum/gas_mixture/gases)
 	//Perfectly equalize all gases members instantly
 
 	var/datum/gas_mixture/temp = new()

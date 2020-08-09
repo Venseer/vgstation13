@@ -10,6 +10,8 @@
 	icon_state = "firingrange"
 	dynamic_lighting = 1
 
+	holomap_draw_override = HOLOMAP_DRAW_EMPTY
+
 	//Used for bizarre/odd/reference vaults, entering them causes the wild wasteland sound to play
 	var/mysterious = FALSE
 
@@ -19,9 +21,6 @@
 	if(mysterious)
 		//Create a narrator object to play a sound to everybody who enters the area
 		narrator = new /obj/effect/narration/mystery_sound(null)
-
-/area/vault/holomapAlwaysDraw()
-	return 0
 
 //Special area that can be used in map elements. When loaded, it creates a new area object and transfers all of its contents into it.
 //This means that this area can be put into multiple map elements without any issues
@@ -40,7 +39,10 @@
 	new_area.tag = "[new_area.type]/\ref[ME]"
 	new_area.addSorted()
 
+/area/vault/gingerbread_house
 
+/area/vault/mechclubhouse
+	requires_power = 1
 
 /area/vault/icetruck
 
@@ -74,6 +76,8 @@
 /area/vault/ioufort
 
 /area/vault/hive_shuttle
+
+/area/vault/rsvault
 
 /area/vault/syndiecargo
 
@@ -350,7 +354,7 @@
 /obj/item/weapon/melee/morningstar/catechizer
 	name = "The Catechizer"
 	desc = "An unholy weapon forged eons ago by a servant of Nar-Sie."
-
+	origin_tech = null
 	force = 37
 	throwforce = 30
 	throw_speed = 3
@@ -358,26 +362,6 @@
 
 /obj/effect/landmark/catechizer_spawn //Multiple of these are put in a single area. One of these landmark will contain a true catachizer, others only mimics
 	name = "catechizer spawn"
-
-/obj/effect/landmark/catechizer_spawn/New()
-	spawn()
-		if(!isturf(loc))
-			return
-
-		var/list/all_spawns = list()
-		for(var/obj/effect/landmark/catechizer_spawn/S in get_area(src))
-			all_spawns.Add(S)
-
-		var/obj/effect/true_spawn = pick(all_spawns)
-		all_spawns.Remove(true_spawn)
-
-		var/obj/item/weapon/melee/morningstar/catechizer/original = new(get_turf(true_spawn))
-
-		for(var/obj/effect/S in all_spawns)
-			new /mob/living/simple_animal/hostile/mimic/crate/item(get_turf(S), original) //Make copies
-			qdel(S)
-
-		qdel(src)
 
 /obj/machinery/door/poddoor/vault_rust
 	id_tag = "tokamak_yadro_ventilyatsionnyy" // Russian for "tokamak_core_vent"
@@ -939,3 +923,8 @@
 		/obj/item/weapon/stock_parts/console_screen\
 	)
 
+
+/obj/machinery/turret/russian
+	faction = "russian"
+	lasers = 1
+	lasertype = 2

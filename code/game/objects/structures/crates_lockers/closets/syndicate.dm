@@ -14,15 +14,16 @@
 		/obj/item/weapon/tank/jetpack/oxygen/nukeops,
 		/obj/item/clothing/mask/gas/syndicate,
 		/obj/item/clothing/under/syndicate,
-		/obj/item/clothing/head/helmet/space/rig/syndi,
-		/obj/item/clothing/suit/space/rig/syndi,
-		/obj/item/weapon/crowbar/red,
+		/obj/item/clothing/suit/space/rig/syndi, //Helmet's in the rig.
 		/obj/item/weapon/cell/high,
 		/obj/item/device/pda/syndicate/door,
-		/obj/item/device/multitool,
 		/obj/item/weapon/pinpointer/nukeop,
 		/obj/item/weapon/shield/energy,
 		/obj/item/clothing/shoes/magboots/syndie,
+		/obj/item/weapon/storage/bag/ammo_pouch,
+		/obj/item/clothing/accessory/holster/knife/boot/preloaded/tactical,
+		/obj/item/clothing/accessory/holster/handgun/waist,
+		/obj/item/clothing/accessory/storage/bandolier,
 	)
 
 /obj/structure/closet/syndicate/nuclear
@@ -59,7 +60,7 @@
 
 	//Metal (common ore)
 	if(pickednum >= 2)
-		var/obj/item/stack/sheet/metal/M = getFromPool(/obj/item/stack/sheet/metal, get_turf(src))
+		var/obj/item/stack/sheet/metal/M = new /obj/item/stack/sheet/metal(get_turf(src))
 		M.amount = rand(common_min, common_max)
 
 	//Glass (common ore)
@@ -148,4 +149,6 @@
 		/obj/item/clothing/shoes/magboots/vox,
 		/obj/item/clothing/under/vox/vox_casual,
 		/obj/item/weapon/tank/jetpack/nitrogen,
+		/obj/item/clothing/suit/space/vox/civ/mushmen,
+		/obj/item/clothing/head/helmet/space/vox/civ/mushmen,
 	)

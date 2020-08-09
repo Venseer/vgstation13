@@ -14,6 +14,8 @@
 	var/log_admin = 0					// log admin actions
 	var/log_admin_only = FALSE
 	var/log_debug = 1					// log debug output
+	var/log_sql = 0						// log SQL events
+	var/log_sql_queries = 0				// debug info SQL queries
 	var/log_game = 0					// log game events
 	var/log_vote = 0					// log voting
 	var/log_whisper = 0					// log client whisper
@@ -26,7 +28,7 @@
 	var/log_rc = 0						// log requests consoles
 	var/log_hrefs = 0					// logs all links clicked in-game. Could be used for debugging and tracking down exploits
 	var/log_runtimes = 0                // Logs all runtimes.
-	var/sql_enabled = 1					// for sql switching
+	var/sql_enabled = 0					// for sql switching
 	var/allow_admin_ooccolor = 0		// Allows admins with relevant permissions to have their own ooc colour
 	var/allow_vote_restart = 0 			// allow votes to restart
 	var/allow_vote_mode = 0				// allow votes to change mode
@@ -71,6 +73,12 @@
 	var/jobs_have_minimal_access = 0	//determines whether jobs use minimal access or expanded access.
 	var/copy_logs = null
 
+	// BSQL things
+	var/bsql_debug = 0
+	var/async_query_timeout = 10
+	var/blocking_query_timeout = 5
+	var/bsql_thread_limit = 50
+
 	var/cult_ghostwriter = 1               //Allows ghosts to write in blood in cult rounds...
 	var/cult_ghostwriter_req_cultists = 10 //...so long as this many cultists are active.
 
@@ -113,12 +121,15 @@
 	var/health_threshold_softcrit = 0
 	var/health_threshold_crit = 0
 	var/health_threshold_dead = -100
+	var/burn_damage_ash = 0
 
 	var/organ_health_multiplier = 1
 	var/organ_regeneration_multiplier = 1
 
 	var/bones_can_break = 0
 	var/limbs_can_break = 0
+
+	var/voice_noises = 0
 
 	var/revival_pod_plants = 1
 	var/revival_cloning = 1
@@ -166,8 +177,11 @@
 	var/mommi_static = 0 //Scrambling mobs for mommis or not
 
 	var/skip_minimap_generation = 0 //If 1, don't generate minimaps
+	var/skip_holominimap_generation = 0 //If 1, don't generate holominimaps
 	var/skip_vault_generation = 0 //If 1, don't generate vaults
 	var/shut_up_automatic_diagnostic_and_announcement_system = 0 //If 1, don't play the vox sounds at the start of every shift.
+	var/no_lobby_music = 0 //If 1, don't play lobby music, regardless of client preferences.
+	var/no_ambience = 0 //If 1, don't play ambience, regardless of client preferences.
 
 	var/enable_roundstart_away_missions = 0
 
@@ -183,6 +197,9 @@
 
 	// Weighted Votes
 	var/weighted_votes = 0
+
+	// Dynamic Mode
+	var/high_population_override = 1//If 1, what rulesets can or cannot be called depend on the threat level only
 
 /datum/configuration/New()
 	. = ..()
@@ -276,6 +293,12 @@
 
 				if ("log_debug")
 					config.log_debug = text2num(value)
+
+				if ("log_sql")
+					config.log_sql = 1
+
+				if ("log_sql_queries")
+					config.log_sql_queries = 1
 
 				if ("log_game")
 					config.log_game = 1
@@ -537,6 +560,17 @@
 					config.assistantratio = text2num(value)
 				if("copy_logs")
 					copy_logs = value
+
+				// BRSQL
+				if("bsql_debug")
+					bsql_debug = value
+				if("async_query_timeout")
+					async_query_timeout = text2num(value)
+				if("blocking_query_timeout")
+					blocking_query_timeout = text2num(value)
+				if("bsql_thread_limit")
+					bsql_thread_limit = text2num(value)
+
 				if("media_base_url")
 					media_base_url = value
 				if("media_secret_key")
@@ -555,10 +589,16 @@
 					mommi_static = 1
 				if("skip_minimap_generation")
 					skip_minimap_generation = 1
+				if("skip_holominimap_generation")
+					skip_holominimap_generation = 1
 				if("skip_vault_generation")
 					skip_vault_generation = 1
 				if("shut_up_automatic_diagnostic_and_announcement_system")
 					shut_up_automatic_diagnostic_and_announcement_system = 1
+				if("no_lobby_music")
+					no_lobby_music = 1
+				if("no_ambience")
+					no_ambience = 1
 				if("enable_roundstart_away_missions")
 					enable_roundstart_away_missions = 1
 				if("enable_wages")
@@ -595,6 +635,8 @@
 					config.health_threshold_softcrit = value
 				if("health_threshold_dead")
 					config.health_threshold_dead = value
+				if("burn_damage_ash")
+					config.burn_damage_ash = value
 				if("revival_pod_plants")
 					config.revival_pod_plants = value
 				if("revival_cloning")
@@ -631,6 +673,8 @@
 					config.borer_takeover_immediately = 1
 				if("hardcore_mode")
 					hardcore_mode = value
+				if("humans_speak")
+					voice_noises = 1
 				else
 					diary << "Unknown setting in configuration: '[name]'"
 
@@ -663,7 +707,7 @@
 			if ("address")
 				sqladdress = value
 			if ("port")
-				sqlport = value
+				sqlport = text2num(value)
 			if ("database")
 				sqldb = value
 			if ("login")

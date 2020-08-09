@@ -39,8 +39,6 @@
 
 	var/list/construct_spells = list()
 
-	var/list/hud_list = list()
-
 	var/list/healers = list()
 
 /mob/living/simple_animal/construct/Move(NewLoc,Dir=0,step_x=0,step_y=0,var/glide_size_override = 0)
@@ -71,7 +69,7 @@
 				to_chat(M, "<span class='sinister'><b>[src.name]:</b> [html_encode(speech.message)]</span>")
 		return 1
 
-/mob/living/simple_animal/construct/gib()
+/mob/living/simple_animal/construct/gib(var/animation = 0, var/meat = 1)
 	death(1)
 	monkeyizing = 1
 	canmove = 0
@@ -158,7 +156,7 @@
 		var/damage = O.force
 		if (O.damtype == HALLOSS)
 			damage = 0
-		if(istype(O,/obj/item/weapon/nullrod))
+		if(isholyweapon(O))
 			damage *= 2
 			purge = 3
 		adjustBruteLoss(damage)
@@ -396,19 +394,11 @@
 
 
 /mob/living/simple_animal/construct/regular_hud_updates()
-	if(fire)
-		if(fire_alert)
-			fire.icon_state = "fire1"
-		else
-			fire.icon_state = "fire0"
+	if(fire_alert)
+		throw_alert(SCREEN_ALARM_FIRE, /obj/abstract/screen/alert/carbon/burn/fire/cult)
+	else
+		clear_alert(SCREEN_ALARM_FIRE)
 	update_pull_icon()
-
-	if(purged)
-		if(purge > 0)
-			purged.icon_state = "purge1"
-		else
-			purged.icon_state = "purge0"
-
 	silence_spells(purge)
 
 

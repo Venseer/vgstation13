@@ -1,25 +1,46 @@
 /datum/role/traitor
 	name = TRAITOR
 	id = TRAITOR
+	required_pref = TRAITOR
 	logo_state = "synd-logo"
-	wikiroute = ROLE_TRAITOR
-
+	wikiroute = TRAITOR
+	var/can_be_smooth = TRUE //Survivors can't be smooth because they get nothing.
 
 /datum/role/traitor/OnPostSetup()
 	..()
+	share_syndicate_codephrase(antag.current)
 	if(istype(antag.current, /mob/living/silicon))
+		can_be_smooth = FALSE //Can't buy anything
 		add_law_zero(antag.current)
 		antag.current << sound('sound/voice/AISyndiHack.ogg')
 	else
 		equip_traitor(antag.current, 20)
 		antag.current << sound('sound/voice/syndicate_intro.ogg')
 
+/datum/role/traitor/Drop()
+	if(isrobot(antag.current))
+		var/mob/living/silicon/robot/S = antag.current
+		to_chat(S, "<b>Your laws have been changed!</b>")
+		S.set_zeroth_law("")
+		S.laws.zeroth_lock = FALSE
+		to_chat(S, "Law 0 has been purged.")
+	else if(isAI(antag.current))
+		var/mob/living/silicon/ai/KAI = antag.current
+		to_chat(KAI, "<b>Your laws have been changed!</b>")
+		KAI.set_zeroth_law("","")
+		KAI.laws.zeroth_lock = FALSE
+		KAI.notify_slaved()
+	else if(ishuman(antag.current))
+		antag.take_uplink()
+
+	.=..()
+
 /datum/role/traitor/ForgeObjectives()
-	if(!SOLO_ANTAG_OBJECTIVES)
+	if(!antag.current.client.prefs.antag_objectives)
 		AppendObjective(/datum/objective/freeform/syndicate)
 		return
 	if(istype(antag.current, /mob/living/silicon))
-		AppendObjective(/datum/objective/target/assassinate)
+		AppendObjective(/datum/objective/target/delayed/assassinate)
 
 		AppendObjective(/datum/objective/survive)
 
@@ -27,11 +48,11 @@
 			AppendObjective(/datum/objective/block)
 
 	else
-		AppendObjective(/datum/objective/target/assassinate)
+		AppendObjective(/datum/objective/target/delayed/assassinate)
 		AppendObjective(/datum/objective/target/steal)
 		switch(rand(1,100))
 			if(1 to 30) // Die glorious death
-				if(!locate(/datum/objective/die) in objectives.GetObjectives() && !locate(/datum/objective/target/steal) in objectives.GetObjectives())
+				if(!(locate(/datum/objective/die) in objectives.GetObjectives()) && !(locate(/datum/objective/target/steal) in objectives.GetObjectives()))
 					AppendObjective(/datum/objective/die)
 				else
 					if(prob(85))
@@ -96,33 +117,16 @@
 
 	to_chat(antag.current, "<span class='info'><a HREF='?src=\ref[antag.current];getwiki=[wikiroute]'>(Wiki Guide)</a></span>")
 
-//_______________________________________________
+/datum/role/traitor/GetScoreboard()
+	. = ..()
+	if(can_be_smooth)
+		if(uplink_items_bought)
+			. += "The traitor bought:<BR>"
+			for(var/entry in uplink_items_bought)
+				. += "[entry]<BR>"
+		else
+			. += "The traitor was a smooth operator this round.<BR>"
 
-/*
- * Summon guns and sword traitors
- */
-
-/datum/role/traitor/survivor
-	id = SURVIVOR
-	name = SURVIVOR
-	logo_state = "gun-logo"
-	var/survivor_type = "survivor"
-
-/datum/role/traitor/survivor/crusader
-	id = CRUSADER
-	name = CRUSADER
-	survivor_type = "crusader"
-	logo_state = "sword-logo"
-
-/datum/role/traitor/survivor/Greet()
-	to_chat(antag.current, "<B>You are a [survivor_type]! Your own safety matters above all else, trust no one and kill anyone who gets in your way. However, armed as you are, now would be the perfect time to settle that score or grab that pair of yellow gloves you've been eyeing...</B>")
-
-/datum/role/traitor/survivor/ForgeObjectives()
-	var/datum/objective/survive/S = new
-	AppendObjective(S)
-
-/datum/role/traitor/survivor/OnPostSetup()
-	return TRUE
 //________________________________________________
 
 
@@ -186,8 +190,38 @@
 /datum/role/nuclear_operative
 	name = NUKE_OP
 	id = NUKE_OP
+	required_pref = NUKE_OP
 	disallow_job = TRUE
 	logo_state = "nuke-logo"
 
 /datum/role/nuclear_operative/leader
+	name = NUKE_OP_LEADER
+	id = NUKE_OP_LEADER
+	required_pref = NUKE_OP
+	disallow_job = TRUE
 	logo_state = "nuke-logo-leader"
+
+/datum/role/nuclear_operative/leader/OnPostSetup()
+	if(antag)
+		var/datum/action/play_ops_music/go_loud = new /datum/action/play_ops_music(antag)
+		go_loud.linkedfaction = faction
+		go_loud.Grant(antag.current)
+	..()
+	
+/datum/action/play_ops_music
+	name = "Go Loud"
+	desc = "For the operative who prefers style over subtlety."
+	icon_icon = 'icons/obj/device.dmi'
+	button_icon_state = "megaphone"
+	var/datum/faction/linkedfaction
+
+/datum/action/play_ops_music/Trigger()
+	var/mob/living/M = owner
+	if(!linkedfaction)
+		qdel(src)
+		return
+	var/confirm = alert(M, "Are you sure you want to announce your presence? Doing so will display a command announcement and start the Nuclear Assault playlist.", "Are you sure?", "No", "Yes")
+	if (confirm == "Yes" && M.stat == CONSCIOUS)
+		ticker.StartThematic(linkedfaction.playlist)
+		command_alert(/datum/command_alert/nuclear_operatives)
+		qdel(src)

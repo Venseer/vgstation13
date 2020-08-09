@@ -4,7 +4,6 @@
 		////////////////
 	var/datum/admins/holder = null
 	var/buildmode		= 0
-	var/list/buildmode_objs = list()
 
 	var/last_message	= "" //Contains the last message sent by this client - used to protect against copy-paste spamming.
 	var/last_message_count = 0 //contins a number of how many times a message identical to last_message was sent.
@@ -59,7 +58,6 @@
 
 	var/filling = 0 //SOME STUPID SHIT POMF IS DOING
 	var/haszoomed = 0
-	var/updating_colour = 0
 
 	// Their chat window, sort of important.
 	// See /goon/code/datums/browserOutput.dm
@@ -84,6 +82,17 @@
 	//One-way windows
 	var/list/ViewFilter = list()
 	var/list/ObscuredTurfs = list()
+
+	//ambience
+	var/last_ambient_noise //no repeats.
+	var/ambience_buffer // essentially world.time + the length of the ambience sound file. this is to prevent overlap.
+
+	var/received_credits = FALSE
+	var/received_roundend_audio = FALSE
+
+	// Runechat messages
+	var/list/seen_messages = list()
+	var/toggle_runechat_outlines = TRUE
 
 var/list/person_animation_viewers = list()
 var/list/item_animation_viewers = list()

@@ -53,7 +53,7 @@
 
 	id = rand(1,99999)
 
-	our_money_account = create_account("slot machine ([id])", rand(30000,50000))
+	our_money_account = create_account("slot machine ([id])", rand(30000,50000), null, 0, 1, TRUE)
 	radio = new(src)
 
 	update_icon()
@@ -135,7 +135,7 @@
 
 	//Pre-calculate results
 	if(rigged)
-		value_1 = Clamp(rigged, 1, TREE)
+		value_1 = clamp(rigged, 1, TREE)
 		value_2 = value_1
 		value_3 = value_1
 

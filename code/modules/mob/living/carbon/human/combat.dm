@@ -158,6 +158,7 @@
 /mob/living/carbon/human/proc/get_knockout_chance(mob/living/victim)
 	var/base_chance = 8
 
+	base_chance += min(reagents.get_sportiness(),5)
 	if(mutations.Find(M_HULK))
 		base_chance += 12
 	if(istype(gloves))
@@ -204,6 +205,9 @@
 		if(prob(chance))
 			knock_out_teeth(attacker)
 
+	if(isrambler(src) && !(attacker == src)) //Redundant check for punching a soul rambler. Kicking is in carbon/human/human_attackhand.dm
+		attacker.say(pick("Take that!", "Taste the pain!"))
+
 	..()
 
 /mob/living/carbon/human/proc/perform_cpr(mob/living/target)
@@ -215,6 +219,14 @@
 	if(src.species && src.species.flags & NO_BREATHE)
 		to_chat(src, "<span class='notice'><B>You don't breathe, so you can't help \the [target]!</B></span>")
 		return 0
+	if(!hasmouth())
+		to_chat(src, "<span class='notice'><B>You don't have a mouth!</B></span>")
+		return 0
+	if(iscarbon(target))
+		var/mob/living/carbon/C = target
+		if(!C.hasmouth())
+			to_chat(src, "<span class='notice'><B>They don't have a mouth!</B></span>")
+			return 0
 	if(src.check_body_part_coverage(MOUTH))
 		to_chat(src, "<span class='notice'><B>Remove your [src.get_body_part_coverage(MOUTH)]!</B></span>")
 		return 0

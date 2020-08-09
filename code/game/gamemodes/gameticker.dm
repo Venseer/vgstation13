@@ -2,13 +2,21 @@ var/datum/controller/gameticker/ticker
 
 /datum/controller/gameticker
 	var/remaining_time = 0
-	var/const/restart_timeout = 600
+	var/const/restart_timeout = 60 SECONDS //Right now, this is padded out by the end credit's audio starting time (at the time of writing this, 10 seconds)
 	var/current_state = GAME_STATE_PREGAME
+	var/gamestart_time = -1 //In seconds. Set by ourselves in setup()
+	var/shuttledocked_time = -1 //In seconds. Set by emergency_shuttle/proc/shuttle_phase()
+	var/gameend_time = -1 //In seconds. Set by ourselves in process()
+
+	var/pregame_timeleft = 0
+	var/delay_end = 0	//if set to nonzero, the round will not restart on its own
 
 	var/hide_mode = 0
 	var/datum/gamemode/mode = null
 	var/event_time = null
 	var/event = 0
+
+	var/list/achievements = list()
 
 	var/login_music			// music played in pregame lobby
 
@@ -27,15 +35,12 @@ var/datum/controller/gameticker/ticker
 							//Use the hardcore_mode_on macro - if(hardcore_mode_on) to_chat(user,"You're hardcore!")
 	var/datum/rune_controller/rune_controller
 
-	var/pregame_timeleft = 0
+	var/triai = 0 //Global holder for Triumvirate
 
-	var/delay_end = 0	//if set to nonzero, the round will not restart on it's own
-
-	var/triai = 0//Global holder for Triumvirate
 	var/explosion_in_progress
 	var/station_was_nuked
 
-	var/list/datum/role/antag_types = list() // Associative list of all the antag types in the round (List[id] = roleNumber1)
+	var/list/datum/role/antag_types = list() // Associative list of all the antag types in the round (List[id] = roleNumber1) //Seems to be totally unused?
 
 	// Hack
 	var/obj/machinery/media/jukebox/superjuke/thematic/theme = null
@@ -49,8 +54,10 @@ var/datum/controller/gameticker/ticker
 		"sound/music/space_oddity.ogg",
 		"sound/music/title1.ogg",
 		"sound/music/title2.ogg",
+		"sound/music/title3.ogg",
 		"sound/music/clown.ogg",
 		"sound/music/robocop.ogg",
+		"sound/music/street_cleaner_robocop.ogg",
 		"sound/music/gaytony.ogg",
 		"sound/music/rocketman.ogg",
 		"sound/music/2525.ogg",
@@ -58,8 +65,10 @@ var/datum/controller/gameticker/ticker
 		"sound/music/whatisthissong.ogg",
 		"sound/music/space_asshole.ogg",
 		"sound/music/starman.ogg",
+		"sound/music/Lou_Reed_-_Satellite_of_Love.ogg",
 		"sound/music/dawsonschristian.ogg",
 		"sound/music/carmenmirandasghost.ogg",
+		"sound/music/twilight.ogg",
 		))
 
 	if(SNOW_THEME)
@@ -72,16 +81,16 @@ var/datum/controller/gameticker/ticker
 	else
 		login_music = fcopy_rsc(oursong)
 
-	send2maindiscord("**Server is loaded** and in pre-game lobby at `[config.server? "byond://[config.server]" : "byond://[world.address]:[world.port]"]`")
+	send2maindiscord("**Server is loaded** and in pre-game lobby at `[config.server? "byond://[config.server]" : "byond://[world.address]:[world.port]"]`", TRUE)
 
 	do
 #ifdef GAMETICKER_LOBBY_DURATION
 		var/delay_timetotal = GAMETICKER_LOBBY_DURATION
 #else
-		var/delay_timetotal = 5 MINUTES
+		var/delay_timetotal = DEFAULT_LOBBY_TIME
 #endif
 		pregame_timeleft = world.timeofday + delay_timetotal
-		to_chat(world, "<B><FONT color='blue'>Welcome to the pre-game lobby!</FONT></B>")
+		to_chat(world, "<B><span class='notice'>Welcome to the pre-game lobby!</span></B>")
 		to_chat(world, "Please, setup your character and select ready. Game will start in [(pregame_timeleft - world.timeofday) / 10] seconds.")
 		while(current_state <= GAME_STATE_PREGAME)
 			for(var/i=0, i<10, i++)
@@ -106,6 +115,14 @@ var/datum/controller/gameticker/ticker
 	while (!setup())
 #undef LOBBY_TICKING
 #undef LOBBY_TICKING_RESTARTED
+
+/datum/controller/gameticker/proc/IsThematic(var/playlist)
+	if(!theme)
+		return 0
+	if(theme.playlist_id == playlist)
+		return 1
+	return 0
+
 /datum/controller/gameticker/proc/StartThematic(var/playlist)
 	if(!theme)
 		theme = new(locate(1,1,CENTCOMM_Z))
@@ -178,19 +195,18 @@ var/datum/controller/gameticker/ticker
 			to_chat(world, "<B>The current game mode is - Secret!</B>")
 			to_chat(world, "<B>Possibilities:</B> [english_list(modes)]")
 
+	gamestart_time = world.time / 10
+
 	init_PDAgames_leaderboard()
 	create_characters() //Create player characters and transfer them
 	collect_minds()
 	equip_characters()
-	data_core.manifest()
 	current_state = GAME_STATE_PLAYING
+
 	// Update new player panels so they say join instead of ready up.
 	for(var/mob/new_player/player in player_list)
 		player.new_player_panel_proc()
 
-
-	//here to initialize the random events nicely at round start
-	setup_economy()
 
 #if UNIT_TESTS_AUTORUN
 	run_unit_tests()
@@ -214,7 +230,7 @@ var/datum/controller/gameticker/ticker
 				if(istype(obj, /obj/effect/landmark/spacepod/random))
 					qdel(obj)
 
-		to_chat(world, "<FONT color='blue'><B>Enjoy the game!</B></FONT>")
+		to_chat(world, "<span class='notice'><B>Enjoy the game!</B></span>")
 
 		send2maindiscord("**The game has started**")
 
@@ -243,7 +259,7 @@ var/datum/controller/gameticker/ticker
 		//Holiday Round-start stuff	~Carn
 		Holiday_Game_Start()
 		//mode.Clean_Antags()
-
+		create_random_orders(3) //Populate the order system so cargo has something to do
 	//start_events() //handles random events and space dust.
 	//new random event system is handled from the MC.
 
@@ -258,11 +274,9 @@ var/datum/controller/gameticker/ticker
 		statistic_cycle() // Polls population totals regularly and stores them in an SQL DB -- TLE
 
 	stat_collection.round_start_time = world.realtime
-	spawn(5 MINUTES) // poll every 5 minutes
-		population_poll_loop()
 
 	wageSetup()
-
+	post_roundstart()
 	return 1
 
 /datum/controller/gameticker
@@ -370,10 +384,20 @@ var/datum/controller/gameticker/ticker
 			if(player.mind.assigned_role=="AI")
 				player.close_spawn_windows()
 				player.AIize()
+			else if(player.mind.assigned_role=="Cyborg")
+				player.create_roundstart_cyborg()
+
 			else if(!player.mind.assigned_role)
 				continue
 			else
-				player.FuckUpGenes(player.create_character())
+
+				var/mob/living/carbon/human/new_character = player.create_character()
+				switch(new_character.mind.assigned_role)
+					if("MODE","Mobile MMI","Trader")
+						//No injection
+					else
+						data_core.manifest_inject(new_character)
+				player.FuckUpGenes(new_character)
 				qdel(player)
 
 
@@ -425,6 +449,8 @@ var/datum/controller/gameticker/ticker
 
 		spawn
 			declare_completion()
+
+			gameend_time = world.time / 10
 			if(config.map_voting)
 				//testing("Vote picked [chosen_map]")
 				vote.initiate_vote("map","The Server", popup = 1, weighted_vote = config.weighted_votes)
@@ -442,7 +468,6 @@ var/datum/controller/gameticker/ticker
 				log_game("Server chose [watchdog.chosen_map]!")
 
 
-
 		spawn(50)
 			if (station_was_nuked)
 				feedback_set_details("end_proper","nuke")
@@ -452,6 +477,8 @@ var/datum/controller/gameticker/ticker
 				feedback_set_details("end_proper","\proper completion")
 				if(!delay_end && !watchdog.waiting)
 					to_chat(world, "<span class='notice'><B>Restarting in [restart_timeout/10] seconds</B></span>")
+
+			end_credits.on_round_end()
 
 			if(blackbox)
 				if(config.map_voting)
@@ -512,6 +539,9 @@ var/datum/controller/gameticker/ticker
 	minesweeper_best_players["expert"] = "none"
 
 /datum/controller/gameticker/proc/declare_completion()
+	if(!ooc_allowed)
+		to_chat(world, "<B>The OOC channel has been automatically re-enabled!</B>")
+		ooc_allowed = TRUE
 	scoreboard()
 	return 1
 
@@ -668,13 +698,11 @@ var/datum/controller/gameticker/ticker
 	return text
 
 /datum/controller/gameticker/proc/achievement_declare_completion()
+	if(!ticker.achievements.len)
+		return
 	var/text = "<br><FONT size = 5><b>Additionally, the following players earned achievements:</b></FONT>"
-	var/icon/cup = icon('icons/obj/drinks.dmi', "golden_cup")
-	end_icons += cup
-	var/tempstate = end_icons.len
-	for(var/winner in achievements)
-		text += {"<br><img src="logo_[tempstate].png"> [winner]"}
-
+	for(var/datum/achievement/achievement in ticker.achievements)
+		text += {"<br>[bicon(achievement.item)] <b>[achievement.ckey]</b> as <b>[achievement.mob_name]</b> won <b>[achievement.award_name]</b>, <b>[achievement.award_desc]!</b>"}
 	return text
 
 /datum/controller/gameticker/proc/get_all_heads()
@@ -690,6 +718,16 @@ var/datum/controller/gameticker/ticker
 		if(player.mind && (player.mind.assigned_role in command_positions))
 			roles += player.mind.assigned_role
 	return roles
+
+/datum/controller/gameticker/proc/post_roundstart()
+	//Handle all the cyborg syncing
+	var/list/active_ais = active_ais()
+	if(active_ais.len)
+		for(var/mob/living/silicon/robot/R in cyborg_list)
+			if(!R.connected_ai)
+				R.connect_AI(select_active_ai_with_fewest_borgs())
+				to_chat(R, R.connected_ai?"<b>You have synchronized with an AI. Their name will be stated shortly. Other AIs can be ignored.</b>":"<b>You are not synchronized with an AI, and therefore are not required to heed the instructions of any unless you are synced to them.</b>")
+			R.lawsync()
 
 
 /world/proc/has_round_started()

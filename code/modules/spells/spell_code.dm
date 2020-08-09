@@ -4,15 +4,18 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 	var/name = "Spell"
 	var/abbreviation = "" //Used for feedback gathering
 
-	var/desc = "A spell"
+	var/desc = "A spell."
 	parent_type = /datum
 	var/panel = "Spells"//What panel the proc holder needs to go on.
 
 	var/school = "evocation" //not relevant at now, but may be important later if there are changes to how spells work. the ones I used for now will probably be changed... maybe spell presets? lacking flexibility but with some other benefit?
 	var/user_type = USER_TYPE_NOUSER // What kind of mob uses this spell
+	var/specialization //Used for what list they belong to in the spellbook. SSOFFENSIVE, SSDEFENSIVE, SSUTILITY
 
 	var/charge_type = Sp_RECHARGE //can be recharge or charges, see charge_max and charge_counter descriptions; can also be based on the holder's vars now, use "holder_var" for that; can ALSO be made to gradually drain the charge with Sp_GRADUAL
+	//The following are allowed: Sp_RECHARGE (Recharges), Sp_CHARGES (Limited uses), Sp_GRADUAL (Gradually lose charges), Sp_PASSIVE (Does not cast)
 
+	var/initial_charge_max = 100 //Used to calculate cooldown reduction
 	var/charge_max = 100 //recharge time in deciseconds if charge_type = Sp_RECHARGE or starting charges if charge_type = Sp_CHARGES
 	var/charge_counter = 0 //can only cast spells if it equals recharge, ++ each decisecond if charge_type = Sp_RECHARGE or -- each cast if charge_type = Sp_CHARGES
 	var/minimum_charge = 0 //if set, the minimum charge_counter necessary to cast Sp_GRADUAL spells
@@ -21,6 +24,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 	var/silenced = 0 //not a binary (though it seems that it is at the moment) - the length of time we can't cast this for, set by the spell_master silence_spells()
 
 	var/price = Sp_BASE_PRICE //How much does it cost to buy this spell from a spellbook
+	var/quicken_price = Sp_BASE_PRICE * 0.5 //How much lowering the spell cooldown costs in the spellbook
 	var/refund_price = 0 //If 0, non-refundable
 
 	var/holder_var_type = "bruteloss" //only used if charge_type equals to "holder_var"
@@ -108,6 +112,12 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 
 	//still_recharging_msg = "<span class='notice'>[name] is still recharging.</span>"
 	charge_counter = charge_max
+	initial_charge_max = charge_max //Let's not add charge_max_initial to roughly 80 (at the time of this comment) spells
+
+/spell/proc/set_holder(var/new_holder)
+	if(holder == new_holder)
+		world.log << "[src] is trying to set its holder to the same holder!"
+	holder = new_holder
 
 /spell/proc/process()
 	spawn while(charge_counter < charge_max)
@@ -139,9 +149,9 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 		return (target in options)
 	return ((target in view_or_range(range, user, selection_type)) && istype(target, /mob/living))
 
-/spell/proc/perform(mob/user = usr, skipcharge = 0, list/target_override) //if recharge is started is important for the trigger spells
+/spell/proc/perform(mob/user = usr, skipcharge = 0, list/target_override)
 	if(!holder)
-		holder = user //just in case
+		set_holder(user) //just in case
 
 	var/list/targets = target_override
 
@@ -182,7 +192,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 		invocation(user, targets)
 
 		user.attack_log += text("\[[time_stamp()]\] <font color='red'>[user.real_name] ([user.ckey]) cast the spell [name].</font>")
-		INVOKE_EVENT(user.on_spellcast, list("spell" = src, "target" = targets))
+		INVOKE_EVENT(user.on_spellcast, list("spell" = src, "target" = targets, "user" = user))
 
 		if(prob(critfailchance))
 			critfail(targets, user)
@@ -195,7 +205,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 //This is used with the wait_for_click spell flag to prepare spells to be cast on your next click
 /spell/proc/channel_spell(mob/user = usr, skipcharge = 0, force_remove = 0)
 	if(!holder)
-		holder = user //just in case
+		set_holder(user) //just in case
 	if(!force_remove && !currently_channeled)
 		if(!cast_check(skipcharge, user))
 			return 0
@@ -220,6 +230,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 
 /spell/proc/channeled_spell(var/list/args)
 	var/event/E = args["event"]
+
 	if(!currently_channeled)
 		E.handlers.Remove("\ref[src]:channeled_spell")
 		return 0
@@ -232,6 +243,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 	var/list/target = list(A)
 	var/mob/user = holder
 	user.attack_delayer.delayNext(0)
+
 	if(cast_check(1, holder) && is_valid_target(A, user))
 		target = before_cast(target, user) //applies any overlays and effects
 		if(!target.len) //before cast has rechecked what we can target
@@ -239,7 +251,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 		invocation(user, target)
 
 		user.attack_log += text("\[[time_stamp()]\] <font color='red'>[user.real_name] ([user.ckey]) cast the spell [name].</font>")
-		INVOKE_EVENT(user.on_spellcast, list("spell" = src, "target" = target))
+		INVOKE_EVENT(user.on_spellcast, list("spell" = src, "target" = target, "user" = user))
 
 		if(prob(critfailchance))
 			critfail(target, holder)
@@ -344,10 +356,12 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 /*Checkers, cost takers, message makers, etc*/
 
 /spell/proc/cast_check(skipcharge = 0,mob/user = usr) //checks if the spell can be cast based on its settings; skipcharge is used when an additional cast_check is called inside the spell
-
-
 	if(!(src in user.spell_list) && holder == user)
 		to_chat(user, "<span class='warning'>You shouldn't have this spell! Something's wrong.</span>")
+		return 0
+
+	if(charge_type == Sp_PASSIVE)
+		to_chat(user, "<span class='notice'>This is a passive spell, you cannot cast it!</span>")
 		return 0
 
 	if(silenced > 0)
@@ -391,7 +405,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 				to_chat(user, "Mmmf mrrfff!")
 				return 0
 
-	var/spell/noclothes/spell = locate() in user.spell_list
+	var/spell/passive/noclothes/spell = locate() in user.spell_list
 	if((spell_flags & NEEDSCLOTHES) && !(spell && istype(spell)) && holder == user)//clothes check
 		if(!user.wearing_wiz_garb())
 			return 0
@@ -401,6 +415,9 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 /spell/proc/check_charge(var/skipcharge, mob/user)
 	//Arcane golems have no cooldowns on their spells
 	if(istype(user, /mob/living/simple_animal/hostile/arcane_golem))
+		return 1
+
+	if(charge_type == Sp_PASSIVE)
 		return 1
 
 	if(!skipcharge)
@@ -451,6 +468,8 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 		if(charge_type & Sp_GRADUAL)
 			gradual_casting = TRUE
 			charge_counter -= 1
+			process()
+		if(charge_type & Sp_PASSIVE)
 			process()
 
 
@@ -503,7 +522,7 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 		if(cooldown_reduc)
 			charge_max = max(cooldown_min, charge_max - cooldown_reduc)
 		else
-			charge_max = round( max(cooldown_min, initial(charge_max) * ((level_max[Sp_SPEED] - spell_levels[Sp_SPEED]) / level_max[Sp_SPEED] ) ) ) //the fraction of the way you are to max speed levels is the fraction you lose
+			charge_max = round(initial_charge_max - spell_levels[Sp_SPEED] * (initial_charge_max - cooldown_min)/ level_max[Sp_SPEED])
 	if(charge_max < charge_counter)
 		charge_counter = charge_max
 
@@ -582,6 +601,8 @@ var/list/spells = typesof(/spell) //needed for the badmin verb for now
 			return empower_spell()
 
 /spell/proc/get_upgrade_price(upgrade_type)
+	if(upgrade_type == Sp_SPEED)
+		return quicken_price
 	return src.price
 
 ///INFO

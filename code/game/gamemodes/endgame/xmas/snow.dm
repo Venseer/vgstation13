@@ -43,7 +43,7 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 		overlays += image('icons/obj/flora/snowflora.dmi',pick(foliage))
 
 /obj/structure/snow/attackby(obj/item/W,mob/user)
-	if(istype(W,/obj/item/weapon/pickaxe/shovel))//using a shovel or spade harvests some snow and let's you click on the lower layers
+	if(isshovel(W))//using a shovel or spade harvests some snow and let's you click on the lower layers
 		playsound(loc, 'sound/items/shovel.ogg', 50, 1)
 		snow_amount = SNOWCOVERING_LITTLE
 		icon_state = "snow_dug"
@@ -277,6 +277,9 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 
 	return ..()
 
+/obj/item/stack/sheet/snow/emag_act(mob/user)
+	to_chat(user, "<span class='warning'>You slide the emag across the snowball. Holy fuck. You are probably the most stupid person you've ever met.</span>")
+	
 /obj/item/stack/sheet/snow/proc/remove_snowball()
 	if(src && (src.loc == spawn_loc) && istype(src.loc,/turf))
 		qdel(src)

@@ -19,6 +19,8 @@
 	density = 1
 	anchored = 0
 
+	mech_flags = MECH_SCAN_FAIL
+
 	var/max_luminosity = 8 // Now varies based on power.
 
 	light_color = LIGHT_COLOR_YELLOW
@@ -63,7 +65,6 @@
 
 	// Monitoring shit
 	var/frequency = 1333
-	var/id_tag
 	var/datum/radio_frequency/radio_connection
 
 	//Add types to this list so it doesn't make a message or get desroyed by the Supermatter on touch.
@@ -102,7 +103,7 @@
 /obj/machinery/power/supermatter/Destroy()
 	qdel(radio)
 	radio = null
-	qdel(radio_connection)
+	radio_controller.remove_object(src, frequency)
 	radio_connection = null
 	. = ..()
 
@@ -142,12 +143,16 @@
 
 /obj/machinery/power/supermatter/singularity_act(current_size, obj/machinery/singularity/S)
 	var/prints = ""
+	var/ssgss = FALSE
 	if(src.fingerprintshidden)
 		prints = ", all touchers: [list2params(src.fingerprintshidden)]"
-	SetUniversalState(/datum/universal_state/supermatter_cascade)
-	S.expand(STAGE_SUPER, 1)
-	log_admin("New super singularity made by eating a SM crystal with prints: [prints]. Last touched by [src.fingerprintslast].")
-	message_admins("New super singularity made by eating a SM crystal with prints: [prints]. Last touched by [src.fingerprintslast].")
+	if(current_size == STAGE_SUPER) // and this is to go even further beyond
+		if(!istype(universe,/datum/universal_state/supermatter_cascade))
+			SetUniversalState(/datum/universal_state/supermatter_cascade)
+		S.expand(STAGE_SSGSS, 1)
+		ssgss = TRUE
+	log_admin("[ssgss ? "New SSGSS made" : "Singularity gained 20000 energy"] by eating a SM crystal with prints: [prints]. Last touched by [src.fingerprintslast].")
+	message_admins("[ssgss ? "New SSGSS made" : "Singularity gained 20000 energy"] by eating a SM crystal with prints: [prints]. Last touched by [src.fingerprintslast].")
 	qdel(src)
 	return 20000
 
@@ -202,12 +207,12 @@
 				play_alert = (damage > audio_warning_point)
 			else
 				warning = "[short_name] hyperstructure returning to safe operating levels. Instability: [stability]%"
-			var/datum/speech/speech = radio.create_speech(warning, frequency=1459, transmitter=radio)
+			var/datum/speech/speech = radio.create_speech(warning, frequency=COMMON_FREQ, transmitter=radio)
 			speech.name = "Supermatter [short_name] Monitor"
 			speech.job = "Automated Announcement"
 			speech.as_name = "Supermatter [short_name] Monitor"
 			Broadcast_Message(speech, level = list(current_zlevel))
-			returnToPool(speech)
+			qdel(speech)
 
 			lastwarning = world.timeofday - offset
 
@@ -245,7 +250,7 @@
 	damage = max( damage + ( (removed.temperature - 800) / 150 ) , 0 )
 	//Ok, 100% oxygen atmosphere = best reaction
 	//Maxes out at 100% oxygen pressure
-	oxygen = Clamp((removed[GAS_OXYGEN] - removed[GAS_NITROGEN] * NITROGEN_RETARDATION_FACTOR) / MOLES_CELLSTANDARD, 0, 1) //0 unless O2>80%. At 99%, ~0.6
+	oxygen = clamp((removed[GAS_OXYGEN] - removed[GAS_NITROGEN] * NITROGEN_RETARDATION_FACTOR) / MOLES_CELLSTANDARD, 0, 1) //0 unless O2>80%. At 99%, ~0.6
 
 	var/temp_factor = 100
 
@@ -294,7 +299,7 @@
 
 	power -= (power/power_loss_modifier)**3
 
-	var/light_value = Clamp(round(Clamp(power / max_power, 0, 1) * max_luminosity), 0, max_luminosity)
+	var/light_value = clamp(round(clamp(power / max_power, 0, 1) * max_luminosity), 0, max_luminosity)
 
 	// Lighting based on power output.
 	set_light(light_value, light_value / 2)
@@ -390,6 +395,7 @@
 	if(istype(AM, /obj/machinery/power/supermatter))
 		AM.visible_message("<span class='sinister'>As \the [src] bumps into \the [AM] an otherworldly resonance ringing begins to shake the room, you ponder for a moment all the incorrect choices in your life that led you here, to this very moment, to witness this. You take one final sigh before it all ends.</span>")
 		sleep(10) //Adds to the hilarity
+		score["shardstouched"]++
 		playsound(src, 'sound/effects/supermatter.ogg', 50, 1)
 		explode()
 		return
@@ -497,7 +503,6 @@
 	circuit = "/obj/item/weapon/circuitboard/supermatter"
 	light_color = LIGHT_COLOR_YELLOW
 	var/frequency = 1333
-	var/id_tag //mappable
 	var/datum/radio_frequency/radio_connection
 	var/obj/machinery/power/supermatter/linked = null //Gets cleared in process if the shard explodes
 	//"LIST" BUTTON
