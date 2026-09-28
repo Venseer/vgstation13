@@ -4,7 +4,7 @@
 
 /obj/item/weapon/storage/component_exchanger
 	name = "rapid machinery component exchanger"
-	desc = "A tool used to replace machinery components without having to deconstruct the entire machine. It can load up to twenty-one components at once"
+	desc = "A tool used to replace machinery components without having to deconstruct the entire machine. It can load up to twenty-one components at once."
 	icon = 'icons/obj/device.dmi'
 	icon_state = "comp_exchanger"
 	gender = NEUTER
@@ -15,7 +15,6 @@
 	starting_materials = null
 	w_type = RECYK_ELECTRONIC
 	origin_tech = Tc_MAGNETS + "=2;" + Tc_ENGINEERING + "=4;" + Tc_MATERIALS + "=5;" + Tc_PROGRAMMING + "=3"
-	var/emagged = 0 //So we can emag it for "improved" functionality
 	var/working = 0 //Busy check to make sure the user doesn't try to multi-task (this causes serious problems)
 
 	allow_quick_gather = 1
@@ -145,28 +144,28 @@
 			//Yes, an istype list. We don't have helpers for this, and this coder is not that sharp
 			if(istype(P, /obj/item/weapon/stock_parts/capacitor))
 				for(var/obj/item/weapon/stock_parts/capacitor/R in src.contents)
-					if(R.rating > P.rating && P in M.component_parts) //Kind of a hack, but makes sure we don't replace components that already were
+					if(R.rating > P.rating && (P in M.component_parts)) //Kind of a hack, but makes sure we don't replace components that already were
 						sleep(5) //Half a second per component
 						perform_indiv_replace(P, R, M)
 						//Do not break in case we find even better
 			if(istype(P, /obj/item/weapon/stock_parts/scanning_module))
 				for(var/obj/item/weapon/stock_parts/scanning_module/R in src.contents)
-					if(R.rating > P.rating && P in M.component_parts)
+					if(R.rating > P.rating && (P in M.component_parts))
 						sleep(5) //Half a second per component
 						perform_indiv_replace(P, R, M)
 			if(istype(P, /obj/item/weapon/stock_parts/manipulator))
 				for(var/obj/item/weapon/stock_parts/manipulator/R in src.contents)
-					if(R.rating > P.rating && P in M.component_parts)
+					if(R.rating > P.rating && (P in M.component_parts))
 						sleep(5) //Half a second per component
 						perform_indiv_replace(P, R, M)
 			if(istype(P, /obj/item/weapon/stock_parts/micro_laser))
 				for(var/obj/item/weapon/stock_parts/micro_laser/R in src.contents)
-					if(R.rating > P.rating && P in M.component_parts)
+					if(R.rating > P.rating && (P in M.component_parts))
 						sleep(5) //Half a second per component
 						perform_indiv_replace(P, R, M)
 			if(istype(P, /obj/item/weapon/stock_parts/matter_bin))
 				for(var/obj/item/weapon/stock_parts/matter_bin/R in src.contents)
-					if(R.rating > P.rating && P in M.component_parts)
+					if(R.rating > P.rating && (P in M.component_parts))
 						sleep(5) //Half a second per component
 						perform_indiv_replace(P, R, M)
 			//Good thing there's only a few stock parts types
@@ -183,10 +182,10 @@
 
 
 	//Move the old part into our component exchanger
-	M.component_parts -= P
+	M.remove_part(P)
 	handle_item_insertion(P, 1)
 	//Move the new part into the machine
 	remove_from_storage(R, M)
-	M.component_parts += R
+	M.add_part(R)
 	//Update the machine's parts
 	playsound(src, 'sound/items/Deconstruct.ogg', 50, 1) //User feedback

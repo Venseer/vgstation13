@@ -1,3 +1,6 @@
+/mob/living/carbon
+	admin_desc = "The 'manual_emote_sound_override' variable can be set to 1 to enable a character to scream audibly whenever they want."
+
 /mob/living/carbon/Login()
 	..()
 	update_hud()
@@ -7,8 +10,18 @@
 	if(now_pushing)
 		return
 	..()
-	if(can_be_infected(AM) && prob(10))
-		spread_disease_to(src, AM, "Contact")
+	if(isliving(AM))
+		var/mob/living/L = AM
+		var/block = 0
+		var/bleeding = 0
+		var/contact_part = HANDS//when we run into people, let's assume that we touch them hands first
+		if (L.size == SIZE_TINY)
+			contact_part = FEET//unless they're really small, in which case, we touch them feet first.
+		if (check_contact_sterility(contact_part) || L.check_contact_sterility(FULL_TORSO))//only one side has to wear protective clothing to prevent contact infection
+			block = 1
+		if (check_bodypart_bleeding(contact_part) && L.check_bodypart_bleeding(FULL_TORSO))//both sides have to be bleeding to allow for blood infections
+			bleeding = 1
+		share_contact_diseases(L,block,bleeding)
 	handle_symptom_on_touch(src, AM, BUMP)
 	if(istype(AM, /mob/living/carbon))
 		var/mob/living/carbon/C = AM
@@ -18,32 +31,26 @@
 	..()
 	if(!istype(AM, /mob/living/carbon))
 		handle_symptom_on_touch(AM, src, BUMP)
+	INVOKE_EVENT(src, /event/bumped, "bumper" = AM, "bumped" = src)
 
 /mob/living/carbon/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	. = ..()
-
 	if(.)
 		if(nutrition && stat != DEAD)
 			burn_calories(HUNGER_FACTOR / 20)
 
 			if(m_intent == "run")
 				burn_calories(HUNGER_FACTOR / 20)
-		update_minimap()
+
+/mob/living/carbon/proc/update_holomaps()
+	if (displayed_holomap)
+		displayed_holomap.update_holomap()
 
 /mob/living/carbon/attack_animal(mob/living/simple_animal/M as mob)//humans and slimes have their own
+	if(check_shields(0, M))
+		return 0
 	M.unarmed_attack_mob(src)
-
-/mob/living/carbon/proc/update_minimap()
-	var/obj/item/device/pda/pda_device = machine
-	if(machine && istype(pda_device))
-		var/turf/user_loc = get_turf(src)
-		var/turf/pda_loc = get_turf(pda_device)
-		if(get_dist(user_loc,pda_loc) <= 1)
-			if(pda_device.mode == PDA_APP_STATIONMAP)
-				pda_device.attack_self(src)
-		else
-			unset_machine()
-			src << browse(null, "window=pda")
+	return 1
 
 /mob/living/carbon/relaymove(var/mob/user, direction)
 	if(user in src.stomach_contents)
@@ -70,20 +77,15 @@
 				playsound(user.loc, 'sound/effects/attackblob.ogg', 50, 1)
 				user.delayNextMove(10) //no just holding the key for an instant gib
 
-/mob/living/carbon/gib()
+/mob/living/carbon/gib(animation = FALSE, meat = TRUE)
+	if(status_flags & BUDDHAMODE)
+		adjustBruteLoss(200)
+		return
 	dropBorers(1)
 	if(stomach_contents && stomach_contents.len)
 		drop_stomach_contents()
 		visible_message("<span class='warning'>Something bursts from \the [src]'s stomach!</span>")
 	. = ..()
-
-/mob/living/carbon/proc/share_contact_diseases(var/mob/M)
-	for(var/datum/disease/D in viruses)
-		if(D.spread_by_touch())
-			M.contract_disease(D, 0, 1, CONTACT_HANDS)
-	for(var/datum/disease/D in M.viruses)
-		if(D.spread_by_touch())
-			contract_disease(D, 0, 1, CONTACT_HANDS)
 
 /mob/living/carbon/attack_hand(mob/M as mob)
 	if(!istype(M, /mob/living/carbon))
@@ -94,31 +96,40 @@
 		if(temp && !temp.is_usable())
 			to_chat(M, "<span class='warning'>You can't use your [temp.display_name]</span>")
 			return
-	share_contact_diseases(M)
 	handle_symptom_on_touch(M, src, HAND)
+	INVOKE_EVENT(src, /event/touched, "toucher" = M, "touched" = src)
 
-/mob/living/carbon/electrocute_act(const/shock_damage, const/obj/source, const/siemens_coeff = 1.0)
+/mob/living/carbon/electrocute_act(const/shock_damage, const/obj/source, const/siemens_coeff = 1.0, var/def_zone = null, var/incapacitation_duration = 20 SECONDS)
+	if(incapacitation_duration <= 0)
+		return 0
+	incapacitation_duration = max(incapacitation_duration / (2 SECONDS), 1) // life ticks are 2 seconds, we simply make a conversion from seconds to life ticks
 	var/damage = shock_damage * siemens_coeff
 
 	if(damage <= 0)
-		damage = 0
+		adjustFireLoss(damage) //Heal burns equal to the negative value
+		return 0
 
 	var/mob/living/carbon/human/H = src
 	if(istype(H) && H.species && (H.species.flags & ELECTRIC_HEAL))
 		heal_overall_damage(damage/2, damage/2)
-		Jitter(10)
-		Stun(5)
-		Knockdown(5)
+		Jitter(incapacitation_duration)
+		Stun(incapacitation_duration / 2)
+		Knockdown(incapacitation_duration / 2)
+		damage = 0
 		//It would be cool if someone added an animation of some electrical shit going through the body
 	else
-		if(take_overall_damage(0, damage, used_weapon = "[source]") == 0) // godmode
+		if(!def_zone)
+			damage = take_overall_damage(0, damage, used_weapon = source)
+		else
+			damage = apply_damage(damage, BURN, def_zone, used_weapon = source)
+		if(damage <= 0)
 			return 0
-		Jitter(20)
-		Stun(10)
-		Knockdown(10)
+		Jitter(incapacitation_duration * 2)
+		Stun(incapacitation_duration)
+		Knockdown(incapacitation_duration)
 
 	visible_message( \
-		"<span class='warning'>[src] was shocked by the [source]!</span>", \
+		"<span class='warning'>[src] was shocked by \the [source]!</span>", \
 		"<span class='danger'>You feel a powerful shock course through your body!</span>", \
 		"<span class='warning'>You hear a heavy electrical crack.</span>", \
 		"<span class='notice'>[src] starts raving!</span>", \
@@ -136,25 +147,34 @@
 /mob/living/carbon/swap_hand()
 	if(++active_hand > held_items.len)
 		active_hand = 1
-
-	for(var/obj/abstract/screen/inventory/hand_hud_object in hud_used.hand_hud_objects)
-		if(active_hand == hand_hud_object.hand_index)
-			hand_hud_object.icon_state = "hand_active"
-		else
-			hand_hud_object.icon_state = "hand_inactive"
-
-	return
+	update_hands_icons()
 
 /mob/living/carbon/activate_hand(var/selhand)
 	active_hand = selhand
+	update_hands_icons()
 
+/mob/living/carbon/proc/update_hands_icons()
+	if(!hud_used)
+		return
 	for(var/obj/abstract/screen/inventory/hand_hud_object in hud_used.hand_hud_objects)
-		if(active_hand == hand_hud_object.hand_index)
-			hand_hud_object.icon_state = "hand_active"
-		else
-			hand_hud_object.icon_state = "hand_inactive"
+		update_hand_icon(hand_hud_object)
+
+/mob/living/carbon/proc/update_hand_icon(var/obj/abstract/screen/inventory/hand_hud_object)
+	if(active_hand == hand_hud_object.hand_index)
+		hand_hud_object.icon_state = "hand_active"
+	else
+		hand_hud_object.icon_state = "hand_inactive"
 
 /mob/living/carbon/proc/help_shake_act(mob/living/carbon/M)
+	if (src != M)
+		// we assume that they use their hands to shake us from our torso
+		var/block = 0
+		var/bleeding = 0
+		if (M.check_contact_sterility(HANDS) || check_contact_sterility(FULL_TORSO))//only one side has to wear protective clothing to prevent contact infection
+			block = 1
+		if (M.check_bodypart_bleeding(HANDS) && check_bodypart_bleeding(FULL_TORSO))//both sides have to be bleeding to allow for blood infections
+			bleeding = 1
+		share_contact_diseases(M,block,bleeding)
 	if (src.health >= config.health_threshold_crit)
 		if(src == M && istype(src, /mob/living/carbon/human))
 			var/mob/living/carbon/human/H = src
@@ -200,7 +220,7 @@
 					num_injuries++
 
 			if(num_injuries == 0)
-				if(hallucinating())
+				if(hallucinating() || Holiday == APRIL_FOOLS_DAY)
 					to_chat(src, "<span class = 'orange'>My legs are OK.</span>")
 				else
 					to_chat(src, "My limbs are [pick("okay","OK")].")
@@ -216,9 +236,10 @@
 			if (istype(src,/mob/living/carbon/human) && src:w_uniform)
 				var/mob/living/carbon/human/H = src
 				H.w_uniform.add_fingerprint(M)
-			src.sleeping = max(0,src.sleeping-5)
+			src.sleeping = max(0,src.sleeping-10)
 			if(src.sleeping == 0)
-				src.resting = 0
+				if(src.resting)
+					src.rest_action()
 			AdjustParalysis(-3)
 			AdjustStunned(-3)
 			AdjustKnockdown(-3)
@@ -236,10 +257,17 @@
 				var/mob/living/carbon/human/H = src
 				H.w_uniform.add_fingerprint(M)
 			if(M.zone_sel.selecting == "head" && !(!S || S.status & ORGAN_DESTROYED))
-				M.visible_message( \
-					"<span class='notice'>[M] pats [src]'s head.</span>", \
-					"<span class='notice'>You pat [src]'s head.</span>", \
-					)
+				if(isgrey(M)) // Ayys give a unique little flavor headpoke emote that also synthesizes a little more paracetamol
+					M.visible_message( \
+						"<span class='notice'>[M] reaches out and pokes [src] on the forehead.</span>", \
+						"<span class='notice'>You reach out and poke [src]'s forehead.</span>", \
+						)
+					reagents.add_reagent(PARACETAMOL, 1)
+				else
+					M.visible_message( \
+						"<span class='notice'>[M] pats [src]'s head.</span>", \
+						"<span class='notice'>You pat [src]'s head.</span>", \
+						)
 			else if((M.zone_sel.selecting == "l_hand" && !(!S || S.status & ORGAN_DESTROYED)) || (M.zone_sel.selecting == "r_hand" && !(!S || S.status & ORGAN_DESTROYED)))
 				var/shock_damage = 5
 				var/shock_time = 0
@@ -262,7 +290,7 @@
 						visible_message("<span class='danger'>\The [H] can't seem to let go from \the [M]'s shocking handshake!</span>")
 						add_logs(H, M, "stungloved", admin = TRUE)
 
-					playsound(H,(H.gender == MALE) ? pick(male_scream_sound) : pick(female_scream_sound),50,1)
+					H.audible_scream()
 					H.apply_damage(damage = shock_damage, damagetype = BURN, def_zone = (M.zone_sel.selecting == "r_hand") ? "r_hand" : "l_hand" )
 
 					spark(H, 3, FALSE)
@@ -295,8 +323,6 @@
 					)
 			reagents.add_reagent(PARACETAMOL, 1)
 
-			share_contact_diseases(M)
-
 // ++++ROCKDTBEN++++ MOB PROCS -- Ask me before touching.
 // Stop! ... Hammertime! ~Carn
 
@@ -328,18 +354,18 @@
 	bodytemperature = max(bodytemperature, BODYTEMP_HEAT_DAMAGE_LIMIT+10)*/
 
 /mob/living/carbon/can_use_hands()
-	if(handcuffed)
-		return 0
+	if(!..())
+		return FALSE
 	if(locked_to && ! istype(locked_to, /obj/structure/bed/chair)) // buckling does not restrict hands
-		return 0
-	return 1
+		return FALSE
+	return TRUE
 
 /mob/living/carbon/restrained()
-	if(timestopped)
-		return 1 //under effects of time magick
-	if (handcuffed)
-		return 1
-	return
+	if(..())
+		return TRUE
+	if (check_handcuffs())
+		return TRUE
+	return FALSE
 
 /mob/living/carbon/show_inv(mob/living/carbon/user as mob)
 	user.set_machine(src)
@@ -377,17 +403,17 @@
 		src << browse(null, t1)
 
 	if(href_list["hands"])
-		if(usr.incapacitated() || !Adjacent(usr)|| isanimal(usr))
+		if(usr.incapacitated() || !Adjacent(usr)|| (isanimal(usr) && !isgrinch(usr)))
 			return
 		handle_strip_hand(usr, text2num(href_list["hands"])) //href_list "hands" is the hand index, not the item itself. example, GRASP_LEFT_HAND
 
 	else if(href_list["item"])
-		if(usr.incapacitated() || !Adjacent(usr)|| isanimal(usr))
+		if(usr.incapacitated() || !Adjacent(usr)|| (isanimal(usr) && !isgrinch(usr)))
 			return
 		handle_strip_slot(usr, text2num(href_list["item"])) //href_list "item" would actually be the item slot, not the item itself. example: slot_head
 
 	else if(href_list["internals"])
-		if(usr.incapacitated() || !Adjacent(usr)|| isanimal(usr))
+		if(usr.incapacitated() || !Adjacent(usr)|| (isanimal(usr) && !isgrinch(usr)))
 			return
 		set_internals(usr)
 
@@ -424,50 +450,6 @@
 	if(alert(src,"Are you sure you want to sleep for a while?","Sleep","Yes","No") == "Yes")
 		usr.sleeping = 150 //Long nap of 5 minutes. Those are MC TICKS. Don't get fooled
 
-//Brain slug proc for voluntary removal of control.
-/mob/living/carbon/proc/release_control()
-	set category = "Alien"
-	set name = "Release Control"
-	set desc = "Release control of your host's body."
-
-	do_release_control(0)
-
-/mob/living/carbon/proc/do_release_control(var/rptext=1)
-	var/mob/living/simple_animal/borer/B = has_brain_worms()
-
-	if(!B)
-		return
-
-	if(B.controlling)
-		if(rptext)
-			to_chat(src, "<span class='danger'>You withdraw your probosci, releasing control of [B.host_brain]</span>")
-			to_chat(B.host_brain, "<span class='danger'>Your vision swims as the alien parasite releases control of your body.</span>")
-		B.ckey = ckey
-		B.controlling = 0
-	if(B.host_brain.ckey)
-		ckey = B.host_brain.ckey
-		B.host_brain.ckey = null
-		B.host_brain.name = "host brain"
-		B.host_brain.real_name = "host brain"
-
-	verbs -= /mob/living/carbon/proc/release_control
-	verbs -= /mob/living/carbon/proc/punish_host
-
-//Brain slug proc for tormenting the host.
-/mob/living/carbon/proc/punish_host()
-	set category = "Alien"
-	set name = "Torment host"
-	set desc = "Punish your host with agony."
-
-	var/mob/living/simple_animal/borer/B = has_brain_worms()
-
-	if(!B)
-		return
-
-	if(B.host_brain.ckey)
-		to_chat(src, "<span class='danger'>You send a punishing spike of psychic agony lancing into your host's brain.</span>")
-		to_chat(B.host_brain, "<span class='danger'><FONT size=3>Horrific, burning agony lances through you, ripping a soundless scream from your trapped mind!</FONT></span>")
-
 //Check for brain worms in given limb.
 /mob/proc/has_brain_worms(var/host_region = LIMB_HEAD)
 	for(var/I in contents)
@@ -485,8 +467,8 @@
 	return borers_in_mob
 
 /mob/living/carbon/is_muzzled()
-	return(istype(get_item_by_slot(slot_wear_mask), /obj/item/clothing/mask/muzzle))
-
+	var/obj/item/M = get_item_by_slot(slot_wear_mask)
+	return M?.is_muzzle
 
 /mob/living/carbon/proc/isInCrit()
 	// Health is in deep shit and we're not already dead
@@ -505,39 +487,61 @@
 				return 1
 	return 0
 
-/mob/living/carbon/CheckSlip()
-	return !locked_to && !lying && !unslippable
+/mob/living/carbon/CheckSlip(slip_on_walking = FALSE, overlay_type = TURF_WET_WATER, slip_on_magbooties = FALSE)
+	var/walking_factor = (!slip_on_walking && glide_size <= GLIDE_SIZE_OF_A_WALKING_HUMAN)
+	return (on_foot()) && !locked_to && !lying && !unslippable && !walking_factor
 
-/mob/living/proc/Slip(stun_amount, weaken_amount, slip_on_walking = 0)
-	stop_pulling()
-	Stun(stun_amount)
-	Knockdown(weaken_amount)
-	score["slips"]++
-	return 1
+/mob/living/carbon/teleport_to(var/atom/A)
+	var/last_slip_value = src.unslippable
+	src.unslippable = 1
+	forceMove(get_turf(A))
+	src.unslippable = last_slip_value
 
-/mob/living/carbon/Slip(stun_amount, weaken_amount, slip_on_walking = 0)
-	if(!slip_on_walking && m_intent == "walk")
+/mob/living/carbon/Slip(stun_amount, weaken_amount, slip_on_walking = 0, overlay_type, slip_on_magbooties = 0, obj/slipped_on, onwhat, otherscansee, message, self_message, drugged_message, self_drugged_message, blind_drugged_message, spanclass = "info")
+	if((CheckSlip(slip_on_walking, overlay_type, slip_on_magbooties)) != TRUE)
 		return 0
 
-	if (CheckSlip() < 1 || !on_foot())
-		return 0
+	slip_message(slipped_on, onwhat, otherscansee, message, self_message, drugged_message, self_drugged_message, blind_drugged_message, spanclass)
+
+	for(var/obj/item/I in held_items)
+		I.SlipDropped(src,dir,overlay_type) // can be set to trigger specific behaviours when items are dropped by slipping
+
 	if(..())
+
 		playsound(src, 'sound/misc/slip.ogg', 50, 1, -3)
+
 		return 1
+
+/mob/living/carbon/proc/slip_message(obj/slipped_on, onwhat, otherscansee = FALSE, message, self_message, drugged_message, self_drugged_message, blind_drugged_message, spanclass = "info")
+	var/onwhatmsg
+	if(onwhat)
+		onwhatmsg = " on [onwhat]!"
+	else if(slipped_on)
+		onwhatmsg = " on \the [slipped_on]!"
+	else
+		onwhatmsg = "!"
+	if(otherscansee)
+		visible_message("<span class='[spanclass]'>\The [src] slips[onwhatmsg]</span>",\
+						"<span class='[spanclass]'>You slip[onwhatmsg]</span>",\
+						"<span class='[spanclass]'>You slip on something!</span>",\
+						drugged_message,\
+						self_drugged_message,\
+						blind_drugged_message)
+	else
+		if(blinded)
+			onwhatmsg = "on something!"
+		simple_message("<span class='[spanclass]'>You slip[onwhatmsg]</span>",\
+						drugged_message)
 
 /mob/living/carbon/proc/transferImplantsTo(mob/living/carbon/newmob)
 	for(var/obj/item/weapon/implant/I in src)
-		I.forceMove(newmob)
-		I.implanted = 1
-		I.imp_in = newmob
-		if(istype(newmob, /mob/living/carbon/human))
-			var/mob/living/carbon/human/H = newmob
-			if(!I.part) //implanted as a nonhuman, won't have one.
-				I.part = /datum/organ/external/chest
-			for (var/datum/organ/external/affected in H.organs)
-				if(!istype(affected, I.part))
-					continue
-				affected.implants += I
+		if(!I.imp_in)
+			continue
+		if(!I.remove())
+			stack_trace("failed to remove implant")
+			continue
+		if(!I.insert(newmob, I.part?.name))
+			stack_trace("failed to insert implant")
 
 /mob/living/carbon/proc/dropBorers(var/gibbed = null)
 	var/list/borer_list = get_brain_worms()
@@ -582,7 +586,7 @@
 			src.stomach_contents.Remove(O)
 			O.forceMove(target)
 
-/mob/living/carbon/flash_eyes(intensity = 1, override_blindness_check = 0, affect_silicon = 0, visual = 0)
+/mob/living/carbon/flash_eyes(intensity = 1, override_blindness_check = 0, affect_silicon = 0, visual = 0, type = /obj/abstract/screen/fullscreen/flash)
 	if(eyecheck() < intensity)
 		..()
 
@@ -599,12 +603,20 @@
 							return E
 
 /mob/living/carbon/proc/handle_symptom_on_touch(var/toucher, var/touched, var/touch_type)
+	if (toucher == touched)
+		return
 	if(virus2.len)
+		var/list/symptom_types = list()
 		for(var/I in virus2)
 			var/datum/disease2/disease/D = virus2[I]
 			if(D.effects.len)
 				for(var/datum/disease2/effect/E in D.effects)
-					E.on_touch(src, toucher, touched, touch_type)
+					if (!(E.type in symptom_types))
+						symptom_types += E.type
+						E.on_touch(src, toucher, touched, touch_type)
+
+/mob/living/carbon/proc/check_handcuffs()
+	return handcuffed || istype(locked_to, /obj/structure/bed/nest)
 
 /mob/living/carbon/proc/get_lowest_body_alpha()
 	if(!body_alphas.len)
@@ -623,7 +635,6 @@
 	..()
 	var/static/list/resettable_vars = list(
 		"gender",
-		"antibodies",
 		"last_eating",
 		"life_tick",
 		"number_wounds",
@@ -632,28 +643,37 @@
 		"pulse")
 
 	reset_vars_after_duration(resettable_vars, duration)
+	if(immune_system)
+		immune_system.send_to_past(duration)
 
 /mob/living/carbon/movement_tally_multiplier()
 	. = ..()
 	if(!istype(loc, /turf/space))
-		for(var/obj/item/I in get_clothing_items())
-			if(I.slowdown <= 0)
-				testing("[I] HAD A SLOWDOWN OF <=0 OH DEAR")
-			else
+		for(var/obj/item/I in get_all_slots())
+			if(I == get_item_by_slot(slot_shoes) && istype(loc, /turf/simulated/floor))
+				var/turf/simulated/floor/T = loc
+				if(T.material == "alien_tile1") // these ignore magboots
+					continue
+			if(I == src.back)
+				. *= max(1,I.slowdown / 2) // heavy items worn on the back. those shouldn't slow you down as much.
+			else if(!isclothing(I) || (isclothing(I) && (I in get_clothing_items())))
 				. *= I.slowdown
 
 		for(var/obj/item/I in held_items)
 			if(I.flags & SLOWDOWN_WHEN_CARRIED)
 				. *= I.slowdown
 
-		if(. > 1 && reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
+		if(. > 1 && reagents.has_any_reagents(HYPERZINES))
 			. = max(1, .*0.4)//we don't hyperzine to make us move faster than the base speed, unless we were already faster.
+
+		if(reagents.has_reagent(SUX) && !(reagents.has_any_reagents(HYPERZINES)))
+			. *= 4
 
 /mob/living/carbon/base_movement_tally()
 	. = ..()
 	if(flying)
 		return // Calculate none of the following because we're technically on a vehicle
-	if(reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
+	if(reagents.has_any_reagents(HYPERZINES))
 		return // Hyperzine ignores slowdown
 	if(istype(loc, /turf/space))
 		return // Space ignores slowdown
@@ -663,49 +683,127 @@
 		if(health_deficiency >= (maxHealth * 0.4))
 			. += (health_deficiency / (maxHealth * 0.25))
 
-
-/mob/living/carbon/proc/can_mind_interact(var/mob/M)
-	//	to_chat(world, "Starting can interact on [M]")
-	if(!iscarbon(M))
-		return 0 //Can't see non humans with your fancy human mind.
-//	to_chat(world, "[M] is a human")
-	var/turf/temp_turf = get_turf(M)
-	var/turf/our_turf = get_turf(src)
-	if(!temp_turf)
-//		to_chat(world, "[M] is in null space")
-		return 0
-	if((temp_turf.z != our_turf.z) || M.stat!=CONSCIOUS) //Not on the same zlevel as us or they're dead.
-//		to_chat(world, "[(temp_turf.z != our_turf.z) ? "not on the same zlevel as [M]" : "[M] is not concious"]")
-		if(temp_turf.z != map.zCentcomm)
-			to_chat(src, "The target mind is too faint...")//Prevent "The mind of Admin is too faint..."
-
-		return 0
-	if(M_PSY_RESIST in M.mutations)
-//		to_chat(world, "[M] has psy resist")
-		to_chat(src, "The target mind is resisting!")
-		return 0
-	if(ishuman(M))
-		var/mob/living/carbon/human/H = M
-		if(H.head && istype(H.head,/obj/item/clothing/head/tinfoil))
-			to_chat(src, "Interference is disrupting the connection with the target mind.")
-			return 0
-	if(ismartian(M))
-		var/mob/living/carbon/complex/martian/MR = M
-		if(MR.head)
-			if(istype(MR.head, /obj/item/clothing/head/helmet/space/martian) || istype(MR.head,/obj/item/clothing/head/tinfoil))
-				to_chat(src, "Interference is disrupting the connection with the target mind.")
-				return 0
-	return 1
-
-/mob/living/carbon/make_invisible(var/source_define, var/time, var/include_clothing)
+/mob/living/carbon/make_invisible(var/source_define, var/time, var/include_clothing, var/alpha_value = 1, var/invisibility_value = 0)
+	//INVISIBILITY_LEVEL_ONE to INVISIBILITY_MAXIMUM for invisibility
+	if(include_clothing)
+		..()
 	if(invisibility || alpha <= 1 || !source_define)
 		return
-	if(include_clothing)
-		return ..()
-	body_alphas[source_define] = 1
+	body_alphas[source_define] = alpha_value
 	regenerate_icons()
 	if(time > 0)
 		spawn(time)
+			make_visible(source_define)
+
+/mob/living/carbon
+	var/ice_sliding = 0
+
+/mob/living/carbon/make_visible(var/source_define)
+	if(!source_define)
+		return
+	if(src && body_alphas[source_define])
+		body_alphas.Remove(source_define)
+		regenerate_icons()
+	..()
+
+/mob/living/carbon/ApplySlip(var/obj/effect/overlay/puddle/P)
+	if(!..())
+		return FALSE
+
+	if(unslippable) //if unslippable, don't even bother making checks
+		return FALSE
+
+	var/slide_dir = dir
+	switch(P.wet)
+		if(TURF_WET_WATER)
+			if(Slip(stun_amount = 5, weaken_amount = 3, slip_on_walking = FALSE, overlay_type = TURF_WET_WATER, onwhat = "the wet floor", otherscansee = TRUE, spanclass = "warning"))
+				step(src, slide_dir)
+			else
+				return FALSE
+
+		if(TURF_WET_LUBE)
+			step(src, slide_dir)
+			if(Slip(stun_amount = 5, weaken_amount = 3, slip_on_walking = TRUE, overlay_type = TURF_WET_LUBE, slip_on_magbooties = TRUE, onwhat = "the floor", otherscansee = TRUE, spanclass = "warning"))
+				for(var/i = 1 to 4)
+					spawn(i)
+						if(!locked_to)
+							step(src, slide_dir)
+				take_organ_damage(2) // Was 5 -- TLE
+			else
+				return FALSE
+
+
+		if(TURF_WET_ICE)
+			if(!ice_sliding && prob(15) && Slip(stun_amount = 4, weaken_amount = 3,  overlay_type = TURF_WET_ICE, onwhat = "the icy floor", otherscansee = TRUE, spanclass = "warning"))
+				ice_sliding = 1
+				// Wait movement_delay(), which is how long it takes for the movement step onto the slippery tile to finish.
+				spawn(ceil(movement_delay()))
+					var/slide_speed = movement_delay()*4
+					var/turf/next_turf = get_turf(src)
+					// Loop until you reach a tile that doesn't have ice on it. Speed progressively gets slower. next_turf represents the turf you expect to be on
+					// after the next step completes - if you're not on that, it indicates the user manually moved and thus the slide is over.
+					while(can_apply_inertia())
+						if(next_turf != get_turf(src))
+							break
+						next_turf = get_step(src, slide_dir)
+						set_glide_size(DELAY2GLIDESIZE(slide_speed))
+						step(src, slide_dir)
+						sleep(ceil(slide_speed))
+						slide_speed *= 1.1
+						var/obj/effect/overlay/puddle/ice/next = locate(/obj/effect/overlay/puddle/ice) in next_turf
+						if(!next)
+							break
+						if(	next.wet != TURF_WET_ICE)
+							break
+					ice_sliding = 0
+			else
+				return FALSE
+
+	return TRUE
+
+
+/mob/living/carbon/proc/check_can_revive()
+	if (!isDead())
+		return CAN_REVIVE_NO
+	if (!mind)
+		return CAN_REVIVE_NO
+	if (mind.suiciding)
+		return CAN_REVIVE_NO
+	if (client)
+		return CAN_REVIVE_IN_BODY
+	var/mob/dead/observer/ghost = mind_can_reenter(mind)
+	if (!ghost)
+		return CAN_REVIVE_NO
+	var/mob/ghostmob = ghost.get_top_transmogrification()
+	if (!ghostmob)
+		return CAN_REVIVE_NO
+	return CAN_REVIVE_GHOSTING
+
+/mob/living/carbon/proc/get_breath_from_internal(volume_needed)
+	if(internal)
+		if(!contents.Find(internal))
+			internal = null
+		var/obj/item/mask = get_item_by_slot(slot_wear_mask)
+		if(!mask || !(mask.clothing_flags & MASKINTERNALS) )
+			internal = null
+		update_internals()
+		if(internal)
+			return internal.remove_air_volume(volume_needed)
+	return null
+
+/mob/living/carbon/t_scanner_expose(ray_range)
+	if(alpha < OPAQUE || (invisibility > 0 && invisibility < INVISIBILITY_OBSERVER) || body_alphas.len)
+		var/old_alpha = alpha
+		var/old_invisibility = invisibility
+		var/list/old_body_alphas = body_alphas.Copy()
+		body_alphas.Cut()
+		alpha = OPAQUE
+		invisibility = 0
+		regenerate_icons()
+		spawn(1 SECONDS)
 			if(src)
-				body_alphas.Remove(source_define)
-				regenerate_icons()
+				if(old_body_alphas.len)
+					body_alphas = old_body_alphas.Copy()
+					regenerate_icons()
+				alpha = old_alpha
+				invisibility = old_invisibility

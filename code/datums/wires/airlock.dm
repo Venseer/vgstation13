@@ -13,13 +13,14 @@ var/const/AIRLOCK_WIRE_ELECTRIFY = 256
 var/const/AIRLOCK_WIRE_SAFETY = 512
 var/const/AIRLOCK_WIRE_SPEED = 1024
 var/const/AIRLOCK_WIRE_LIGHT = 2048
+var/const/AIRLOCK_WIRE_ONOPEN = 4096
 
 /datum/wires/airlock/secure
 	random = 1
 
 /datum/wires/airlock
 	holder_type = /obj/machinery/door/airlock
-	wire_count = 12
+	wire_count = 13
 	window_y = 570
 
 /datum/wires/airlock/New()
@@ -36,6 +37,7 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 		"[AIRLOCK_WIRE_SAFETY]"        = "Safety",
 		"[AIRLOCK_WIRE_SPEED]"         = "Speed",
 		"[AIRLOCK_WIRE_LIGHT]"         = "Lights",
+		"[AIRLOCK_WIRE_ONOPEN]"        = "On Open"
 	)
 	..()
 
@@ -54,7 +56,7 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 /datum/wires/airlock/GetInteractWindow()
 	var/obj/machinery/door/airlock/A = holder
 	. += ..()
-	. += text("<br>\n[]<br>\n[]<br>\n[]<br>\n[]<br>\n[]<br>\n[]", (A.locked ? "The door bolts have fallen!" : "The door bolts look up."),
+	. += text("<br>\n[]<br>\n[]<br>\n[]<br>\n[]<br>\n[]<br>\n[]", (A.locked ? "The door bolts have fallen!" : "The door bolts [A.boltsDestroyed ? "have been chopped!" : "look up."]"),
 	(A.lights ? "The door bolt lights are on." : "The door bolt lights are off!"),
 	((A.arePowerSystemsOn() && !(A.stat & NOPOWER)) ? "The test light is on." : "The test light is off!"),
 	(A.aiControlDisabled==0 ? "The 'AI control allowed' light is on." : "The 'AI control allowed' light is off."),
@@ -63,9 +65,9 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 
 
 /datum/wires/airlock/UpdateCut(var/index, var/mended, mob/user)
-
 	var/obj/machinery/door/airlock/A = holder
 	var/obj/I = user.get_active_hand()
+	..()
 	switch(index)
 		if(AIRLOCK_WIRE_MAIN_POWER1, AIRLOCK_WIRE_MAIN_POWER2)
 
@@ -94,35 +96,26 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 			if(!mended)
 				//Cutting this wire also drops the door bolts, and mending it does not raise them. (This is what happens now, except there are a lot more wires going to door bolts at present)
 				if(A.locked!=1)
-					A.locked = 1
+					A.locked = A.boltsDestroyed ? 0 : 1
 				A.update_icon()
 
 		if(AIRLOCK_WIRE_AI_CONTROL)
 
 			if(!mended)
 				//one wire for AI control. Cutting this prevents the AI from controlling the door unless it has hacked the door through the power connection (which takes about a minute). If both main and backup power are cut, as well as this wire, then the AI cannot operate or hack the door at all.
-				//aiControlDisabled: If 1, AI control is disabled until the AI hacks back in and disables the lock. If 2, the AI has bypassed the lock. If -1, the control is enabled but the AI had bypassed it earlier, so if it is disabled again the AI would have no trouble getting back in.
-				if(A.aiControlDisabled == 0)
-					A.aiControlDisabled = 1
-				else if(A.aiControlDisabled == -1)
-					A.aiControlDisabled = 2
+				//aiControlDisabled: If 1, AI control is disabled until the AI hacks back in and disables the lock. If 2, the AI has bypassed the lock.
+				A.disable_AI_control()
 			else
-				if(A.aiControlDisabled == 1)
-					A.aiControlDisabled = 0
-				else if(A.aiControlDisabled == 2)
-					A.aiControlDisabled = -1
+				A.enable_AI_control()
 
 		if(AIRLOCK_WIRE_ELECTRIFY)
 
 			if(!mended)
 				//Cutting this wire electrifies the door, so that the next person to touch the door without insulated gloves gets electrocuted.
-				if(A.secondsElectrified != -1)
-					A.shockedby += text("\[[time_stamp()]\][user](ckey:[user.ckey])")
-					A.secondsElectrified = -1
+				A.shockedby += text("\[[time_stamp()]\][user](ckey:[user.ckey])")
+				A.secondsElectrified = -1
 			else
-				if(A.secondsElectrified == -1)
-					A.secondsElectrified = 0
-			return // Don't update the dialog.
+				A.secondsElectrified = 0
 
 		if (AIRLOCK_WIRE_SAFETY)
 			A.safe = mended
@@ -137,10 +130,9 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 			A.lights = mended
 			A.update_icon()
 
-
 /datum/wires/airlock/UpdatePulsed(var/index, mob/user)
-
 	var/obj/machinery/door/airlock/A = holder
+	..()
 	switch(index)
 		if(AIRLOCK_WIRE_IDSCAN)
 			//Sending a pulse through this flashes the red light on the door (if the door has power).
@@ -153,14 +145,16 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 			//one wire for door bolts. Sending a pulse through this drops door bolts if they're not down (whether power's on or not),
 			//raises them if they are down (only if power's on)
 			if(!A.locked)
-				A.locked = 1
+				A.locked = A.boltsDestroyed ? 0 : 1
+				playsound(A, "sound/machines/door_bolt.ogg", 50, 1, -1)
 				for(var/mob/M in range(1, A))
-					to_chat(M, "You hear a click from the bottom of the door.")
+					to_chat(M, "You hear a metallic clunk from the bottom of the door.")
 			else
 				if(A.arePowerSystemsOn()) //only can raise bolts if power's on
 					A.locked = 0
+					playsound(A, "sound/machines/door_unbolt.ogg", 50, 1, -1)
 					for(var/mob/M in range(1, A))
-						to_chat(M, "You hear a click from the bottom of the door.")
+						to_chat(M, "You hear a metallic clunk from the bottom of the door.")
 			A.update_icon()
 
 		if(AIRLOCK_WIRE_BACKUP_POWER1, AIRLOCK_WIRE_BACKUP_POWER2)
@@ -168,16 +162,12 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 			A.loseBackupPower()
 		if(AIRLOCK_WIRE_AI_CONTROL)
 			if(A.aiControlDisabled == 0)
-				A.aiControlDisabled = 1
-			else if(A.aiControlDisabled == -1)
-				A.aiControlDisabled = 2
+				A.disable_AI_control()
 
 			spawn(10)
 				if(A)
 					if(A.aiControlDisabled == 1)
-						A.aiControlDisabled = 0
-					else if(A.aiControlDisabled == 2)
-						A.aiControlDisabled = -1
+						A.enable_AI_control()
 
 		if(AIRLOCK_WIRE_ELECTRIFY)
 			//one wire for electrifying the door. Sending a pulse through this electrifies the door for 30 seconds.
@@ -192,10 +182,11 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 							if(A.secondsElectrified<0)
 								A.secondsElectrified = 0
 							sleep(10)
-				return
 		if(AIRLOCK_WIRE_OPEN_DOOR)
 			//tries to open the door without ID
 			//will succeed only if the ID wire is cut or the door requires no access
+			for(var/mob/M in range(1, A))
+				to_chat(M, "<span class = 'notice'>You see \the [holder]'s keypad blink green for a second.</span>")
 			if(!A.requiresID() || A.check_access(null))
 				if(A.density)
 					A.open()
@@ -212,3 +203,6 @@ var/const/AIRLOCK_WIRE_LIGHT = 2048
 		if(AIRLOCK_WIRE_LIGHT)
 			A.lights = !A.lights
 			A.update_icon()
+
+		if(AIRLOCK_WIRE_ONOPEN)
+			A.visible_message("<span class = 'notice'>\The [A]'s motors whirr.</span>")

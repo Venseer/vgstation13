@@ -29,7 +29,7 @@ var/global/list/available_paintings = list(
 	//The following paintings either appear under certain conditions or have to be varedited by admins
 	//"narsie", transformed from other paintings by Nar-Sie. Has a chance to spawn on the asteroid in temple ruins.
 	//"justice", spawned in the courtroom/IAA office if there is no courtroom
-	//"blank", crafted with wood, TODO: give a way to players to paint on them
+	//"blank_old", default
 	//"anatomy", TODO: add one in medbay/surgery.
 	//"daddy", TODO: well it's not a painting...so make it its own item...?
 
@@ -42,9 +42,9 @@ var/global/list/available_paintings = list(
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/misc_tools.dmi', "right_hand" = 'icons/mob/in-hand/right/misc_tools.dmi')
 	flags = FPRINT
 	w_type = RECYK_WOOD
+	flammable = TRUE
 	frame_material = /obj/item/stack/sheet/wood
 	sheets_refunded = 2
-	autoignition_temperature = AUTOIGNITION_WOOD
 	var/paint = ""
 
 /obj/item/mounted/frame/painting/New()
@@ -152,11 +152,10 @@ var/global/list/available_paintings = list(
 
 		else
 			name = "painting"
-			desc = "A blank painting."
+			desc = "So perfectly blank you dare not paint on it."
 
 /obj/item/mounted/frame/painting/do_build(turf/on_wall, mob/user)
-	if(!user.drop_item(src))
-		to_chat(user, "<span class='warning'>You can't let go of \the [src]!</span>")
+	if(!user.drop_item(src, failmsg = TRUE))
 		return
 
 	to_chat(user, "<span class='notice'>You hang the [src] on \the [on_wall]...</span>")
@@ -164,9 +163,7 @@ var/global/list/available_paintings = list(
 	add_fingerprint(user)
 
 	//declaring D because otherwise if P gets 'deconstructed' we lose our reference to P.resulting_poster
-	var/obj/structure/painting/P = new(user.loc)
-	P.icon_state = paint
-	P.update_painting()
+	var/obj/structure/painting/P = to_structure(on_wall, user)
 
 	transfer_fingerprints(src, P)
 
@@ -184,12 +181,19 @@ var/global/list/available_paintings = list(
 
 	qdel(src)
 
-/obj/item/mounted/frame/painting/blank
-	paint = "blank"
+/obj/item/mounted/frame/painting/proc/to_structure(turf/on_wall, mob/user)
+	var/obj/structure/painting/P = new /obj/structure/painting(user.loc)
+	P.icon_state = paint
+	P.update_painting()
+	return P
 
 /obj/item/mounted/frame/painting/cultify()
 	new /obj/item/mounted/frame/painting/narsie(loc)
 	..()
+
+/obj/item/mounted/frame/painting/blank
+	paint = "blank_old"
+	// For the code to actually paint see: "code/modules/painting/paintings_custom.dm"
 
 /obj/item/mounted/frame/painting/narsie
 	paint = "narsie"
@@ -201,9 +205,12 @@ var/global/list/available_paintings = list(
 	name = "painting"
 	desc = "A blank painting."
 	icon = 'icons/obj/paintings.dmi'
-	icon_state = "blank"
-	autoignition_temperature = AUTOIGNITION_WOOD
+	icon_state = "blank_old"
+	w_type = RECYK_WOOD
+	flammable = FALSE //no good way of burning these yet
 	anchored = 1
+	plane = ABOVE_HUMAN_PLANE
+	layer = CANVAS_LAYER
 
 /obj/structure/painting/New()
 	..()
@@ -304,16 +311,14 @@ var/global/list/available_paintings = list(
 
 		else
 			name = "painting"
-			desc = "a blank painting."
+			desc = "So perfectly blank you dare not paint on it."
 
 /obj/structure/painting/attack_hand(mob/user)
 	to_chat(user, "<span class='notice'>You pick up \the [src]...</span>")
 
 	add_fingerprint(user)
 
-	var/obj/item/mounted/frame/painting/P = new(loc)
-	P.paint = icon_state
-	P.update_painting()
+	var/obj/item/mounted/frame/painting/P = to_item(user)
 
 	transfer_fingerprints(src, P)
 
@@ -322,11 +327,16 @@ var/global/list/available_paintings = list(
 	P.attack_hand(user)
 	qdel(src)
 
+/obj/structure/painting/proc/to_item(mob/user)
+	var/obj/item/mounted/frame/painting/P = new(loc)
+	P.paint = icon_state
+	P.update_painting()
+	return P
+
 /obj/structure/painting/kick_act(mob/living/carbon/human/H)
 	H.visible_message("<span class='danger'>[H] attempts to kick \the [src].</span>", "<span class='danger'>You attempt to kick \the [src].</span>")
-	to_chat(H, "<span class='danger'>Dumb move! You strain a muscle.</span>")
-
-	H.apply_damage(rand(1,2), BRUTE, pick(LIMB_RIGHT_LEG, LIMB_LEFT_LEG, LIMB_RIGHT_FOOT, LIMB_LEFT_FOOT))
+	if(H.foot_impact(src, rand(1,2)))
+		to_chat(H, "<span class='danger'>Dumb move! You strain a muscle.</span>")
 	return SPECIAL_ATTACK_FAILED
 
 

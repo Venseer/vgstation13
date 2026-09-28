@@ -3,7 +3,7 @@
 
 /obj/machinery/door/mineral
 	name = "mineral door"
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	machine_flags = 0
 	icon = 'icons/obj/doors/mineral.dmi'
 	icon_state = "metaldoor_closed"
@@ -18,7 +18,8 @@
 /obj/machinery/door/mineral/New(location)
 	..()
 	icon_state = "[prefix]door_closed"
-	name = "[prefix] door"
+	if(name == "mineral door") //preserve mapped names
+		name = "[prefix] door"
 
 /obj/machinery/door/mineral/Bumped(atom/user)
 	if(operating)
@@ -26,7 +27,7 @@
 
 	if(istype(user, /obj/mecha))
 		open()
-	else if (istype(user, /obj/machinery/bot))
+	else if (istype(user, /obj/machinery/bot) && SpecialAccess(user))
 		open()
 	else if(ismob(user))
 		var/mob/M = user
@@ -34,7 +35,6 @@
 			return
 		TryToSwitchState(user)
 	return
-
 
 /obj/machinery/door/mineral/attack_ai(mob/user as mob) //those aren't really machinery, they're just big fucking slabs of a mineral
 	if(isAI(user)) //so the AI can't open it
@@ -75,7 +75,7 @@
 	if(istype(W,/obj/item/weapon/pickaxe))
 		var/obj/item/weapon/pickaxe/digTool = W
 		to_chat(user, "You start digging \the [src].")
-		if(do_after(user, src, digTool.digspeed*hardness) && src)
+		if(do_after(user, src, (100*digTool.toolspeed)*hardness) && src)
 			to_chat(user, "You finished digging.")
 			return Dismantle()
 	else if(istype(W, /obj/item/weapon/card))
@@ -96,7 +96,7 @@
 /obj/machinery/door/mineral/proc/Dismantle(devastated = 0)
 	var/obj/item/stack/ore
 	if(src.prefix == "metal")
-		ore = getFromPool(/obj/item/stack/sheet/metal, get_turf(src))
+		ore = new /obj/item/stack/sheet/metal(get_turf(src))
 	else
 		var/P = text2path("/obj/item/stack/sheet/mineral/[prefix]")
 		if(P)
@@ -152,9 +152,9 @@
 /obj/machinery/door/mineral/transparent
 	opacity = 0
 
-	close()
-		..()
-		opacity = 0
+/obj/machinery/door/mineral/transparent/close()
+	..()
+	opacity = 0
 
 /obj/machinery/door/mineral/transparent/plasma
 	prefix = "plasma"
@@ -163,7 +163,7 @@
 
 /obj/machinery/door/mineral/transparent/plasma/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		if(WT.remove_fuel(0, user))
 			TemperatureAct(100)
 	return ..()
@@ -183,7 +183,7 @@
 		napalm.adjust_gas(GAS_PLASMA, toxinsToDeduce)
 
 		target_tile.assume_air(napalm)
-		spawn (0) target_tile.hotspot_expose(temperature, 400,surfaces=1)
+		spawn (0) target_tile.hotspot_expose(temperature, MEDIUM_FLAME,1)
 
 		hardness -= toxinsToDeduce/100
 		CheckHardness()
@@ -200,14 +200,59 @@
 	icon_state = "wooddoor_closed"
 	hardness = 1
 	soundeffect = 'sound/effects/doorcreaky.ogg'
+	sheet_type = /obj/item/stack/sheet/wood
 
 /obj/machinery/door/mineral/wood/Dismantle(devastated = 0)
-	var/obj/item/stack/resource = new/obj/item/stack/sheet/wood
+	var/obj/item/stack/resource = new sheet_type
 	if(!devastated)
 		resource.amount = oreAmount
 		new resource(get_turf(src))
 	qdel(src)
 	return
+
+/obj/machinery/door/mineral/wood/log
+	prefix = "log"
+	icon_state = "logdoor_closed"
+	soundeffect = 'sound/effects/wood_door_slam.ogg'
+	animation_delay = 0
+	var/try_closing = FALSE //while true, repeatedly try to close
+
+/obj/machinery/door/mineral/wood/log/New()
+	..()
+	fast_machines += src
+
+/obj/machinery/door/mineral/wood/log/Destroy()
+	fast_machines -= src
+	..()
+
+/obj/machinery/door/mineral/wood/log/open()
+	..()
+	spawn(1 SECONDS) //Don't attempt closing until a second after it opens
+		if(!try_closing)
+			try_closing = TRUE
+			process()
+
+/obj/machinery/door/mineral/wood/log/close()
+	..()
+	if(density) //successful, cease processing
+		try_closing = FALSE
+
+/obj/machinery/door/mineral/wood/log/process()
+	if(!density && try_closing)
+		close()
+		visible_message("\The [src] slams shut!", "You hear a slamming of wood.")
+
+/obj/machinery/door/mineral/wood/log/Dismantle(devastated = 0)
+	if(!devastated)
+		new /obj/item/weapon/grown/log/tree(src)
+	qdel(src)
+
+/obj/machinery/door/mineral/wood/log/towercap
+
+/obj/machinery/door/mineral/wood/log/towercap/Dismantle(devastated = 0)
+	if(!devastated)
+		new /obj/item/weapon/grown/log(src)
+	qdel(src)
 
 /obj/machinery/door/mineral/resin
 	prefix = "resin"
@@ -215,6 +260,13 @@
 	hardness = 1.5
 	var/close_delay = 100
 	soundeffect = 'sound/effects/attackblob.ogg'
+
+/obj/machinery/door/mineral/resin/SpecialAccess(var/atom/user)
+	if (ismob(user))
+		var/mob/M = user
+		if (isalien(M))
+			return TRUE
+	return FALSE
 
 /obj/machinery/door/mineral/resin/TryToSwitchState(atom/user)
 	if(isalien(user) && !operating)
@@ -225,6 +277,7 @@
 	if(Proj.damage_type == BRUTE || Proj.damage_type == BURN)
 		hardness -= Proj.damage/100
 		CheckHardness()
+	return ..()
 
 /obj/machinery/door/mineral/resin/open()
 	..()
@@ -240,7 +293,7 @@
 	playsound(src, soundeffect, 100, 1)
 	return ..()
 
-/obj/machinery/door/mineral/resin/acidable()
+/obj/machinery/door/mineral/resin/dissolvable()
 	return 0
 
 /obj/machinery/door/mineral/hive
@@ -257,7 +310,7 @@
 
 /obj/machinery/door/mineral/transparent/icicle
 	name = "icicle door"
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	machine_flags = 0
 	icon = 'icons/obj/doors/mineral.dmi'
 	icon_state = "icicledoor_closed"
@@ -284,14 +337,15 @@
 
 /obj/machinery/door/mineral/cult
 	name = "cult door"
+	desc = "It opens and closes...for those in the know."
 	icon = 'icons/obj/doors/doorcult.dmi'
 	icon_state = "cultdoor_closed0"
 
 	explosion_block = 1
 	prefix = "cult"
 	animation_delay = 0
-	var/health = 100
-	var/maxHealth = 100
+	health = 100
+	maxHealth = 100
 
 /obj/machinery/door/mineral/cult/New()
 	..()
@@ -305,9 +359,26 @@
 	anim(location = loc,target = loc.loc,a_icon = 'icons/obj/doors/doorcult.dmi', flick_anim = "cultdoor_breakdown")
 	..()
 
+/obj/machinery/door/mineral/cult/SpecialAccess(var/atom/user)
+	if (ismob(user))
+		var/mob/M = user
+		if (isanycultist(M))
+			return TRUE
+		if (istype(M,/mob/living/simple_animal/hostile/hex))
+			return TRUE
+	return FALSE
+
 /obj/machinery/door/mineral/cult/Uncrossed(var/atom/movable/mover)
-	if (!density && !operating && !(locate(/mob/living) in loc))
-		close()
+	spawn(2)
+		if (!density && !operating && !(locate(/mob/living) in loc))
+			if (ismob(mover))
+				var/mob/M = mover
+				if (M.pulling && loc)
+					M.pulling.forceMove(loc)//so we don't stop pulling stuff when moving through cult doors
+			close()
+
+/obj/machinery/door/mineral/cult/attack_construct(var/mob/user)
+	return TryToSwitchState(user)
 
 /obj/machinery/door/mineral/cult/TryToSwitchState(atom/user)
 	if (ismob(user))
@@ -328,10 +399,12 @@
 	if(Proj.damage_type == BRUTE || Proj.damage_type == BURN)
 		health -= Proj.damage
 		CheckHardness()
+	return ..()
 
 /obj/machinery/door/mineral/cult/attackby(var/obj/item/weapon/W, var/mob/user)
 	if(istype(W, /obj/item/weapon/card))
-		to_chat(user, "You swipe your card at \the [src], petulantly expecting a result.")
+		user.visible_message("\The [user] swipes their card at \the [src], petulantly expecting a result.</span>",
+							"You swipe your card at \the [src], petulantly expecting a result.")
 	else
 		health -= W.force
 		to_chat(user, "You hit \the [src] with your [W.name]!")
@@ -344,3 +417,9 @@
 	update_icon()
 	if(health <= 0)
 		qdel(src)
+
+/obj/machinery/door/mineral/gingerbread
+	prefix = "gingerbread"
+	icon_state = "gingerbreaddoor_closed"
+	hardness = 0.5
+	soundeffect = 'sound/effects/tooth_crack.ogg'

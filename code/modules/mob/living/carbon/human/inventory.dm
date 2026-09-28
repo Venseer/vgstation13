@@ -1,18 +1,3 @@
-/mob/living/carbon/human/verb/quick_equip()
-	set name = "quick-equip"
-	set hidden = 1
-
-	if(ishuman(src))
-		var/mob/living/carbon/human/H = src
-		var/obj/item/I = H.get_active_hand()
-		if(!I)
-			to_chat(H, "<span class='notice'>You are not holding anything to equip.</span>")
-			return
-		if(H.equip_to_appropriate_slot(I))
-			update_inv_hand(active_hand)
-		else
-			to_chat(H, "<span class='warning'>You are unable to equip that.</span>")
-
 /mob/living/carbon/human/get_all_slots()
 	. = get_head_slots() | get_body_slots()
 
@@ -59,18 +44,20 @@
 	var/list/obscured = list()
 
 	if(wear_suit)
-		if(is_slot_hidden(wear_suit.body_parts_covered,HIDEGLOVES))
+		if(is_slot_hidden(wear_suit.body_parts_covered, (HIDEGLOVES), 0))
 			obscured |= slot_gloves
-		if(is_slot_hidden(wear_suit.body_parts_covered,HIDEJUMPSUIT))
+		if(is_slot_hidden(wear_suit.body_parts_covered, (HIDEJUMPSUIT), 0))
 			obscured |= slot_w_uniform
-		if(is_slot_hidden(wear_suit.body_parts_covered,HIDESHOES))
+		if(is_slot_hidden(wear_suit.body_parts_covered, (HIDESHOES), 0))
 			obscured |= slot_shoes
+		if(is_slot_hidden(wear_suit.body_parts_covered, (HIDEBACK), 0))
+			obscured |= slot_back
 	if(head)
-		if(is_slot_hidden(head.body_parts_covered,HIDEMASK))
+		if(is_slot_hidden(head.body_parts_covered, (HIDEMASK), 0))
 			obscured |= slot_wear_mask
-		if(is_slot_hidden(head.body_parts_covered,HIDEEYES))
+		if(is_slot_hidden(head.body_parts_covered, (HIDEEYES), 0))
 			obscured |= slot_glasses
-		if(is_slot_hidden(head.body_parts_covered,HIDEEARS))
+		if(is_slot_hidden(head.body_parts_covered, (HIDEEARS), 0))
 			obscured |= slot_ears
 	if(obscured.len > 0)
 		return obscured
@@ -83,22 +70,24 @@
 /mob/living/carbon/human/proc/check_hidden_head_flags(var/hidden_flags = 0)
 	return check_hidden_flags(get_clothing_items(get_head_slots()), hidden_flags)
 
-/mob/living/carbon/human/proc/check_hidden_body_flags(var/hidden_flags = 0)
-	return check_hidden_flags(get_clothing_items(get_body_slots()), hidden_flags)
+/mob/living/carbon/human/proc/check_hidden_body_flags(var/hidden_flags = 0, force_check = FALSE)
+	return check_hidden_flags(get_clothing_items(get_body_slots()), hidden_flags, force_check)
 
-/mob/living/carbon/human/proc/check_hidden_flags(var/list/items, var/hidden_flags = 0)
+/mob/living/carbon/human/proc/check_hidden_flags(var/list/items, var/hidden_flags = 0, force_check = FALSE)
 	if(!items || !istype(items))
 		items = get_clothing_items()
-	items -= list(gloves,shoes,w_uniform,glasses,ears) // now that these can hide stuff they need to be excluded
+	if(!force_check)
+		items -= list(gloves,shoes,w_uniform,glasses,ears) // now that these can hide stuff they need to be excluded
 	if(!hidden_flags)
-		return
+		return 0
 	var/ignore_slot
 	for(var/obj/item/equipped in items)
 		ignore_slot = (equipped == wear_mask) ? MOUTH : 0
 		if(!equipped)
 			continue
-		else if(is_slot_hidden(equipped.body_parts_covered,hidden_flags,ignore_slot))
+		else if(is_slot_hidden(equipped.body_parts_covered, hidden_flags, ignore_slot, equipped.body_parts_visible_override))
 			return 1
+	return 0
 
 /mob/living/carbon/human/proc/equip_in_one_of_slots(obj/item/W, list/slots, act_on_fail = 1, put_in_hand_if_fail = 0)
 	for (var/slot in slots)
@@ -110,8 +99,7 @@
 
 	switch (act_on_fail)
 		if(EQUIP_FAILACTION_DELETE)
-			qdel(W)
-			W = null
+			QDEL_NULL(W)
 		if(EQUIP_FAILACTION_DROP)
 			W.forceMove(get_turf(src)) // I think.
 	return null
@@ -133,7 +121,7 @@
 		if(slot_wear_mask)
 			return wear_mask
 		if(slot_handcuffed)
-			return handcuffed
+			return handcuffed || mutual_handcuffs
 		if(slot_legcuffed)
 			return legcuffed
 		if(slot_belt)
@@ -192,7 +180,7 @@
 /mob/living/carbon/human/has_organ(name)
 
 	var/datum/organ/external/O = organs_by_name[name]
-	return O.is_existing()
+	return O?.is_existing()
 
 /mob/living/carbon/human/has_organ_for_slot(slot)
 	switch(slot)
@@ -214,11 +202,11 @@
 		if(slot_glasses)
 			return has_organ(LIMB_HEAD)
 		if(slot_gloves)
-			return has_organ(LIMB_LEFT_HAND) && has_organ(LIMB_RIGHT_HAND)
+			return has_organ(LIMB_LEFT_HAND) || has_organ(LIMB_RIGHT_HAND)
 		if(slot_head)
 			return has_organ(LIMB_HEAD)
 		if(slot_shoes)
-			return has_organ(LIMB_RIGHT_FOOT) && has_organ(LIMB_LEFT_FOOT)
+			return has_organ(LIMB_RIGHT_FOOT) || has_organ(LIMB_LEFT_FOOT)
 		if(slot_wear_suit)
 			return has_organ(LIMB_CHEST)
 		if(slot_w_uniform)
@@ -255,7 +243,7 @@
 			u_equip(l_store, 1)
 		if (wear_id)
 			u_equip(wear_id, 1)
-		if (belt)
+		if (belt && !isbelt(belt))
 			u_equip(belt, 1)
 		w_uniform = null
 		success = 1
@@ -296,9 +284,7 @@
 		success = 1
 		slot = slot_wear_mask
 		if(internal)
-			if(internals)
-				internals.icon_state = "internal0"
-			internal = null
+			equip_internals(null)
 		update_inv_wear_mask()
 	else if (W == wear_id)
 		wear_id = null
@@ -332,6 +318,13 @@
 		success = 1
 		slot = slot_handcuffed
 		update_inv_handcuffed()
+	else if (W == mutual_handcuffs)
+		if(mutual_handcuffs.on_restraint_removal(src)) //If this returns 1, then the unquipping action was interrupted
+			return 0
+		mutual_handcuffs = null
+		success = 1
+		slot = slot_handcuffed
+		update_inv_mutual_handcuffed()
 	else if (W == legcuffed)
 		legcuffed = null
 		success = 1
@@ -339,7 +332,8 @@
 		update_inv_legcuffed()
 	else
 		return 0
-
+	// Call update_name AFTER the inventory gets updated.
+	INVOKE_EVENT(src, /event/unequipped, W)
 	if(success)
 		update_hidden_item_icons(W)
 
@@ -364,8 +358,7 @@
 		if(CANNOT_EQUIP)
 			switch(act_on_fail)
 				if(EQUIP_FAILACTION_DELETE)
-					qdel(W)
-					W = null
+					QDEL_NULL(W)
 				if(EQUIP_FAILACTION_DROP)
 					W.forceMove(get_turf(src)) //Should this be using drop_from_inventory instead?
 				else
@@ -428,8 +421,13 @@
 			src.wear_mask = W
 			update_inv_wear_mask(redraw_mob)
 		if(slot_handcuffed)
-			src.handcuffed = W
-			update_inv_handcuffed(redraw_mob)
+			var/obj/item/weapon/handcuffs/cuffs = W
+			if (istype(cuffs) && cuffs.mutual_handcuffed_mobs.len) //if those are regular cuffs, and there are mobs cuffed to each other, do the mutual handcuff logic
+				src.mutual_handcuffs = cuffs
+				update_inv_mutual_handcuffed(redraw_mob)
+			else
+				src.handcuffed = cuffs
+				update_inv_handcuffed(redraw_mob)
 		if(slot_legcuffed)
 			src.legcuffed = W
 			update_inv_legcuffed(redraw_mob)
@@ -450,11 +448,7 @@
 			update_inv_gloves(redraw_mob)
 		if(slot_head)
 			src.head = W
-			//if((head.flags & BLOCKHAIR) || (head.flags & BLOCKHEADHAIR)) //Makes people bald when switching to one with no Blocking flags
-			//	update_hair(redraw_mob)	//rebuild hair
 			update_hair(redraw_mob)
-			if(istype(W,/obj/item/clothing/head/kitty))
-				W.update_icon(src)
 			update_inv_head(redraw_mob)
 		if(slot_shoes)
 			src.shoes = W
@@ -486,10 +480,11 @@
 	update_hidden_item_icons(W)
 
 	W.hud_layerise()
-	W.equipped(src, slot)
 	W.forceMove(src)
+	W.equipped(src, slot)
 	if(client)
 		client.screen |= W
+	INVOKE_EVENT(src, /event/equipped, W, slot)
 
 /mob/living/carbon/human/get_multitool(var/active_only=0)
 	if(istype(get_active_hand(),/obj/item/device/multitool))

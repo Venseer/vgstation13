@@ -46,27 +46,25 @@ research holder datum.
 
 var/global/list/design_list = list()
 var/global/list/tech_list = list()
-
-var/global/list/hidden_tech = list(
-	/datum/tech,
-	/datum/tech/nanotrasen,
-	)
+var/global/list/all_tech = list()
 
 /datum/research								//Holder for all the existing, archived, and known tech. Individual to console.
-	var/list/known_tech = list()			//List of locally known tech.
+	var/list/datum/tech/known_tech = list()			//List of locally known tech. Called with /datum/tech to be able to call tech variables directly
 	var/list/known_designs = list()			//List of available designs (at base reliability).
+	var/alphabetsort = FALSE				//Is it sorted alphabetically?
 
 /datum/research/New()		//Insert techs into possible_tech here. Known_tech automatically updated.
 	if(!tech_list.len)
-		for(var/inst in typesof(/datum/tech) - hidden_tech)
+		var/static/list/hidden_tech = list(/datum/tech/nanotrasen,/datum/tech/alien)
+		for(var/inst in subtypesof(/datum/tech))
 			var/datum/tech/T = new inst()
-			tech_list[T.id] = T
+			if(!(inst in hidden_tech))
+				tech_list[T.id] = T
+			all_tech[T.id] = T
 	if(!design_list.len)
 		for(var/D in typesof(/datum/design) - /datum/design)
 			design_list += new D()
 	RefreshResearch()
-
-
 
 //Checks to see if tech has all the required pre-reqs.
 //Input: datum/tech; Output: 0/1 (false/true)
@@ -112,12 +110,12 @@ var/global/list/hidden_tech = list(
 //Input: datum/tech; Output: Null
 /datum/research/proc/AddTech2Known(var/datum/tech/T)
 	var/datum/tech/known = GetKTechByID(T.id)
-	if(known)
-		if(T.level > known.level)
-			known.level = T.level
-		return 1
-	known_tech[T.id] = T
-	return 2
+	if(!known)
+		known = create_tech(T.id)
+		known_tech[T.id] = known
+	if(T.level > known.level)
+		known.level = T.level
+	return
 
 /datum/research/proc/AddDesign2Known(var/datum/design/D)
 	if(!(D in known_designs))
@@ -141,15 +139,20 @@ var/global/list/hidden_tech = list(
 			AddDesign2Known(PD)
 	for(var/ID in known_tech)
 		var/datum/tech/T = known_tech[ID]
-		T.level = Clamp(T.level, 1, 20)
+		T.level = clamp(T.level, 1, 20)
 	for(var/datum/design/D in known_designs)
 		D.CalcReliability(known_tech)
+	if(alphabetsort)
+		sortTim(known_designs, /proc/cmp_name_asc)
 	return
 
 //Refreshes the levels of a given tech.
 //Input: Tech's ID and Level; Output: null
 /datum/research/proc/UpdateTech(var/ID, var/level)
 	var/datum/tech/KT = GetKTechByID(ID)
+	if(!KT && (ID in all_tech))
+		KT = create_tech(ID)
+		known_tech[ID] = KT
 	if(KT && KT.level <= level)
 		KT.level = max((KT.level + 1), (level - 1))
 	return
@@ -166,7 +169,7 @@ var/global/list/hidden_tech = list(
  **	Includes all the various technoliges and what they make.  **
  ***************************************************************/
 
-datum/tech	//Datum of individual technologies.
+/datum/tech	//Datum of individual technologies.
 	var/name = "name"					//Name of the technology.
 	var/desc = "description"			//General description of what it does and what it makes.
 	var/id = "id"						//An easily referenced ID. Must be alphanumeric, lower-case, and no symbols.
@@ -181,91 +184,115 @@ datum/tech	//Datum of individual technologies.
 		goal_level=max_level
 	..()
 
+//Creates a tech of the specific subtype you are looking for by id
+/proc/create_tech(var/Tid)
+	var/createtype = /datum/tech
+	for(var/type in subtypesof(/datum/tech))
+		var/datum/tech/attempt = type
+		if(initial(attempt.id) == Tid)
+			createtype = type
+			break
+	return new createtype()
+
 //Trunk Technologies (don't require any other techs and you start knowning them).
 
-datum/tech/materials
+/datum/tech/materials
 	name = "Materials Research"
 	desc = "Development of new and improved materials."
 	id = "materials"
 	max_level=9
 	goal_level=8 // 9 is Phazon.
 
-datum/tech/engineering
+/datum/tech/engineering
 	name = "Engineering Research"
-	desc = "Development of new and improved engineering parts and."
+	desc = "Development of new and improved engineering parts and equipment."
 	id = "engineering"
 	max_level=5
 
-datum/tech/plasmatech
+/datum/tech/plasmatech
 	name = "Plasma Research"
 	desc = "Research into the mysterious substance colloqually known as 'plasma'."
 	id = "plasmatech"
 	max_level=4
 
-datum/tech/powerstorage
+/datum/tech/powerstorage
 	name = "Power Manipulation Technology"
 	desc = "The various technologies behind the storage and generation of electicity."
 	id = "powerstorage"
 	max_level=6
 
-datum/tech/bluespace
+/datum/tech/bluespace
 	name = "'Blue-space' Research"
-	desc = "Research into the sub-reality known as 'blue-space'"
+	desc = "Research into the sub-reality known as 'blue-space'."
 	id = "bluespace"
-	max_level =10
+	max_level=10
 	goal_level=4 // Without phazon.
 
-datum/tech/biotech
+/datum/tech/biotech
 	name = "Biological Technology"
 	desc = "Research into the deeper mysteries of life and organic substances."
 	id = "biotech"
 	max_level=5 // Max USABLE level.
 
-datum/tech/combat
+/datum/tech/combat
 	name = "Combat Systems Research"
 	desc = "The development of offensive and defensive systems."
 	id = "combat"
 	goal_level=5 // Pulse rifles don't count.
 	max_level=6
 
-datum/tech/magnets
+/datum/tech/magnets
 	name = "Electromagnetic Spectrum Research"
 	desc = "Research into the electromagnetic spectrum. No clue how they actually work, though."
 	id = "magnets"
 	goal_level=5 // No phazon
 	max_level=8
 
-datum/tech/programming
+/datum/tech/programming
 	name = "Data Theory Research"
 	desc = "The development of new computer and artificial intelligence and data storage systems."
 	id = "programming"
 	max_level=5
 
-datum/tech/syndicate
+/datum/tech/syndicate
 	name = "Illegal Technologies Research"
 	desc = "The study of technologies that violate standard Nanotrasen regulations."
 	id = "syndicate"
 	goal_level=0 // Doesn't count towards maxed research, since it's illegal.
 	max_level=8
 
-datum/tech/nanotrasen
+/datum/tech/nanotrasen
 	name = "Nanotrasen Experimental Technologies"
 	desc = "The research of miscellaneous bleeding-edge technologies, sponsored by Nanotrasen."
 	id = "nanotrasen"
 	goal_level=0 // Doesn't count towards maxed research, since it's bonus.
 	max_level=8
 	new_category = "Nanotrasen"
+	
+/datum/tech/alien
+	name = "Alien Technology"
+	desc = "Resarch found in distant systems operated by grays."
+	id = "xenotech"
+	goal_level=0 // Doesn't count towards maxed research, since it's bonus.
+	max_level=6
 
-datum/tech/anomaly
+/datum/tech/anomaly
 	name = "Anomaly Research"
 	desc = "The study of high energy materials and technology reconstruction."
 	id = "anomaly"
 	max_level=6
 
+/datum/tech/exploration
+	name = "Exploration Research"
+	desc = "The study of deep space exploration technologies."
+	id = "exploration"
+	goal_level=0 // Doesn't count towards maxed research, since it's bonus.
+	max_level=1
+
 /*
 datum/tech/arcane
 	name = "Arcane Research"
-	desc = "Research into the occult and arcane field for use in practical science"
+	desc = "Research into the occult and arcane field for use in practical science."
 	id = "arcane"
 	level = 0 //It didn't become "secret" as advertised.
 
@@ -291,20 +318,22 @@ datum/tech/robotics
 
 
 /obj/item/weapon/disk/tech_disk
-	name = "Technology Disk"
+	name = "technology data disk"
 	desc = "A disk for storing technology data for further research."
-	icon = 'icons/obj/cloning.dmi'
-	icon_state = "datadisk2"
-	item_state = "card-id"
-	w_class = W_CLASS_TINY
-	starting_materials = list(MAT_IRON = 30, MAT_GLASS = 10)
-	w_type = RECYK_ELECTRONIC
+	icon_state = "disk_tech"
 	var/datum/tech/stored
 
 /obj/item/weapon/disk/tech_disk/New()
 	..()
 	src.pixel_x = rand(-5, 5) * PIXEL_MULTIPLIER
 	src.pixel_y = rand(-5, 5) * PIXEL_MULTIPLIER
+
+/obj/item/weapon/disk/tech_disk/examine(mob/user)
+	..()
+	if(stored)
+		to_chat(user,"<span class='info'>It contains [stored.id] [stored.level] research.</span>")
+	else
+		to_chat(user,"<span class='warning'>It has no data.</span>")
 
 /obj/item/weapon/disk/tech_disk/nanotrasen
 	name = "Technology Disk (Nanotrasen 1)"
@@ -315,4 +344,4 @@ datum/tech/robotics
 
 /obj/item/weapon/paper/tech_nanotrasen
 	name = "paper - 'Nanotrasen Experimental Technologies'"
-	info = "<B>Thank you for participating in this Nanotrasen-sponsored initiative!</B><BR><BR>This technology disk will open you the doors of Nanotrasen's most bleeding-edge experimental devices, and we look forward to you testing them for us! Also, note that you will still need to perform some research before these designs become available for you to print, but here's a guide to the tech levels that they will require.<br><ol><li><b>Hookshot</b>: Materials=2, Engineering=5, Electromagnetic=2</li><li><b>Ricochet Rifle</b>: Materials=3, Power=3, Combat=3</li><li><b>Gravity Well Gun</b>: Materials=7, Bluespace=5, Electromagnetic=5</li><li><b>Machine-Man Interface</b>: Biotech=4, Data Theory=4</li></ol><br>We look forward to the results of your experiments. Depending on their success we might grant you access to even more bleeding-edge technologies in the future! Make Science proud!<br><br><i>Central Command R&D Lab</i>"
+	info = "<B>Thank you for participating in this Nanotrasen-sponsored initiative!</B><BR><BR>This technology disk will open you the doors of Nanotrasen's most bleeding-edge experimental devices, and we look forward to you testing them for us! Also, note that you will still need to perform some research before these designs become available for you to print, but here's a guide to the tech levels that they will require.<br><ol><li><b>Hookshot</b>: Materials=2, Engineering=5, Electromagnetic=2</li><li><b>Ricochet Rifle</b>: Materials=3, Power=3, Combat=3</li><li><b>Gravity Well Gun</b>: Materials=7, Bluespace=5, Electromagnetic=5</li><li><b>Machine-Man Interface</b>: Biotech=4, Data Theory=4</li><li><b>Advanced Plasma Cutter</b>: Materials=4, Plasma=3, Engineering=3</li><li><b>Mind Machine Pod & Hub</b>: Bluespace=4, Biotech=5, Anomaly=2, Data Theory=4</li></ol> <br>, We look forward to the results of your experiments. Depending on their success we might grant you access to even more bleeding-edge technologies in the future! Make Science proud!<br><br><i>Central Command R&D Lab</i>"

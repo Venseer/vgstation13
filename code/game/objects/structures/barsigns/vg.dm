@@ -45,7 +45,7 @@
 
 /datum/barsign/vg/commie
 	name = "Prole's Preferred"
-	icon = "foreign"
+	icon = "commie"
 	desc = "The only bar you will ever need, comrade!"
 
 /datum/barsign/vg/nazi
@@ -83,3 +83,18 @@
 	icon = "progressive"
 	desc = "Whatever that means."
 	pixel_y = -64
+
+/datum/barsign/vg/va11halla
+	name = "VA-11 HALL-A"
+	icon = "va11halla"
+	desc = "Not as dangerous as N1-RV Ann-A."
+
+/datum/barsign/squatopia
+	name = "Squatopia"
+	icon = "squatopia"
+	desc = "The crystal belonged to my father. He was murdered."
+
+/datum/barsign/vg/bug
+	name = "The Hungry Bug"
+	icon = "hungrybug"
+	desc = "Stop by and enjoy some of the Hole's famous gyoza!"

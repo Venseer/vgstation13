@@ -32,7 +32,7 @@
 
 
 #### Server revision
-<!-- Found with the "Show server revision" verb in the OOC tab in game. -->
+<!-- Found with the "Show server revision" verb in the OOC tab in game or at .git/refs/heads/Bleeding-Edge on a copy of the source code, if up to date. -->
 
 <!-- SELF LABEL YOUR ISSUE TODAY!
 
@@ -65,7 +65,6 @@ goonchat = "Goonchat"
 grammar = "Grammar / Formatting"
 help = "help wanted"
 hotfix = "Hotfix"
-libvg = "libvg"
 logging = "Logging / Administration"
 meta = "Mapping (Meta :no_mobile_phones:)"
 needspritework = "Needs Spritework"

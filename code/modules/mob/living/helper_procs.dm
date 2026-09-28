@@ -33,6 +33,8 @@ default behaviour is:
 
 	strength += (M_HULK in src.mutations)
 	strength += (M_STRONG in src.mutations)
+	if(reagents)
+		strength += (reagents.get_sportiness() >= 5)
 
 	. = strength
 
@@ -42,3 +44,53 @@ default behaviour is:
 /mob/living/proc/isDeadorDying()	//returns 1 if dead or in crit
 	if(stat == DEAD || health <= config.health_threshold_crit)
 		return TRUE
+
+/mob/living/proc/get_splash_burn_damage(splash_vol, splash_temp)
+	return round(TEMPERATURE_DAMAGE_COEFFICIENT * SPLASH_SCALD_DAMAGE_COEFFICIENT * abs(splash_vol ** (1/3) * log(get_safe_temperature_excursion(splash_temp) + 1)))
+
+/mob/living/proc/get_safe_temperature_excursion(the_temp)
+	//Returns how many degrees K a temperature is outside of the safe range the mob can tolerate. returns 0 if within the safe range. can be negative for cold.
+	return 0
+
+/mob/living/simple_animal/get_safe_temperature_excursion(the_temp)
+	if (the_temp > maxbodytemp)
+		return the_temp - maxbodytemp
+	else if (the_temp < minbodytemp)
+		return minbodytemp - the_temp
+	return 0
+
+/mob/living/carbon/monkey/get_safe_temperature_excursion(the_temp)
+	if (the_temp > BODYTEMP_HEAT_DAMAGE_LIMIT)
+		return the_temp - BODYTEMP_HEAT_DAMAGE_LIMIT
+	else if (the_temp < BODYTEMP_COLD_DAMAGE_LIMIT)
+		return BODYTEMP_COLD_DAMAGE_LIMIT - the_temp
+	return 0
+
+/mob/living/carbon/human/get_safe_temperature_excursion(the_temp)
+	if (species)
+		if (the_temp > species.heat_level_1)
+			return the_temp - species.heat_level_1
+		else if (the_temp < FRIDGETEMP_DEFAULT)//Something below freezing temperature should feel adequately freezing.
+			return FRIDGETEMP_DEFAULT - the_temp
+		//else if (the_temp < species.cold_level_1)
+		//	return the_temp - species.cold_level_1
+	else if (the_temp > BODYTEMP_HEAT_DAMAGE_LIMIT)
+		return the_temp - BODYTEMP_HEAT_DAMAGE_LIMIT
+	else if (the_temp < BODYTEMP_COLD_DAMAGE_LIMIT)
+		return BODYTEMP_COLD_DAMAGE_LIMIT - the_temp
+	return 0
+
+
+/mob/living/proc/enable_druggy_overlays()
+	overlay_fullscreen("high", /obj/abstract/screen/fullscreen/high)
+	overlay_fullscreen("high_space", /obj/abstract/screen/fullscreen/high/space)
+	overlay_fullscreen("high_over", /obj/abstract/screen/fullscreen/high/over)
+	update_fullscreen_alpha("high", 3 * DRUGGY_ALPHA / 4, DRUGGY_FADE_IN)//lighting layer
+	update_fullscreen_alpha("high_space", DRUGGY_ALPHA, DRUGGY_FADE_IN)//on top of the space background
+	update_fullscreen_alpha("high_over", DRUGGY_ALPHA / 4, DRUGGY_FADE_IN)//on top of everything (except HUD) so it affects mesons
+
+
+/mob/living/proc/disable_druggy_overlays()
+	clear_fullscreen("high", DRUGGY_FADE_OUT)
+	clear_fullscreen("high_space", DRUGGY_FADE_OUT)
+	clear_fullscreen("high_over", DRUGGY_FADE_OUT)

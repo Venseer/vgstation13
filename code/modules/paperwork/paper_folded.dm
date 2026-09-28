@@ -5,14 +5,15 @@
 	icon_state = "paper"
 	throwforce = 0
 	w_class = W_CLASS_TINY
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	throw_range = 1
 	throw_speed = 1
 	layer = ABOVE_DOOR_LAYER
 	pressure_resistance = 1
 	attack_verb = list("slaps")
 
-	autoignition_temperature = AUTOIGNITION_PAPER
-	fire_fuel = 1
+
 	var/obj/item/weapon/paper/unfolded
 	var/nano = 0
 
@@ -26,8 +27,7 @@
 
 /obj/item/weapon/p_folded/Destroy()
 	if (unfolded)
-		qdel(unfolded)
-		unfolded = null
+		QDEL_NULL(unfolded)
 	return ..()
 
 /obj/item/weapon/p_folded/attack_self(mob/user as mob)
@@ -43,14 +43,14 @@
 			src.name = N
 	else if(istype(I, /obj/item/toy/crayon))
 		var/obj/item/toy/crayon/C = I
-		src.color = C.colour //doesn't work with paper hats but I haven't found a way to fix it, who will even notice anyways
-		src.unfolded.color = C.colour
+		src.color = C.mainColour //doesn't work with paper hats but I haven't found a way to fix it, who will even notice anyways
+		src.unfolded.color = C.mainColour
 	else if(I.is_hot())
 		src.ashify_item(user)
 		return
 	return ..()
 
-/obj/item/weapon/p_folded/throw_at(var/atom/A, throw_range, throw_speed)
+/obj/item/weapon/p_folded/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
 	pixel_y = rand(-7, 7) * PIXEL_MULTIPLIER
 	pixel_x = rand(-8, 8) * PIXEL_MULTIPLIER
 	..()
@@ -108,8 +108,7 @@
 	throw_range = 12
 	throw_speed = 1
 /obj/item/weapon/p_folded/plane/throw_impact(var/atom/target, speed, mob/user)
-	..()
-	if(user) //runtimes not allowed
+	if(!..() && user) //runtimes not allowed
 		if(ishuman(target) && (user.zone_sel.selecting == "eyes" || prob(20)))
 			var/mob/living/carbon/human/H = target
 			if (H.check_body_part_coverage(EYES))
@@ -118,17 +117,17 @@
 				if (src.nano)
 					to_chat(H, "<span class='warning'>OW! Something sharp stabs your [pick("right","left")] eye!</span>")
 					H.eye_blurry = max(H.eye_blurry, rand(10,15))
-					H.eye_blind = max(H.eye_blind, 2)
+					H.instant_blindness(12)
 					H.Stun(2)
 					var/datum/organ/internal/eyes/eyes = H.internal_organs_by_name["eyes"]
 					eyes.damage += 3
 				else
 					to_chat(H, "<span class='warning'>\The [src] flies right into your [pick("right","left")] eye!</span>")
 					H.eye_blurry = max(H.eye_blurry, rand(3,6))
-					H.eye_blind = max(H.eye_blind, src.nano)
+					H.instant_blindness(11)
 //at last, my block at a rest, bereft of all mortal doubts, I have been enlightened, touched by the sage wisdom, my undying gratitude goes to Comic in this emotional moment
-/obj/item/weapon/p_folded/plane/throw_at(var/atom/A, throw_range, throw_speed)
-	if (A.x > src.x)
+/obj/item/weapon/p_folded/plane/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
+	if (target.x > src.x)
 		src.icon_state = "plane_east"
 	else
 		src.icon_state = "plane_west"
@@ -145,6 +144,7 @@
 	desc = "What looks like an ordinary paper hat, IS actually an ordinary paper hat, in no way collectible. Wow!"
 	icon = 'icons/obj/clothing/hats.dmi'
 	icon_state = "paper"
+	species_fit = list(INSECT_SHAPED)
 	slot_flags = SLOT_HEAD
 	body_parts_covered = HEAD
 

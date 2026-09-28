@@ -7,8 +7,10 @@
 	amount = 1
 	max_amount = 50
 	w_class = W_CLASS_TINY
+	w_type = RECYK_BIOLOGICAL
 	throw_speed = 4
 	throw_range = 10
+	flammable = TRUE
 
 	var/animal_type
 
@@ -40,7 +42,7 @@
 		if(C.use(5))
 			user.drop_item(src, force_drop = 1)
 
-			var/obj/item/clothing/mask/necklace/teeth/X = new(get_turf(src))
+			var/obj/item/clothing/accessory/necklace/teeth/X = new(get_turf(src))
 
 			X.animal_type = src.animal_type
 			X.teeth_amount = amount
@@ -91,3 +93,5 @@
 	w_class = W_CLASS_TINY
 	throw_speed = 4
 	throw_range = 10
+	starting_materials = list(MAT_GOLD = CC_PER_SHEET_GOLD) // Recipe requires 1 sheet. Could probably stand to be less though
+	w_type = RECYK_METAL

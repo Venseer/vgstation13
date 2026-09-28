@@ -5,10 +5,13 @@
 	if (src.handcuffed &&  handcuffed.is_visible())
 		msg += "It is [bicon(src.handcuffed)] handcuffed!\n"
 
+	if (src.mutual_handcuffs && mutual_handcuffs.is_visible())
+		msg += "It is [bicon(src.handcuffed)] handcuffed!\n"
+
 	for(var/obj/item/I in held_items)
 		if(I.is_visible())
-			if(I.blood_DNA && I.blood_DNA.len)
-				msg += "<span class='warning'>It has [bicon(I)] [I.gender==PLURAL?"some":"a"] blood-stained [I.name] in its [get_index_limb_name(is_holding_item(I))]!</span>\n"
+			if(I.is_blood_stained())
+				msg += "<span class='warning'>It has [bicon(I)] [I.a_stained()] [I.name] in its [get_index_limb_name(is_holding_item(I))]!</span>\n"
 			else
 				msg += "It has [bicon(I)] \a [I] in its [get_index_limb_name(is_holding_item(I))].\n"
 

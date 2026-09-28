@@ -16,6 +16,8 @@
 		return
 	if(istype(H, /mob/dead/observer) && !affect_ghosts)
 		return
+	if(istype(H, /obj/effect/beam))//those things aren't meant to get moved
+		return
 	Trigger(H)
 
 
@@ -33,57 +35,61 @@
 	var/nostop = 0 // if 1: will only be stopped by teleporters
 	var/list/affecting = list()
 
-	Trigger(var/atom/A)
-		if(!A || !istype(A, /atom/movable) || isobserver(A))
+/obj/effect/step_trigger/thrower/Trigger(var/atom/A)
+	if(!A || !istype(A, /atom/movable) || isobserver(A))
+		return
+	var/atom/movable/AM = A
+	var/curtiles = 0
+	var/stopthrow = 0
+
+	if(AM.locked_to)
+		return
+
+	for(var/obj/effect/step_trigger/thrower/T in orange(2, src))
+		if(AM in T.affecting)
 			return
-		var/atom/movable/AM = A
-		var/curtiles = 0
-		var/stopthrow = 0
-		for(var/obj/effect/step_trigger/thrower/T in orange(2, src))
-			if(AM in T.affecting)
-				return
 
-		if(ismob(AM))
-			var/mob/M = AM
-			if(immobilize)
-				M.canmove = 0
+	if(ismob(AM))
+		var/mob/M = AM
+		if(immobilize)
+			M.canmove = 0
 
-		affecting.Add(AM)
-		while(AM && !stopthrow)
-			if(tiles)
-				if(curtiles >= tiles)
-					break
-			if(AM.z != src.z)
+	affecting.Add(AM)
+	while(AM && !stopthrow)
+		if(tiles)
+			if(curtiles >= tiles)
 				break
+		if(AM.z != src.z)
+			break
 
-			curtiles++
+		curtiles++
 
-			sleep(speed)
+		sleep(speed)
 
-			// Calculate if we should stop the process
-			if(!nostop)
-				for(var/obj/effect/step_trigger/T in get_step(AM, direction))
-					if(T.stopper && T != src)
-						stopthrow = 1
-			else
-				for(var/obj/effect/step_trigger/teleporter/T in get_step(AM, direction))
-					if(T.stopper)
-						stopthrow = 1
+		// Calculate if we should stop the process
+		if(!nostop)
+			for(var/obj/effect/step_trigger/T in get_step(AM, direction))
+				if(T.stopper && T != src)
+					stopthrow = 1
+		else
+			for(var/obj/effect/step_trigger/teleporter/T in get_step(AM, direction))
+				if(T.stopper)
+					stopthrow = 1
 
-			if(AM)
-				var/predir = AM.dir
-				step(AM, direction)
-				if(!facedir)
-					AM.dir = predir
+		if(AM)
+			var/predir = AM.dir
+			step(AM, direction)
+			if(!facedir)
+				AM.dir = predir
 
 
 
-		affecting.Remove(AM)
+	affecting.Remove(AM)
 
-		if(ismob(AM))
-			var/mob/M = AM
-			if(immobilize)
-				M.canmove = 1
+	if(ismob(AM))
+		var/mob/M = AM
+		if(immobilize)
+			M.canmove = 1
 
 /obj/effect/step_trigger/thrower/north
 	dir = NORTH
@@ -109,12 +115,12 @@
 	var/teleport_y = 0
 	var/teleport_z = 0
 
-	Trigger(var/atom/movable/A)
-		if(teleport_x && teleport_y && teleport_z)
+/obj/effect/step_trigger/teleporter/Trigger(var/atom/movable/A)
+	if(teleport_x && teleport_y && teleport_z)
 
-			A.x = teleport_x
-			A.y = teleport_y
-			A.z = teleport_z
+		A.x = teleport_x
+		A.y = teleport_y
+		A.z = teleport_z
 
 /* Random teleporter, teleports atoms to locations ranging from teleport_x - teleport_x_offset, etc */
 
@@ -123,15 +129,18 @@
 	var/teleport_y_offset = 0
 	var/teleport_z_offset = 0
 
-	Trigger(var/atom/movable/A)
-		if(!istype(A))
-			return
-		if(teleport_x && teleport_y && teleport_z)
-			if(teleport_x_offset && teleport_y_offset && teleport_z_offset)
+/obj/effect/step_trigger/teleporter/random/Trigger(var/atom/movable/A)
+	if(!istype(A) || isobserver(A))
+		return
+	if(istype(A,/obj/item/projectile/fire_breath/shuttle_exhaust))
+		qdel(A)
+		return
+	if(teleport_x && teleport_y && teleport_z)
+		if(teleport_x_offset && teleport_y_offset && teleport_z_offset)
 
-				A.x = rand(teleport_x, teleport_x_offset)
-				A.y = rand(teleport_y, teleport_y_offset)
-				A.z = rand(teleport_z, teleport_z_offset)
+			A.x = rand(teleport_x, teleport_x_offset)
+			A.y = rand(teleport_y, teleport_y_offset)
+			A.z = rand(teleport_z, teleport_z_offset)
 
 /obj/effect/step_trigger/teleporter/random/shuttle_transit
 	teleport_x = 25
@@ -146,3 +155,33 @@
 	..()
 	teleport_x_offset = world.maxx - 25
 	teleport_y_offset = world.maxy - 25
+
+// Picks a random VZ_SPACE / VZ_PARKING vlevel and drops the atom inside it instead of teleporting to hardcoded world coordinates - the latter lands on border turfs or in the wrong vlevel on packed dynamic z-levels.
+/obj/effect/step_trigger/teleporter/random/shuttle_transit/Trigger(var/atom/movable/A)
+	if(!istype(A) || isobserver(A))
+		return
+	if(istype(A,/obj/item/projectile/fire_breath/shuttle_exhaust))
+		return
+	var/list/datum/virtual_z/destinations = list()
+	for(var/datum/virtual_z/vz in map.vLevels)
+		if((vz.level_type == VZ_PARKING || vz.level_type == VZ_SPACE) && !vz.movementJammed)
+			destinations += vz
+	if(!destinations.len)
+		return ..()
+	var/datum/virtual_z/dest = pick(destinations)
+	for(var/i = 1 to 50)
+		var/tx = rand(dest.x_min + TRANSITIONEDGE, dest.x_max - TRANSITIONEDGE)
+		var/ty = rand(dest.y_min + TRANSITIONEDGE, dest.y_max - TRANSITIONEDGE)
+		var/turf/T = locate(tx, ty, dest.z())
+		if(istype(T, /turf/space) && !istype(T, /turf/space/transit) && !istype(T, /turf/unsimulated/border))
+			var/turf/old_T = get_turf(A)
+			var/datum/virtual_z/old_v = old_T?.v
+			if(ismob(A))
+				var/mob/M = A
+				if(old_v)
+					old_v.mob_exited(M)
+				A.forceMove(T)
+				dest.mob_entered(M)
+			else
+				A.forceMove(T)
+			return

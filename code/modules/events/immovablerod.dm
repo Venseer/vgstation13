@@ -4,8 +4,23 @@
 //As well as hurting all dense mobs
 //Recoded as a projectile for better movement/appearance
 
+var/list/all_rods = list()
+
 /datum/event/immovable_rod
-	announceWhen = 100
+	announceWhen = 1
+
+/datum/event/immovable_rod/can_start(var/list/active_with_role)
+	if(active_with_role["Engineer"] > 1 && active_with_role["Any"] > 6)
+		return 15
+	return 0
+
+/datum/event/immovable_rod/big/can_start(var/list/active_with_role)
+	if(active_with_role["Engineer"] > 2 && active_with_role["Any"] > 6)
+		return 15
+	return 0
+
+/datum/event/immovable_rod/hyper/can_start(var/list/active_with_role)
+	return 0
 
 /datum/event/immovable_rod/announce()
 	command_alert(/datum/command_alert/immovable_rod)
@@ -17,39 +32,18 @@
 /datum/event/immovable_rod/hyper/start()
 	immovablerod(2)
 
-/proc/immovablerod(var/hyperRod = 0)
-	var/startx = 0
-	var/starty = 0
-	var/endy = 0
-	var/endx = 0
-	var/startside = pick(cardinal)
-
-//Starts near the transition edge of the zlevel at a random point on one of the four cardinal dirs
-	switch(startside)
-		if(NORTH)
-			starty = world.maxy-TRANSITIONEDGE-5
-			startx = rand(TRANSITIONEDGE+5,world.maxx-TRANSITIONEDGE-5)
-		if(EAST)
-			starty = rand(TRANSITIONEDGE+5,world.maxy-TRANSITIONEDGE-5)
-			startx = world.maxx-TRANSITIONEDGE-5
-		if(SOUTH)
-			starty = TRANSITIONEDGE+5
-			startx = rand(TRANSITIONEDGE+5,world.maxx-TRANSITIONEDGE-5)
-		if(WEST)
-			starty = rand(TRANSITIONEDGE+5,world.maxy-TRANSITIONEDGE-5)
-			startx = TRANSITIONEDGE+5
-
-//One of the turfs in the 60x60 square in the center of the zlevel
-	endx = rand((world.maxx/2)-30,(world.maxx/2)+30)
-	endy = rand((world.maxy/2)-30,(world.maxy/2)+30)
-
-	switch(hyperRod)
+/proc/immovablerod(var/rodlevel = 0)
+	var/obj/item/projectile/immovablerod/myrod
+	switch(rodlevel)
 		if(0)
-			new /obj/item/projectile/immovablerod(locate(startx, starty, 1), locate(endx, endy, 1))
+			myrod = new /obj/item/projectile/immovablerod(locate(1,1,1))
 		if(1)
-			new /obj/item/projectile/immovablerod/big(locate(startx, starty, 1), locate(endx, endy, 1))
+			myrod = new /obj/item/projectile/immovablerod/big(locate(1,1,1))
 		if(2)
-			new /obj/item/projectile/immovablerod/hyper(locate(startx, starty, 1), locate(endx, endy, 1))
+			myrod = new /obj/item/projectile/immovablerod/hyper(locate(1,1,1))
+
+	myrod.starting = myrod.loc
+	myrod.ThrowAtStation()
 
 /obj/item/projectile/immovablerod
 	name = "\improper Immovable Rod"
@@ -63,11 +57,6 @@
 	mouse_opacity = 1
 	projectile_speed = 1.33
 	var/clongSound = 'sound/effects/bang.ogg'
-
-/obj/item/projectile/immovablerod/New(atom/start, atom/end)
-	..()
-	if(end)
-		throw_at(end)
 
 /obj/item/projectile/immovablerod/big
 	name = "\improper Immovable Pillar"
@@ -84,17 +73,24 @@
 	lock_angle = 1
 	clongSound = 'sound/effects/immovablerod_clong.ogg'
 
+/obj/item/projectile/immovablerod/New()
+	all_rods += src
+	..()
+
+/obj/item/projectile/immovablerod/Destroy()
+	all_rods -= src
+	..()
+
 /obj/item/projectile/immovablerod/hyper/New()
 	..()
 	var/image/I = image('icons/obj/objects_96x96.dmi',"immrod_bottom")
-	I.layer = layer-1
-	I.plane = -1
+	I.plane = relative_plane(PLATING_PLANE-1)
 	overlays += I
 
-/obj/item/projectile/immovablerod/throw_at(atom/end)
+/obj/item/projectile/immovablerod/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
 	for(var/mob/dead/observer/people in observers)
-		to_chat(people, "<span class = 'notice'>\A [src] has been thrown at the station, <a href='?src=\ref[people];follow=\ref[src]'>Follow it</a></span>")
-	original = end
+		to_chat(people, "<span class = 'notice'>\A [src] has been thrown at the station, [formatFollow(src,"Follow it")]</span>")
+	original = target
 	starting = loc
 	current = loc
 	OnFired()
@@ -169,7 +165,7 @@
 		if(prob(50))
 			clong()
 
-/obj/item/projectile/immovablerod/forceMove(atom/destination, no_tp=0, harderforce = FALSE, glide_size_override = 0)
+/obj/item/projectile/immovablerod/forceMove(atom/destination, step_x = 0, step_y = 0, no_tp = FALSE, harderforce = FALSE, glide_size_override = 0)
 	..()
 	if(z != starting.z)
 		qdel(src)
@@ -201,3 +197,29 @@
 	for (var/mob/M in range(loc,20))
 		to_chat(M,"<FONT size=[max(0, 5 - round(get_dist(src, M)/4))]>CLANG!</FONT>")
 		M.playsound_local(loc, clongSound, 100 - (get_dist(src,M)*5), 1)
+
+/proc/random_start_turf(var/z)
+	var/startx
+	var/starty
+	var/chosen_dir = pick(NORTH, SOUTH, EAST, WEST)
+
+	switch(chosen_dir)
+
+		if(NORTH) //North, along the y = max edge
+			starty = world.maxy - (TRANSITIONEDGE + 2)
+			startx = rand((TRANSITIONEDGE + 2), world.maxx - (TRANSITIONEDGE + 2))
+
+		if(SOUTH) //South, along the y = 0 edge
+			starty = (TRANSITIONEDGE + 2)
+			startx = rand((TRANSITIONEDGE + 2), world.maxx - (TRANSITIONEDGE + 2))
+
+		if(EAST) //East, along the x = max edge
+			starty = rand((TRANSITIONEDGE + 2), world.maxy - (TRANSITIONEDGE + 2))
+			startx = world.maxx - (TRANSITIONEDGE + 2)
+
+		if(WEST) //West, along the x = 0 edge
+			starty = rand((TRANSITIONEDGE + 2), world.maxy - (TRANSITIONEDGE + 2))
+			startx = (TRANSITIONEDGE + 2)
+
+	var/turf/T = locate(startx, starty, z)
+	return T

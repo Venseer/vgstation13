@@ -8,7 +8,7 @@
 	max_co2 = 0
 	min_n2 = 0
 	max_n2 = 0
-	unsuitable_atoms_damage = 15
+	unsuitable_atmos_damage = 15
 	faction = "mining"
 	environment_smash_flags = SMASH_LIGHT_STRUCTURES | SMASH_CONTAINERS | SMASH_WALLS
 	minbodytemp = 0
@@ -16,12 +16,12 @@
 	response_help = "pokes"
 	response_disarm = "shoves"
 	response_harm = "strikes"
-	status_flags = 0
 	size = SIZE_BIG
 	a_intent = I_HURT
 	var/throw_message = "bounces off of"
 	var/icon_aggro = null // for swapping to when we get aggressive
 	held_items = list()
+	status_flags = CANSTUN|CANKNOCKDOWN|CANPARALYSE|CANPUSH
 
 /mob/living/simple_animal/hostile/asteroid/Aggro()
 	..()
@@ -37,7 +37,7 @@
 	if(P.damage < 30)
 		P.damage = (P.damage / 2)
 		visible_message("<span class='danger'>\The [P] has a reduced effect on \the [src]!</span>")
-	..()
+	return ..()
 
 /mob/living/simple_animal/hostile/asteroid/hitby(atom/movable/AM, speed)//No floor tiling them to death, wiseguy
 	. = ..()
@@ -81,6 +81,24 @@
 	aggro_vision_range = 9
 	idle_vision_range = 2
 
+/mob/living/simple_animal/hostile/asteroid/basilisk/gorgon
+	name = "gorgon"
+	desc = "Looking at this one doesn't seen to turn the beholder into stone."
+	icon_state = "gorgon"
+	icon_living = "gorgon"
+	icon_aggro = "gorgon_alert"
+	icon_dead = "gorgon_dead"
+	move_to_delay = 10
+	ranged = FALSE
+	speed = 2
+	maxHealth = 80
+	health = 80
+	harm_intent_damage = 2
+	melee_damage_lower = 7
+	melee_damage_upper = 7
+	environment_smash_flags = SMASH_LIGHT_STRUCTURES | SMASH_CONTAINERS
+	size = SIZE_SMALL
+
 /obj/item/projectile/temp/basilisk
 	name = "freezing blast"
 	icon_state = "ice_2"
@@ -89,6 +107,9 @@
 	nodamage = 1
 	flag = "energy"
 	temperature = 50
+
+/mob/living/simple_animal/hostile/asteroid/basilisk/get_butchering_products()
+	return list(/datum/butchering_product/skin/basilisk)
 
 /mob/living/simple_animal/hostile/asteroid/basilisk/GiveTarget(var/new_target)
 	target = new_target
@@ -113,20 +134,42 @@
 		if(3.0)
 			adjustBruteLoss(110)
 
-obj/item/asteroid/basilisk_hide
-	name = "basilisk crystals"
-	desc = "You shouldn't ever see this."
-	icon = 'icons/obj/mining.dmi'
-	icon_state = "Diamond ore"
+/mob/living/simple_animal/hostile/asteroid/basilisk/death(var/gibbed = FALSE)
+	visible_message("<span class='danger'>\The [src] shatters before dying, leaving some diamond ore.</span>")
+	drop_stack(/obj/item/stack/ore/diamond, loc, 2)
+	..(gibbed)
 
-obj/item/asteroid/basilisk_hide/New()
-	var/counter
-	for(counter=0, counter<2, counter++)
-		var/obj/item/weapon/ore/diamond/D = new /obj/item/weapon/ore/diamond(src.loc)
-		D.plane = MOB_PLANE
-		D.layer = MOB_LAYER + 0.001
-	..()
-	qdel(src)
+/obj/item/asteroid/basilisk_hide
+	name = "basilisk hide"
+	desc = "Diamond-studded hide."
+	icon = 'icons/obj/items.dmi'
+	icon_state = "basilisk_hide"
+
+/obj/item/asteroid/basilisk_hide/afterattack(atom/target, mob/user, proximity_flag)
+	if(!(proximity_flag && istype(target, /obj/item/clothing)))
+		return
+	var/obj/item/clothing/C = target
+	if(!(C.clothing_flags & BASILISK_REINFORCEABLE))
+		return
+
+	C.clothing_flags &= ~HIVELORD_REINFORCEABLE
+	C.clothing_flags &= ~GOLIATH_REINFORCEABLE
+
+	var/current_armor = C.armor
+	C.hidecount++
+	if(current_armor["laser"] < 30)
+		current_armor["laser"] = min(current_armor["laser"] + 5, 30)
+		to_chat(user, "<span class='info'>You strengthen [target], improving its dissipation of lasers.</span>")
+		qdel(src)
+	else
+		to_chat(user, "<span class='info'>You can't improve [C] any further.</span>")
+	if(has_icon(C.icon, "[initial(C.item_state)]_basilisk[C.hidecount]"))
+		C.name = "reinforced [initial(C.name)]"
+		C.item_state = "[initial(C.item_state)]_basilisk[C.hidecount]"
+		C.icon_state = "[initial(C.icon_state)]_basilisk[C.hidecount]"
+		C._color = "mining_basilisk[C.hidecount]"
+	if(user.is_wearing_item(C))
+		user.regenerate_icons()
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub
 	name = "goldgrub"
@@ -152,8 +195,8 @@ obj/item/asteroid/basilisk_hide/New()
 	throw_message = "sinks in slowly, before being pushed out of "
 	status_flags = CANPUSH
 	search_objects = 1
-	wanted_objects = list(/obj/item/weapon/ore/diamond, /obj/item/weapon/ore/gold, /obj/item/weapon/ore/silver,
-						  /obj/item/weapon/ore/uranium)
+	wanted_objects = list(/obj/item/stack/ore/diamond, /obj/item/stack/ore/gold, /obj/item/stack/ore/silver,
+						  /obj/item/stack/ore/uranium)
 
 	environment_smash_flags = SMASH_LIGHT_STRUCTURES | SMASH_CONTAINERS | SMASH_WALLS | SMASH_ASTEROID
 	var/list/ore_types_eaten = list()
@@ -164,7 +207,7 @@ obj/item/asteroid/basilisk_hide/New()
 /mob/living/simple_animal/hostile/asteroid/goldgrub/GiveTarget(var/new_target)
 	target = new_target
 	if(target != null)
-		if(istype(target, /obj/item/weapon/ore))
+		if(istype(target, /obj/item/stack/ore))
 			visible_message("<span class='notice'>\The [src] looks at \the [target] with hungry eyes.</span>")
 			stance = HOSTILE_STANCE_ATTACK
 			return
@@ -177,29 +220,30 @@ obj/item/asteroid/basilisk_hide/New()
 			Burrow()
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub/AttackingTarget()
-	if(istype(target, /obj/item/weapon/ore))
+	if(istype(target, /obj/item/stack/ore))
 		EatOre(target)
 		return
 	..()
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub/proc/EatOre(var/atom/targeted_ore)
-	for(var/obj/item/weapon/ore/O in targeted_ore.loc)
+	for(var/obj/item/stack/ore/O in targeted_ore.loc)
 		ore_eaten++
-		if(!(O.type in ore_types_eaten))
-			ore_types_eaten += O.type
-		qdel(O)
-		O = null
+		ore_types_eaten[O.type]++
+		O.use(1)
 	if(ore_eaten > 5)//Limit the scope of the reward you can get, or else things might get silly
 		ore_eaten = 5
 	visible_message("<span class='notice'>\The [targeted_ore] was swallowed whole!</span>")
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub/proc/Burrow()//Begin the chase to kill the goldgrub in time
 	if(!alerted)
-		alerted = 1
+		alerted = TRUE
 		spawn(chase_time)
 			if(alerted)
-				visible_message("<span class='danger'>\The [src] burrows into the ground, vanishing from sight!</span>")
 				var/turf/T = get_turf(src)
+				if (istype(T, /turf/space))
+					alerted = FALSE
+					return
+				visible_message("<span class='danger'>\The [src] burrows into the ground, vanishing from sight!</span>")
 				forceMove(null)
 				T.ex_act(2)
 				spawn(rand(30 SECONDS,90 SECONDS))
@@ -223,17 +267,15 @@ obj/item/asteroid/basilisk_hide/New()
 	if(!ore_eaten || ore_types_eaten.len == 0)
 		return
 	visible_message("<span class='danger'>\The [src] spits up the contents of its stomach before dying!</span>")
-	var/counter
 	for(var/R in ore_types_eaten)
-		for(counter=0, counter < ore_eaten, counter++)
-			new R(src.loc)
+		drop_stack(R, loc, ore_types_eaten[R])
 	ore_types_eaten.len = 0
 	ore_eaten = 0
 
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub/bullet_act(var/obj/item/projectile/P)
 	visible_message("<span class='danger'>\The [P] was repelled by \the [src]'s girth!</span>")
-	return
+	return PROJECTILE_COLLISION_DEFAULT
 
 /mob/living/simple_animal/hostile/asteroid/goldgrub/death(var/gibbed = FALSE)
 	alerted = 0
@@ -269,13 +311,23 @@ obj/item/asteroid/basilisk_hide/New()
 	retreat_distance = 3
 	minimum_distance = 3
 	pass_flags = PASSTABLE
+	hostile_interest = 15 //Very persistent
+	var/open_fire_type = /mob/living/simple_animal/hostile/asteroid/hivelordbrood
+	var/list/mob/living/simple_animal/hostile/broods = list()
+	var/brood_limit = 0
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/get_butchering_products()
+	return list(/datum/butchering_product/hivelord_core)
 
 /mob/living/simple_animal/hostile/asteroid/hivelord/OpenFire(var/the_target)
-	var/mob/living/simple_animal/hostile/asteroid/hivelordbrood/A = getFromPool(/mob/living/simple_animal/hostile/asteroid/hivelordbrood,src.loc)
-	A.GiveTarget(target)
-	A.friends = friends
-	A.faction = faction
-	return
+	if(!brood_limit || broods.len < brood_limit)
+		var/mob/living/simple_animal/hostile/A = new open_fire_type(src.loc)
+		if(istype(A))
+			A.GiveTarget(target)
+			A.friends = friends
+			A.faction = faction
+			A.hivelord = src
+			broods.Add(A)
 
 /mob/living/simple_animal/hostile/asteroid/hivelord/AttackingTarget()
 	OpenFire()
@@ -308,6 +360,49 @@ obj/item/asteroid/basilisk_hide/New()
 			return core.amount
 	return 1
 
+/mob/living/simple_animal/hostile/asteroid/hivelord/guardian
+	name = "Hivelord Guardian"
+	maxHealth = 100 //slighly tougher than regular hivelords
+	health = 100
+	treadmill_speed = 5
+	desc = "A special breed of hivelord, this one will give its life to defend the queen and hive."
+	open_fire_type = /mob/living/simple_animal/hostile/asteroid/hivelordbrood/guardian
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/guardian/New()
+	..()
+	appearance_flags |= PIXEL_SCALE
+	var/matrix/M = matrix()
+	M.Scale(1.5,1.5) //halfway between regular hivelords and the queen
+	transform = M
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/guardian/get_butchering_products()
+	return list(/datum/butchering_product/hivelord_core/guardian)
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/boss
+	name = "Maria"
+	desc = "A hulking Hivelord Queen. When attacking, will create more hivelords to ensure the safety of her hive. Her core beats and glows with an eerie light."
+	size = SIZE_HUGE
+	maxHealth = 300
+	health = 300
+	pixel_y = 16 * PIXEL_MULTIPLIER
+	status_flags = UNPACIFIABLE
+	move_to_delay = 30
+	harm_intent_damage = 10
+	hostile_interest = 5 //Less persistent
+	open_fire_type = /mob/living/simple_animal/hostile/asteroid/hivelord
+	brood_limit = 5
+	treadmill_speed = 6
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/boss/New()
+	..()
+	appearance_flags |= PIXEL_SCALE
+	var/matrix/M = matrix()
+	M.Scale(2,2)
+	transform = M
+
+/mob/living/simple_animal/hostile/asteroid/hivelord/boss/get_butchering_products()
+	return list(/datum/butchering_product/hivelord_core/heart)
+
 /obj/item/asteroid/hivelord_core
 	name = "hivelord remains"
 	desc = "All that remains of a hivelord, it seems to be what allows it to break pieces of itself off without being hurt... its healing properties will soon become inert if not used quickly. Try not to think about what you're eating."
@@ -316,6 +411,11 @@ obj/item/asteroid/basilisk_hide/New()
 	var/inert = 0
 	var/time_left = 1200 //deciseconds
 	var/last_process
+
+/obj/item/asteroid/hivelord_core/guardian
+	name = "hivelord guardian remains"
+	desc = "All that remains of a hivelord guardian, it seems to be what allows it to break pieces of itself off without being hurt... its healing properties will soon become inert if not used quickly. This one seems to last longer than usual."
+	time_left = 3000 //5 minutes
 
 /obj/item/asteroid/hivelord_core/New()
 	..()
@@ -353,6 +453,33 @@ obj/item/asteroid/basilisk_hide/New()
 	else
 		return ..()
 
+/obj/item/asteroid/hivelord_core/afterattack(atom/target, mob/user, proximity_flag)
+	if(!(proximity_flag && istype(target, /obj/item/clothing)))
+		return
+	var/obj/item/clothing/C = target
+	if(!(C.clothing_flags & HIVELORD_REINFORCEABLE))
+		return
+
+	C.clothing_flags &= ~GOLIATH_REINFORCEABLE
+	C.clothing_flags &= ~BASILISK_REINFORCEABLE
+
+	var/current_armor = C.armor
+	C.hidecount++
+	if(current_armor["bio"] < 100 || current_armor["rad"] < 50)
+		current_armor["bio"] = min(current_armor["bio"] + 10, 100)
+		current_armor["rad"] = min(current_armor["rad"] + 10, 50)
+		to_chat(user, "<span class='info'>You strengthen [target], improving its resistance against biological and radiological attacks.</span>")
+		qdel(src)
+	else
+		to_chat(user, "<span class='info'>You can't improve [C] any further.</span>")
+	if(has_icon(C.icon, "[initial(C.item_state)]_hivelord[C.hidecount]"))
+		C.name = "reinforced [initial(C.name)]"
+		C.item_state = "[initial(C.item_state)]_hivelord[C.hidecount]"
+		C.icon_state = "[initial(C.icon_state)]_hivelord[C.hidecount]"
+		C._color = "mining_hivelord[C.hidecount]"
+	if(user.is_wearing_item(C))
+		user.regenerate_icons()
+
 /obj/item/asteroid/hivelord_core/attack_self(mob/user as mob)
 	if (iscarbon(user))
 		return consume(user, user)
@@ -367,11 +494,11 @@ obj/item/asteroid/basilisk_hide/New()
 		return
 
 	// revive() requires a check for suiciding
-	if (target.suiciding)
+	if (target.mind && target.mind.suiciding)
 		to_chat(user, "<span class='notice'>\The [target] refuses \the [src].</span>")
 		return
 
-	if (!target.hasmouth)
+	if (!target.hasmouth())
 		if (target != user)
 			to_chat(user, "<span class='warning'>You attempt to feed \the [src] to \the [target], but you realize they don't have a mouth. How dumb!</span>")
 		else
@@ -393,6 +520,42 @@ obj/item/asteroid/basilisk_hide/New()
 	user.drop_from_inventory(src)
 	qdel(src)
 	return TRUE
+
+/obj/item/organ/internal/heart/hivelord
+	name = "hivelord heart"
+	desc = "All that remains of a greater hivelord, works as a drop-in replacement for any species heart, granting protection from bone damage or internal bleeding, as well as boosting any healing processes. Try not to think about what's beating inside you."
+	icon = 'icons/obj/food.dmi'
+	icon_state = "boiledrorocore"
+	organ_tag = "heart"
+	prosthetic_name = null
+	prosthetic_icon = null
+	dead_icon = null
+	fresh = 6 // Juicy.
+	organ_type = /datum/organ/internal/heart/hivelord
+
+/obj/item/organ/internal/heart/hivelord/die()
+	..()
+	desc = "The remains of a greater hivelord that have become useless, having been left alone too long after being out of a body. Perhaps injecting it with something might help?"
+
+/obj/item/organ/internal/heart/hivelord/revive()
+	..()
+	desc = initial(desc)
+
+/datum/organ/internal/heart/hivelord
+	name = "hivelord heart"
+	removed_type = /obj/item/organ/internal/heart/hivelord
+	min_bruised_damage = 15
+	min_broken_damage = 30
+
+/datum/organ/internal/heart/hivelord/Life()
+	for(var/datum/organ/external/E in owner.organs)
+		if(prob(10))
+			E.status &= ~ORGAN_BROKEN
+			E.status &= ~ORGAN_SPLINTED
+		for(var/datum/wound/W in E.wounds)
+			if(W.internal && prob(10))
+				E.wounds -= W
+				E.update_damages()
 
 /mob/living/simple_animal/hostile/asteroid/hivelordbrood
 	name = "hivelord brood"
@@ -421,11 +584,24 @@ obj/item/asteroid/basilisk_hide/New()
 /mob/living/simple_animal/hostile/asteroid/hivelordbrood/New()
 	..()
 	spawn(100)
-		returnToPool(src)
+		qdel(src)
 
 /mob/living/simple_animal/hostile/asteroid/hivelordbrood/death(var/gibbed = FALSE)
 	..(TRUE)
-	returnToPool(src)
+	qdel(src)
+
+/mob/living/simple_animal/hostile/asteroid/hivelordbrood/guardian
+	name = "hivelord guardian brood"
+	desc = "A fragment of a Hivelord Guardian. It isn't much of a threat despite being stronger than a regular brood. Pretty weak by itself, but..."
+	melee_damage_lower = 4
+	melee_damage_upper = 4
+
+/mob/living/simple_animal/hostile/asteroid/hivelordbrood/guardian/New()
+	..()
+	appearance_flags |= PIXEL_SCALE
+	var/matrix/M = matrix()
+	M.Scale(1.5,1.5) //halfway between regular hivelords and the queen
+	transform = M
 
 /mob/living/simple_animal/hostile/asteroid/goliath
 	name = "goliath"
@@ -455,6 +631,14 @@ obj/item/asteroid/basilisk_hide/New()
 
 	size = SIZE_BIG
 
+/mob/living/simple_animal/hostile/asteroid/goliath/snow
+	name = "white goliath"
+	desc = "Tentacled, space-faring beasts that prey upon fauna in mineral-rich areas. The white subspecies has adapted to camouflage on a snowy world."
+	icon_state = "Goliathwhite"
+	icon_living = "Goliathwhite"
+	icon_aggro = "Goliathwhite_alert"
+	icon_dead = "Goliathwhite_dead"
+
 /mob/living/simple_animal/hostile/asteroid/goliath/OpenFire(atom/ttarget)
 	var/tturf = get_turf(ttarget)
 	if(!istype(tturf, /turf/space) && istype(ttarget))
@@ -463,6 +647,9 @@ obj/item/asteroid/basilisk_hide/New()
 		new /obj/effect/goliath_tentacle/original(tturf)
 		ranged_cooldown = ranged_cooldown_cap
 	return
+
+/mob/living/simple_animal/hostile/asteroid/goliath/get_butchering_products()
+	return list(/datum/butchering_product/skin/goliath, /datum/butchering_product/teeth/lots)
 
 /mob/living/simple_animal/hostile/asteroid/goliath/adjustBruteLoss(var/damage)
 	ranged_cooldown--
@@ -478,7 +665,8 @@ obj/item/asteroid/basilisk_hide/New()
 	var/turftype = get_turf(src)
 	if(istype(turftype, /turf/unsimulated/mineral))
 		var/turf/unsimulated/mineral/M = turftype
-		M.GetDrilled()
+		if(M.mining_difficulty < MINE_DIFFICULTY_TOUGH)
+			M.GetDrilled()
 	spawn(20)
 		Trip()
 
@@ -498,6 +686,7 @@ obj/item/asteroid/basilisk_hide/New()
 /obj/effect/goliath_tentacle/proc/Trip()
 	for(var/mob/living/M in src.loc)
 		M.Knockdown(5)
+		M.Stun(5)
 		visible_message("<span class='warning'>\The [src] knocks \the [M] down!</span>")
 	qdel(src)
 
@@ -515,25 +704,30 @@ obj/item/asteroid/basilisk_hide/New()
 	w_class = W_CLASS_MEDIUM
 
 /obj/item/asteroid/goliath_hide/afterattack(atom/target, mob/user, proximity_flag)
-	if(proximity_flag && istype(target, /obj/item/clothing))
-		var/obj/item/clothing/C = target
-		var/current_armor = C.armor
-		if(!isturf(C.loc))
-			to_chat(user, "<span class='warning'>\The [C] must be safely placed on the ground for modification.</span>")
-			return
-		if(C.clothing_flags & GOLIATHREINFORCE)
-			C.hidecount ++
-			if(current_armor.["melee"] < 90)
-				current_armor.["melee"] = min(current_armor.["melee"] + 10, 90)
-				to_chat(user, "<span class='info'>You strengthen [target], improving its resistance against melee attacks.</span>")
-				qdel(src)
-			else
-				to_chat(user, "<span class='info'>You can't improve [C] any further.</span>")
-		if(has_icon(C.icon, "[initial(C.item_state)]_goliath[C.hidecount]"))
-			C.name = "reinforced [initial(C.name)]"
-			C.item_state = "[initial(C.item_state)]_goliath[C.hidecount]"
-			C.icon_state = "[initial(C.icon_state)]_goliath[C.hidecount]"
-			C._color = "mining_goliath[C.hidecount]"
+	if(!(proximity_flag && istype(target, /obj/item/clothing)))
+		return
+	var/obj/item/clothing/C = target
+	if(!(C.clothing_flags & GOLIATH_REINFORCEABLE))
+		return
+
+	C.clothing_flags &= ~HIVELORD_REINFORCEABLE
+	C.clothing_flags &= ~BASILISK_REINFORCEABLE
+
+	var/current_armor = C.armor
+	C.hidecount++
+	if(current_armor["melee"] < 90)
+		current_armor["melee"] = min(current_armor["melee"] + 10, 90)
+		to_chat(user, "<span class='info'>You strengthen [target], improving its resistance against melee attacks.</span>")
+		qdel(src)
+	else
+		to_chat(user, "<span class='info'>You can't improve [C] any further.</span>")
+	if(has_icon(C.icon, "[initial(C.item_state)]_goliath[C.hidecount]"))
+		C.name = "reinforced [initial(C.name)]"
+		C.item_state = "[initial(C.item_state)]_goliath[C.hidecount]"
+		C.icon_state = "[initial(C.icon_state)]_goliath[C.hidecount]"
+		C._color = "mining_goliath[C.hidecount]"
+	if(user.is_wearing_item(C))
+		user.regenerate_icons()
 
 /mob/living/simple_animal/hostile/asteroid/goliath/david
 	name = "david"
@@ -625,7 +819,7 @@ obj/item/asteroid/basilisk_hide/New()
 /mob/living/simple_animal/hostile/asteroid/magmaw/fire_act(var/datum/gas_mixture/air, var/exposed_temperature, var/exposed_volume)
 	fire_resurrect(exposed_temperature)
 
-/mob/living/simple_animal/hostile/asteroid/magmaw/IgniteMob()
+/mob/living/simple_animal/hostile/asteroid/magmaw/ignite()
 	fire_resurrect(PLASMA_MINIMUM_BURN_TEMPERATURE)
 
 /mob/living/simple_animal/hostile/asteroid/magmaw/FireBurn(var/firelevel, var/last_temperature, var/pressure)
@@ -659,7 +853,7 @@ obj/item/asteroid/basilisk_hide/New()
 
 	switch(fire_extremity)
 		if(1) // Fire spout
-			generic_projectile_fire(get_ranged_target_turf(src, dir, 10), src, /obj/item/projectile/fire_breath, 'sound/weapons/flamethrower.ogg')
+			generic_projectile_fire(get_ranged_target_turf(src, dir, 10), src, /obj/item/projectile/fire_breath, 'sound/weapons/flamethrower.ogg', src)
 			if(environment)
 				environment.add_thermal_energy(350000)
 		if(2) //Fire blast
@@ -670,11 +864,11 @@ obj/item/asteroid/basilisk_hide/New()
 /mob/living/simple_animal/hostile/asteroid/magmaw/CanAttack(var/atom/the_target)
 	if(world.time < fire_time)
 		return
-	if(istype(the_target, /obj/item/weapon/ore/plasma) || istype(the_target, /obj/item/stack/sheet/mineral/plasma))
+	if(istype(the_target, /obj/item/stack/ore/plasma) || istype(the_target, /obj/item/stack/sheet/mineral/plasma))
 		return 1
 	if(istype(the_target, /turf/unsimulated/mineral))
 		var/turf/unsimulated/mineral/M = the_target
-		if(M.mineral && istype(M.mineral.ore, /obj/item/weapon/ore/plasma))
+		if(M.mineral && istype(M.mineral.ore, /obj/item/stack/ore/plasma))
 			return 1
 	return 0
 
@@ -686,7 +880,7 @@ obj/item/asteroid/basilisk_hide/New()
 /mob/living/simple_animal/hostile/asteroid/magmaw/UnarmedAttack(var/atom/A, var/proximity, var/params)
 	if(proximity == 0)
 		return
-	var/is_ore = istype(A, /obj/item/weapon/ore/plasma)
+	var/is_ore = istype(A, /obj/item/stack/ore/plasma)
 	var/is_sheet = istype(A, /obj/item/stack/sheet/mineral/plasma)
 	if(is_ore || is_sheet)
 		visible_message("<span class = 'warning'>\The [src] eats \the [A]!</span>")
@@ -696,11 +890,8 @@ obj/item/asteroid/basilisk_hide/New()
 		else if(is_sheet)
 			fire_time = world.time + 90 SECONDS
 			fire_extremity = 2
-		if(is_sheet)
-			var/obj/item/stack/sheet/S = A
-			S.use(1)
-		else
-			qdel(A)
+		var/obj/item/stack/sheet/S = A
+		S.use(1)
 		return
 	return ..()
 
@@ -739,7 +930,7 @@ obj/item/asteroid/basilisk_hide/New()
 			if(Adjacent(M))
 				//Climb in
 				visible_message("<span class = 'warning'>\The [src] burrows itself into \the [M]!</span>")
-				M.rockernaut = istype(src, /mob/living/simple_animal/hostile/asteroid/rockernaut/boss) ? TURF_CONTAINS_BOSS_ROCKERNAUT : TURF_CONTAINS_REGULAR_ROCKERNAUT
+				M.rockernaut = istype(src, /mob/living/simple_animal/hostile/asteroid/rockernaut/boss) ? TURF_CONTAINS_BOSS : TURF_CONTAINS_ROCKERNAUT
 				qdel(src)
 				return
 			else
@@ -765,7 +956,7 @@ obj/item/asteroid/basilisk_hide/New()
 		new /obj/item/weapon/vinyl/rock(src.loc) //It is a rock monster after all
 
 	for(var/i = 0 to rand(0,3))
-		new /obj/item/weapon/strangerock(src.loc, new /datum/find(get_random_digsite_type(), 0))
+		new /obj/item/weapon/strangerock(src.loc, get_random_find())
 	new /obj/structure/boulder(src.loc)
 
 /mob/living/simple_animal/hostile/asteroid/rockernaut/attack_icon()
@@ -781,6 +972,7 @@ obj/item/asteroid/basilisk_hide/New()
 	melee_damage_lower = 35
 	melee_damage_upper = 50
 	ranged = 1
+	status_flags = CANSTUN|CANKNOCKDOWN|CANPARALYSE|CANPUSH|UNPACIFIABLE
 	var/charging = 0
 
 /mob/living/simple_animal/hostile/asteroid/rockernaut/boss/New()
@@ -795,10 +987,10 @@ obj/item/asteroid/basilisk_hide/New()
 		for(var/i = 0 to rand(24,46))
 			new possessed_ore(src.loc)
 
-	new /obj/item/weapon/vinyl/rock(src.loc) //It is a rock monster after all
+	new /obj/item/weapon/vinyl/filk(src.loc) //The music of the asteroid~
 
 	for(var/i = 0 to rand(5,13))
-		new /obj/item/weapon/strangerock(src.loc, new /datum/find(get_random_digsite_type(), 0))
+		new /obj/item/weapon/strangerock(src.loc, get_random_find())
 	new /obj/item/clothing/gloves/mining(src.loc)
 	new /obj/structure/boulder(src.loc)
 
@@ -849,3 +1041,64 @@ obj/item/asteroid/basilisk_hide/New()
 		if(istype(T, /turf/space)) // if ended in space, then range is unlimited
 			T = get_edge_target_turf(M, dir)
 		M.throw_at(T,100,move_to_delay)
+
+
+/mob/living/simple_animal/hostile/asteroid/pillow
+	name = "pillow bug"
+	desc = "An odd creature, bearing a resemblance to the common earth tick, but with flicks of light blue fur."
+	health = 20
+	maxHealth = 20
+	melee_damage_lower = 0
+	melee_damage_upper = 0
+	icon_state = "pillow"
+	icon_aggro = "pillow"
+	icon_living = "pillow"
+	icon_dead = "pillow_dead"
+	holder_type = /obj/item/weapon/holder/animal/pillow
+	size = SIZE_SMALL
+	pacify_aura = TRUE
+	environment_smash_flags = 0
+	var/image/eyes
+
+/mob/living/simple_animal/hostile/asteroid/pillow/no_pacify
+	pacify_aura = FALSE
+	response_help = "pets"
+
+/mob/living/simple_animal/hostile/asteroid/pillow/examine(mob/user)
+	..()
+	if(!isDead() && pacify_aura)
+		to_chat(user, "<span class = 'notice'>It looks so comforting, you feel like the world, at least in the general vicinity, is at peace.</span>")
+
+/mob/living/simple_animal/hostile/asteroid/pillow/New()
+	..()
+	eyes = image(icon,"pillow_eyes", ABOVE_LIGHTING_LAYER)
+	eyes.plane = ABOVE_LIGHTING_PLANE
+	overlays += eyes
+
+/mob/living/simple_animal/hostile/asteroid/pillow/death()
+	overlays.Cut()
+	..()
+
+/mob/living/simple_animal/hostile/retaliate/goat/wooly
+	name = "wooly goat"
+	desc = "An absolutely fierce-tempered beast that prefers cold climates. It has a very tough hide."
+	icon_state = "woolygoat"
+	icon_living = "woolygoat"
+	icon_dead = "woolygoat_dead"
+	gives_milk = FALSE
+	health = 120
+	maxHealth = 120
+	anger_chance = 4 //4% per tick to get angry
+	faction = "mining"
+
+/mob/living/simple_animal/hostile/retaliate/goat/wooly/New()
+	..()
+	gender = pick(MALE,FEMALE)
+	gives_milk = (FEMALE ? TRUE : FALSE)
+
+/mob/living/simple_animal/hostile/scarybat/cave
+	name = "cave bats"
+	desc = "A nasty horde of bloodsuckers. They're extra tough."
+	faction = "mining"
+	health = 60
+	maxHealth = 60

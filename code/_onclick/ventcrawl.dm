@@ -21,8 +21,15 @@ var/list/ventcrawl_machinery = list(/obj/machinery/atmospherics/unary/vent_pump,
 		/obj/transmog_body_container,
 		/obj/item/verbs,
 		/obj/item/weapon/gun/hookshot/flesh,
+		/obj/item/device/camera_bug,
 	)
 	return allowed_items
+
+/mob/living/DblClickOn(atom/A, params)
+	if(is_type_in_list(A,ventcrawl_machinery))
+		src.handle_ventcrawl(A)
+		return TRUE
+	return ..()
 
 /mob/living/AltClickOn(var/atom/A)
 	if(is_type_in_list(A,ventcrawl_machinery))
@@ -96,16 +103,22 @@ var/list/ventcrawl_machinery = list(/obj/machinery/atmospherics/unary/vent_pump,
 		return FALSE
 	return TRUE
 
+/mob/living/simple_animal/hostile/gremlin/grinch/can_ventcrawl()
+	return TRUE
+
 /mob/living/simple_animal/spiderbot/can_ventcrawl()
 	return TRUE
 
 /mob/living/simple_animal/hostile/lizard/can_ventcrawl()
 	return TRUE
 
-/mob/living/simple_animal/hostile/necromorph/leaper/can_ventcrawl()
+/mob/living/simple_animal/hostile/necro/necromorph/leaper/can_ventcrawl()
 	return TRUE
 
 /mob/living/simple_animal/shade/can_ventcrawl()
+	return TRUE
+
+/mob/living/simple_animal/hostile/giant_spider/spiderling/can_ventcrawl()
 	return TRUE
 
 /mob/living/carbon/alien/can_ventcrawl()
@@ -119,6 +132,13 @@ var/list/ventcrawl_machinery = list(/obj/machinery/atmospherics/unary/vent_pump,
 
 /mob/living/carbon/alien/humanoid/queen/can_ventcrawl()
 	to_chat(src, "<span class='notice'>You can't quite fit in the pipe.</span>")
+	return FALSE
+
+/mob/living/simple_animal/hostile/grue/can_ventcrawl()
+	if(lifestage==GRUE_LARVA)
+		return TRUE
+	else
+		to_chat(src, "<span class='notice'>You are too big to fit into the pipe.</span>")
 	return FALSE
 
 /mob/living/var/ventcrawl_layer = PIPING_LAYER_DEFAULT
@@ -212,7 +232,7 @@ var/list/ventcrawl_machinery = list(/obj/machinery/atmospherics/unary/vent_pump,
 		for(var/obj/machinery/atmospherics/A in (pipeline.members || pipeline.edges))
 			if(!A.pipe_image)
 				A.pipe_image = image(A, A.loc, layer = ABOVE_LIGHTING_LAYER, dir = A.dir)
-				A.pipe_image.plane = LIGHTING_PLANE
+				A.pipe_image.plane = ABOVE_LIGHTING_PLANE
 			pipes_shown += A.pipe_image
 			client.images += A.pipe_image
 

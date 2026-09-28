@@ -18,8 +18,7 @@
 
 /obj/item/weapon/reagent_containers/borghypo/New(loc)
 	..(loc)
-	qdel(reagents)
-	reagents = null
+	QDEL_NULL(reagents)
 
 	for(var/reagent in reagent_ids)
 		var/datum/reagents/reagents = new(volume)
@@ -44,15 +43,11 @@
 
 	charge_tick = 0
 
-	if(isrobot(loc))
-		var/mob/living/silicon/robot/robot = loc
-
-		if(robot && robot.cell)
-			var/datum/reagents/reagents = reagent_list[mode]
-
-			if(reagents.total_volume < reagents.maximum_volume) // don't recharge reagents and drain power if the storage is full
-				robot.cell.use(charge_cost) // take power from borg
-				reagents.add_reagent(reagent_ids[mode], 5) // and fill hypo with reagent.
+	if(get_cell_charge(loc))
+		var/datum/reagents/reagents = reagent_list[mode]
+		if(reagents.total_volume < reagents.maximum_volume) // don't recharge reagents and drain power if the storage is full
+			use_cell_charge(loc,charge_cost) // take power from borg
+			reagents.add_reagent(reagent_ids[mode], 5) // and fill hypo with reagent.
 
 	return 1
 
@@ -75,7 +70,7 @@
 		"<span class='warning'>[user] injects [M] with [src].</span>",\
 		"<span class='info'>You inject [M] with with [src].<span>")
 	to_chat(M, "<span class='warning'>You feel a tiny prick!</span>")
-	reagents.reaction(M, INGEST)
+	reagents.reaction(M, INGEST, amount_override = min(reagents.total_volume,amount_per_transfer_from_this)/(reagents.reagent_list.len))
 
 	if(M.reagents)
 		var/transferred = reagents.trans_to(M, amount_per_transfer_from_this)
@@ -135,8 +130,8 @@
 
 /obj/item/weapon/reagent_containers/borghypo/crisis
 	name = "crisis hypospray"
-	desc = "A syndicate-exclusive emergency hypospray filled with potent stimulants and painkillers."
+	desc = "A syndicate-exclusive emergency hypospray filled with potent stimulants, medicines, painkillers and sedatives."
 	icon_state = "borghypo_s"
-	reagent_ids = list(TRICORDRAZINE, INAPROVALINE, COCAINE, OXYCODONE, TRAMADOL)
-	volume = 10
+	reagent_ids = list(DOCTORSDELIGHT, DEXALINP, METHAMPHETAMINE, OXYCODONE, CREATINE, CHLORALHYDRATE)
+	volume = 30
 	amount_per_transfer_from_this = 10

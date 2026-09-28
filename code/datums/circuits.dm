@@ -15,7 +15,7 @@
 /datum/circuits
 	var/atom/holder = null //Which specific board are we pointing at?
 	var/list/fuse_point_names = list("Alpha" = ALPHA, "Beta" = BETA, "Gamma" = GAMMA, "Delta" = DELTA, "Eta" = ETA, "Theta" = THETA, "Iota" = IOTA)
-	var/list/possible_boards = list(/obj/item/weapon/circuitboard/autolathe,/obj/item/weapon/circuitboard/seed_extractor,/obj/item/weapon/circuitboard/air_alarm,/obj/item/weapon/circuitboard/fire_alarm,/obj/item/weapon/circuitboard/airlock,/obj/item/weapon/circuitboard/power_control,/obj/item/weapon/circuitboard/station_map,/obj/item/weapon/circuitboard/vendomat,/obj/item/weapon/circuitboard/microwave)
+	var/list/possible_boards = list(/obj/item/weapon/circuitboard/autolathe,/obj/item/weapon/circuitboard/seed_extractor,/obj/item/weapon/circuitboard/air_alarm,/obj/item/weapon/circuitboard/fire_alarm,/obj/item/weapon/circuitboard/airlock,/obj/item/weapon/circuitboard/power_control,/obj/item/weapon/circuitboard/station_map,/obj/item/weapon/circuitboard/vendomat,/obj/item/weapon/circuitboard/small/microwave)
 	var/global/list/assigned_boards = list()
 	//Each bitflag points to a board!
 	var/localbit = 0 //What are WE programmed to? Always start as 0
@@ -88,7 +88,7 @@
 
 	for(var/fusepoint in fuse_point_names)
 		html += {"<tr>
-		<td[row_options1]><font color='blue'>[fusepoint]</font>
+		<td[row_options1]><span class='notice'>[fusepoint]</span>
 		</td>
 		<td[row_options2]>
 		<A href='?src=\ref[src];action=1;fuse=[fuse_point_names[fusepoint]]'>[checkfuse(text2num(fuse_point_names[fusepoint])) ? "Melt" :  "Fuse"]</A></td></tr>"}
@@ -108,9 +108,9 @@
 			holder.add_hiddenprint(L)
 			if(href_list["fuse"]) // Toggles the fuse/unfuse status
 				if(issolder(I))
-					var/obj/item/weapon/solder/S = I
+					var/obj/item/tool/solder/S = I
 					if(S.remove_fuel(1,L))
-						playsound(L.loc, 'sound/items/Welder.ogg', 25, 1)
+						I.playtoolsound(L.loc, 25)
 						var/greek = href_list["fuse"]
 						togglefuse(text2num(greek))
 				else

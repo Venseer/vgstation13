@@ -1,5 +1,6 @@
 /obj/item/weapon/shield
 	name = "shield"
+	on_armory_manifest = TRUE
 
 /obj/item/weapon/shield/riot
 	name = "riot shield"
@@ -20,12 +21,12 @@
 	attack_verb = list("shoves", "bashes")
 	var/cooldown = 0 //shield bash cooldown. based on world.time
 
-/obj/item/weapon/shield/riot/suicide_act(mob/user)
+/obj/item/weapon/shield/riot/suicide_act(var/mob/living/user)
 	to_chat(viewers(user), "<span class='danger'>[user] is smashing \his face into the [src.name]! It looks like \he's  trying to commit suicide!</span>")
 	return (SUICIDE_ACT_BRUTELOSS)
 
 /obj/item/weapon/shield/riot/IsShield()
-	return 1
+	return TRUE
 
 /obj/item/weapon/shield/riot/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(istype(W, /obj/item/weapon/melee/baton) || istype(W, /obj/item/weapon/melee/telebaton) || istype(W, /obj/item/weapon/melee/classic_baton))
@@ -41,13 +42,14 @@
 	desc = "A small wooden shield. Its surface area is small, but it's still somewhat effective."
 	icon_state = "buckler"
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_WOOD
 	slot_flags = 0
-	starting_materials = list()
+	starting_materials = list(MAT_WOOD = 8500)
 
 /obj/item/weapon/shield/riot/buckler/IsShield()
 	return prob(33) //Only attempt to block 1/3 of attacks
 
-/obj/item/weapon/shield/riot/buckler/on_block(damage, attack_text = "the_attack")
+/obj/item/weapon/shield/riot/buckler/on_block(damage, atom/blocked)
 	if(damage > 10)
 		if(prob(min(10*(damage-10), 75))) //Bucklers are prone to breaking apart
 			var/turf/T = get_turf(src)
@@ -98,7 +100,7 @@
 	attack_verb = list("shoves", "bashes")
 	var/active = 0
 
-/obj/item/weapon/shield/energy/suicide_act(mob/user)
+/obj/item/weapon/shield/energy/suicide_act(var/mob/living/user)
 	to_chat(viewers(user), "<span class='danger'>[user] is putting the [src.name] to their head and activating it! It looks like \he's  trying to commit suicide!</span>")
 	return (SUICIDE_ACT_BRUTELOSS)
 
@@ -213,9 +215,11 @@
 	throwforce = 0
 	throw_speed = 1
 	throw_range = 1
-	w_class = 5
+	w_type = RECYK_BIOLOGICAL
+	flammable = TRUE
 	mech_flags = MECH_SCAN_ILLEGAL
 	cant_drop = 1
+
 	var/mob/living/simple_animal/borer/parent_borer = null
 
 /obj/item/weapon/shield/riot/bone/New(atom/A, var/p_borer = null)
@@ -243,7 +247,35 @@
 		return
 	if(!parent_borer.channeling_bone_shield) //the borer has stopped sustaining the sword
 		qdel(src)
+		return
 	if(parent_borer.chemicals < 3) //the parent borer no longer has the chemicals required to sustain the shield
 		qdel(src)
+		return
 	else
 		parent_borer.chemicals -= 3
+
+/obj/item/weapon/shield/riot/tower
+	name = "tower shield"
+	desc = "A veritable wall of defense."
+	icon_state = "tower_shield"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/shields.dmi', "right_hand" = 'icons/mob/in-hand/right/shields.dmi')
+	flags = FPRINT | SLOWDOWN_WHEN_CARRIED
+	slowdown = 4
+	w_type = RECYK_METAL
+
+/obj/item/weapon/shield/riot/rune
+	name = "rune kiteshield"
+	desc = "A large metal shield."
+	icon = 'icons/obj/weapons.dmi'
+	icon_state = "runeshield"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/shields.dmi', "right_hand" = 'icons/mob/in-hand/right/shields.dmi')
+	siemens_coefficient = 1
+	slot_flags = null
+	force = 10
+	throwforce = 3
+	throw_speed = 1
+	throw_range = 6
+	w_class = W_CLASS_LARGE
+
+/obj/item/weapon/shield/riot/tower/IsShield()
+	return 2 //Considering its size, twice as effective as a normal shield, but difficult to lug around

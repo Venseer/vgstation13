@@ -19,23 +19,56 @@
 	density = 1
 	var/obj/structure/m_tray/connected = null
 	anchored = 1.0
+	light_power = 0.5
+	light_range = 1
 
-/obj/structure/morgue/proc/update()
+/obj/structure/morgue/New()
+	..()
+	morgue_list += src
+	update_icon()
+
+/obj/structure/morgue/Destroy()
+	..()
+	morgue_list -= src
+
+/obj/structure/morgue/update_icon()
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_morgue")
 	if(connected)
 		icon_state = "morgue0"
-	else
-		if(contents.len > 0)
-			var/list/inside = recursive_type_check(src, /mob)
-			if(!inside.len)
-				icon_state = "morgue3" // no mobs at all, but objects inside
-			else
-				for(var/mob/living/body in inside)
-					if(body && body.client && !body.suiciding)
-						icon_state = "morgue4" // clone that mofo
-						return
-				icon_state = "morgue2" // dead no-client mob
-		else
-			icon_state = "morgue1"
+		return
+	if(!contents.len)
+		icon_state = "morgue1"
+		return
+	var/list/inside = recursive_type_check(src, /mob)
+	if(!inside.len)
+		icon_state = "morgue3" // no mobs at all, but objects inside
+		return
+	var/body_revivable = 0
+	for(var/mob/living/body in inside)
+		if(body.mind && body.mind.suiciding)
+			continue
+		if(body && body.client)
+			icon_state = "morgue4" // clone that mofo
+			return
+		var/mob/dead/observer/ghost = mind_can_reenter(body.mind)
+		if(ghost && ghost.get_top_transmogrification())
+			body_revivable = 1
+			icon_state = "morgue5" //dead and ghosted, but revivable if he re-enters body
+
+	if(!body_revivable)
+		icon_state = "morgue2" // dead no-client mob
+
+/obj/structure/morgue/proc/update()
+	update_icon()
+	var/area/this_area = get_area(src)
+	for(var/obj/machinery/holosign/morgue/sign in holosigns)
+		var/area/sign_area = get_area(sign)
+		if(this_area != sign_area)
+			continue
+		if(sign.should_update)
+			continue
+		sign.should_update = TRUE
+		processing_objects += sign
 
 /obj/structure/morgue/examine(mob/user)
 	..()
@@ -45,6 +78,8 @@
 		if("morgue3")
 			to_chat(user, "<span class='info'>\The [src]'s light display indicates there are items inside.</span>")
 		if("morgue4")
+			to_chat(user, "<span class='info'>\The [src]'s light display indicates there is a revivable body inside.</span>")
+		if("morgue5")
 			to_chat(user, "<span class='info'>\The [src]'s light display indicates there is a potential clone candidate inside.</span>")
 
 /obj/structure/morgue/ex_act(severity)
@@ -102,8 +137,7 @@
 		connected.icon_state = "morguet"
 		connected.dir = src.dir
 	else
-		qdel(connected)
-		connected = null
+		QDEL_NULL(connected)
 
 /obj/structure/morgue/proc/close_up()
 	if(!connected)
@@ -112,35 +146,39 @@
 		if(istype(A, /mob/living/simple_animal/scp_173)) //I have no shame. Until someone rewrites this shitcode extroadinaire, I'll just snowflake over it
 			continue
 		if(!A.anchored)
-			A.forceMove(src)
-			if(ismob(A))
-				var/mob/M = A
-				if(M.mind && !M.client) //!M.client = mob has ghosted out of their body
-					var/mob/dead/observer/ghost = mind_can_reenter(M.mind)
-					if(ghost)
-						var/mob/ghostmob = ghost.get_top_transmogrification()
-						if(ghostmob)
-							to_chat(ghostmob, "<span class='interface'><span class='big bold'>Your corpse has been placed into a morgue tray.</span> \
-								Re-entering your corpse will cause the tray's lights to turn green, which will let people know you're still there, and just maybe improve your chances of being revived. No promises.</span>")
+			A.forceMove(src)				
 	qdel(connected)
+	
+	var/list/inside = recursive_type_check(src, /mob)
+	for(var/mob/M in inside)
+		if(M.mind && !M.client) //!M.client = mob has ghosted out of their body
+			var/mob/dead/observer/ghost = mind_can_reenter(M.mind)
+			if(ghost)
+				var/mob/ghostmob = ghost.get_top_transmogrification()
+				if(ghostmob)
+					to_chat(ghostmob, "<span class='interface'><span class='big bold'>Your corpse has been placed into a morgue tray.</span> \
+						Re-entering your corpse will cause the tray's lights to turn green, which will let people know you're still there, and just maybe improve your chances of being revived. No promises.</span>")
 
-/obj/structure/morgue/attackby(P as obj, mob/user as mob)
-	if(iscrowbar(P)&&!contents.len)
+
+/obj/structure/morgue/attackby(obj/item/P, mob/user)
+	if(iscrowbar(P))
 		user.visible_message("<span class='notice'>\The [user] begins dismantling \the [src].</span>", "<span class='notice'>You begin dismantling \the [src].</span>")
-		if(do_after(user, src,50))
+		if(do_after(user, src, 50))
 			user.visible_message("<span class='notice'>\The [user] dismantles \the [src].</span>", "<span class='notice'>You dismantle \the [src].</span>")
 			playsound(src, 'sound/items/Deconstruct.ogg', 50, 1)
 			new /obj/structure/closet/body_bag(src.loc)
-			new /obj/item/stack/sheet/metal(src.loc,5)
+			new /obj/item/stack/sheet/metal(src.loc, 5)
+			for (var/atom/movable/content in contents)
+				content.forceMove(src.loc)
 			qdel(src)
-	if(iswrench(P))
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
-		if(dir==4)
-			dir=8
+	if(P.is_wrench(user))
+		P.playtoolsound(src, 50)
+		if(dir == 4)
+			dir = 8
 		else
-			dir=4
+			dir = 4
 	if (istype(P, /obj/item/weapon/pen))
-		set_tiny_label(user, " - '", "'")
+		set_tiny_label(user, " - '", "'", maxlength=32)
 	src.add_fingerprint(user)
 
 /obj/structure/morgue/relaymove(mob/user as mob)
@@ -159,12 +197,13 @@
 					Re-entering your corpse will cause the tray's lights to turn green, which will let people know you're still there, and just maybe improve your chances of being revived. No promises.</span>")
 
 /obj/structure/morgue/on_logout(var/mob/M)
-	update()
+	spawn(1) //delay here because the ghostmob doesn't exist immediately after ghosting
+		update()
 
 /obj/structure/morgue/Destroy()
-	. = ..()
 	if(connected)
-		qdel(connected) //references get cleared in the tray's Destroy()
+		qdel(connected)
+	. = ..()
 
 /*
  * Morgue tray
@@ -203,6 +242,9 @@
 		return
 	if (!ismob(O) && !istype(O, /obj/structure/closet/body_bag))
 		return
+	if (!iscarbon(user) && !isrobot(user))
+		return
+
 	O.forceMove(src.loc)
 	if (user != O)
 		visible_message("<span class='warning'>[user] stuffs [O] into [src]!</span>")
@@ -236,6 +278,7 @@
 
 /obj/structure/crematorium/Destroy()
 	crematorium_list.Remove(src)
+	..()
 
 /obj/structure/crematorium/proc/update()
 	if (cremating)
@@ -288,13 +331,12 @@
 			if (!( A.anchored ))
 				A.forceMove(src)
 		playsound(src, 'sound/items/Deconstruct.ogg', 50, 1)
-		qdel(src.connected)
-		src.connected = null
+		QDEL_NULL(src.connected)
 	else if (src.locked == 0)
 		playsound(src, 'sound/items/Deconstruct.ogg', 50, 1)
 		src.connected = new /obj/structure/c_tray( src.loc )
-		step(src.connected, SOUTH)
-		var/turf/T = get_step(src, SOUTH)
+		step(src.connected, dir)
+		var/turf/T = get_step(src, dir)
 		if (T.contents.Find(src.connected))
 			src.connected.connected = src
 			src.icon_state = "crema0"
@@ -302,14 +344,13 @@
 				A.forceMove(src.connected.loc)
 			src.connected.icon_state = "cremat"
 		else
-			qdel(src.connected)
-			src.connected = null
+			QDEL_NULL(src.connected)
 	src.add_fingerprint(user)
 	update()
 
 /obj/structure/crematorium/attackby(P as obj, mob/user as mob)
 	if (istype(P, /obj/item/weapon/pen))
-		set_tiny_label(user, " - '", "'")
+		set_tiny_label(user, " - '", "'", maxlength=32)
 	src.add_fingerprint(user)
 
 /obj/structure/crematorium/relaymove(mob/user as mob)
@@ -326,8 +367,7 @@
 			//Foreach goto(106)
 		src.connected.icon_state = "cremat"
 	else
-		qdel(src.connected)
-		src.connected = null
+		QDEL_NULL(src.connected)
 
 /obj/structure/crematorium/proc/cremate(mob/user)
 //	for(var/obj/machinery/crema_switch/O in src) //trying to figure a way to call the switch, too drunk to sort it out atm
@@ -370,8 +410,7 @@
 			//log_attack("\[[time_stamp()]\] <b>[user]/[user.ckey]</b> cremated <b>[M]/[M.ckey]</b>")
 			M.death(1)
 			M.ghostize()
-			qdel(M)
-			M = null
+			QDEL_NULL(M)
 
 		for (var/obj/O in inside) //obj instead of obj/item so that bodybags and ashes get destroyed. We dont want tons and tons of ash piling up
 			qdel(O)
@@ -424,6 +463,9 @@
 		return
 	if (!ismob(O) && !istype(O, /obj/structure/closet/body_bag))
 		return
+	if (!iscarbon(user) && !isrobot(user))
+		return
+
 	O.forceMove(src.loc)
 	if (user != O)
 		for(var/mob/B in viewers(user, 3))
@@ -432,8 +474,10 @@
 
 /obj/machinery/crema_switch/attack_hand(mob/user as mob)
 	if (allowed(user))
+		playsound(src,'sound/misc/click.ogg',30,0,-1)
 		for (var/obj/structure/crematorium/C in crematorium_list)
 			if (C.id == id)
 				C.cremate(user)
 	else
+		playsound(src,'sound/machines/denied.ogg',30,0,-1)
 		to_chat(user, "<SPAN CLASS='alert'>Access denied.</SPAN>")

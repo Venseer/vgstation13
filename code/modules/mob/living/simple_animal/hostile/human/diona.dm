@@ -22,7 +22,7 @@
 	max_co2 = 0
 	min_n2 = 0
 	max_n2 = 0
-	unsuitable_atoms_damage = 0
+	unsuitable_atmos_damage = 0
 
 	faction = "diona"
 
@@ -90,6 +90,6 @@
 
 	var/turf/T = get_turf(src)
 	T.visible_message("<span class='danger'>Some green fluid flows out of the chemical pack!</span>") //because the pack spawns empty
-	getFromPool(/obj/effect/decal/cleanable/greenglow, T)
+	new /obj/effect/decal/cleanable/greenglow(T)
 	..()
 

@@ -1,3 +1,8 @@
+var/static/list/ALL_LIMBS = list(LIMB_HEAD,LIMB_CHEST,LIMB_GROIN,
+								LIMB_LEFT_ARM,LIMB_RIGHT_ARM,LIMB_LEFT_HAND,LIMB_RIGHT_HAND,
+								LIMB_LEFT_LEG,LIMB_RIGHT_LEG,LIMB_LEFT_FOOT,LIMB_RIGHT_FOOT,
+								TARGET_MOUTH,TARGET_EYES)
+
 /proc/random_hair_style(gender, species = "Human")
 	var/h_style = "Bald"
 
@@ -7,6 +12,52 @@
 		h_style = pick(valid_hairstyles)
 
 	return h_style
+
+/proc/random_hair_color()
+	var/red = 0
+	var/green = 0
+	var/blue = 0
+
+	var/col = pick("blonde", "black", "chestnut", "copper", "brown", "wheat", "old", 15;"punk")
+	switch(col)
+		if("blonde")
+			red = 255
+			green = 255
+			blue = 0
+		if("black")
+			red = 0
+			green = 0
+			blue = 0
+		if("chestnut")
+			red = 153
+			green = 102
+			blue = 51
+		if("copper")
+			red = 255
+			green = 153
+			blue = 0
+		if("brown")
+			red = 102
+			green = 51
+			blue = 0
+		if("wheat")
+			red = 255
+			green = 255
+			blue = 153
+		if("old")
+			red = rand (100, 255)
+			green = red
+			blue = red
+		if("punk")
+			red = rand(0, 255)
+			green = rand(0, 255)
+			blue = rand(0, 255)
+
+	red = max(min(red + rand (-25, 25), 255), 0)
+	green = max(min(green + rand (-25, 25), 255), 0)
+	blue = max(min(blue + rand (-25, 25), 255), 0)
+	return list(red, green, blue)
+
 
 /proc/GetOppositeDir(var/dir)
 	switch(dir)
@@ -38,7 +89,7 @@
 
 		return f_style
 
-proc/random_name(gender, speciesName = "Human")
+/proc/random_name(gender, speciesName = "Human")
 	var/datum/species/S = all_species[speciesName]
 	if(S)
 		return S.makeName(gender)
@@ -48,7 +99,7 @@ proc/random_name(gender, speciesName = "Human")
 
 
 
-proc/random_skin_tone(species = "Human")
+/proc/random_skin_tone(species = "Human")
 	if(species == "Human")
 		switch(pick(60;"caucasian", 15;"afroamerican", 10;"african", 10;"latino", 5;"albino"))
 			if("caucasian")
@@ -67,10 +118,15 @@ proc/random_skin_tone(species = "Human")
 	else if(species == "Vox")
 		. = rand(1,6)
 		return .
+	else if(species == "Grey")
+		. = rand(1,4)
+		return .
+	else if(species == "Tajaran")
+		return 1
 	else
 		return 0
 
-proc/skintone2racedescription(tone, species = "Human")
+/proc/skintone2racedescription(tone, species = "Human")
 	if(species == "Human")
 		switch (tone)
 			if(30 to INFINITY)
@@ -93,22 +149,57 @@ proc/skintone2racedescription(tone, species = "Human")
 				return "unknown"
 	else if(species == "Vox")
 		switch(tone)
-			if(6)
+			if(VOXEMERALD)
 				return "emerald"
-			if(5)
+			if(VOXAZURE)
 				return "azure"
-			if(4)
+			if(VOXLGREEN)
 				return "light green"
-			if(2)
+			if(VOXBROWN)
 				return "brown"
-			if(3)
+			if(VOXGRAY)
 				return "gray"
 			else
 				return "green"
+	else if(species == "Grey")
+		switch(tone)
+			if(GREYLIGHT)
+				return "light gray"
+			if(GREYGREEN)
+				return "green"
+			if(GREYBLUE)
+				return "blue"
+			else
+				return "gray"
+	else if(species == "Tajaran")
+		switch(tone)
+			if(CATBEASTBLACK)
+				return "black"
+			else
+				return "brown"
 	else
 		return "unknown"
 
-proc/age2agedescription(age)
+/proc/haircolordesc(v_hair)
+	switch(v_hair)
+		if("Green")
+			return 1
+		if("Azure")
+			return 2
+		if("Brown")
+			return 3
+		if("Emerald")
+			return 4
+		if("Gray")
+			return 5
+		if("Light Green")
+			return 6
+		if("Green-Brown")
+			return 7
+		else
+			return 7
+
+/proc/age2agedescription(age)
 	switch(age)
 		if(0 to 1)
 			return "infant"
@@ -131,11 +222,11 @@ proc/age2agedescription(age)
 		else
 			return "unknown"
 
-proc/RoundHealth(health)
+/proc/RoundHealth(health)
 	switch(health)
-		if(100 to INFINITY)
+		if(99 to INFINITY)
 			return "health100"
-		if(70 to 100)
+		if(70 to 99)
 			return "health80"
 		if(50 to 70)
 			return "health60"
@@ -151,7 +242,6 @@ proc/RoundHealth(health)
 			return "health0"
 		else
 			return "health-100"
-	return "0"
 
 /proc/cyborg_health_to_icon_state(var/health_ratio)
 	switch(health_ratio)
@@ -197,19 +287,17 @@ Proc for attack log creation, because really why not
 6 is additional information, anything that needs to be added
 */
 
-proc/add_logs(mob/user, mob/target, what_done, var/admin=1, var/object=null, var/addition=null)
+/proc/add_logs(mob/user, mob/target, what_done, var/admin=1, var/object=null, var/addition=null)
 	if(user && ismob(user))
-		user.attack_log += text("\[[time_stamp()]\] <font color='red'>Has [what_done] [target ? "[target.name][(ismob(target) && target.ckey) ? "([target.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition]</font>")
+		user.attack_log += "\[[time_stamp()]\] Has [what_done] [target ? "[target.name][(ismob(target) && target.ckey) ? "([target.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition]"
 	if(target && ismob(target))
-		target.attack_log += text("\[[time_stamp()]\] <font color='orange'>Has been [what_done] by [user ? "[user.name][(ismob(user) && user.ckey) ? "([user.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition]</font>")
-		if(!iscarbon(user))
-			target.LAssailant = null
-		else
-			target.LAssailant = user
+		target.attack_log += "\[[time_stamp()]\] Has been [what_done] by [user ? "[user.name][(ismob(user) && user.ckey) ? "([user.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition]"
+		target.assaulted_by(user)
 	if(admin)
 		log_attack("<font color='red'>[user ? "[user.name][(ismob(user) && user.ckey) ? "([user.ckey])" : ""]" : "NON-EXISTANT SUBJECT"] [what_done] [target ? "[target.name][(ismob(target) && target.ckey)? "([target.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition]</font>")
+		message_admins("[user ? "[user.name][(ismob(user) && user.ckey) ? "([user.ckey])" : ""]" : "NON-EXISTANT SUBJECT"] <font color='red'>[what_done]</font> [target ? "[target.name][(ismob(target) && target.ckey)? "([target.ckey])" : ""]" : "NON-EXISTANT SUBJECT"][object ? " with [object]" : " "]. [addition][formatJumpTo(target)]")
 
-proc/add_ghostlogs(var/mob/user, var/obj/target, var/what_done, var/admin=1, var/addition=null)
+/proc/add_ghostlogs(var/mob/user, var/obj/target, var/what_done, var/admin=1, var/addition=null)
 	var/target_text = "NON-EXISTENT TARGET"
 	var/subject_text = "NON-EXISTENT SUBJECT"
 	if(target)
@@ -292,3 +380,30 @@ proc/add_ghostlogs(var/mob/user, var/obj/target, var/what_done, var/admin=1, var
 			L.Add(A)
 
 	return L
+
+/mob/proc/is_loyalty_implanted()
+	return is_implanted(/obj/item/weapon/implant/loyalty)
+
+//not to be confused with is_loyalty_implanted
+/mob/proc/is_implanted(var/type)
+	for(var/obj/item/weapon/implant/I in src)
+		if(I.imp_in && istype(I, type))
+			return TRUE
+	return FALSE
+
+/proc/find_player_by_ckey(var/ckey)
+	for (var/mob/M in player_list)
+		if (M.ckey == ckey)
+			return M
+
+/proc/get_open_maintenance_turfs(var/num)
+	var/list/turf/simulated/floor/turfs = list()
+	for(var/areapath in typesof(/area/maintenance))
+		var/area/A = locate(areapath)
+		for(var/turf/simulated/floor/F in A.contents)
+			if(!is_blocked_turf(F))
+				turfs += F
+	var/list/turf/simulated/floor/output = list()
+	for(var/i = 1 to num)
+		output += pick_n_take(turfs)
+	return output

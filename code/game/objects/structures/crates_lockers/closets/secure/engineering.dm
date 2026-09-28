@@ -12,8 +12,11 @@
 	return list(
 		pick(
 			/obj/item/weapon/storage/backpack/industrial,
-			/obj/item/weapon/storage/backpack/satchel_eng),
+			/obj/item/weapon/storage/backpack/satchel_eng,
+			/obj/item/weapon/storage/backpack/messenger/engi,
+			),
 		/obj/item/blueprints/primary,
+		/obj/item/weapon/paper/demotion_key,
 		/obj/item/clothing/under/rank/chief_engineer,
 		/obj/item/clothing/head/hardhat/white,
 		/obj/item/clothing/head/welding,
@@ -22,23 +25,22 @@
 		/obj/item/weapon/cartridge/ce,
 		/obj/item/device/radio/headset/heads/ce,
 		/obj/item/weapon/storage/box/inflatables,
-		/obj/item/weapon/inflatable_dispenser,
-		/obj/item/weapon/storage/toolbox/mechanical,
-		/obj/item/device/t_scanner/advanced,
 		/obj/item/device/device_analyser/advanced,
 		/obj/item/clothing/suit/storage/hazardvest,
 		/obj/item/clothing/mask/gas,
-		/obj/item/device/multitool,
 		/obj/item/device/flash,
 		/obj/item/device/gps/engineering,
-		/obj/item/weapon/storage/belt/utility/chief,
+		/obj/item/weapon/storage/belt/utility/chief/full,
 		/obj/item/clothing/glasses/scanner/material,
 		/obj/item/weapon/card/debit/preferred/department/engineering,
+		/obj/item/weapon/reagent_containers/food/snacks/monkeycube/gourmonger,
+		/obj/item/clothing/glasses/scanner/dual/chiefengineer,
+		/obj/item/device/pager,
 	)
 
 /obj/structure/closet/secure_closet/engineering_electrical
 	name = "electrical supplies locker"
-	req_access = list(access_engine_equip)
+	req_access = list(access_engine_minor)
 	icon_state = "secureengelec1"
 	icon_closed = "secureengelec"
 	icon_locked = "secureengelec1"
@@ -57,7 +59,7 @@
 
 /obj/structure/closet/secure_closet/engineering_welding
 	name = "welding supplies locker"
-	req_access = list(access_engine_equip)
+	req_access = list(access_engine_minor)
 	icon_state = "secureengweld1"
 	icon_closed = "secureengweld"
 	icon_locked = "secureengweld1"
@@ -68,12 +70,12 @@
 /obj/structure/closet/secure_closet/engineering_welding/atoms_to_spawn()
 	return list(
 		/obj/item/clothing/head/welding = 3,
-		/obj/item/weapon/weldingtool/largetank = 3,
+		/obj/item/tool/weldingtool/largetank = 3,
 	)
 
 /obj/structure/closet/secure_closet/engineering_personal
 	name = "\improper Engineer's locker"
-	req_access = list(access_engine_equip)
+	req_access = list(access_engine_minor)
 	icon_state = "secureeng1"
 	icon_closed = "secureeng"
 	icon_locked = "secureeng1"
@@ -85,7 +87,9 @@
 	return list(
 		pick(
 			/obj/item/weapon/storage/backpack/industrial,
-			/obj/item/weapon/storage/backpack/satchel_eng),
+			/obj/item/weapon/storage/backpack/satchel_eng,
+			/obj/item/weapon/storage/backpack/messenger/engi,
+			),
 		/obj/item/clothing/under/rank/engineer,
 		/obj/item/clothing/shoes/workboots,
 		/obj/item/weapon/storage/box/inflatables,
@@ -93,13 +97,13 @@
 		/obj/item/device/radio/headset/headset_eng,
 		/obj/item/clothing/suit/storage/hazardvest,
 		/obj/item/clothing/mask/gas,
-		pick(
-			/obj/item/clothing/glasses/scanner/meson/prescription,
-			/obj/item/clothing/glasses/scanner/meson),
+		/obj/item/clothing/glasses/scanner/meson/prescription,
+		/obj/item/clothing/glasses/scanner/meson,
 		/obj/item/taperoll/engineering,
 		/obj/item/taperoll/engineering,
 		/obj/item/device/gps/engineering,
 		/obj/item/clothing/glasses/scanner/material,
+		/obj/item/device/pager,
 	)
 
 /obj/structure/closet/secure_closet/engineering_atmos
@@ -115,8 +119,10 @@
 /obj/structure/closet/secure_closet/engineering_atmos/atoms_to_spawn()
 	return list(
 		pick(
-			/obj/item/weapon/storage/backpack,
-			/obj/item/weapon/storage/backpack/satchel_norm),
+			/obj/item/weapon/storage/backpack/industrial,
+			/obj/item/weapon/storage/backpack/satchel_eng,
+			/obj/item/weapon/storage/backpack/messenger/engi,
+			),
 		/obj/item/clothing/under/rank/atmospheric_technician,
 		/obj/item/clothing/shoes/workboots,
 		/obj/item/weapon/storage/box/inflatables,
@@ -127,13 +133,16 @@
 		/obj/item/clothing/mask/gas,
 		/obj/item/taperoll/atmos,
 		/obj/item/pipe_planner,
-		/obj/item/weapon/wrench/socket,
+		/obj/item/tool/wrench/socket,
 		/obj/item/weapon/gun/projectile/flare,
 		/obj/item/ammo_storage/box/flare,
 		/obj/item/device/rcd/rpd,
 		/obj/item/device/analyzer,
 		/obj/item/clothing/glasses/scanner/material,
 		/obj/item/device/gps/engineering,
+		/obj/item/tool/crowbar/halligan,
+		/obj/item/device/pager,
+		/obj/item/firefoam_popper = 2,
 	)
 
 /obj/structure/closet/secure_closet/engineering_mechanic
@@ -150,7 +159,10 @@
 	return list(
 		pick(
 			/obj/item/weapon/storage/backpack/industrial,
-			/obj/item/weapon/storage/backpack/satchel_eng),
+			/obj/item/weapon/storage/backpack/satchel_eng,
+			/obj/item/weapon/storage/backpack/messenger/engi,
+			),
+		/obj/item/weapon/storage/bag/gadgets/part_replacer/basic_PED,
 		/obj/item/clothing/under/rank/mechanic,
 		/obj/item/clothing/shoes/workboots,
 		/obj/item/weapon/storage/toolbox/mechanical,
@@ -167,7 +179,7 @@
 
 /obj/structure/closet/secure_closet/engineering_general
 	name = "engineering locker"
-	req_access = list(access_engine_equip)
+	req_access = list(access_engine_minor)
 	icon_state = "secureeng1"
 	icon_closed = "secureeng"
 	icon_locked = "secureeng1"
@@ -177,7 +189,7 @@
 
 /obj/structure/closet/crate/secure/large/reinforced/shard
 	name = "supermatter shard crate"
-	req_access = list(access_engine_equip)
+	req_access = list(access_engine_minor)
 	var/payload = /obj/machinery/power/supermatter/shard
 	var/mapping_idtag
 

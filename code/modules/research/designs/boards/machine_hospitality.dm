@@ -4,9 +4,9 @@
 	id = "microwave"
 	req_tech = list(Tc_PROGRAMMING = 2, Tc_ENGINEERING = 2, Tc_MAGNETS = 3)
 	build_type = IMPRINTER
-	materials = list(MAT_GLASS = 2000, SACID = 3)
+	materials = list(MAT_GLASS = 1000, SACID = 3)
 	category = "Machine Boards"
-	build_path = /obj/item/weapon/circuitboard/microwave
+	build_path = /obj/item/weapon/circuitboard/small/microwave
 
 /datum/design/reagentgrinder
 	name = "Circuit Design (All-In-One Grinder)"
@@ -14,9 +14,9 @@
 	id = "reagentgrinder"
 	req_tech = list(Tc_PROGRAMMING = 3, Tc_ENGINEERING = 2)
 	build_type = IMPRINTER
-	materials = list(MAT_GLASS = 2000, SACID = 20)
+	materials = list(MAT_GLASS = 1000, SACID = 20)
 	category = "Machine Boards"
-	build_path = /obj/item/weapon/circuitboard/reagentgrinder
+	build_path = /obj/item/weapon/circuitboard/small/reagentgrinder
 
 /datum/design/smartfridge
 	name = "Circuit Design (SmartFridge)"
@@ -27,6 +27,16 @@
 	materials = list(MAT_GLASS = 2000, SACID = 20)
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/smartfridge
+
+/datum/design/minifridge
+	name = "Circuit Design (Minifridge)"
+	desc = "Allows for the construction of circuit boards used to build a minifridge."
+	id = "minifridge"
+	req_tech = list(Tc_PROGRAMMING = 3, Tc_ENGINEERING = 2)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 1000, SACID = 3)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/small/minifridge
 
 /datum/design/gibber
 	name = "Circuit Design (Gibber)"
@@ -60,7 +70,7 @@
 
 /datum/design/confectionator
 	name = "Circuit Design (Confectionator)"
-	desc = "Allows for the construction of circuit boards used to build a confectionator"
+	desc = "Allows for the construction of circuit boards used to build a confectionator."
 	id = "confectionator"
 	req_tech = list(Tc_BIOTECH = 2)
 	build_type = IMPRINTER
@@ -97,3 +107,23 @@
 	materials = list(MAT_GLASS = 2000, SACID = 20)
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/conduction_plate
+
+/datum/design/electricloom
+	name = "Circuit Design (Electric Loom)"
+	desc = "Allows for the construction of circuit boards used to build an electric loom."
+	id = "electricloom"
+	req_tech = list(Tc_PROGRAMMING = 2, Tc_ENGINEERING = 3, Tc_BIOTECH = 3)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/electric_loom
+
+/datum/design/sewingmachine
+	name = "Circuit Design (Sewing Machine)"
+	desc = "Allows for the construction of circuit boards used to build a sewing machine."
+	id = "sewingmachine"
+	req_tech = list(Tc_PROGRAMMING = 3, Tc_ENGINEERING = 3)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/sewing_machine

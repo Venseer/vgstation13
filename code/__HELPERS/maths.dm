@@ -5,13 +5,9 @@
 var/const/E		= 2.71828183
 var/const/Sqrt2	= 1.41421356
 
-/* //All point fingers and laugh at this joke of a list, I even heard using sqrt() is faster than this list lookup, honk.
-// List of square roots for the numbers 1-100.
-var/list/sqrtTable = list(1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5,
-                          5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7,
-                          7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                          8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10)
-*/
+// Returns y so that y/x = a/b.
+#define RULE_OF_THREE(a, b, x) ((a*x)/b)
+#define tan(x) (sin(x)/cos(x))
 
 /proc/Atan2(x, y)
 	if (!x && !y)
@@ -20,32 +16,42 @@ var/list/sqrtTable = list(1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 
 	var/invcos = arccos(x / sqrt(x * x + y * y))
 	return y >= 0 ? invcos : -invcos
 
-proc/arctan(x)
-	var/y=arcsin(x/sqrt(1+x*x))
-	return y
-
 /proc/Ceiling(x, y = 1)
 	. = -round(-x / y) * y
 
-/proc/sgn(const/i)
-	if(i > 0)
-		return 1
-	else if(i < 0)
-		return -1
-	else
-		return 0
+// Returns the sign of the given number (1 or -1)
+#define sgn(x) ((x) != 0 ? (x) / abs(x) : 0)
 
-//Moved to macros.dm to reduce pure calling overhead, this was being called shitloads, like, most calls of all procs.
-/*
-/proc/Clamp(const/val, const/min, const/max)
-	if (val <= min)
-		return min
+// -- Returns a Lorentz-distributed number.
+// -- The probability density function has centre x0 and width s.
 
-	if (val >= max)
-		return max
+/proc/lorentz_distribution(var/x0, var/s)
+	var/x = rand()
+	var/y = s*tan_rad(PI*(x-0.5)) + x0
+	return y
 
-	return val
-*/
+// -- Returns the Lorentz cummulative distribution of the real x.
+
+/proc/lorentz_cummulative_distribution(var/x, var/x0, var/s)
+	var/y = (1/PI)*ToRadians(arctan((x-x0)/s)) + 1/2
+	return y
+
+// -- Returns an exponentially-distributed number.
+// -- The probability density function has mean lambda
+/proc/exp_distribution(var/desired_mean)
+	if (desired_mean <= 0)
+		desired_mean = 1 // Let's not allow that to happen
+	var/lambda = 1/desired_mean
+	var/x = rand()
+	while (x == 1)
+		x = rand()
+	var/y = -(1/lambda)*log(1-x)
+	return y
+
+// -- Returns the Lorentz cummulative distribution of the real x, with mean lambda
+/proc/exp_cummulative_distribution(var/x, var/lambda)
+	var/y = 1 - E**(lambda*x)
+	return y
 
 // cotangent
 /proc/Cot(x)
@@ -106,7 +112,7 @@ proc/arctan(x)
 /**
  * Generic lerp function.
  */
-/proc/lerp(x, x0, x1, y0 = 0, y1 = 1)
+/proc/lerp_generic(x, x0, x1, y0 = 0, y1 = 1)
     return y0 + (y1 - y0)*(x - x0)/(x1 - x0)
 
 /**
@@ -135,7 +141,7 @@ proc/arctan(x)
  * This is the counterpart to the mix() function. It returns the actual
  * percentage x is at inside the [a, b] range.
  *
- * Note that this is theoretically equivalent to calling lerp(x, a, b)
+ * Note that this is theoretically equivalent to calling lerp_generic(x, a, b)
  * (y0 and y1 default to 0 and 1) but this one is slightly faster
  * because Byond is too dumb to optimize procs with default values. It
  * shouldn't matter which one you use (since there are no FP issues)
@@ -147,7 +153,7 @@ proc/arctan(x)
 /proc/unmix(x, a, b, min = 0, max = 1)
 	if(a==b)
 		return 1
-	return Clamp( (b - x)/(b - a), min, max )
+	return clamp( (b - x)/(b - a), min, max )
 
 /proc/Mean(...)
 	var/values 	= 0
@@ -191,12 +197,16 @@ proc/arctan(x)
 /proc/Tan(const/x)
 	return sin(x) / cos(x)
 
+/proc/tan_rad(const/x) // This one assumes that x is in radians.
+	return Tan(ToDegrees(x))
+
+
 /proc/ToDegrees(const/radians)
-					// 180 / Pi
+	// 180 / Pi
 	return radians * 57.2957795
 
 /proc/ToRadians(const/degrees)
-					// Pi / 180
+	// Pi / 180
 	return degrees * 0.0174532925
 
 // min is inclusive, max is exclusive
@@ -281,3 +291,17 @@ proc/arctan(x)
 	assert_eq(count_set_bitflags(65536|32768), 2)
 	assert_eq(count_set_bitflags(1|4|16), 3)
 #endif
+
+// Given a number in the range [old_bottom, old_top],
+// Returns that number mapped to the range [new_bottom, new_top]
+/proc/map_range(old_value, old_bottom, old_top, new_bottom, new_top)
+	var/new_value = (old_value - old_bottom) / (old_top - old_bottom) * (new_top - new_bottom) + new_bottom
+	return new_value
+
+/proc/factorial(num)
+	. = 1
+	for(var/i in 1 to num)
+		. *= i
+
+#define permutations(amount,sample) (factorial(amount) / factorial(amount - sample))
+#define combinations(amount,sample) (factorial(amount) / (factorial(sample) * factorial(amount - sample)))

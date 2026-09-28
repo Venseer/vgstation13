@@ -1,4 +1,4 @@
- /**
+/**
   * StonedMC
   *
   * Designed to properly split up a given tick among subsystems
@@ -123,22 +123,31 @@ var/CURRENT_TICKLIMIT = TICK_LIMIT_RUNNING
 /datum/controller/master/proc/Setup()
 	set waitfor = FALSE
 	sleep(1 SECONDS)
-	to_chat(world, "<span class='boldannounce'>Initializing subsystems...</span>")
-
-	// Sort subsystems by init_order, so they initialize in the correct order.
-	sortTim(subsystems, /proc/cmp_subsystem_init)
+	//moving this random bullshit into here, because it didn't belong in world/New()
+	generate_radio_frequencies()
+	createDatacore()
+	make_datum_references_lists()	//initialises global lists for referencing frequently used datums (so that we only ever do it once)
+	Holiday = Get_Holiday()
+	world.update_status()
+	initialize_beespecies()	//must be init before objects or pre-mapped bee packets will be borked
 
 	// Initialize subsystems.
-	CURRENT_TICKLIMIT = TICK_LIMIT_MC_INIT
+	// Sort subsystems by init_order, so they initialize in the correct order.
+	CURRENT_TICKLIMIT = TICK_LIMIT_MC_INIT_DEFAULT
+	sortTim(subsystems, /proc/cmp_subsystem_init)
+	var/time_to_init = world.timeofday
+	to_chat(world, "<span class='boldannounce'>Initializing subsystems...</span>")
 	for (var/datum/subsystem/SS in subsystems)
 		if (SS.flags & SS_NO_INIT)
 			continue
 		SS.Initialize(world.timeofday)
 		CHECK_TICK
 	CURRENT_TICKLIMIT = TICK_LIMIT_RUNNING
+	time_taken_to_init = world.timeofday - time_to_init
+	time_taken_in_lobby = world.timeofday
 
-	to_chat(world, "<span class='boldannounce'>Initializations complete!</span>")
-	world.log << "Initializations complete."
+	to_chat(world, "<span class='boldannounce'>Initializations complete in [time_taken_to_init / 10] seconds!</span>")
+	world.log << "Initializations complete. Took [time_taken_to_init / 10] seconds."
 
 	// Sort subsystems by display setting for easy access.
 	sortTim(subsystems, /proc/cmp_subsystem_display)
@@ -162,6 +171,7 @@ var/CURRENT_TICKLIMIT = TICK_LIMIT_RUNNING
 // Starts the mc, and sticks around to restart it if the loop ever ends.
 /datum/controller/master/proc/StartProcessing()
 	set waitfor = 0
+	usr = null
 	var/rtn = Loop()
 	if (rtn > 0 || processing < 0)
 		return //this was suppose to happen.
@@ -176,6 +186,7 @@ var/CURRENT_TICKLIMIT = TICK_LIMIT_RUNNING
 
 // Main loop.
 /datum/controller/master/proc/Loop()
+	usr = null
 	. = -1
 	//Prep the loop (most of this is because we want MC restarts to reset as much state as we can, and because
 	//	local vars rock

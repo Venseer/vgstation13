@@ -15,7 +15,7 @@
 	light_power = 2
 	light_color="#0066FF"
 	layer = SUPERMATTER_WALL_LAYER
-	plane = LIGHTING_PLANE
+	plane = ABOVE_LIGHTING_PLANE
 
 	var/next_check=0
 	var/list/avail_dirs = list(NORTH,SOUTH,EAST,WEST)
@@ -69,18 +69,20 @@
 			// Nom.
 			for(var/atom/movable/A in T)
 				if(A)
+					if(istype(A, /obj/machinery/singularity))
+						continue
 					if(istype(A,/mob/living))
-						qdel(A)
-						A = null
+						QDEL_NULL(A)
 					else if(istype(A,/mob)) // Observers, AI cameras.
 						continue
-					qdel(A)
-					A = null
+					QDEL_NULL(A)
 				CHECK_TICK
 			T.ChangeTurf(type)
-			var/turf/unsimulated/wall/supermatter/SM = T
-			if(SM.avail_dirs)
-				SM.avail_dirs -= get_dir(T, src)
+			// ChangeTurf is a no-op on some special turfs (e.g. /turf/space/transit), so only treat T as supermatter if the conversion actually happened.
+			if(istype(T, /turf/unsimulated/wall/supermatter))
+				var/turf/unsimulated/wall/supermatter/SM = T
+				if(SM.avail_dirs)
+					SM.avail_dirs -= get_dir(T, src)
 
 /turf/unsimulated/wall/supermatter/attack_paw(mob/user as mob)
 	return attack_hand(user)
@@ -136,7 +138,6 @@
 /turf/unsimulated/wall/supermatter/proc/Consume(atom/AM)
 	if(istype(AM, /mob/dead/observer))
 		return
-
 	return AM.supermatter_act(src)
 
 /turf/unsimulated/wall/supermatter/singularity_act()

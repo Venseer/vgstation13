@@ -3,6 +3,11 @@
 	endWhen = 450
 	var/list/spawned_carp = list()
 
+/datum/event/carp_migration/can_start(var/list/active_with_role)
+	if(active_with_role["Any"] > 6)
+		return 40
+	return 0
+
 /datum/event/carp_migration/setup()
 	announceWhen = rand(15, 30)
 	endWhen = rand(600,1200)
@@ -21,5 +26,4 @@
 		if(!C.stat)
 			var/turf/T = get_turf(C)
 			if(istype(T, /turf/space))
-				qdel(C)
-				C = null
+				QDEL_NULL(C)

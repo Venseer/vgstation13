@@ -1,5 +1,5 @@
 // reference: /client/proc/modify_variables(var/atom/O, var/param_var_name = null, var/autodetect_class = 0)
-/client/proc/debug_reagents(datum/D in world)
+/client/proc/debug_reagents(atom/D in world)
 	set category = "Debug"
 	set name = "Add Reagent"
 
@@ -15,17 +15,15 @@
 		if(reagentDatum)
 			var/reagentAmount = input(usr, "Amount", "Insert Amount", "") as num
 			var/reagentTemp = input(usr, "Temperature", "Insert Temperature (As Kelvin)", T0C+20) as num
-			if(A.reagents.add_reagent(reagentDatum, reagentAmount, reagtemp = reagentTemp))
+			if(A.reagents.add_reagent(reagentDatum, reagentAmount, reagtemp = reagentTemp, admin = usr))
 				to_chat(usr, "<span class='warning'>[reagentDatum] doesn't exist.</span>")
 				return
 			log_admin("[key_name(usr)] added [reagentDatum] with [reagentAmount] units to [A] at [reagentTemp]K temperature.")
 			message_admins("[key_name(usr)] added [reagentDatum] with [reagentAmount] units to [A] at [reagentTemp]K temperature.")
 
-/client/proc/debug_variables(datum/D in world)
+/client/proc/debug_variables(atom/D in world)
 	set category = "Debug"
 	set name = "View Variables"
-	//set src in world
-
 
 	if(!usr.client || !usr.client.holder)
 		to_chat(usr, "<span class='warning'>You need to be an administrator to access this.</span>")
@@ -43,7 +41,7 @@
 
 		#ifdef VARSICON
 		if (A.icon)
-			body += debug_variable("icon", new/icon(A.icon, A.icon_state, A.dir), 0)
+			body += "<li>"+debug_variable("icon", new/icon(A.icon, A.icon_state, A.dir))+"<\li>"
 		#endif
 
 	var/sprite
@@ -137,39 +135,33 @@
 	if(istype(D,/atom))
 		body += "<option value='?_src_=vars;teleport_to=\ref[D]'>Teleport To</option>"
 
-	if(hasvar(D, "transform"))
+	if(istransformable(D))
 		body += "<option value='?_src_=vars;edit_transform=\ref[D]'>Edit Transform Matrix</option>"
-	if(hasvar(D, "appearance_flags"))
+	if(isapperanceeditable(D))
 		body += "<option value='?_src_=vars;toggle_aliasing=\ref[D]'>Toggle Transform Aliasing</option>"
+	if(istype(D,/obj/item/weapon/gun))
+		body += "<option value='?_src_=vars;projectile_edit=\ref[D]'>Edit Projectile Variables</option>"
+	if(istype(D, /atom/movable))
+		body += "<option value='?_src_=vars;halt_sound=\ref[D]'>Stop Sound</option>"
+
 
 	body += "<option value='?_src_=vars;proc_call=\ref[D]'>Proc call</option>"
-
 	body += "<option value>---</option>"
 
 	if(ismob(D))
 
 		body += {"<option value='?_src_=vars;give_spell=\ref[D]'>Give Spell</option>
-			<option value='?_src_=vars;give_disease=\ref[D]'>Give Disease</option>
-			<option value='?_src_=vars;addcancer=\ref[D]'>Inflict Cancer</option>
+			<option value='?_src_=vars;give_disease2=\ref[D]'>Give New Disease</option>
 			<option value='?_src_=vars;godmode=\ref[D]'>Toggle Godmode</option>
+			<option value='?_src_=vars;buddhamode=\ref[D]'>Toggle Buddha Mode</option>
 			<option value='?_src_=vars;build_mode=\ref[D]'>Toggle Build Mode</option>
-			<option value='?_src_=vars;make_skeleton=\ref[D]'>Make 2spooky</option>
-			<option value='?_src_=vars;direct_control=\ref[D]'>Assume Direct Control</option>
 			<option value='?_src_=vars;drop_everything=\ref[D]'>Drop Everything</option>
 			<option value='?_src_=vars;regenerateicons=\ref[D]'>Regenerate Icons</option>
-			<option value='?_src_=vars;addlanguage=\ref[D]'>Add Language</option>
-			<option value='?_src_=vars;remlanguage=\ref[D]'>Remove Language</option>"}
+			<option value='?_src_=vars;resetbody=\ref[D]'>Reset Body From Archive</option>
 		if(ishuman(D))
 
 			body += {"<option value>---</option>
-				<option value='?_src_=vars;setmutantrace=\ref[D]'>Set Mutantrace</option>
-				<option value='?_src_=vars;setspecies=\ref[D]'>Set Species</option>
-				<option value='?_src_=vars;makeai=\ref[D]'>Make AI</option>
-				<option value='?_src_=vars;makerobot=\ref[D]'>Make cyborg</option>
-				<option value='?_src_=vars;makemonkey=\ref[D]'>Make monkey</option>
-				<option value='?_src_=vars;makealien=\ref[D]'>Make alien</option>
-				<option value='?_src_=vars;makeslime=\ref[D]'>Make slime</option>
-				<option value='?_src_=vars;makecluwne=\ref[D]'>Make cluwne</option>"}
+				<option value='?_src_=vars;setspecies=\ref[D]'>Set Species</option>}
 
 		body += {"<option value>---</option>
 			<option value='?_src_=vars;gib=\ref[D]'>Gib</option>"}
@@ -177,8 +169,9 @@
 		body += "<option value='?_src_=vars;delete=\ref[D]'>Delete</option>"
 	if(isobj(D))
 		body += "<option value='?_src_=vars;delall=\ref[D]'>Delete all of type</option>"
+	if(ismovable(D))
+		body += "<option value='?_src_=vars;throw_a_fucking_rod_at_it=\ref[D]'>Throw a rod at it</option>"
 	if(isobj(D) || ismob(D) || isturf(D))
-
 		body += {"<option value='?_src_=vars;explode=\ref[D]'>Trigger explosion</option>
 			<option value='?_src_=vars;emp=\ref[D]'>Trigger EM pulse</option>"}
 
@@ -196,12 +189,12 @@
 	names = sortList(names)
 
 	for (var/V in names)
-		body += debug_variable(V, D.vars[V], 0, D)
+		body += "<li>"+debug_variable(V, D.vars[V], list(D.vars), D)+"</li>"
 
 	body += "</ul>"
 	body = jointext(body,"")
 
-	var/html = "<html><head>"
+	var/html = "<html><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"><head>"
 	if (title)
 		html += "<title>[title]</title>"
 	html += {"<style>
@@ -356,82 +349,100 @@ function loadPage(list) {
 
 	html += "</html>"
 
-	usr << browse(html, "window=variables\ref[D];size=475x650")
+	usr << browse(HTML_SKELETON(html), "window=variables\ref[D];size=475x650")
 
-/client/proc/debug_variable(name, value, level, var/datum/DA = null)
+/client/proc/debug_variable(name, value, list/searched, var/datum/DA = null)
 	var/html = ""
 
+	var/prefix = name ? "[name] = " : ""
+
 	if(DA)
-		html += "<li style='backgroundColor:white'>"
 		if(name == "appearance")
 			html += {"
 			(<a href='?_src_=vars;datumsave=\ref[DA];varnamesave=[name]'>save</a> |
 			<a href='?_src_=vars;datumedit=\ref[DA];varnameedit=[name]'>load</a>) "}
+		else if(name == "filters")
+			html += {"
+			(<a href='?_src_=vars;datumaddfilter=\ref[DA];varnameaddfilter=[name]'>add filter</a> |
+			<a href='?_src_=vars;datumremovefilter=\ref[DA];varnameremovefilter=[name]'>remove filter</a>)
+			(<a href='?_src_=vars;datumcopyfilter=\ref[DA];varnamecopyfilter=[name]'>copy</a> |
+			<a href='?_src_=vars;datumpastefilter=\ref[DA];varnamepastefilter=[name]'>paste</a>) "}
+			//can't figure out easily how to copy filters from one atom to another, here's a mission for the willing
 		else
 			html += {"
 			(<a href='?_src_=vars;datumedit=\ref[DA];varnameedit=[name]'>E</a>)
 			(<a href='?_src_=vars;datumchange=\ref[DA];varnamechange=[name]'>C</a>)
 			(<a href='?_src_=vars;datummass=\ref[DA];varnamemass=[name]'>M</a>)
 			(<a href='?_src_=vars;datumsave=\ref[DA];varnamesave=[name]'>S</a>) "}
-	else
-		html += "<li>"
 
 	if (isnull(value))
-		html += "[name] = <span class='value'>null</span>"
+		html += "[prefix]<span class='value'>null</span>"
 
 	else if (istext(value))
-		html += "[name] = <span class='value'>\"[html_encode(value)]\"</span>"
+		html += "[prefix]<span class='value'>\"[html_encode(value)]\"</span>"
 
 	else if (isicon(value))
 		#ifdef VARSICON
-		html += "[name] = /icon (<span class='value'>[value]</span>) [bicon(value)]"
+		html += "[prefix]/icon (<span class='value'>[value]</span>) [bicon(value)]"
 		#else
-		html += "[name] = /icon (<span class='value'>[value]</span>)"
+		html += "[prefix]/icon (<span class='value'>[value]</span>)"
 		#endif
 
 	else if(istype(value, /image))
 		#ifdef VARSICON
-		html += "<a href='?_src_=vars;Vars=\ref[value]'>[name] \ref[value]</a> = /image (<span class='value'>[value]</span>) [bicon(value)]"
+		html += "[prefix]<a href='?_src_=vars;Vars=\ref[value]'>/image (<span class='value'>[value]</span>) \ref[value] [bicon(value)]</a>"
 		#else
-		html += "<a href='?_src_=vars;Vars=\ref[value]'>[name] \ref[value]</a> = /image (<span class='value'>[value]</span>)"
+		html += "[prefix]<a href='?_src_=vars;Vars=\ref[value]'>/image (<span class='value'>[value]</span>) \ref[value]</a>"
 		#endif
 
 	else if (isfile(value))
-		html += "[name] = <span class='value'>'[value]'</span>"
+		html += "[prefix]<span class='value'>'[value]'</span>"
 
 	else if (istype(value, /datum))
 		var/datum/D = value
-		html += "<a href='?_src_=vars;Vars=\ref[value]'>[name] \ref[value]</a> = [D.type]"
+		html += "[prefix]<a href='?_src_=vars;Vars=\ref[value]'>[D.type] (<span class='value'>[D]</span>) \ref[value]</a>"
 
 	else if (istype(value, /client))
 		var/client/C = value
-		html += "<a href='?_src_=vars;Vars=\ref[value]'>[name] \ref[value]</a> = [C] [C.type]"
-//
-	else if (istype(value, /list))
+		html += "[prefix]<a href='?_src_=vars;Vars=\ref[value]'>[C.type] (<span class='value'>[C]</span>) \ref[value]</a>"
+
+	else if (islist(value))
 		var/list/L = value
-		html += "[name] = /list ([L.len])"
+		html += "[prefix]/list ([L.len])"
 
-		if (L.len > 0 && !(name == "underlays" || name == "overlays" || name == "vars" || L.len > 500))
+
+
+		if (L.len > 0 && L.len <= 500 && !(L in searched))
 			// not sure if this is completely right...
-			if(0)   //(L.vars.len > 0)
-
-				html += {"<ol>
-					</ol>"}
+			html += "<ul>"
+			var/index = 1
+			if (name == "filters")
+				var/atom/A = DA
+				if (istype(A))
+					for (var/filter_entry in A.filters)
+						var/F_name = filter_entry:name//I don't think we can typecast filters but F:name works properly here.
+						html += "<li>[index]. [F_name]"
+						index++
 			else
-				html += "<ul>"
-				var/index = 1
 				for (var/entry in L)
-					if(istext(entry))
-						html += debug_variable(entry, L[entry], level + 1)
-					//html += debug_variable("[index]", L[index], level + 1)
+					var/assoc
+					if(!isnum(entry))
+						try //Certain wacky builtin lists will runtime on attempted associative access
+							assoc = L[entry]
+						catch
+							//Do nothing
+
+					if(!isnull(assoc))
+						html += "<li>[index]. " + debug_variable(entry, assoc, searched + list(L))
 					else
-						html += debug_variable(index, L[index], level + 1)
-					html += " <a href='?_src_=vars;delValueFromList=1;list=\ref[L];index=[index];datum=\ref[DA]'>(Delete)</a>"
+						html += "<li>[index]. " + debug_variable(null, entry, searched + list(L))
+
+					html += " <a href='?_src_=vars;delValueFromList=1;list=\ref[L];index=[index];datum=\ref[DA]'>(Delete)</a></li>"
 					index++
-				html += "</ul>"
+			html += "</ul>"
 
 	else
-		html += "[name] = <span class='value'>[value]</span>"
+		html += "[prefix]<span class='value'>[value]</span>"
 		/*
 		// Bitfield stuff
 		if(round(value)==value) // Require integers.
@@ -449,9 +460,20 @@ function loadPage(list) {
 				html += "</span>"
 			html += "</div>"
 		*/
-	html += "</li>"
 
 	return html
+
+/client/proc/debug_list(var/list/L)
+	if(!istype(L))
+		return
+
+	var/html = "<h1>List Viewer</h1>"
+
+	if(L.len)
+		html += "<hr>"
+		html += debug_variable(null, L)
+
+	usr << browse(HTML_SKELETON(html), "window=listedit\ref[L];size=475x650")
 
 /client/proc/view_var_Topic(href, href_list, hsrc)
 	//This should all be moved over to datum/admins/Topic() or something ~Carn
@@ -459,6 +481,8 @@ function loadPage(list) {
 		return
 	if(href_list["Vars"])
 		debug_variables(locate(href_list["Vars"]))
+	else if(href_list["List"])
+		debug_list(locate(href_list["List"]))
 
 	//~CARN: for renaming mobs (updates their name, real_name, mind.name, their ID/PDA and datacore records).
 	else if(href_list["rename"])
@@ -564,6 +588,83 @@ function loadPage(list) {
 				holder.marked_datum = saved_value
 				to_chat(usr, "Your marked datum is now: [holder.marked_datum]")
 
+	else if(href_list["varnameaddfilter"] && href_list["datumaddfilter"])
+		if(!check_rights(R_VAREDIT))
+			return
+
+		var/atom/A = locate(href_list["datumaddfilter"])
+		if(!istype(A))
+			to_chat(usr, "This can only be used on instances of type /atom")
+			return
+
+		var/edited_filter = add_filter(A)
+
+		if (edited_filter != null)
+			message_admins("[key_name_admin(src)] added a [edited_filter] effect to \the [A].", 1)
+			world.log << "### VarEdit by [src]: [A.type] filters=[html_encode("[edited_filter]")]"
+
+		href_list["datumrefresh"] = href_list["datumaddfilter"]
+
+	else if(href_list["varnameremovefilter"] && href_list["datumremovefilter"])
+		if(!check_rights(R_VAREDIT))
+			return
+
+		var/atom/A = locate(href_list["datumremovefilter"])
+		if(!istype(A))
+			to_chat(usr, "This can only be used on instances of type /atom")
+			return
+
+		if (!A.filters?.len)
+			to_chat(usr, "There are no filters to remove")
+			return
+
+		var/removed_filter = remove_filter(A)
+
+		if (!removed_filter)
+			return
+
+		message_admins("[key_name_admin(src)] removed filter [removed_filter] from \the [A].", 1)
+		world.log << "### VarEdit by [src]: [A.type] filters=[html_encode("[removed_filter]")]"
+
+		href_list["datumrefresh"] = href_list["datumremovefilter"]
+
+	else if(href_list["varnamecopyfilter"] && href_list["datumcopyfilter"])
+		if(!check_rights(R_VAREDIT))
+			return
+
+		var/atom/A = locate(href_list["datumcopyfilter"])
+		if(!istype(A))
+			to_chat(usr, "This can only be used on instances of type /atom")
+			return
+
+		if (!A.filters?.len)
+			to_chat(usr, "There are no filters to copy")
+			return
+
+		holder.copied_filters = A.filters
+
+		message_admins("[key_name_admin(src)] copied \the [A]'s filters.", 1)
+
+
+	else if(href_list["varnamepastefilter"] && href_list["datumpastefilter"])
+		if(!check_rights(R_VAREDIT))
+			return
+
+		var/atom/A = locate(href_list["datumpastefilter"])
+		if(!istype(A))
+			to_chat(usr, "This can only be used on instances of type /atom")
+			return
+
+		if (!holder.copied_filters?.len)
+			to_chat(usr, "You haven't copied filters to paste yet")
+			return
+
+		A.filters = holder.copied_filters
+
+		message_admins("[key_name_admin(src)] pasted filters onto \the [A]'s.", 1)
+
+		href_list["datumrefresh"] = href_list["datumpastefilter"]
+
 	else if(href_list["mob_player_panel"])
 		if(!check_rights(0))
 			return
@@ -588,36 +689,20 @@ function loadPage(list) {
 		src.give_spell(M)
 		href_list["datumrefresh"] = href_list["give_spell"]
 
-	else if(href_list["give_disease"])
-		if(!check_rights(R_ADMIN|R_FUN))
+	else if(href_list["give_disease2"])
+		if(!check_rights(R_ADMIN|R_FUN|R_DEBUG))
 			return
 
-		var/mob/M = locate(href_list["give_disease"])
-		if(!istype(M))
-			to_chat(usr, "This can only be used on instances of type /mob")
+		var/mob/living/M = locate(href_list["give_disease2"])
+		if(!M.can_be_infected())
+			to_chat(usr, "This mob cannot be infected.")
 			return
 
-		src.give_disease(M)
-		href_list["datumrefresh"] = href_list["give_spell"]
-
-	else if(href_list["addcancer"])
-		if(!check_rights(R_FUN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["addcancer"])
-		if(!ishuman(H))
-			to_chat(usr, "This can only be used on instances of type /mob/living/carbon/human")
-			return
-
-		if(alert(usr, "Are you sure you wish to inflict cancer upon [key_name(H)]?",  "Confirm Cancer?" , "Yes" , "No") != "Yes")
-			return
-
-		log_admin("[key_name(H)] was inflicted with cancer, courtesy of [key_name(usr)]")
-		message_admins("[key_name(H)] was inflicted with cancer, courtesy of [key_name(usr)]")
-		H.add_cancer()
+		virus2_make_custom(src,M)
+		href_list["datumrefresh"] = href_list["give_disease2"]
 
 	else if(href_list["godmode"])
-		if(!check_rights(R_REJUVINATE))
+		if(!check_rights(R_REJUVENATE))
 			return
 
 		var/mob/M = locate(href_list["godmode"])
@@ -627,6 +712,18 @@ function loadPage(list) {
 
 		src.cmd_admin_godmode(M)
 		href_list["datumrefresh"] = href_list["godmode"]
+
+	else if(href_list["buddhamode"])
+		if(!check_rights(R_REJUVENATE))
+			return
+
+		var/mob/M = locate(href_list["buddhamode"])
+		if(!istype(M))
+			to_chat(usr, "This can only be used on instances of type /mob")
+			return
+
+		src.cmd_admin_buddhamode(M)
+		href_list["datumrefresh"] = href_list["buddhamode"]
 
 	else if(href_list["gib"])
 		if(!check_rights(0))
@@ -662,30 +759,6 @@ function loadPage(list) {
 
 		if(usr.client)
 			usr.client.cmd_admin_drop_everything(M)
-
-	else if(href_list["direct_control"])
-		if(!check_rights(0))
-			return
-
-		var/mob/M = locate(href_list["direct_control"])
-		if(!istype(M))
-			to_chat(usr, "This can only be used on instances of type /mob")
-			return
-
-		if(usr.client)
-			usr.client.cmd_assume_direct_control(M)
-
-	else if(href_list["make_skeleton"])
-		if(!check_rights(R_FUN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["make_skeleton"])
-		if(!istype(H))
-			to_chat(usr, "This can only be used on instances of type /mob/living/carbon/human")
-			return
-
-		H.makeSkeleton()
-		href_list["datumrefresh"] = href_list["make_skeleton"]
 
 	else if(href_list["delall"])
 		if(!check_rights(R_DEBUG|R_SERVER))
@@ -773,12 +846,15 @@ function loadPage(list) {
 			to_chat(usr, "This can only be done to instances of movable atoms.")
 			return
 
+		var/turf/origin = get_turf(A)
 		var/turf/T = get_turf(usr)
+
 		if(istype(A,/mob))
 			var/mob/M = A
 			M.teleport_to(T)
 		else
 			A.forceMove(T)
+		log_admin("[key_name(usr)] has teleported [A] from [formatLocation(origin)] to [formatLocation(T)].")
 		switch(teleport_here_pref)
 			if("Flashy")
 				if(flashy_level > 0)
@@ -791,6 +867,48 @@ function loadPage(list) {
 			if("Stealthy")
 				A.alpha = 0
 				animate(A, alpha = 255, time = stealthy_level)
+
+	else if(href_list["throw_a_fucking_rod_at_it"])
+		if(!check_rights(R_FUN))
+			to_chat(usr, "<span class='warning'>You do not have sufficient permissions to do this.</span>")
+			return
+
+		var/atom/movable/A = locate(href_list["throw_a_fucking_rod_at_it"])
+		if(!istype(A))
+			to_chat(usr, "<span class='warning'>This can only be done to instances of movable atoms.</span>")
+			return
+
+		var/rod_size = input("What type of rod do you want to throw?","Throwing an Immovable Rod",null) as null|anything in list("Normal", "Pillar", "Monolith")
+		var/rod_type
+
+		if (!rod_size)
+			return
+
+		switch (rod_size)
+			if ("Normal")
+				rod_type = /obj/item/projectile/immovablerod
+			if ("Pillar")
+				rod_type = /obj/item/projectile/immovablerod/big
+			if ("Monolith")
+				rod_type = /obj/item/projectile/immovablerod/hyper
+
+		if(alert("Are you sure you want to do this?","Confirm","Yes","No") != "Yes")
+			return
+
+		var/obj/item/projectile/immovablerod/rod = new rod_type(random_start_turf(A.z))
+		rod.tracking = TRUE
+		rod.throw_at(A)
+
+		var/log_data = "[A]"
+		if (ismob(A))
+			var/mob/M = A
+			if (M.client)
+				log_data += " ([M.client.ckey])"
+
+		log_admin("[key_name(usr)] threw a rod at [log_data].")
+		message_admins("<span class='notice'>[key_name(usr)] threw a rod at [log_data].</span>")
+		to_chat(usr, "<span class='danger'>If you changed your mind, you can always stop the tracking by using the verb 'VIEW-ALL-RODS' and click the 'Untrack' link.</span>")
+		return
 
 	else if(href_list["teleport_to"])
 		if(!check_rights(0))
@@ -837,112 +955,10 @@ function loadPage(list) {
 
 		switch(href_list["rotatedir"])
 			if("right")
-				A.dir = turn(A.dir, -45)
+				A.change_dir(turn(A.dir, -45))
 			if("left")
-				A.dir = turn(A.dir, 45)
+				A.change_dir(turn(A.dir, 45))
 		href_list["datumrefresh"] = href_list["rotatedatum"]
-
-	else if(href_list["makemonkey"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["makemonkey"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		if(alert("Confirm mob type change?",,"Transform","Cancel") != "Transform")
-			return
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		holder.Topic(href, list("monkeyone"=href_list["makemonkey"]))
-
-	else if(href_list["makerobot"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["makerobot"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		if(alert("Confirm mob type change?",,"Transform","Cancel") != "Transform")
-			return
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		holder.Topic(href, list("makerobot"=href_list["makerobot"]))
-
-	else if(href_list["makealien"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["makealien"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		if(alert("Confirm mob type change?",,"Transform","Cancel") != "Transform")
-			return
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		holder.Topic(href, list("makealien"=href_list["makealien"]))
-
-	else if(href_list["makeslime"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["makeslime"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		if(alert("Confirm mob type change?",,"Transform","Cancel") != "Transform")
-			return
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		holder.Topic(href, list("makeslime"=href_list["makeslime"]))
-
-	else if(href_list["makeai"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["makeai"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		if(alert("Confirm mob type change?",,"Transform","Cancel") != "Transform")
-			return
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		holder.Topic(href, list("makeai"=href_list["makeai"]))
-
-	else if(href_list["setmutantrace"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/living/carbon/human/H = locate(href_list["setmutantrace"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob/living/carbon/human")
-			return
-
-		var/new_mutantrace = input("Please choose a new mutantrace","Mutantrace",null) as null|anything in list("NONE","golem","lizard","slime","plant","shadow","tajaran","skrell","vox")
-		switch(new_mutantrace)
-			if(null)
-				return
-			if("NONE")
-				new_mutantrace = ""
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-		if(H.dna)
-			H.dna.mutantrace = new_mutantrace
-			H.update_mutantrace()
 
 	else if(href_list["setspecies"])
 		if(!check_rights(R_SPAWN))
@@ -965,56 +981,6 @@ function loadPage(list) {
 		else
 			to_chat(usr, "Failed! Something went wrong.")
 
-	else if(href_list["addlanguage"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/H = locate(href_list["addlanguage"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob")
-			return
-
-		var/new_language = input("Please choose a language to add.","Language",null) as null|anything in all_languages
-
-		if(!new_language)
-			return
-
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-
-		if(H.add_language(new_language))
-			to_chat(usr, "Added [new_language] to [H].")
-		else
-			to_chat(usr, "Mob already knows that language.")
-
-	else if(href_list["remlanguage"])
-		if(!check_rights(R_SPAWN))
-			return
-
-		var/mob/H = locate(href_list["remlanguage"])
-		if(!istype(H))
-			to_chat(usr, "This can only be done to instances of type /mob")
-			return
-
-		if(!H.languages.len)
-			to_chat(usr, "This mob knows no languages.")
-			return
-
-		var/datum/language/rem_language = input("Please choose a language to remove.","Language",null) as null|anything in H.languages
-
-		if(!rem_language)
-			return
-
-		if(!H)
-			to_chat(usr, "Mob doesn't exist anymore")
-			return
-
-		if(H.remove_language(rem_language.name))
-			to_chat(usr, "Removed [rem_language] from [H].")
-		else
-			to_chat(usr, "Mob doesn't know that language.")
-
 	else if(href_list["regenerateicons"])
 		if(!check_rights(0))
 			return
@@ -1024,6 +990,26 @@ function loadPage(list) {
 			to_chat(usr, "This can only be done to instances of type /mob")
 			return
 		M.regenerate_icons()
+
+	else if(href_list["resetbody"])
+		if(!check_rights(0))
+			return
+
+		var/mob/M = locate(href_list["resetbody"])
+		if(!ismob(M))
+			to_chat(usr, "This can only be done to instances of type /mob")
+			return
+		if(!M.mind)
+			to_chat(usr, "Only mobs with a /mind have their original body archived")
+			return
+		if (ishuman(M) && alert("Since you are resetting a human, do you want them to keep their current inventory equipped or drop it all on the floor?", "Body Resetting", "Keep Inventory", "Drop Everything") == "Keep Inventory")
+			M.reset_body(keep_inventory = TRUE)
+		else if (ishuman(M) && alert("Additionally, do you want them to get a new copy of their job outfit?", "Body Resetting", "New Outfit", "Stay Naked") == "New Outfit")
+			M.reset_body(job_outfit = TRUE)
+		else
+			M.reset_body()
+		add_gamelogs(usr, " reset [(M == usr) ? "their own" : "[key_name(M)]'s"] body from its archive.", admin = TRUE, tp_link = TRUE)
+
 
 	else if(href_list["adjustDamage"] && href_list["mobToDamage"])
 		if(!check_rights(R_DEBUG|R_ADMIN|R_FUN))
@@ -1063,12 +1049,6 @@ function loadPage(list) {
 			message_admins("<span class='notice'>[key_name(usr)] dealt [amount] amount of [Text] damage to [L] </span>")
 			href_list["datumrefresh"] = href_list["mobToDamage"]
 
-	else if(href_list["datumrefresh"])
-		var/datum/DAT = locate(href_list["datumrefresh"])
-		if(!istype(DAT, /datum))
-			return
-		src.debug_variables(DAT)
-
 	else if(href_list["proc_call"])
 		if(!check_rights(R_DEBUG))
 			return
@@ -1084,7 +1064,7 @@ function loadPage(list) {
 			return
 
 		var/datum/DAT = locate(href_list["edit_transform"])
-		if (!hasvar(DAT, "transform"))
+		if (!istransformable(DAT))
 			to_chat(src, "This object does not have a transform variable to edit!")
 			return
 
@@ -1096,12 +1076,35 @@ function loadPage(list) {
 
 		DAT.vars["transform"] = modify_matrix_menu(M)
 
+	else if(href_list["projectile_edit"])
+		if (!check_rights(R_FUN))
+			return
+
+		var/obj/item/weapon/gun/G = locate(href_list["projectile_edit"])
+		if(!istype(G))
+			to_chat(src, "Target must be an obj/item/weapon/gun!")
+			return
+
+		gun_override(G)
+
+	else if(href_list["halt_sound"])
+		if (!check_rights(R_DEBUG))
+			return
+
+		var/atom/movable/A = locate(href_list["halt_sound"])
+		if(!istype(A) || (A.sound_emitter == null))
+			to_chat(src, "This can only be done to atom/movables that have an initialized sound emitter")
+			return
+
+		A.sound_emitter.stop()
+
+
 	else if(href_list["toggle_aliasing"])
 		if(!check_rights(R_DEBUG))
 			return
 
 		var/datum/DAT = locate(href_list["toggle_aliasing"])
-		if(!hasvar(DAT, "appearance_flags"))
+		if(!isapperanceeditable(DAT))
 			to_chat(src, "This object does not support appearance flags!")
 			return
 
@@ -1126,11 +1129,155 @@ function loadPage(list) {
 			return FALSE
 
 		var/index = text2num(href_list["index"])
+		if(!index)
+			if(istext(href_list["index"]))
+				index = href_list["index"]
+			else
+				return FALSE
 
-		if (!isnum(index) || index < 1)
+		if (index < 1 || index > L.len)
 			return FALSE
 
 		log_admin("[key_name(usr)] has deleted the value [L[index]] in the list [L][D ? ", belonging to the datum [D] of type [D.type]." : "."]")
 		message_admins("[key_name(usr)] has deleted the value [L[index]] in the list [L][D ? ", belonging to the datum [D] of type [D.type]." : "."]")
 
 		L -= L[index]
+		href_list["datumrefresh"] = href_list["datum"]
+
+	// No else, as it must be checked separatly, and at the end.
+	if(href_list["datumrefresh"])
+		var/datum/DAT = locate(href_list["datumrefresh"])
+		if(!istype(DAT, /datum))
+			return
+		src.debug_variables(DAT)
+
+/**
+ * A FUN proc that, when given a /obj/item/weapon/gun, can allow you to change most projectile variables and types.
+ */
+/proc/gun_override(var/obj/item/weapon/gun/G)
+	if (!check_rights(R_FUN))
+		return
+
+	var/list/projectile_vars = list(
+		//this is the ultimate
+		"base projectile typepath",
+		//damage/main vars
+		"damage", "damage_type", "nodamage", "what armor resists (flag)", "projectile_speed", "travel_range",
+		//effect vars
+		"stun", "weaken", "paralyze", "irradiate", "eyeblur", "drowsy", "agony", "jittery",
+		//appearance/misc vars
+		"icon (upload dmi)", "icon_state", "color", "silenced", "manual variable entry"
+	)
+
+	var/inputvar
+	G.bullet_overrides ||= list()
+	if(!G.bullet_overrides.len)
+		inputvar = input(usr, "What variable would you like to change?", "Gun Variables") as null|anything in projectile_vars
+	else
+		var/existing_bullet_override_pick = input(usr, "Would you like to edit an existing variable or add a new one?", "Gun Variables") as null|anything in G.bullet_overrides + G.bullet_type_override + "(ADD VAR)"
+		if(!existing_bullet_override_pick)
+			return
+		else if(G.bullet_type_override && G.bullet_type_override == existing_bullet_override_pick)
+			inputvar = "base projectile typepath"
+		else if(existing_bullet_override_pick == "(ADD VAR)")
+			inputvar = input(usr, "What variable would you like to change?", "Gun Variables") as null|anything in projectile_vars
+		else
+			inputvar = existing_bullet_override_pick
+	if(!inputvar)
+		return
+	var/newvalue
+	switch(inputvar)
+		if("base projectile typepath")
+			newvalue = find_projectile_type(G)
+		if("damage","irradiate")
+			newvalue = input(usr, "How much damage should the projectile deal?", "Var: [inputvar]") as null|num
+		if("damage_type")
+			newvalue = input(usr, "What type of damage should the projectile deal (it can only deal one, sorry)?", "Var: [inputvar]") as null|anything in list("brute", "oxy", "tox", "fire", "clone", "brain")
+		if("nodamage")
+			newvalue = input(usr, "Should the gun NOT do damage on hit?", "Var: [inputvar]") as null|anything in list("True", "False")
+			if(newvalue == "True")
+				newvalue = TRUE
+			else
+				newvalue = FALSE
+		if("what armor resists (flag)")
+			newvalue = input(usr, "What armor type should resist this damage?", "Var: [inputvar]") as null|anything in list("melee", "bullet", "laser", "energy", "bomb", "bio", "rad")
+			inputvar = "flag"
+		if("projectile_speed")
+			newvalue = input(usr, "How much time (in deciseconds) should the bullet delay between tile movements? (examples, Taser electrode is 1, Glock bullets are 0.5)?", "Var: [inputvar]") as null|num
+		if("travel_range")
+			newvalue = input(usr, "How far should the projectile travel before vanishing? (0 to go indefinitely)", "Gun Variables") as null|num
+		if("stun","weaken","paralyze","eyeblur","agony","jittery")
+			newvalue = input(usr, "New effect value? Most go down 1 per tick.", "Var: [inputvar]") as null|num
+		if("color")
+			newvalue = input(usr, "What color (RGB format, example: #00ff00)?", "Var: [inputvar]") as null|color
+		if("silenced")
+			newvalue = input(usr, "Should the gun have no text when fired?", "Var: [inputvar]") as null|anything in list(TRUE, FALSE)
+		if("manual variable entry")
+			inputvar = input(usr, "What variable name to manually insert and then edit (verify it!)?", "Var: [inputvar]") as null|text
+			if(isnull(inputvar))
+				return
+			newvalue = variable_set(usr)
+		if("icon (upload dmi)")
+			newvalue = input(usr, "Choose an icon file for your new projectile!", "Var: [inputvar]") as null|icon
+			inputvar = "icon"
+		if("icon_state")
+			newvalue = input(usr, "What icon_state to set?", "Var: [inputvar]") as null|text
+		else
+			newvalue = variable_set(usr)
+	if(isnull(newvalue))
+		return
+	if(inputvar == "base projectile typepath")
+		G.bullet_type_override = newvalue
+	else
+		G.bullet_overrides[inputvar] = newvalue
+	to_chat(usr,"Current list of projectile edits:")
+	if(G.bullet_type_override)
+		to_chat(usr,"Type Override: [G.bullet_type_override]")
+	for(var/result in G.bullet_overrides)
+		to_chat(usr,"[result]: [G.bullet_overrides[result]]")
+	log_admin("[key_name(usr)] overrode [G]'s projectile variable [inputvar] to [newvalue].")
+	message_admins("<span class='adminnotice'>[key_name_admin(usr)] overrode [G]'s projectile variable [inputvar] to [newvalue].</span>", 1)
+	feedback_add_details("admin_verb","GOR") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+
+/**
+ * Allows you to pick a valid projectile that can fire out of a given /obj/item/weapon/gun
+ */
+/proc/find_projectile_type(var/obj/item/weapon/gun/G)
+	var/newvalue
+	//Hookshots crash the server if shot from anything that isn't a hookshot
+	//And they lock up if they fire anything that isn't a hookshot projectile
+	if(istype(G, /obj/item/weapon/gun/hookshot))
+		newvalue = filter_typelist_input("What projectile type would you like to use?","Gun Variables", typesof(/obj/item/projectile/hookshot))
+		return newvalue
+	var/list/commontypes = list("taser", "laser", "glock", "low yield rocket", "pizza rocket", "Show me everything.", "manual typepath")
+	var/projtype = input(usr, "What projectile type would you like to use?", "Gun Variables") as null|anything in commontypes
+	switch(projtype)
+		if("taser")
+			newvalue = /obj/item/projectile/energy/electrode
+		if("laser")
+			newvalue = /obj/item/projectile/beam
+		if("glock")
+			newvalue = /obj/item/projectile/bullet/auto380
+		if("low yield rocket")
+			newvalue = /obj/item/projectile/rocket/lowyield
+		if("pizza rocket")
+			newvalue = /obj/item/projectile/rocket/clown/pizza
+		if("Show me everything.")
+			newvalue = filter_typelist_input("Here's everything.","Gun Variables", typesof(/obj/item/projectile) - typesof(/obj/item/projectile/hookshot))
+			if(isnull(newvalue))
+				return
+		if("manual typepath")
+			newvalue = text2path(input(usr, "What typepath?", "Gun Variables", "/obj/item/projectile") as null|text)
+			if(!ispath(newvalue, /obj/item/projectile))
+				return
+			//Warning for manually avoiding the check
+			if(ispath(newvalue, /obj/item/projectile/hookshot) && !istype(G, /obj/item/weapon/gun/hookshot))
+				if(!check_rights(R_DEBUG))
+					return
+				var/warnthem = input(usr, "Hookshot projectiles will crash the server. Are you sure?", "WARNING") as anything in list("Yes, have me be deadminned", "No, cancel it!")
+				if(warnthem == "No, cancel it!")
+					return
+				else
+					log_admin("[key_name(usr)] was warned about crashing the server from hookshot projectiles.")
+					message_admins("<span class='adminnotice'>[key_name_admin(usr)] is doing something that might crash the server!</span>", 1)
+	return newvalue

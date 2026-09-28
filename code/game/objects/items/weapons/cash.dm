@@ -23,12 +23,14 @@ var/global/list/moneytypes = list(
 	throw_speed = 1
 	throw_range = 2
 	w_class = W_CLASS_TINY
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	var/access = list()
 	access = access_crate_cash
 	var/worth = 1 //Per chip
 	var/amount = 1 //Number of chips
 	var/stack_color = "#4E054F"
-	autoignition_temperature=AUTOIGNITION_PAPER
+	quick_equip_priority = list(slot_wear_id)
 
 /obj/item/weapon/spacecash/New(var/new_loc,var/new_amount=1)
 	. = ..(new_loc)
@@ -86,12 +88,12 @@ var/global/list/moneytypes = list(
 /obj/item/weapon/spacecash/examine(mob/user)
 	if(amount > 1)
 		setGender(PLURAL)
-		..()
-		to_chat(user, "It's a stack holding [amount] chips.")
-		to_chat(user, "<span class='info'>It's worth [worth*amount] credits.</span>")
 	else
 		setGender(NEUTER)
-		..()
+	..()
+	if(amount > 1)
+		to_chat(user, "It's a stack holding [amount] chips.")
+	to_chat(user, "<span class='info'>It's worth [worth*amount] credits.</span>")
 
 /obj/item/weapon/spacecash/update_icon()
 	icon_state = "cash[worth]"
@@ -147,14 +149,29 @@ var/global/list/moneytypes = list(
 	stack_color = "#333333"
 
 /obj/structure/closet/cash_closet/spawn_contents()
-	var/list/types = typesof(/obj/item/weapon/spacecash)
+	var/list/types = typesof(/obj/item/weapon/spacecash)-/obj/item/weapon/spacecash/cN
 	for(var/i = 1 to rand(3,10))
 		var/typepath = pick(types)
 		new typepath(src)
 	..()
 
+/obj/item/weapon/spacecash/cN
+	icon_state = "cashN"
+	worth = 1
+	stack_color = "#FFD700"
+
+/obj/item/weapon/spacecash/cN/update_icon()
+	return //There's no going higher or lower
+
 // TODO: Allow denominations below $1
 /proc/dispense_cash(var/amount, var/loc)
+	var/list/cash_spawned = list()
+	if(amount > 100000)
+		var/obj/item/weapon/spacecash/SC = new /obj/item/weapon/spacecash/cN(loc, 1)
+		SC.worth = amount
+		SC.name = "[SC.worth] credit chip"
+		cash_spawned.Add(SC)
+		return cash_spawned
 	for(var/cashtype in moneytypes)
 		var/slice = moneytypes[cashtype]
 		var/dispense_count = Floor(amount/slice)
@@ -162,8 +179,10 @@ var/global/list/moneytypes = list(
 		while(dispense_count>0)
 			var/dispense_this_time = min(dispense_count,10)
 			if(dispense_this_time > 0)
-				new cashtype(loc,dispense_this_time)
+				cash_spawned.Add(new cashtype(loc,dispense_this_time))
 				dispense_count -= dispense_this_time
+
+	return cash_spawned
 
 /proc/count_cash(var/list/cash)
 	. = 0

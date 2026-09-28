@@ -3,6 +3,8 @@
 // all conduit connects go to this object instead of the APC
 // using this solves the problem of having the APC in a wall yet also inside an area
 
+var/list/obj/machinery/power/terminal/terminals = list()
+
 /obj/machinery/power/terminal
 	name = "terminal"
 	icon_state = "term"
@@ -22,6 +24,7 @@
 
 /obj/machinery/power/terminal/New()
 	..()
+	terminals += src
 	var/turf/T = src.loc
 	if(level==1)
 		hide(T.intact)
@@ -36,7 +39,7 @@
 		invisibility = 0
 		icon_state = "term"
 
-/obj/machinery/power/terminal/t_scanner_expose()
+/obj/machinery/power/terminal/t_scanner_expose(ray_range)
 	if (level != LEVEL_BELOW_FLOOR)
 		return
 
@@ -50,6 +53,7 @@
 			plane = initial(plane)
 
 /obj/machinery/power/terminal/Destroy()
+	terminals -= src
 	if (master)
 		master:terminal = null
 		master = null
@@ -57,8 +61,8 @@
 	..()
 
 /obj/machinery/power/terminal/attackby(obj/item/W, mob/user)
-	if(iswirecutter(W) && !master) //Sanity in the rare case something destroys a machine and leaves a terminal
-		getFromPool(/obj/item/stack/cable_coil, get_turf(src), 10)
+	if(W.is_wirecutter(user) && !master) //Sanity in the rare case something destroys a machine and leaves a terminal
+		new /obj/item/stack/cable_coil(get_turf(src), 10)
 		qdel(src)
 		return
 	..()
@@ -91,6 +95,17 @@
 	terminal = new /obj/machinery/power/terminal(newloc)
 	terminal.dir = get_dir(newloc, src)
 	terminal.master = src
+
+/obj/machinery/power/map_element_rotate(angle)
+	..()
+	if(terminal && terminal.dir != get_dir(terminal.loc, src))
+		terminal.dir = get_dir(terminal.loc, src)
+
+/obj/machinery/power/apc/map_element_rotate(angle)
+	..()
+	tdir = dir
+	if(terminal && terminal.dir != tdir)
+		terminal.dir = tdir
 
 /obj/machinery/power/proc/can_attach_terminal(mob/user)
 	return user.loc != src.loc && (get_dir(user, src) in cardinal) && !terminal

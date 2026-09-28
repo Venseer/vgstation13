@@ -1,7 +1,7 @@
 
 // Allows you to monitor messages that passes the server.
 
-
+var/list/message_monitors = list()
 
 
 /obj/machinery/computer/message_monitor
@@ -30,21 +30,39 @@
 	var/obj/item/device/pda/customrecepient = null
 	var/customjob		= "Admin"
 	var/custommessage 	= "This is a test, please ignore."
+	var/switchboard_columns = 5
+	var/switchboard_namelength = 5
+	var/obj/landline/linking = null
+	var/obj/item/telephone/switchboard/switchboard_headset = null
+	var/switchboard_sound = 'sound/items/cable_plug.mp3'
+	var/switchboard_sound2 = 'sound/items/cable_unplug.mp3'
 
 	light_color = LIGHT_COLOR_GREEN
+
+
+/obj/machinery/computer/message_monitor/New()
+	..()
+	switchboard_headset = new /obj/item/telephone/switchboard (src)
+	message_monitors += src
+
+/obj/machinery/computer/message_monitor/Destroy()
+	message_monitors -= src
+	if(switchboard_headset)
+		qdel(switchboard_headset)
+	..()
 
 
 /obj/machinery/computer/message_monitor/attackby(obj/item/weapon/O as obj, mob/living/user as mob)
 	if(!istype(user))
 		return
-	if(isscrewdriver(O) && emagged)
+	if(O.is_screwdriver(user) && emagged)
 		//Stops people from just unscrewing the monitor and putting it back to get the console working again.
 		to_chat(user, "<span class='warning'>It is too hot to mess with!</span>")
 		return
 	..()
 	return
 
-/obj/machinery/computer/message_monitor/emag(mob/user as mob)
+/obj/machinery/computer/message_monitor/emag_act(mob/user as mob)
 	// Will create sparks and print out the console's password. You will then have to wait a while for the console to be back online.
 // It'll take more time if there's more characters in the password..
 	if(!emagged)
@@ -65,7 +83,7 @@
 
 /obj/machinery/computer/message_monitor/update_icon()
 	..()
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(emagged || hacking)
 		icon_state = hack_icon
@@ -80,7 +98,7 @@
 	return
 
 /obj/machinery/computer/message_monitor/attack_hand(var/mob/living/user as mob)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(!istype(user) && !isAdminGhost(user))
 		return
@@ -94,17 +112,17 @@
 	if(auth)
 
 		dat += {"<h4><dd><A href='?src=\ref[src];auth=1'>&#09;<font color='green'>\[Authenticated\]</font></a>&#09;/
-			Server Power: <A href='?src=\ref[src];active=1'>[src.linkedServer && src.linkedServer.is_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</a></h4>"}
+			Server Power: <A href='?src=\ref[src];active=1'>[src.linkedServer && src.linkedServer.is_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</a>"}
+		dat += {"  Landline auto-routing: <A href='?src=\ref[src];toggleLandlines=1'>[src.linkedServer && src.linkedServer.landlines_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</a></h4>"}
 	else
-
 		dat += {"<h4><dd><A href='?src=\ref[src];auth=1'>&#09;<font color='red'>\[Unauthenticated\]</font></a>&#09;/
-			Server Power: <u>[src.linkedServer && src.linkedServer.is_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</u></h4>"}
+			Server Power: <u>[src.linkedServer && src.linkedServer.is_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</u>"}
+		dat += {"  Landline auto-routing: [src.linkedServer && src.linkedServer.landlines_functioning() ? "<font color='green'>\[On\]</font>":"<font color='red'>\[Off\]</font>"]</h4>"}
+
 	if(hacking || emagged)
 		screen = 2
-	else if(!auth || !linkedServer || (linkedServer.stat & (NOPOWER|BROKEN)))
-		if(!linkedServer || (linkedServer.stat & (NOPOWER|BROKEN)))
-			message = noserver
-		screen = 0
+	if(!linkedServer || (linkedServer.stat & (NOPOWER|BROKEN|FORCEDISABLE)))
+		message = noserver
 
 	switch(screen)
 		//Main menu
@@ -113,7 +131,7 @@
 			var/i = 0
 			dat += "<dd><A href='?src=\ref[src];find=1'>&#09;[++i]. Link To A Server</a></dd>"
 			if(auth)
-				if(!linkedServer || (linkedServer.stat & (NOPOWER|BROKEN)))
+				if(!linkedServer || (linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 					dat += "<dd><A>&#09;ERROR: Server not found!</A><br></dd>"
 				else
 
@@ -126,11 +144,13 @@
 			else
 				for(var/n = ++i; n <= optioncount; n++)
 					dat += "<dd><font color='blue'>&#09;[n]. ---------------</font><br></dd>"
-			if((istype(user, /mob/living/silicon/ai) || istype(user, /mob/living/silicon/robot)) && (user.mind.special_role && user.mind.original == user))
+			if((istype(user, /mob/living/silicon/ai) || istype(user, /mob/living/silicon/robot)) && user.mind.special_role)
 				//Malf/Traitor AIs can bruteforce into the system to gain the Key.
 				dat += "<dd><A href='?src=\ref[src];hack=1'><i><font color='Red'>*&@#. Bruteforce Key</font></i></font></a><br></dd>"
 			else
 				dat += "<br>"
+			dat += "<hr><A href='?src=\ref[src];switchboard=1'> Landline Switchboard</a><br>"
+			//TODO add exclamation marks here if someone's calling
 
 			//Bottom message
 			if(!auth)
@@ -146,14 +166,18 @@
 			//var/message = "Blank" //transferred message
 
 			dat += {"<center><A href='?src=\ref[src];back=1'>Back</a> - <A href='?src=\ref[src];refresh=1'>Refresh</center><hr>
-				<table border='1' width='100%'><tr><th width = '5%'>X</th><th width='15%'>Sender</th><th width='15%'>Recipient</th><th width='300px' word-wrap: break-word>Message</th></tr>"}
+				<table border='1' width='100%'><tr><th width = '5%'>X</th><th width='15%'>Sender</th><th width='15%'>Recipient</th><th width='300px' word-wrap: break-word>Message</th><th width='30%'>Photo</th></tr>"}
 			for(var/datum/data_pda_msg/pda in src.linkedServer.pda_msgs)
 				index++
 				if(index > 3000)
 					break
-				// Del - Sender   - Recepient - Message
-				// X   - Al Green - Your Mom  - WHAT UP!?
-				dat += "<tr><td width = '5%'><center><A href='?src=\ref[src];delete=\ref[pda]' style='color: rgb(255,0,0)'>X</a></center></td><td width='15%'>[pda.sender]</td><td width='15%'>[pda.recipient]</td><td width='300px'>[pda.message]</td></tr>"
+				// Del - Sender   - Recepient - Message - Photo
+				// X   - Al Green - Your Mom  - WHAT UP!? - [Photo]
+				var/imgdat = ""
+				if(pda.img_sent)
+					user << browse_rsc(pda.img_sent, "tmp_photo_[index].png")
+					imgdat = "<img src='tmp_photo_[index].png' width = '192' style='image-rendering: pixelated'>"
+				dat += "<tr><td width = '5%'><center><A href='?src=\ref[src];delete=\ref[pda]' style='color: rgb(255,0,0)'>X</a></center></td><td width='15%'>[pda.sender]</td><td width='15%'>[pda.recipient]</td><td width='300px'>[pda.message]</td><th width='30%'>[imgdat]</th></tr>"
 			dat += "</table>"
 		//Hacking screen.
 		if(2)
@@ -242,17 +266,48 @@
 				dat += {"<tr><td width = '5%'><center><A href='?src=\ref[src];deleter=\ref[rc]' style='color: rgb(255,0,0)'>X</a></center></td><td width='15%'>[rc.send_dpt]</td>
 				<td width='15%'>[rc.rec_dpt]</td><td width='300px'>[rc.message]</td><td width='15%'>[rc.stamp]</td><td width='15%'>[rc.id_auth]</td><td width='15%'>[rc.priority]</td></tr>"}
 			dat += "</table>"
+		if(5) //manual switchboard
+			var/current_button_num = 1
+			dat += "<table>"
+			dat += "<tr>"
+			for(var/obj/machinery/requests_console/RC in requests_consoles)
+				var/shortname_end = RC.department_short ? RC.department_short : RC.department
+				shortname_end = copytext(shortname_end,1,switchboard_namelength-1)
+				var/shortname = RC.master_department_short + "-" + shortname_end
+				var/callconnector
+				if(RC.landline.calling)
+					callconnector = "<A href='?src=\ref[src];stopCall=\ref[RC.landline]'>x</A>"
+				else
+					if(linking && RC.landline != linking)
+						callconnector = "<A href='?src=\ref[src];manualCall=\ref[RC.landline]'>o</A>"
+					else
+						callconnector = "<A href='?src=\ref[src];setLink=\ref[RC.landline]'> </A>"
+
+				var/b = RC.landline.get_status()
+				if(b)
+					shortname = "<A href='?src=\ref[src];setCurrentLine=\ref[RC.landline]'><font color=[b]>[shortname]</font></A>"
+				dat += "<td align=\"right\"><tt>[shortname]\[[callconnector]\]</tt></td>" //thanks no. 455311247
+				current_button_num += 1
+				if(current_button_num > switchboard_columns)
+					dat += "</tr><tr>"
+					current_button_num = 1
+			dat += "</tr>"
+			dat += "</table>"
+			var/currentline = "null"
+			if(switchboard_headset && switchboard_headset.linked_landline)
+				var/obj/machinery/requests_console/RC = switchboard_headset.linked_landline.attached_to
+				if(RC)
+					currentline = RC.master_department_short + "-" + copytext(RC.department,1,switchboard_namelength-1)
+			currentline = "<A href='?src=\ref[src];clearCurrentLine=1'>[currentline]</a>"
+			dat += "<br>Currently plugged to line: [currentline]"
+			dat += "<hr><br><A href='?src=\ref[src];back=1'>Back</a>"
 
 
 	dat += "</body>"
 	message = defaultmsg
-	user << browse(dat, "window=message;size=700x700")
+	user << browse(HTML_SKELETON(dat), "window=message;size=700x700")
 	onclose(user, "message")
 	return
-
-/obj/machinery/computer/message_monitor/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/computer/message_monitor/proc/BruteForce(mob/user as mob)
 	if(isnull(linkedServer))
@@ -284,7 +339,7 @@
 				auth = 0
 				screen = 0
 			else
-				var/dkey = trim(input(usr, "Please enter the decryption key.") as text|null)
+				var/dkey = sanitize(trim(input(usr, "Please enter the decryption key.") as text|null))
 				if(dkey && dkey != "")
 					if(src.linkedServer.decryptkey == dkey)
 						auth = 1
@@ -295,6 +350,10 @@
 		if (href_list["active"])
 			if(auth)
 				linkedServer.disabled = !linkedServer.disabled
+		//toggle automatic landline connections
+		if (href_list["toggleLandlines"])
+			if(auth)
+				linkedServer.automatic_landlines = !linkedServer.automatic_landlines
 		//Find a server
 		if (href_list["find"])
 			if(message_servers && message_servers.len > 1)
@@ -308,7 +367,7 @@
 
 		//View the logs - KEY REQUIRED
 		if (href_list["view"])
-			if(src.linkedServer == null || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(src.linkedServer == null || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
@@ -316,7 +375,7 @@
 
 		//Clears the logs - KEY REQUIRED
 		if (href_list["clear"])
-			if(!linkedServer || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(!linkedServer || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
@@ -324,7 +383,7 @@
 					message = "<span class='notice'>NOTICE: Logs cleared.</span>"
 		//Clears the request console logs - KEY REQUIRED
 		if (href_list["clearr"])
-			if(!linkedServer || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(!linkedServer || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
@@ -332,14 +391,14 @@
 					message = "<span class='notice'>NOTICE: Logs cleared.</span>"
 		//Change the password - KEY REQUIRED
 		if (href_list["pass"])
-			if(!linkedServer || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(!linkedServer || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
-					var/dkey = trim(input(usr, "Please enter the decryption key.") as text|null)
+					var/dkey = sanitize(trim(input(usr, "Please enter the decryption key.") as text|null))
 					if(dkey && dkey != "")
 						if(src.linkedServer.decryptkey == dkey)
-							var/newkey = trim(input(usr,"Please enter the new key (3 - 16 characters max):"))
+							var/newkey = sanitize(trim(input(usr,"Please enter the new key (3 - 16 characters max):")))
 							if(length(newkey) <= 3)
 								message = "<span class='notice'>NOTICE: Decryption key too short!</span>"
 							else if(length(newkey) > 16)
@@ -352,7 +411,7 @@
 
 		//Hack the Console to get the password
 		if (href_list["hack"])
-			if((istype(usr, /mob/living/silicon/ai) || istype(usr, /mob/living/silicon/robot)) && (usr.mind.special_role && usr.mind.original == usr))
+			if((istype(usr, /mob/living/silicon/ai) || istype(usr, /mob/living/silicon/robot)) && usr.mind.special_role)
 				src.hacking = 1
 				src.screen = 2
 				src.icon_state = hack_icon
@@ -364,7 +423,7 @@
 		if (href_list["delete"])
 			//Are they on the view logs screen?
 			if(screen == 1)
-				if(!linkedServer || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+				if(!linkedServer || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 					message = noserver
 				else //if(istype(href_list["delete"], /datum/data_pda_msg))
 					src.linkedServer.pda_msgs -= locate(href_list["delete"])
@@ -373,21 +432,21 @@
 		if (href_list["deleter"])
 			//Are they on the view logs screen?
 			if(screen == 4)
-				if(!linkedServer || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+				if(!linkedServer || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 					message = noserver
 				else //if(istype(href_list["delete"], /datum/data_pda_msg))
 					src.linkedServer.rc_msgs -= locate(href_list["deleter"])
 					message = "<span class='notice'>NOTICE: Log Deleted!</span>"
 		//Create a custom message
 		if (href_list["msg"])
-			if(src.linkedServer == null || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(src.linkedServer == null || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
 					src.screen = 3
 		//Fake messaging selection - KEY REQUIRED
 		if (href_list["select"])
-			if(src.linkedServer == null || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(src.linkedServer == null || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 				screen = 0
 			else
@@ -405,11 +464,7 @@
 					//Select Receiver
 					if("Recepient")
 						//Get out list of viable PDAs
-						var/list/obj/item/device/pda/sendPDAs = list()
-						for(var/obj/item/device/pda/P in PDAs)
-							if(!P.owner || P.toff || P.hidden)
-								continue
-							sendPDAs += P
+						var/list/obj/item/device/pda/sendPDAs = get_viewable_pdas()
 						if(PDAs && PDAs.len > 0)
 							customrecepient = input(usr, "Select a PDA from the list.") as null|anything in sortNames(sendPDAs)
 						else
@@ -439,20 +494,24 @@
 							message = "<span class='notice'>NOTICE: No message entered!</span>"
 							return src.attack_hand(usr)
 
+
+						var/datum/pda_app/messenger/message_app = locate(/datum/pda_app/messenger) in customrecepient.applications
+						if(!message_app) //Shouldn't show up but just in case we need to explain it, also to prevent the below runtiming
+							message = "<span class='notice'>NOTICE: This PDA does not have a messenger, somehow.</span>"
+							return src.attack_hand(usr)
+
 						var/obj/item/device/pda/PDARec = null
-						for (var/obj/item/device/pda/P in PDAs)
-							if (!P.owner || P.toff || P.hidden)
-								continue
+						for (var/obj/item/device/pda/P in get_viewable_pdas())
 							if(P.owner == customsender)
 								PDARec = P
 						//Sender isn't faking as someone who exists
 						if(isnull(PDARec))
 							src.linkedServer.send_pda_message("[customrecepient.owner]", "[customsender]","[custommessage]")
-							customrecepient.tnote += "<i><b>&larr; From <a href='byond://?src=\ref[customrecepient];choice=Message;target=\ref[src]'>[customsender]</a> ([customjob]):</b></i><br>[custommessage]<br>"
-							if (!customrecepient.silent)
+							message_app.tnote += "<i><b>&larr; From <a href='byond://?src=\ref[customrecepient];choice=Message;target=\ref[src]'>[customsender]</a> ([customjob]):</b></i><br>[custommessage]<br>"
+							if (!message_app.silent)
 								playsound(customrecepient.loc, 'sound/machines/twobeep.ogg', 50, 1)
 								for (var/mob/O in hearers(3, customrecepient.loc))
-									O.show_message(text("[bicon(customrecepient)] *[customrecepient.ttone]*"))
+									O.show_message(text("[bicon(customrecepient)] *[message_app.ttone]*"))
 								if( customrecepient.loc && ishuman(customrecepient.loc) )
 									var/mob/living/carbon/human/H = customrecepient.loc
 									to_chat(H, "[bicon(customrecepient)] <b>Message from [customsender] ([customjob]), </b>\"[custommessage]\" (<a href='byond://?src=\ref[src];choice=Message;skiprefresh=1;target=\ref[src]'>Reply</a>)")
@@ -463,11 +522,11 @@
 						//Sender is faking as someone who exists
 						else
 							src.linkedServer.send_pda_message("[customrecepient.owner]", "[PDARec.owner]","[custommessage]")
-							customrecepient.tnote += "<i><b>&larr; From <a href='byond://?src=\ref[customrecepient];choice=Message;target=\ref[PDARec]'>[PDARec.owner]</a> ([customjob]):</b></i><br>[custommessage]<br>"
-							if (!customrecepient.silent)
+							message_app.tnote += "<i><b>&larr; From <a href='byond://?src=\ref[customrecepient];choice=Message;target=\ref[PDARec]'>[PDARec.owner]</a> ([customjob]):</b></i><br>[custommessage]<br>"
+							if (!message_app.silent)
 								playsound(customrecepient.loc, 'sound/machines/twobeep.ogg', 50, 1)
 								for (var/mob/O in hearers(3, customrecepient.loc))
-									O.show_message(text("[bicon(customrecepient)] *[customrecepient.ttone]*"))
+									O.show_message(text("[bicon(customrecepient)] *[message_app.ttone]*"))
 								if( customrecepient.loc && ishuman(customrecepient.loc) )
 									var/mob/living/carbon/human/H = customrecepient.loc
 									to_chat(H, "[bicon(customrecepient)] <b>Message from [PDARec.owner] ([customjob]), </b>\"[custommessage]\" (<a href='byond://?src=\ref[customrecepient];choice=Message;skiprefresh=1;target=\ref[PDARec]'>Reply</a>)")
@@ -480,17 +539,79 @@
 
 		//Request Console Logs - KEY REQUIRED
 		if(href_list["viewr"])
-			if(src.linkedServer == null || (src.linkedServer.stat & (NOPOWER|BROKEN)))
+			if(src.linkedServer == null || (src.linkedServer.stat & (FORCEDISABLE|NOPOWER|BROKEN)))
 				message = noserver
 			else
 				if(auth)
 					src.screen = 4
 
 //			to_chat(usr, href_list["select"])
-
+		if (href_list["switchboard"])
+			src.screen = 5
+		if (href_list["stopCall"])
+			var/obj/landline/L = locate(href_list["stopCall"])
+			if(L)
+				if(L.calling)
+					L.calling.last_call_log += text("call disconnected by operator<BR>")
+					L.calling.calling = null
+					if(L.calling.linked_phone)
+						playsound(L.calling.linked_phone, switchboard_sound2, 100, 1)
+				L.last_call_log += text("call disconnected by operator<BR>")
+				if(L.linked_phone)
+					playsound(L.linked_phone, switchboard_sound2, 100, 1)
+				L.calling = null
+			updateUsrDialog()
+			playsound(src, switchboard_sound2, 100, 1)
+		if (href_list["manualCall"])
+			var/obj/landline/L = locate(href_list["manualCall"])
+			if(L && linking && (L != linking))
+				if(L.calling || linking.calling)
+					return
+				L.calling = linking
+				linking.calling = L
+				L.ring_loop()
+				linking.ring_loop()
+				var/obj/machinery/requests_console/L_console = L.attached_to
+				var/obj/machinery/requests_console/linking_console = linking.attached_to
+				L.last_call_log += text("connected to [linking_console.department] by operator<BR>")
+				linking.last_call_log += text("connected to [L_console.department] by operator<BR>")
+				if(L.calling.linked_phone)
+					playsound(L.calling.linked_phone, switchboard_sound, 100, 1)
+				if(L.linked_phone)
+					playsound(L.linked_phone, switchboard_sound, 100, 1)
+				playsound(src, switchboard_sound, 100, 1)
+				linking = FALSE
+		if (href_list["setLink"])
+			var/obj/landline/L = locate(href_list["setLink"])
+			if(!L || linking)
+				return
+			linking = L
+			playsound(src, switchboard_sound, 100, 1)
+			updateUsrDialog()
 		if (href_list["back"])
 			src.screen = 0
-
+		if (href_list["clearCurrentLine"])
+			if(switchboard_headset && switchboard_headset.linked_landline)
+				var/obj/landline/LL = switchboard_headset.linked_landline
+				if(LL.linked_phone)
+					playsound(LL.linked_phone, switchboard_sound2, 100, 1)
+				if(LL.calling && LL.calling.linked_phone)
+					playsound(LL.calling.linked_phone, switchboard_sound2, 100, 1)
+				LL.listening_operators -= src.switchboard_headset
+				switchboard_headset.linked_landline = null
+				playsound(src, switchboard_sound2, 100, 1)
+			updateUsrDialog()
+		if (href_list["setCurrentLine"])
+			var/obj/landline/L = locate(href_list["setCurrentLine"])
+			if(L && switchboard_headset)
+				L.listening_operators += switchboard_headset
+				switchboard_headset.linked_landline = L
+				playsound(src, switchboard_sound, 100, 1)
+				if(L.linked_phone)
+					playsound(L.linked_phone, switchboard_sound, 100, 1)
+				if(L.calling && L.calling.linked_phone)
+					playsound(L.calling.linked_phone, switchboard_sound, 100, 1)
+			updateUsrDialog()
 	return src.attack_hand(usr)
 
 

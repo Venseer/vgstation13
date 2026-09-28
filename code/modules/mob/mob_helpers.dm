@@ -22,10 +22,10 @@
 /mob/proc/is_fat()
 	return 0
 
-mob/proc/isincrit()
+/mob/proc/isincrit()
 	return 0
 
-mob/proc/get_heart()
+/mob/proc/get_heart()
 	return null
 
 /mob/proc/get_lungs()
@@ -40,7 +40,7 @@ mob/proc/get_heart()
 /mob/proc/get_appendix()
 	return null
 
-mob/proc/remove_internal_organ()
+/mob/proc/remove_internal_organ()
 	return null
 
 /mob/proc/get_broken_organs()
@@ -67,47 +67,25 @@ mob/proc/remove_internal_organ()
 	. = ..()
 	if(.)
 		return .
-	else if(has_reagent_in_blood(DETCOFFEE))
-		return NOIRMATRIX
-	var/obj/item/clothing/glasses/scanner/S = is_wearing_item(/obj/item/clothing/glasses/scanner, slot_glasses)
-	if(S && S.on && S.color_matrix)
-		return S.color_matrix
+
 	var/datum/organ/internal/eyes/eyes = internal_organs_by_name["eyes"]
 	if(eyes && eyes.colourmatrix.len && !(eyes.robotic))
 		return eyes.colourmatrix
 	else
 		return default_colour_matrix
 
-/mob/proc/update_colour(var/time = 50,var/forceupdate = 0, var/list/colour_to_apply)
-	if(!client || (client.updating_colour && !forceupdate))
+/mob/proc/update_colour(var/time = 50, var/list/colour_to_apply)
+	if(!client)
 		return
 	if(!colour_to_apply)
 		colour_to_apply = get_screen_colour()
-	var/list/difference = list()
-	if(client.color)
-		difference = difflist(client.color,colour_to_apply)
-	if(!difference) // otherwise !difference.len throws a runtime since null.len isn't a thing
-		return
-	else if(!difference.len)
-		client.updating_colour = 1
-		var/cached_ckey = client.ckey
-		if(forceupdate)
-			time = 0
-		else if(colour_to_apply == NOIRMATRIX)
-			time = 170
-			src << sound('sound/misc/noirdarkcoffee.ogg')
+	if((M_NOIR in mutations) && client)
+		enable_noir()
+	// We can't compare client.color directly because Byond will force set client.color to null
+	// when assigning the default_colour_matrix to it
+	var/list/colour_initial = (client.color ? client.color : default_colour_matrix)
+	if(colour_initial ~! colour_to_apply)
 		client.colour_transition(colour_to_apply,time = time)
-		spawn(time)
-			if(client && client.mob != src)
-				return
-			if(client)
-				client.color = colour_to_apply
-				client.updating_colour = 0
-				difference = difflist(client.color,get_screen_colour())
-				if((difference || !(client.color) || !istype(difference) || !difference.len) && !forceupdate) // panic panic panic
-					src.update_colour(0,1,colour_to_apply)
-			else
-				bad_changing_colour_ckeys["[cached_ckey]"] = 1
 /*
 /proc/RemoveAllFactionIcons(var/datum/mind/M)
 	ticker.mode.update_cult_icons_removed(M)
@@ -141,12 +119,6 @@ mob/proc/remove_internal_organ()
 		return 1
 	return 0
 
-/proc/isloyal(A) //Checks to see if the person contains a loyalty implant, then checks that the implant is actually inside of them
-	for(var/obj/item/weapon/implant/loyalty/L in A)
-		if(L && L.implanted)
-			return 1
-	return 0
-
 /proc/check_holy(var/mob/A) //checks to see if the tile the mob stands on is holy
 	var/turf/T = get_turf(A)
 	if(!T)
@@ -155,7 +127,7 @@ mob/proc/remove_internal_organ()
 		return 0
 	return 1  //The tile is holy. Beware!
 
-proc/hasorgans(A)
+/proc/hasorgans(A)
 	return ishuman(A)
 
 
@@ -207,11 +179,12 @@ proc/hasorgans(A)
 // Emulates targetting a specific body part, and miss chances
 // May return null if missed
 // miss_chance_mod may be negative.
-/proc/get_zone_with_miss_chance(zone, var/mob/target, var/miss_chance_mod = 0)
+// If excessive_misses is toggled on, then if it misses it will always miss instead of hitting a limb, and can also miss targets lying down
+/proc/get_zone_with_miss_chance(zone, var/mob/target, var/miss_chance_mod = 0, var/excessive_misses)
 	zone = check_zone(zone)
 
-	// you can only miss if your target is standing and not restrained
-	if(!target.locked_to && !target.lying)
+	// you can only miss if your target is standing and not restrained, excessive misses can still miss!
+	if((!target.locked_to && !target.lying) || excessive_misses)
 		var/miss_chance = 10
 		switch(zone)
 			if(LIMB_HEAD)
@@ -234,7 +207,7 @@ proc/hasorgans(A)
 				miss_chance = 50
 		miss_chance = max(miss_chance + miss_chance_mod, 0)
 		if(prob(miss_chance))
-			if(prob(70))
+			if(prob(70) || excessive_misses)
 				return null
 			else
 				var/t = rand(1, 10)
@@ -287,7 +260,7 @@ proc/hasorgans(A)
 		p++
 	return t
 
-proc/slur(phrase)
+/proc/slur(phrase)
 	var/leng=length(phrase)
 	var/counter=length(phrase)
 	var/newphrase=""
@@ -313,34 +286,35 @@ proc/slur(phrase)
 			//if(9,10)	newletter="<b>[newletter]</b>"
 			//if(11,12)	newletter="<big>[newletter]</big>"
 			//if(13)	newletter="<small>[newletter]</small>"
+			else
+				//do nothing
 		newphrase+="[newletter]";counter-=1
 	return newphrase
 
 /proc/stutter(n)
 	var/te = n
-	var/t = ""//placed before the message. Not really sure what it's for.
-	n = length(n)//length of the entire word
-	var/p = null
-	p = 1//1 is the start of any word
-	while(p <= n)//while P, which starts at 1 is less or equal to N which is the length.
-		var/n_letter = copytext(te, p, p + 1)//copies text from a certain distance. In this case, only one letter at a time.
+	var/t = "" //Holds the result as it's being built
+	n = length_char(n) //length of the entire word
+	var/p = 1 //1 is the start of any word
+	while(p <= n)
+		var/n_letter = copytext_char(te, p, p + 1) //copies text from a certain distance. In this case, only one letter at a time.
 		if (prob(80) && (ckey(n_letter) in list("b","c","d","f","g","h","j","k","l","m","n","p","q","r","s","t","v","w","x","y","z")))
 			if (prob(10))
-				n_letter = text("[n_letter]-[n_letter]-[n_letter]-[n_letter]")//replaces the current letter with this instead.
+				n_letter = "[n_letter]-[n_letter]-[n_letter]-[n_letter]" //replaces the current letter with this instead.
 			else
 				if (prob(20))
-					n_letter = text("[n_letter]-[n_letter]-[n_letter]")
+					n_letter = "[n_letter]-[n_letter]-[n_letter]"
 				else
 					if (prob(5))
 						n_letter = null
 					else
-						n_letter = text("[n_letter]-[n_letter]")
-		t = text("[t][n_letter]")//since the above is ran through for each letter, the text just adds up back to the original word.
-		p++//for each letter p is increased to find where the next letter will be.
-	return copytext(t,1,MAX_MESSAGE_LEN)
+						n_letter = "[n_letter]-[n_letter]"
+		t = "[t][n_letter]" //since the above is ran through for each letter, the text just adds up back to the original word.
+		p++
+	return copytext_char(t,1,MAX_MESSAGE_LEN)
 
 
-proc/Gibberish(t, p)//t is the inputted message, and any value higher than 70 for p will cause letters to be replaced instead of added
+/proc/Gibberish(t, p)//t is the inputted message, and any value higher than 70 for p will cause letters to be replaced instead of added
 	/* Turn text into complete gibberish! */
 	var/returntext = ""
 	for(var/i = 1, i <= length(t), i++)
@@ -358,19 +332,91 @@ proc/Gibberish(t, p)//t is the inputted message, and any value higher than 70 fo
 	return returntext
 
 /proc/derpspeech(message, stuttering)
-	message = replacetext(message, " am ", " ")
-	message = replacetext(message, " is ", " ")
-	message = replacetext(message, " are ", " ")
-	message = replacetext(message, "you", "u")
-	message = replacetext(message, "help", "halp")
+//specific words we want replaced every time, mainly references to the actual brain damage lines, so they stay consistent with brain damage regular speech
+	message = replacetext(message, "stop", "sotp")
+	message = replacetext(message, "retarded", "rarted")
+	message = replacetext(message, "george", "[pick("joerge", "george", "gorge", "gdoruge")]")
+	message = replacetext(message, "melon", "[pick("mellens", "melons", "mwrlins")]")
+	message = replacetext(message, "oxygen", "oxigen")
+	message = replacetext(message, "evolve", "evoluate")
+	message = replacetext(message, "unrealistic", "unralistic")
+	message = replacetext(message, "round", "rouns")
+	message = replacetext(message, "roles", "rolls")
+	message = replacetext(message, "worst", "wurst")
+	message = replacetext(message, "worse", "wurse")
+	message = replacetext(message, "vegan", "vegana")
+	message = replacetext(message, "boob", "bobs")
 	message = replacetext(message, "grief", "griff")
 	message = replacetext(message, "space", "spess")
 	message = replacetext(message, "carp", "crap")
 	message = replacetext(message, "reason", "raisin")
-	if(prob(50))
+	message = replacetext(message, "engineer", "engiener")
+	message = replacetext(message, "pinpointer", "pin pointner")
+	message = replacetext(message, "singularity", "scrungulartiy")
+	message = replacetext(message, "based", "BASTE")
+	message = replacetext(message, "hos", "hitler")
+	message = replacetext(message, "like", "liek")
+	message = replacetext(message, "damage", "damag")
+	message = replacetext(message, "millenial", "milenian")
+	message = replacetext(message, "telekinesis", "telikesis")
+	message = replacetext(message, "hulk", "halk")
+	message = replacetext(message, "epilepsy", "eppilapse")
+	message = replacetext(message, "shotgun", "shotgum it duntt mis")
+	message = replacetext(message, "suspicious", "sus")
+	message = replacetext(message, "among us", "amogus")
+
+	//assorted replacements to make text feel "dumb"
+	message = replacetext(message, "he", "eh") //he, she, the -> eh, seh, teh, etc
+	message = replacetext(message, "ies", "is")
+	message = replacetext(message, "you", "u")
+	message = replacetext(message, "iou", "ou") //delicous
+	message = replacetext(message, "xc", "x") //exited
+	message = replacetext(message, "air", "er") //cher, her
+	message = replacetext(message, "uni", "uin")
+	message = replacetext(message, "dg", "g") //knowlege,
+	message = replacetext(message, "tch", "ch") //bich
+	message = replacetext(message, "are", "ar")
+	message = replacetext(message, "pl", "pul")
+	message = replacetext(message, "oul", "ul")
+	message = replacetext(message, "ght", "gt")
+	message = replacetext(message, "gna", "ga")
+
+	if(prob(50)) //stuff we only want replaced this way SOME of the time, the alternative goes under ELSE
+		message = replacetext(message, "eau", "eu") //beutiful
+		message = replacetext(message, "ie", "ei")
+		message = replacetext(message, "tab", "tib") //tible, comfortible
+		message = replacetext(message, "'re", "re")
+		message = replacetext(message, "help", "halp")
+		message = replacetext(message, "wood", "woody")
+		message = replacetext(message, "ain", "ian")
+		message = replacetext(message, "your", "youre")
+		if(prob(25)) //13%
+			message = replacetext(message, " am ", " ")
+			message = replacetext(message, " is ", " ")
+			message = replacetext(message, " are ", " ")
+	else //these prob checks are per sentence, so saying friend 100 times in one sentence will have all 100 look the same instead of mix and match
+		message = replacetext(message, "eau", "u")
+		message = replacetext(message, "friend", "fren")
+		message = replacetext(message, "tab", "teb") //teble, comforteble
+		message = replacetext(message, "you're", "your")
+		message = replacetext(message, "help", "helb")
+		message = replacetext(message, "y ", "i ")
+		message = replacetext(message, "y,", "i")
+		message = replacetext(message, "captain", "COMDOM")
+	if(prob(70))
+		var/regex/duplicate = new("(\\w)(?=\\1)", "g")
+		message = replacetext(message, duplicate, "") //duplicate letters into one letter, for all words
+	if(prob(20)) //occasionally replaces one word with umm.
+		var/list/words = splittext(message, " ")
+		if(words.len > 0) // Check if the list has any words
+			words[rand(1, words.len)] = pick("um,", "umm,", "uh,", "uhh,")
+		message = jointext(words, " ")
+
+	if(prob(35))
 		message = uppertext(message)
-		message += "[stutter(pick("!", "!!", "!!!"))]"
-	if(!stuttering && prob(15))
+		if(prob(50))
+			message += "[stutter(pick("!", "!!", "!!!"))]"
+	if(!stuttering && prob(10))
 		message = stutter(message)
 	return message
 
@@ -378,20 +424,30 @@ proc/Gibberish(t, p)//t is the inputted message, and any value higher than 70 fo
 	spawn(1)
 		if(!M || !M.client || M.shakecamera)
 			return
-
+		var/client/C = M.client
 		M.shakecamera = 1
 
 		for (var/x = 1 to duration)
-			if(!M || !M.client)
+			if(!C)
 				M.shakecamera = 0
 				return //somebody disconnected while being shaken
-			M.client.pixel_x = WORLD_ICON_SIZE*rand(-strength, strength)
-			M.client.pixel_y = WORLD_ICON_SIZE*rand(-strength, strength)
+			C.pixel_x = WORLD_ICON_SIZE*rand(-strength, strength)
+			C.pixel_y = WORLD_ICON_SIZE*rand(-strength, strength)
 			sleep(1)
 
 		M.shakecamera = 0
-		M.client.pixel_x = 0
-		M.client.pixel_y = 0
+		C.pixel_x = 0
+		C.pixel_y = 0
+
+/proc/directional_recoil(mob/M, strength=1, angle = 0)
+	if(!M || !M.client)
+		return
+	var/client/C = M.client
+	var/recoil_x = -sin(angle)*4*strength + rand(-strength, strength)
+	var/recoil_y = -cos(angle)*4*strength + rand(-strength, strength)
+	animate(C, pixel_x=recoil_x, pixel_y=recoil_y, time=1, easing=SINE_EASING|EASE_OUT, flags=ANIMATION_PARALLEL|ANIMATION_RELATIVE)
+	sleep(2)
+	animate(C, pixel_x=0, pixel_y=0, time=3, easing=SINE_EASING|EASE_IN)
 
 
 /proc/findname(msg)
@@ -419,29 +475,42 @@ proc/Gibberish(t, p)//t is the inputted message, and any value higher than 70 fo
 
 	return 0
 
-//converts intent-strings into numbers and back
-var/list/intents = list(I_HELP,I_DISARM,I_GRAB,I_HURT)
+//converts intent-strings into numbers and back, refactored by kanef down from switch blocks
 /proc/intent_numeric(argument)
-	if(istext(argument))
-		switch(argument)
-			if(I_HELP)
-				return 0
-			if(I_DISARM)
-				return 1
-			if(I_GRAB)
-				return 2
-			else
-				return 3
+	var/list/intents = list(I_HELP,I_DISARM,I_GRAB,I_HURT) //this was originally outside of the proc, not used anywhere and had no reason to be, previously unused
+	if(istext(argument))//switches on text or numerical input to do 2 different things
+		return intents.Find(argument) //Find() returns the index of the argument specified, if any. dunno what it defaults to, probably 0
 	else
-		switch(argument)
-			if(0)
-				return I_HELP
-			if(1)
-				return I_DISARM
-			if(2)
-				return I_GRAB
-			else
-				return I_HURT
+		return intents[argument <= 4 && argument >= 1 ? argument : 4] //ternary operator bounds checking yeeeeee, theres something in list helpers for this but whatever
+
+
+//this is used in 3 different procs, sadly couldnt be function specific, 2d matrix array cus it makes more sense like that sorta, left to right, top to bottom -kanef
+var/list/list/zones = list(list(LIMB_HEAD,LIMB_LEFT_ARM,LIMB_LEFT_HAND,LIMB_LEFT_LEG,LIMB_LEFT_FOOT),list(TARGET_EYES,LIMB_HEAD,TARGET_MOUTH,LIMB_CHEST,LIMB_GROIN),list(LIMB_HEAD,LIMB_RIGHT_ARM,LIMB_RIGHT_HAND,LIMB_RIGHT_LEG,LIMB_RIGHT_FOOT))
+//gets the "side" of body or x coordinate
+/proc/zone_x(argument)
+	if(istext(argument)) //this MUST be text
+		var/i = 0 //time to iterate
+		if (argument == LIMB_HEAD) //head is in all 3 lists, default to middle one
+			return 2
+		for(var/list/side in zones) //time to for loop them instead of an awful long switch block
+			i++ //increment, start at one because BYOND lists hate 0
+			if(side.Find(argument)) //if it's in a sublist
+				return i //break out with the list index its in, Find() is not easy with matrices
+	return 2 //default to middle if nothing
+//and now for the limb on a particular side or "y"
+/proc/zone_y(argument)
+	if(istext(argument))
+		if (argument == LIMB_HEAD) //gotta do it again for overlaps
+			return zones[2].Find(argument) //same as 'ere
+		for(var/list/side in zones) //iterate through sub arrays again
+			if(side.Find(argument)) //if anything that isnt heads are found in these lists
+				return side.Find(argument) //bring back the y index
+	return 3 //otherwise get the middle one
+//text from an XY coord on the matrix
+/proc/zone_text(x,y)
+	//BOTH must be nums
+	if(isnum(x) && isnum(y))
+		return zones[x <= 3 && x >= 1 ? x : 3][y <= 5 && y >= 1 ? y : 5]//bounds checking the 3x5 matrix, bring back the text stored
 
 //change a mob's act-intent. Input the intent as a string such as I_HELP or use "right"/"left
 /mob/verb/a_intent_change(input as text)
@@ -473,6 +542,32 @@ var/list/intents = list(I_HELP,I_DISARM,I_GRAB,I_HURT)
 			else
 				hud_used.action_intent.icon_state = "help"
 
+//change a mob's zone_sel. Input the target as a string such as LIMB_HEAD -kanef
+/mob/verb/a_zone_change(input as text)
+	//same declaration as intent function, which this is based on
+	set name = "a-zone"
+	set hidden = 1
+
+	//standard type check
+	if(zone_sel && zone_sel.selecting)
+		var/old_selecting = zone_sel.selecting //same as in click function for icon updates
+		var/xVal = zone_x(zone_sel.selecting) //shorthand because the stuff below looked so ugly
+		var/yVal = zone_y(zone_sel.selecting) //see above
+		//still a switch because its not just limb names, also cycling for hotkeys
+		switch(input)
+			if (LIMB_RIGHT_FOOT,LIMB_LEFT_FOOT,LIMB_RIGHT_HAND,LIMB_LEFT_HAND,LIMB_RIGHT_ARM,LIMB_LEFT_ARM,LIMB_RIGHT_LEG,LIMB_LEFT_LEG,LIMB_GROIN,LIMB_CHEST,LIMB_HEAD,TARGET_MOUTH,TARGET_EYES)
+				zone_sel.selecting = input //parse limb names as normal, like in numpad
+			if ("up") //cycling up
+				zone_sel.selecting = zone_text(xVal,(yVal+4) % 5) //modulo it backwards on Y on base 5
+			if ("down") //cycling down
+				zone_sel.selecting = zone_text(xVal,(yVal+1) % 5) //modulo it forwards on Y on base 5
+			if ("left") //cycling left
+				zone_sel.selecting = zone_text((xVal+2) % 3,yVal) //modulo it backwards on X on base 3
+			if ("right") //cycling right
+				zone_sel.selecting = zone_text((xVal+1) % 3,yVal) //modulo it forwards on X on base 3
+		if(old_selecting != zone_sel.selecting)
+			zone_sel.update_icon() //update icon, like in click function
+
 //For hotkeys
 
 /mob/verb/a_kick()
@@ -491,7 +586,7 @@ var/list/intents = list(I_HELP,I_DISARM,I_GRAB,I_HURT)
 		var/mob/living/carbon/human/H = src
 		H.set_attack_type(ATTACK_BITE)
 
-proc/is_blind(A)
+/proc/is_blind(A)
 	if(istype(A, /mob/living/carbon))
 		var/mob/living/carbon/C = A
 		if(C.blinded != null)
@@ -510,7 +605,11 @@ proc/is_blind(A)
 		var/mob/dead/observer/G=user
 		P = G.ghostMulti
 
-	if(!istype(P))
+	if(!ismultitool(P))
+		if(istype(P,/obj/item/weapon/switchtool)) //Switchtool deployed multitool special case!
+			var/obj/item/weapon/switchtool/ST = P
+			if(ismultitool(ST.deployed))
+				return ST.deployed
 		return null
 	return P
 
@@ -535,23 +634,48 @@ proc/is_blind(A)
 
 /**
 * Honor check
-* Returns TRUE if user is BOMBERMAN, HIGHLANDER...
+* Returns TRUE if user is BOMBERMAN, HIGHLANDER, NINJA...
 * Respects honorable.
 */
 /proc/is_honorable(var/mob/living/user, var/honorable = HONORABLE_ALL)
 	if(istype(user))
 		if(user.mind)
-			if(user.mind.special_role == BOMBERMAN && (honorable & HONORABLE_BOMBERMAN))
-				return TRUE
-			if(user.mind.special_role == HIGHLANDER && (honorable & HONORABLE_HIGHLANDER))
-				return TRUE
+			if(isbomberman(user) && (honorable & HONORABLE_BOMBERMAN))
+				return VERY_HONORABLE
+			if(ishighlander(user) && (honorable & HONORABLE_HIGHLANDER))
+				return VERY_HONORABLE
+			if(iscarbon(user) && isninja(user) && (honorable & HONORABLE_NINJA))
+				return MERELY_HONORABLE
+			if((iswizard(user) || isapprentice(user) || ismagician(user)) && (user.flags & HONORABLE_NOGUNALLOWED))
+				return MERELY_HONORABLE
 	return FALSE
 
 // Called by /mob/living/carbon/human/examine() and /mob/living/carbon/human/Topic()
 // Returns whether the mob can see the specified HUD
 /mob/proc/hasHUD(var/hud_kind)
+	switch(hud_kind)
+		if(HUD_MEDICAL)
+			for(var/datum/visioneffect/medical/H in huds)
+				return TRUE
+			return FALSE
+		if(HUD_SECURITY)
+			for(var/datum/visioneffect/security/H in huds)
+				return TRUE
+			return FALSE
+		if(HUD_ARRESTACCESS)
+			for(var/datum/visioneffect/security/arrest/H in huds)
+				return TRUE
+			return FALSE
 	return FALSE
 
 // Returns a string that provides identification data for this mob
 /mob/proc/identification_string()
 	return name
+
+/mob/proc/can_be_infected()
+	return 0
+
+/mob/proc/remove_confused(var/amt)
+	confused = max(0, confused - amt)
+	if (confused <= 0)
+		confused_intensity = 0

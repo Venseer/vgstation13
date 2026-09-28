@@ -10,76 +10,75 @@
 
 #define TO_HEX_DIGIT(n) ascii2text((n&15) + ((n&15)<10 ? 48 : 87))
 
-icon
-	// Multiply all alpha values by this float
-	proc/ChangeOpacity(opacity = 1.0)
-		MapColors(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,opacity, 0,0,0,0)
+// Multiply all alpha values by this float
+/icon/proc/ChangeOpacity(opacity = 1.0)
+	MapColors(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,opacity, 0,0,0,0)
 
-	// Convert to grayscale
-	proc/GrayScale()
-		MapColors(0.3,0.3,0.3, 0.59,0.59,0.59, 0.11,0.11,0.11, 0,0,0)
+// Convert to grayscale
+/icon/proc/GrayScale()
+	MapColors(0.3,0.3,0.3, 0.59,0.59,0.59, 0.11,0.11,0.11, 0,0,0)
 
-	proc/ColorTone(tone)
-		GrayScale()
+/icon/proc/ColorTone(tone)
+	GrayScale()
 
-		var/list/TONE = ReadRGB(tone)
-		var/gray = round(TONE[1]*0.3 + TONE[2]*0.59 + TONE[3]*0.11, 1)
+	var/list/TONE = ReadRGB(tone)
+	var/gray = round(TONE[1]*0.3 + TONE[2]*0.59 + TONE[3]*0.11, 1)
 
-		var/icon/upper = (255-gray) ? new(src) : null
+	var/icon/upper = (255-gray) ? new(src) : null
 
-		if(gray)
-			MapColors(255/gray,0,0, 0,255/gray,0, 0,0,255/gray, 0,0,0)
-			Blend(tone, ICON_MULTIPLY)
-		else
-			SetIntensity(0)
-		if(255-gray)
-			upper.Blend(rgb(gray,gray,gray), ICON_SUBTRACT)
-			upper.MapColors((255-TONE[1])/(255-gray),0,0,0, 0,(255-TONE[2])/(255-gray),0,0, 0,0,(255-TONE[3])/(255-gray),0, 0,0,0,0, 0,0,0,1)
-			Blend(upper, ICON_ADD)
+	if(gray)
+		MapColors(255/gray,0,0, 0,255/gray,0, 0,0,255/gray, 0,0,0)
+		Blend(tone, ICON_MULTIPLY)
+	else
+		SetIntensity(0)
+	if(255-gray)
+		upper.Blend(rgb(gray,gray,gray), ICON_SUBTRACT)
+		upper.MapColors((255-TONE[1])/(255-gray),0,0,0, 0,(255-TONE[2])/(255-gray),0,0, 0,0,(255-TONE[3])/(255-gray),0, 0,0,0,0, 0,0,0,1)
+		Blend(upper, ICON_ADD)
 
-	// Take the minimum color of two icons; combine transparency as if blending with ICON_ADD
-	proc/MinColors(icon)
-		var/icon/I = new(src)
-		I.Opaque()
-		I.Blend(icon, ICON_SUBTRACT)
-		Blend(I, ICON_SUBTRACT)
+// Take the minimum color of two icons; combine transparency as if blending with ICON_ADD
+/icon/proc/MinColors(icon)
+	var/icon/I = new(src)
+	I.Opaque()
+	I.Blend(icon, ICON_SUBTRACT)
+	Blend(I, ICON_SUBTRACT)
 
-	// Take the maximum color of two icons; combine opacity as if blending with ICON_OR
-	proc/MaxColors(icon)
-		var/icon/I
-		if(isicon(icon))
-			I = new(icon)
-		else
-			// solid color
-			I = new(src)
-			I.Blend("#000000", ICON_OVERLAY)
-			I.SwapColor("#000000", null)
-			I.Blend(icon, ICON_OVERLAY)
-		var/icon/J = new(src)
-		J.Opaque()
-		I.Blend(J, ICON_SUBTRACT)
-		Blend(I, ICON_OR)
+// Take the maximum color of two icons; combine opacity as if blending with ICON_OR
+/icon/proc/MaxColors(icon)
+	var/icon/I
+	if(isicon(icon))
+		I = new(icon)
+	else
+		// solid color
+		I = new(src)
+		I.Blend("#000000", ICON_OVERLAY)
+		I.SwapColor("#000000", null)
+		I.Blend(icon, ICON_OVERLAY)
+	var/icon/J = new(src)
+	J.Opaque()
+	I.Blend(J, ICON_SUBTRACT)
+	Blend(I, ICON_OR)
 
-	// make this icon fully opaque--transparent pixels become black
-	proc/Opaque(background = "#000000")
-		SwapColor(null, background)
-		MapColors(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,1)
+// make this icon fully opaque--transparent pixels become black
+/icon/proc/Opaque(background = "#000000")
+	SwapColor(null, background)
+	MapColors(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,1)
 
-	// Change a grayscale icon into a white icon where the original color becomes the alpha
-	// I.e., black -> transparent, gray -> translucent white, white -> solid white
-	proc/BecomeAlphaMask()
-		SwapColor(null, "#000000ff")	// don't let transparent become gray
-		MapColors(0,0,0,0.3, 0,0,0,0.59, 0,0,0,0.11, 0,0,0,0, 1,1,1,0)
+// Change a grayscale icon into a white icon where the original color becomes the alpha
+// I.e., black -> transparent, gray -> translucent white, white -> solid white
+/icon/proc/BecomeAlphaMask()
+	SwapColor(null, "#000000ff")	// don't let transparent become gray
+	MapColors(0,0,0,0.3, 0,0,0,0.59, 0,0,0,0.11, 0,0,0,0, 1,1,1,0)
 
-	proc/UseAlphaMask(mask)
-		Opaque()
-		AddAlphaMask(mask)
+/icon/proc/UseAlphaMask(mask)
+	Opaque()
+	AddAlphaMask(mask)
 
-	proc/AddAlphaMask(mask)
-		var/icon/M = new(mask)
-		M.Blend("#ffffff", ICON_SUBTRACT)
-		// apply mask
-		Blend(M, ICON_ADD)
+/icon/proc/AddAlphaMask(mask)
+	var/icon/M = new(mask)
+	M.Blend("#ffffff", ICON_SUBTRACT)
+	// apply mask
+	Blend(M, ICON_ADD)
 
 /*
 	HSV format is represented as "#hhhssvv" or "#hhhssvvaa"
@@ -103,7 +102,7 @@ icon
 		Higher value means brighter color
  */
 
-proc/ReadRGB(rgb)
+/proc/ReadRGB(rgb)
 	if(!rgb)
 		return
 
@@ -168,7 +167,7 @@ proc/ReadRGB(rgb)
 	if(usealpha)
 		. += alpha
 
-proc/ReadHSV(hsv)
+/proc/ReadHSV(hsv)
 	if(!hsv)
 		return
 
@@ -222,7 +221,7 @@ proc/ReadHSV(hsv)
 	if(usealpha)
 		. += alpha
 
-proc/HSVtoRGB(hsv)
+/proc/HSVtoRGB(hsv)
 	if(!hsv)
 		return "#000000"
 	var/list/HSV = ReadHSV(hsv)
@@ -271,7 +270,7 @@ proc/HSVtoRGB(hsv)
 
 	return (HSV.len > 3) ? rgb(r,g,b,HSV[4]) : rgb(r,g,b)
 
-proc/RGBtoHSV(rgb)
+/proc/RGBtoHSV(rgb)
 	if(!rgb)
 		return "#0000000"
 	var/list/RGB = ReadRGB(rgb)
@@ -322,7 +321,7 @@ proc/RGBtoHSV(rgb)
 
 	return hsv(hue, sat, val, (RGB.len>3 ? RGB[4] : null))
 
-proc/hsv(hue, sat, val, alpha)
+/proc/hsv(hue, sat, val, alpha)
 	if(hue < 0 || hue >= 1536)
 		hue %= 1536
 	if(hue < 0)
@@ -364,7 +363,7 @@ proc/hsv(hue, sat, val, alpha)
 
 	amount<0 or amount>1 are allowed
  */
-proc/BlendHSV(hsv1, hsv2, amount)
+/proc/BlendHSV(hsv1, hsv2, amount)
 	var/list/HSV1 = ReadHSV(hsv1)
 	var/list/HSV2 = ReadHSV(hsv2)
 
@@ -436,7 +435,11 @@ proc/BlendHSV(hsv1, hsv2, amount)
 
 	amount<0 or amount>1 are allowed
  */
-proc/BlendRGB(rgb1, rgb2, amount)
+/proc/BlendRGB(rgb1, rgb2, amount)
+	if (!rgb1)
+		rgb1 = "#ffffff"
+	if (!rgb2)
+		rgb2 = "#ffffff"
 	var/list/RGB1 = ReadRGB(rgb1)
 	var/list/RGB2 = ReadRGB(rgb2)
 
@@ -454,10 +457,38 @@ proc/BlendRGB(rgb1, rgb2, amount)
 
 	return isnull(alpha) ? rgb(r, g, b) : rgb(r, g, b, alpha)
 
-proc/BlendRGBasHSV(rgb1, rgb2, amount)
+/proc/AddRGB(rgb1, rgb2, amount)
+	var/list/RGB1 = rgb2num(rgb1)
+	var/list/RGB2 = rgb2num(rgb2)
+
+	var/r
+	if (RGB2[1] <= RGB1[1])
+		r = RGB1[1]
+	else
+		r = RGB1[1] + (RGB2[1] - RGB1[1])*amount
+	var/g
+	if (RGB2[2] <= RGB1[2])
+		g = RGB1[2]
+	else
+		g = RGB1[2] + (RGB2[2] - RGB1[2])*amount
+	var/b
+	if (RGB2[3] <= RGB1[3])
+		b = RGB1[3]
+	else
+		b = RGB1[3] + (RGB2[3] - RGB1[3])*amount
+
+	return rgb(r, g, b)
+
+/proc/SubRGB(rgb1, rgb2, amount)
+	var/list/RGB1 = rgb2num(rgb1)
+	var/list/RGB2 = rgb2num(rgb2)
+
+	return rgb(clamp(RGB1[1] - RGB2[1], 0, 255), clamp(RGB1[2] - RGB2[2], 0, 255), clamp(RGB1[3] - RGB2[3], 0, 255))
+
+/proc/BlendRGBasHSV(rgb1, rgb2, amount)
 	return HSVtoRGB(RGBtoHSV(rgb1), RGBtoHSV(rgb2), amount)
 
-proc/HueToAngle(hue)
+/proc/HueToAngle(hue)
 	// normalize hsv in case anything is screwy
 	if(hue < 0 || hue >= 1536)
 		hue %= 1536
@@ -467,7 +498,7 @@ proc/HueToAngle(hue)
 	hue -= hue >> 8
 	return hue / (1530/360)
 
-proc/AngleToHue(angle)
+/proc/AngleToHue(angle)
 	// normalize hsv in case anything is screwy
 	if(angle < 0 || angle >= 360)
 		angle -= 360 * round(angle / 360)
@@ -478,7 +509,7 @@ proc/AngleToHue(angle)
 
 
 // positive angle rotates forward through red->green->blue
-proc/RotateHue(hsv, angle)
+/proc/RotateHue(hsv, angle)
 	var/list/HSV = ReadHSV(hsv)
 
 	// normalize hsv in case anything is screwy
@@ -505,13 +536,13 @@ proc/RotateHue(hsv, angle)
 	return hsv(HSV[1], HSV[2], HSV[3], (HSV.len > 3 ? HSV[4] : null))
 
 // Convert an rgb color to grayscale
-proc/GrayScale(rgb)
+/proc/GrayScale(rgb)
 	var/list/RGB = ReadRGB(rgb)
 	var/gray = RGB[1]*0.3 + RGB[2]*0.59 + RGB[3]*0.11
 	return (RGB.len > 3) ? rgb(gray, gray, gray, RGB[4]) : rgb(gray, gray, gray)
 
 // Change grayscale color to black->tone->white range
-proc/ColorTone(rgb, tone)
+/proc/ColorTone(rgb, tone)
 	var/list/RGB = ReadRGB(rgb)
 	var/list/TONE = ReadRGB(tone)
 
@@ -522,3 +553,22 @@ proc/ColorTone(rgb, tone)
 		return BlendRGB("#000000", tone, gray/(tone_gray || 1))
 	else
 		return BlendRGB(tone, "#ffffff", (gray-tone_gray)/((255-tone_gray) || 1))
+
+/proc/replace_overlays_icon(var/image/I, var/icon/replacement)
+	if (!I || !replacement)
+		return
+	if(I.icon_state != "blank")
+		I.icon = replacement
+	var/list/new_overlays = list()
+
+	for (var/lay in I.overlays)
+		var/mutable_appearance/overlay_ref = lay
+		var/mutable_appearance/new_overlay = new (overlay_ref)
+		new_overlay.appearance_flags = overlay_ref.appearance_flags
+		new_overlay.color = overlay_ref.color
+		new_overlay = replace_overlays_icon(new_overlay,replacement)
+		new_overlays += new_overlay
+
+	I.overlays.len = 0
+	I.overlays += new_overlays
+	return I

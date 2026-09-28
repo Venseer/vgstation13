@@ -9,12 +9,14 @@ var/global/list/blood_list = list()
 	gender = PLURAL
 	density = 0
 	anchored = 1
+	reagent = BLOOD
 	icon = 'icons/effects/blood.dmi'
 	icon_state = "mfloor1"
 	random_icon_states = list("mfloor1", "mfloor2", "mfloor3", "mfloor4", "mfloor5", "mfloor6", "mfloor7")
 	plane = ABOVE_TURF_PLANE
 	layer = BLOOD_LAYER
-	appearance_flags = TILE_BOUND|LONG_GLIDE
+	appearance_flags = TILE_BOUND|LONG_GLIDE|TILE_MOVER
+	throwforce = 0
 	var/base_icon = 'icons/effects/blood.dmi'
 
 	basecolor=DEFAULT_BLOOD // Color when wet.
@@ -22,6 +24,16 @@ var/global/list/blood_list = list()
 	counts_as_blood = 1
 	transfers_dna = 1
 	absorbs_types=list(/obj/effect/decal/cleanable/blood,/obj/effect/decal/cleanable/blood/drip,/obj/effect/decal/cleanable/blood/writing)
+
+	persistence_type = SS_BLOOD
+
+	fake_DNA = "old blood splatters"
+	stain_name = "blood"
+
+/obj/effect/decal/cleanable/blood/New(var/loc, var/age, var/icon_state, var/color, var/dir, var/pixel_x, var/pixel_y, var/basecolor)
+	if(basecolor)
+		src.basecolor = basecolor
+	..()
 
 /obj/effect/decal/cleanable/blood/Destroy()
 	..()
@@ -32,21 +44,107 @@ var/global/list/blood_list = list()
 	return
 
 /obj/effect/decal/cleanable/blood/update_icon()
-	if(basecolor == "rainbow")
-		basecolor = "#[pick(list("FF0000","FF7F00","FFFF00","00FF00","0000FF","4B0082","8F00FF"))]"
 	color = basecolor
-	if(basecolor == "#FF0000"||basecolor == DEFAULT_BLOOD) // no dirty dumb vox scum allowed
+	update_plane()
+
+/obj/effect/decal/cleanable/blood/proc/update_plane()
+	if((basecolor == "#FF0000") || (basecolor == DEFAULT_BLOOD) || (basecolor == "#a10808ff")) // no dirty dumb vox scum allowed
 		plane = NOIR_BLOOD_PLANE
 	else
 		plane = ABOVE_TURF_PLANE
-	var/icon/blood = icon(base_icon,icon_state,dir)
-	blood.Blend(basecolor,ICON_MULTIPLY)
 
-	icon = blood
+/obj/effect/decal/cleanable/blood/atom2mapsave()
+	. = ..()
+	.["basecolor"] = adjust_brightness(basecolor, -100/(age*2))
+
+/obj/effect/decal/cleanable/blood/setPersistenceAge(var/nu)
+	. = ..()
+	dry(nu)
+
+/obj/effect/decal/cleanable/blood/dry(var/drying_age = 1)
+	amount = 0
+	name = "dried [replacetext(initial(src.name), "wet ", "")]"
+	desc = "It's dry and crusty. Someone is not doing their job."
+	switch(drying_age)
+		if(3)
+			desc = "This looks like it's been sitting there a good while."
+		if(4)
+			alpha = 220
+			name = "old [replacetext(initial(src.name), "wet ", "")]"
+			desc = "It's dry, dark, flakey, and crackled throughout. Perhaps it's the chef's cooking?"
+		if(5)
+			alpha = 200
+			name = "crusty old [replacetext(initial(src.name), "wet ", "")]"
+			desc = "Probably too late to put it back in."
+	update_icon()
 
 /obj/effect/decal/cleanable/blood/splatter
 	random_icon_states = list("mgibbl1", "mgibbl2", "mgibbl3", "mgibbl4", "mgibbl5")
 	amount = 2
+
+/obj/effect/decal/cleanable/blood/hitsplatter
+	name = "blood splatter"
+	pass_flags = PASSTABLE
+	icon_state = "hitsplatter1"
+	random_icon_states = list("hitsplatter1", "hitsplatter2", "hitsplatter3")
+	/// The turf we just came from, so we can back up when we hit a wall
+	var/turf/prev_loc
+	/// Skip making the final blood splatter when we're done, like if we're not in a turf
+	var/skip = FALSE
+	/// How many tiles/items/people we can paint red
+	var/splatter_strength = 3
+	/// Insurance so that we don't keep moving once we hit a stoppoint
+	var/hit_endpoint = FALSE
+	var/list/blood_data = list()
+
+/obj/effect/decal/cleanable/blood/hitsplatter/New()
+	..()
+	spawn(3 SECONDS) //this should never exist for more than a few seconds
+		qdel(src)
+
+/// Set the splatter up to fly through the air until it rounds out of steam or hits something.
+/obj/effect/decal/cleanable/blood/hitsplatter/proc/fly_towards(turf/target_turf, range)
+	splatter_strength = range
+
+	for(var/i in 1 to range)
+		step_towards(src,target_turf)
+		sleep(2)
+		for(var/atom/iter_atom in get_turf(src))
+			if(hit_endpoint)
+				return
+			if(splatter_strength <= 0)
+				break
+
+			iter_atom.add_blood_from_data(blood_data)
+			splatter_strength--
+
+		if(splatter_strength <= 0) // we used all the puff so we delete it.
+			qdel(src)
+			return
+		if(!istype(get_turf(src),/turf/space))
+			var/obj/effect/decal/cleanable/blood/newsplatter = new /obj/effect/decal/cleanable/blood/splatter(get_turf(src))
+			newsplatter.add_blood_from_data(blood_data)
+			newsplatter.basecolor = blood_data["blood_colour"]
+			newsplatter.color = blood_data["blood_colour"]
+			prev_loc = loc
+
+	qdel(src)
+	return
+
+/obj/effect/decal/cleanable/blood/hitsplatter/to_bump(atom/bumped_atom)
+	if(!iswall(bumped_atom))
+		qdel(src)
+		return
+	var/turf/newloc = get_turf(bumped_atom)
+	hit_endpoint = TRUE
+	if(isturf(prev_loc))
+		forceMove(newloc)
+		skip = TRUE
+		var/obj/effect/decal/cleanable/blood/finalsplatter = new(newloc)
+		finalsplatter.add_blood_from_data(blood_data)
+		finalsplatter.basecolor = blood_data["blood_colour"]
+		finalsplatter.color = blood_data["blood_colour"]
+		qdel(src)
 
 /obj/effect/decal/cleanable/blood/drip
 	name = "drips of blood"
@@ -60,25 +158,24 @@ var/global/list/blood_list = list()
 	base_icon = 'icons/effects/drip.dmi'
 
 /obj/effect/decal/cleanable/blood/writing
-	icon_state = "tracks"
+	name = "bloody writings"
 	desc = "It looks like a writing in blood."
 	gender = NEUTER
-	random_icon_states = list("writing1","writing2","writing3","writing4","writing5")
+	icon = 'icons/effects/effects.dmi'
+	icon_state = "nothing"
+	random_icon_states = list()
 	amount = 0
-	var/message
+	maptext_height = 31
+	maptext_width = 64
+	maptext_x = -16
+	maptext_y = -2
+	var/turf/original_bloodsource//the turf where was the original blood splatter
+	var/original_amount = 0//the amount of blood there was in the original blood splatter
 
-/obj/effect/decal/cleanable/blood/writing/New()
+/obj/effect/decal/cleanable/blood/writing/update_icon()
 	..()
-	if(random_icon_states.len)
-		for(var/obj/effect/decal/cleanable/blood/writing/W in loc)
-			random_icon_states.Remove(W.icon_state)
-		icon_state = pick(random_icon_states)
-	else
-		icon_state = "writing1"
+	color = null
 
-/obj/effect/decal/cleanable/blood/writing/examine(mob/user)
-	..()
-	to_chat(user, "It reads: <font color='[basecolor]'>\"[message]\"<font>")
 
 /obj/effect/decal/cleanable/blood/gibs
 	name = "gibs"
@@ -89,26 +186,52 @@ var/global/list/blood_list = list()
 	icon = 'icons/effects/blood.dmi'
 	icon_state = "gibbl5"
 	random_icon_states = list("gib1", "gib2", "gib3", "gib4", "gib5", "gib6")
-	var/fleshcolor = "#FFFFFF"
+	persistence_type = SS_GIBS
+	var/fleshcolor = DEFAULT_FLESH
+
+	fake_DNA = "old gibs splatters"
+
+/obj/effect/decal/cleanable/blood/gibs/New(var/loc, var/age, var/icon_state, var/color, var/dir, var/pixel_x, var/pixel_y, var/basecolor, var/fleshcolor)
+	if(fleshcolor)
+		src.fleshcolor = fleshcolor
+	..()
+
+/obj/effect/decal/cleanable/blood/gibs/atom2mapsave()
+	. = ..()
+	.["fleshcolor"] = adjust_RGB(fleshcolor, red = -10, green = 10)
 
 /obj/effect/decal/cleanable/blood/gibs/update_icon()
-	if(basecolor == "#FF0000"||basecolor == DEFAULT_BLOOD) // no dirty dumb vox scum allowed
-		plane = NOIR_BLOOD_PLANE
-	else
-		plane = ABOVE_TURF_PLANE
+	color = basecolor
+
 	var/image/giblets = new(base_icon, "[icon_state]_flesh", dir)
-	if(!fleshcolor || fleshcolor == "rainbow")
-		fleshcolor = "#[pick(list("FF0000","FF7F00","FFFF00","00FF00","0000FF","4B0082","8F00FF"))]"
+	giblets.appearance_flags = RESET_COLOR
+	giblets.layer = GIBS_OVERLAY_LAYER
 	giblets.color = fleshcolor
 
-	var/icon/blood = new(base_icon,"[icon_state]",dir)
-	if(basecolor == "rainbow")
-		basecolor = "#[pick(list("FF0000","FF7F00","FFFF00","00FF00","0000FF","4B0082","8F00FF"))]"
-	blood.Blend(basecolor,ICON_MULTIPLY)
-
-	icon = blood
 	overlays.len = 0
 	overlays += giblets
+
+	update_plane()
+
+/obj/effect/decal/cleanable/blood/gibs/dry(var/drying_age = 1)
+	if(drying_age > 1)
+		amount = 0
+	switch(drying_age)
+		if(2)
+			name = "old [initial(src.name)]"
+			desc = "Looks bloated and in decay. Smells as bad as it looks."
+		if(3)
+			name = "rotting [initial(src.name)]"
+			desc = "Looks congealed, gruesome, and positively nasty."
+		if(4)
+			name = "rotten [initial(src.name)]"
+			desc = "Looks putrid, wet, and... deflated."
+			alpha = 220
+		if(5)
+			name = "decomposing [initial(src.name)]"
+			desc = "Looks... runny. Eugh."
+			alpha = 200
+	update_icon()
 
 /obj/effect/decal/cleanable/blood/gibs/up
 	random_icon_states = list("gib1", "gib2", "gib3", "gib4", "gib5", "gib6","gibup1","gibup1","gibup1")
@@ -140,6 +263,8 @@ var/global/list/blood_list = list()
 	icon_state = "floor1"
 	random_icon_states = list("floor1", "floor2", "floor3", "floor4", "floor5", "floor6", "floor7")
 
+	fake_DNA = "viral sputum splatters"
+
 /obj/effect/decal/cleanable/blood/viralsputum/Destroy()
 	for(var/datum/disease/D in viruses)
 		D.cure(0)
@@ -150,21 +275,25 @@ var/global/list/blood_list = list()
 
 //We should really get directional blood streak sprites again --snx
 /obj/effect/decal/cleanable/blood/proc/streak(var/list/directions, spread_radius = 0)
-	spawn (0)
+	spawn ()
 		var/direction = pick(directions)
 		for (var/i = 0 to spread_radius)
 			sleep(3)
 			if (i > 0)
-				var/obj/effect/decal/cleanable/blood/b = getFromPool(/obj/effect/decal/cleanable/blood/splatter, src.loc)
-				b.New(src.loc)
+				var/obj/effect/decal/cleanable/blood/b = new /obj/effect/decal/cleanable/blood/splatter(loc)
 				b.basecolor = src.basecolor
 				b.update_icon()
+
+				if(virus2?.len)
+					b.virus2 = filter_disease_by_spread(virus_copylist(virus2),required = SPREAD_BLOOD)
+
 				for(var/datum/disease/D in src.viruses)
 					var/datum/disease/ND = D.Copy(1)
 					b.viruses += ND
 					ND.holder = b
 
-			step_to(src, get_step(src, direction), 0)
+			anchored = FALSE
+			throw_at(get_step(src, direction),1,1)//will cover hit humans in blood
 
 
 /obj/effect/decal/cleanable/mucus
@@ -173,8 +302,11 @@ var/global/list/blood_list = list()
 	gender = PLURAL
 	density = 0
 	anchored = 1
+	reagent = MUCUS
 	icon = 'icons/effects/blood.dmi'
 	icon_state = "mucus"
 	random_icon_states = list("mucus")
+
+	fake_DNA = "mucus splatters"
 
 	var/dry=0

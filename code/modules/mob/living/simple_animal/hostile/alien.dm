@@ -30,10 +30,10 @@ var/list/nest_locations = list()
 	max_co2 = 0
 	min_n2 = 0
 	max_n2 = 0
-	unsuitable_atoms_damage = 15
+	unsuitable_atmos_damage = 15
 	faction = "alien"
 	environment_smash_flags = SMASH_LIGHT_STRUCTURES | SMASH_CONTAINERS | SMASH_WALLS | OPEN_DOOR_WEAK
-	status_flags = CANPUSH
+	status_flags = CANPUSH|UNPACIFIABLE
 	minbodytemp = 0
 	heat_damage_per_tick = 20
 	treadmill_speed = 4 //Not as insane as it seems, because of their slow default move rate, this is more like a functional 2x human
@@ -41,6 +41,9 @@ var/list/nest_locations = list()
 	var/mob/living/dragging = null
 	var/turf/last_loc = null
 	var/acid = 200
+
+/mob/living/simple_animal/hostile/alien/get_butchering_products()
+	return list(/datum/butchering_product/claws/xeno, /datum/butchering_product/skin/xeno, /datum/butchering_product/teeth/bunch)
 
 /mob/living/simple_animal/hostile/alien/Life()
 	. = ..()
@@ -245,7 +248,7 @@ var/list/nest_locations = list()
 	projectiletype = /obj/item/projectile/neurotox
 	projectilesound = 'sound/weapons/pierce.ogg'
 	rapid = 1
-	status_flags = 0
+	status_flags = UNPACIFIABLE
 	var/nest = 65
 	var/egg = 55
 
@@ -311,9 +314,6 @@ var/list/nest_locations = list()
 	..(gibbed)
 	visible_message("[src] lets out a waning guttural screech, green blood bubbling from its maw...")
 	playsound(src, 'sound/voice/hiss6.ogg', 100, 1)
-
-/mob/living/simple_animal/hostile/alien/gibs_type()
-	xgibs(loc, viruses)
 
 /mob/living/simple_animal/hostile/alien/adjustBruteLoss(amount,var/damage_type) // Weak to Fire
 	if(damage_type == BURN)

@@ -9,7 +9,7 @@
 	maxHealth = 10
 	health = 10
 
-	meat_type = /obj/item/weapon/reagent_containers/food/snacks/hugemushroomslice
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/hugemushroomslice
 	size = SIZE_SMALL
 
 	response_help  = "pets"
@@ -82,10 +82,10 @@
 			M.LevelUp(level_gain)
 		M.health = M.maxHealth
 		qdel(src)
-		return
+		return 1
 	..()
 
-/mob/living/simple_animal/hostile/mushroom/revive()
+/mob/living/simple_animal/hostile/mushroom/revive(refreshbutcher = 1)
 	..()
 	icon_state = "mushroom_color"
 	UpdateMushroomCap()
@@ -131,8 +131,7 @@
 	if(istype(I, /obj/item/weapon/reagent_containers/food/snacks/grown/mushroom))
 		if(stat == DEAD && !recovery_cooldown)
 			Recover()
-			qdel(I)
-			I = null
+			QDEL_NULL(I)
 		else
 			to_chat(user, "<span class='notice'>[src] won't eat it!</span>")
 		return
@@ -155,5 +154,5 @@
 			Bruise()
 
 /mob/living/simple_animal/hostile/mushroom/bullet_act()
-	..()
+	. = ..()
 	Bruise()

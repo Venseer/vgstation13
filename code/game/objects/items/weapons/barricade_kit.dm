@@ -6,6 +6,8 @@
 	icon_state = "barricade_kit"
 	flags = FPRINT
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	force = 3
 	throwforce = 3
 	throw_speed = 1
@@ -17,6 +19,9 @@
 	..()
 	to_chat(user, "It has [kit_uses] uses left for regular barricades. It can [kit_uses < 3 ? "no longer be used" : "also be used"] for full barricades.")
 
+/obj/item/weapon/barricade_kit/proc/build_time(mob/user)
+	. = user?.reagents?.has_reagent(CARGONANOBOTS) ? 5 : 10
+
 //Basically a rip from window construction, because it's the same idea
 /obj/item/weapon/barricade_kit/attack_self(mob/user as mob)
 	if(!user || !src)
@@ -26,7 +31,7 @@
 	if(istype(user.loc, /turf/space))
 		to_chat(user, "<span class='warning'>You can't build barricades out in space.</span>")
 		return
-	if(!user.IsAdvancedToolUser())
+	if(!user.dexterity_check())
 		to_chat(user, "<span class='warning'>You don't have the dexterity to do this!</span>")
 		return 0
 	switch(alert("What do you want ([kit_uses] use\s left)", "Barricade Kit", "Directional", "Full Tile", "Cancel", null))
@@ -37,15 +42,15 @@
 				return 1
 			//Determine the direction. It will first check in the direction the person making the window is facing, if it finds an already made window it will try looking at the next cardinal direction, etc.
 			for(var/obj/structure/window/barricade/BC in user.loc)
-				if(!BC.is_fulltile() && BC.dir == user.dir)
+				if(!BC.is_fulltile && BC.dir == user.dir)
 					to_chat(user, "<span class='warning'>There already is a barricade facing that way</span>")
 					return
 			user.visible_message("<span class='warning'>[user] starts building a barricade.</span>", \
 			"<span class='notice'>You start building a barricade.</span>")
-			if(do_after(user, src, 30))
+			if(do_after(user, src, build_time(user) * 3))
 				to_chat(user, "<span class='notice'>You finish the barricade.</span>")
 				var/obj/structure/window/barricade/BC = new /obj/structure/window/barricade(user.loc)
-				BC.dir = user.dir
+				BC.change_dir(user.dir)
 				kit_uses--
 				if(kit_uses < 1)
 					qdel(src)
@@ -63,7 +68,7 @@
 				return 1
 			user.visible_message("<span class='warning'>[user] starts building a full barricade.</span>", \
 			"<span class='notice'>You start building a full barricade.</span>")
-			if(do_after(user, src, 50))
+			if(do_after(user, src, build_time(user) * 5))
 				to_chat(user, "<span class='notice'>You finish the full barricade.</span>")
 				new /obj/structure/window/barricade/full(user.loc)
 				qdel(src) //Use it up
@@ -80,7 +85,7 @@
 				return
 		user.visible_message("<span class='warning'>[user] starts barricading \the [A].</span>", \
 		"<span class='notice'>You start barricading \the [A].</span>")
-		if(do_after(user, T, 30))
+		if(do_after(user, T, build_time() * 3))
 			new /obj/structure/window/barricade/full/block(get_turf(T))
 			user.visible_message("<span class='warning'>[user] barricades \the [A].</span>", \
 			"<span class='notice'>You barricade \the [A].</span>")

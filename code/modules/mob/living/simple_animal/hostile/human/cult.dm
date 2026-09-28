@@ -69,7 +69,7 @@
 		if(0) //damage
 			var/dmg = rand(10,20)
 			to_chat(L, "<span class='userdanger'>Pain surges through your body and horrible visions flash through your mind!</span>")
-			L.emote("scream")
+			L.audible_scream()
 			L.adjustBruteLoss(dmg)
 		if(1) //deaf
 			var/mob/living/carbon/human/H = L
@@ -89,7 +89,7 @@
 	name = "cultist"
 	corpseshoes = /obj/item/clothing/shoes/cult
 	corpsesuit = /obj/item/clothing/suit/legacy_cultrobes
-	corpsemask = /obj/item/clothing/mask/gas/death_commando
+	corpsemask = /obj/item/clothing/mask/gas/grim_reaper/death_commando
 	corpseback = /obj/item/weapon/storage/backpack/cultpack
 
 /obj/effect/landmark/corpse/cult/New()

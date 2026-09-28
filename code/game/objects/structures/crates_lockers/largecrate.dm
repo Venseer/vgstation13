@@ -14,8 +14,8 @@
 	if(iscrowbar(W))
 		new /obj/item/stack/sheet/wood(src)
 		var/turf/T = get_turf(src)
-		for(var/obj/O in contents)
-			O.forceMove(T)
+		for(var/atom/movable/AM in contents)
+			AM.forceMove(T)
 		user.visible_message("<span class='notice'>[user] pries \the [src] open.</span>", \
 							 "<span class='notice'>You pry open \the [src].</span>", \
 							 "<span class='notice'>You hear splitting wood.</span>")
@@ -47,6 +47,15 @@
 		new /mob/living/simple_animal/cow(loc)
 	..()
 
+/obj/structure/largecrate/chocolatecow
+	name = "chocolate cow crate"
+	icon_state = "lisacrate"
+
+/obj/structure/largecrate/chocolatecow/attackby(obj/item/weapon/W as obj, mob/user as mob)
+	if(iscrowbar(W))
+		new /mob/living/simple_animal/cow/chocolate(loc)
+	..()
+
 /obj/structure/largecrate/goat
 	name = "goat crate"
 	icon_state = "lisacrate"
@@ -54,6 +63,16 @@
 /obj/structure/largecrate/goat/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(iscrowbar(W))
 		new /mob/living/simple_animal/hostile/retaliate/goat(loc)
+	..()
+
+/obj/structure/largecrate/polyp
+	name = "polyp crate"
+	icon_state = "lisacrate"
+
+/obj/structure/largecrate/polyp/attackby(obj/item/weapon/W as obj, mob/user as mob)
+	if(iscrowbar(W))
+		new /mob/living/simple_animal/hostile/retaliate/polyp(loc)
+		new /obj/item/weapon/paper/mothership/spacepolyp_care(loc)
 	..()
 
 /obj/structure/largecrate/chick
@@ -72,13 +91,15 @@
 		var/num = rand(2, 4)
 		for(var/i = 1 to num)
 			new /mob/living/simple_animal/hostile/lizard(loc)
+		new /mob/living/simple_animal/hostile/lizard/frog(loc)
+		new /mob/living/simple_animal/hostile/lizard/frog(loc)
 	..()
 
 /obj/structure/largecrate/porcelain/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(iscrowbar(W))
-		var/obj/structure/toilet/T = new (loc)
+		var/obj/structure/wc/toilet/T = new (loc)
 		T.anchored = 0
-		var/obj/structure/sink/S = new (loc)
+		var/obj/structure/wc/sink/S = new (loc)
 		S.anchored = 0
 	..()
 
@@ -114,4 +135,15 @@
 /obj/structure/largecrate/cat/attackby(obj/item/weapon/W, mob/user)
 	if(iscrowbar(W))
 		new /mob/living/simple_animal/cat/Proc(loc)
+	..()
+
+/obj/structure/largecrate/snails
+	icon_state = "lisacrate"
+
+/obj/structure/largecrate/snails/attackby(obj/item/weapon/W, mob/user)
+	if(iscrowbar(W))
+		new /mob/living/simple_animal/snail(loc)
+		new /mob/living/simple_animal/snail(loc)
+		new /mob/living/simple_animal/snail(loc)
+		new /mob/living/simple_animal/snail(loc)
 	..()

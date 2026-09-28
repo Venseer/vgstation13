@@ -18,11 +18,12 @@
 	//delayer = new(0, ARBITRARILY_LARGE_NUMBER)
 
 /obj/item/device/holomap/Destroy()
-	//qdel(delayer)
-	//delayer = null
+	//QDEL_NULL(delayer)
 
 	if (viewing)
-		viewing.mob.on_logout.Remove("\ref[src]:mob_logout")
+		viewing.mob.unregister_event(/event/logout, src, nameof(src::mob_logout()))
+
+	..()
 
 /obj/item/device/holomap/examine(var/mob/M)
 	..()
@@ -34,7 +35,7 @@
 		viewing.images -= showing
 		showing.Cut()
 		to_chat(user, "You turn off \the [src].")
-		viewing.mob.on_logout.Remove("\ref[src]:mob_logout")
+		viewing.mob.unregister_event(/event/logout, src, nameof(src::mob_logout()))
 		viewing = null
 		return
 
@@ -45,14 +46,14 @@
 	showing = get_images(get_turf(user), viewing.view)
 	viewing.images |= showing
 	//delayer.addDelay(2 SECONDS) // Should be enough to prevent lag due to spam.
-	user.on_logout.Add(src, "mob_logout")
+	user.register_event(/event/logout, src, nameof(src::mob_logout()))
 
-/obj/item/device/holomap/proc/mob_logout(var/list/args, var/mob/M)
+/obj/item/device/holomap/proc/mob_logout(mob/user)
 	if (viewing)
 		viewing.images -= showing
 		viewing = null
 
-	M.on_logout.Remove("\ref[src]:mob_logout")
+	user.unregister_event(/event/logout, src, nameof(src::mob_logout()))
 
 	visible_message("\The [src] turns off.")
 	showing.Cut()
@@ -80,13 +81,13 @@
 	to_chat(user, "You reset the holomap data.")
 
 /obj/item/device/holomap/attackby(obj/item/W, mob/user)
-	if (isscrewdriver(W))
+	if (W.is_screwdriver(user))
 		panel = !panel
 		to_chat(user, "<span class='notify'>You [panel ? "open" : "close"] the panel on \the [src].</span>")
-		playsound(src, 'sound/items/Screwdriver.ogg', 50, 1)
+		W.playtoolsound(src, 50)
 		return 1
 
-	if (ismultitool(W) && panel)
+	if (W.is_multitool(user) && panel)
 		hacked = !hacked
 		to_chat(user, "<span class='notify'>You [hacked ? "disable" : "enable"] the lock on \the [src].</span>")
 		return 1

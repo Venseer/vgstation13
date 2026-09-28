@@ -9,6 +9,9 @@
 	var/list/beakers = new/list()
 	var/list/allowed_containers = list(/obj/item/weapon/reagent_containers/glass, /obj/item/weapon/reagent_containers/food/drinks/soda_cans/)
 
+/obj/item/weapon/electrolyzer/splashable()
+	return FALSE
+
 /obj/item/weapon/electrolyzer/New()
 	. = ..()
 
@@ -21,7 +24,7 @@
 	to_chat(user, "<span class='notice'>You remove the containers from the electrolyzer.</span>")
 
 /obj/item/weapon/electrolyzer/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(iswirecutter(W))
+	if(W.is_wirecutter(user))
 		if(beakers.len)
 			to_chat(user, "<span class='warning'>The electrolyzer contains beakers!</span>")
 			return
@@ -95,11 +98,15 @@
 		var/amount_to_electrolyze = total_reactions*unreaction.result_amount
 		active.reagents.remove_reagent(unreaction.result,amount_to_electrolyze) //This moves over the reactive bulk, and leaves behind the amount too small to react
 		for(var/E in unreaction.required_reagents)
+			var/reagent_ID = E
+			if(islist(E))
+				var/list/L = E
+				reagent_ID = L[1] //the first element should be the synthetic version of the chemical. why don't the lists start at 0?
 			if(primary)
-				active.reagents.add_reagent(E, unreaction.required_reagents[E]*total_reactions) //Put component amount * reaction count back in primary
+				active.reagents.add_reagent(reagent_ID, unreaction.required_reagents[E]*total_reactions) //Put component amount * reaction count back in primary
 				primary = 0
 			else
-				empty.reagents.add_reagent(E, unreaction.required_reagents[E]*total_reactions)
+				empty.reagents.add_reagent(reagent_ID, unreaction.required_reagents[E]*total_reactions)
 		investigation_log(I_CHEMS, "was used by [key_name(user)] to electrolyze [amount_to_electrolyze]u of [unreaction.result].")
 		to_chat(user, "<span class='warning'>The system electrolyzes!</span>")
 		spark(src, 5, FALSE)
@@ -107,9 +114,6 @@
 		..()
 
 /obj/item/weapon/electrolyzer/proc/insert_beaker(obj/item/weapon/W as obj, mob/user as mob)
-	if(user.drop_item(W, src))
+	if(user.drop_item(W, src, failmsg = TRUE))
 		W.forceMove(src)
 		beakers += W
-	else
-		to_chat(user, "<span class='warning'>You can't let go of \the [W]!</span>")
-		return

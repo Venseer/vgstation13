@@ -9,11 +9,16 @@ var/list/smes_list = list()
 	icon_state = "smes"
 	density = 1
 	anchored = 1
-	use_power = 0
-
+	use_power = MACHINE_POWER_USE_NONE
+	power_priority = POWER_PRIORITY_SMES_RECHARGE
 	machine_flags = SCREWTOGGLE | CROWDESTROY
 
 	starting_terminal = 1
+
+	hack_abilities = list(
+		/datum/malfhack_ability/destroy_lights,
+		/datum/malfhack_ability/oneuse/overload_loud,
+	)
 
 /obj/machinery/power/battery/smes/pristine
 	charge = 0
@@ -50,6 +55,8 @@ var/list/smes_list = list()
 /obj/machinery/power/battery/smes/initialize()
 	..()
 	connect_to_network()
+	if(master_mode == "sandbox")
+		infinite_power = TRUE
 	spawn(5)
 		if(!terminal)
 			stat |= BROKEN
@@ -82,7 +89,7 @@ var/list/smes_list = list()
 					"You made a terminal for the SMES.")
 				src.stat = 0
 				return 1
-		else if(iswirecutter(W) && terminal)
+		else if(W.is_wirecutter(user) && terminal)
 			var/turf/T = get_turf(terminal)
 			if(T.intact)
 				to_chat(user, "<span class='warning'>You must remove the floor plating in front of the SMES first.</span>")
@@ -93,12 +100,11 @@ var/list/smes_list = list()
 				if (prob(50) && electrocute_mob(usr, terminal.get_powernet(), terminal))
 					spark(src, 5)
 					return
-				getFromPool(/obj/item/stack/cable_coil, get_turf(src), 10)
+				new /obj/item/stack/cable_coil(get_turf(src), 10)
 				user.visible_message(\
 					"<span class='warning'>[user.name] cut the cables and dismantled the power terminal.</span>",\
 					"You cut the cables and dismantle the power terminal.")
-				qdel(terminal)
-				terminal = null
+				QDEL_NULL(terminal)
 		else
 			user.set_machine(src)
 			interact(user)
@@ -113,9 +119,15 @@ var/list/smes_list = list()
 		return terminal.surplus()
 	return 0
 
-/obj/machinery/power/battery/smes/add_load(var/amount)
+/obj/machinery/power/battery/smes/add_load(var/amount, var/priority = power_priority)
 	if(terminal)
-		terminal.add_load(amount)
+		terminal.add_load(amount, priority)
+
+/obj/machinery/power/battery/smes/get_satisfaction(var/priority = power_priority)
+	if(terminal && terminal.get_powernet())
+		return terminal.get_satisfaction(priority)
+	else
+		return 0
 
 /obj/machinery/power/battery/smes/infinite
 	name = "magical power storage unit"
@@ -124,3 +136,6 @@ var/list/smes_list = list()
 	infinite_power = 1
 
 	mech_flags = MECH_SCAN_FAIL
+
+/obj/machinery/power/battery/smes/infinite/setup_sound()
+	return

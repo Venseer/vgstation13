@@ -64,7 +64,7 @@ var/syndicate_elite_shuttle_timeleft = 0
 		to_chat(usr, "<span class='warning'>The Syndicate Elite shuttle is unable to leave.</span>")
 		return
 
-		sleep(600)
+	sleep(600)
 /*
 	//Begin Marauder launchpad.
 	spawn(0)//So it parallel processes it.
@@ -131,7 +131,7 @@ var/syndicate_elite_shuttle_timeleft = 0
 					spawn(0)
 						M.close()
 						*/
-		elite_squad.readyreset()//Reset firealarm after the team launched.
+	elite_squad.readyreset()//Reset firealarm after the team launched.
 	//End Marauder launchpad.
 /*
 	var/obj/explosionmarker = locate("Syndicate Breach Area")
@@ -141,6 +141,8 @@ var/syndicate_elite_shuttle_timeleft = 0
 			explosion(T,4,6,8,10,0)
 
 	sleep(40)
+
+	//what the fuck is that \/
 //	proc/explosion(turf/epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, adminlog = 1)
 
 */
@@ -163,8 +165,7 @@ var/syndicate_elite_shuttle_timeleft = 0
 		for(var/atom/movable/AM as mob|obj in T)
 			AM.Move(D)
 		if(istype(T, /turf/simulated))
-			qdel(T)
-			T = null
+			QDEL_NULL(T)
 
 	start_location.move_contents_to(end_location)
 
@@ -178,14 +179,11 @@ var/syndicate_elite_shuttle_timeleft = 0
 	else
 		return 1
 
-/obj/machinery/computer/syndicate_elite_shuttle/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return attack_hand(user)
 
 /obj/machinery/computer/syndicate_elite_shuttle/attack_paw(var/mob/user as mob)
 	return attack_hand(user)
 
-/obj/machinery/computer/syndicate_elite_shuttle/emag(mob/user as mob)
+/obj/machinery/computer/syndicate_elite_shuttle/emag_act(mob/user as mob)
 	if(user)
 		to_chat(user, "<span class='notice'>The electronic systems in this console are far too advanced for your primitive hacking peripherals.</span>")
 
@@ -211,7 +209,7 @@ var/syndicate_elite_shuttle_timeleft = 0
 		[syndicate_elite_shuttle_moving_to_station || syndicate_elite_shuttle_moving_to_mothership ? "\n*The Syndicate Elite shuttle is already leaving.*<BR>\n<BR>":syndicate_elite_shuttle_at_station ? "\n<A href='?src=\ref[src];sendtodock=1'>Shuttle Offline</A><BR>\n<BR>":"\n<A href='?src=\ref[src];sendtostation=1'>Depart to [station_name]</A><BR>\n<BR>"]
 		\n<A href='?src=\ref[user];mach_close=computer'>Close</A>"}
 
-	user << browse(dat, "window=computer;size=575x450")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=575x450")
 	onclose(user, "computer")
 	return
 

@@ -8,6 +8,16 @@
 	category = "Bluespace"
 	build_path = /obj/item/beacon
 
+/datum/design/beacon_locator
+	name = "Locator Device"
+	desc = "Used to scan and locate beacons on a particular frequency."
+	id = "beacon_locator"
+	req_tech = list(Tc_BLUESPACE = 2)
+	build_type = PROTOLATHE
+	materials = list (MAT_IRON = 200, MAT_GLASS = 100)
+	category = "Bluespace"
+	build_path = /obj/item/device/beacon_locator
+
 /datum/design/bag_holding
 	name = "Bag of Holding"
 	desc = "A backpack that opens into a localized pocket of Blue Space."
@@ -54,7 +64,7 @@
 
 /datum/design/stasisbeaker
 	name = "Stasis Beaker"
-	desc = "A beaker powered by experimental bluespace technology. Chemicals are held in stasis and do not react inside of it. Can hold up to 50 units."
+	desc = "A beaker powered by experimental bluespace technology. Chemicals are held in stasis and do not react inside of it. Can hold up to 100 units."
 	id = "stasisbeaker_small"
 	req_tech = list(Tc_BLUESPACE = 3, Tc_MATERIALS = 4)
 	build_type = PROTOLATHE
@@ -65,7 +75,7 @@
 
 /datum/design/stasisbeaker_large
 	name = "Large Stasis Beaker"
-	desc = "A beaker powered by experimental bluespace technology. Chemicals are held in stasis and do not react inside of it. Can hold up to 100 units."
+	desc = "A beaker powered by experimental bluespace technology. Chemicals are held in stasis and do not react inside of it. Can hold up to 200 units."
 	id = "stasisbeaker_large"
 	req_tech = list(Tc_BLUESPACE = 4, Tc_MATERIALS = 6)
 	build_type = PROTOLATHE
@@ -74,15 +84,58 @@
 	category = "Bluespace"
 	build_path = /obj/item/weapon/reagent_containers/glass/beaker/noreact/large
 
+/datum/design/bluespace_shaker
+	name = "Bluespace Shaker"
+	desc = "A newly-developed high-capacity shaker, powered by experimental bluespace technology. Can hold up to 300 units."
+	id = "bluespaceshaker"
+	req_tech = list(Tc_BLUESPACE = 4, Tc_MATERIALS = 6)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 2500, MAT_IRON = 5000, MAT_GLASS = 5000, MAT_URANIUM = 2000)
+	reliability = 100
+	category = "Bluespace"
+	build_path = /obj/item/weapon/reagent_containers/food/drinks/shaker/bluespaceshaker
+
+/datum/design/bluespace_vial
+	name = "Bluespace Vial"
+	desc = "A newly-developed high-capacity vial, powered by experimental bluespace technology. Can hold up to 50 units."
+	id = "bluespacevial"
+	req_tech = list(Tc_BLUESPACE = 4, Tc_MATERIALS = 6)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 250, MAT_IRON = 250, MAT_GLASS = 250, MAT_URANIUM = 250)
+	reliability = 100
+	category = "Bluespace"
+	build_path = /obj/item/weapon/reagent_containers/glass/beaker/vial/bluespace
+
+/datum/design/stasis_vial
+	name = "Stasis Vial"
+	desc = "A vial powered by experimental bluespace technology. Chemicals are held in stasis and do not react inside of it. Can hold up to 25 units."
+	id = "stasisvial"
+	req_tech = list(Tc_BLUESPACE = 4, Tc_MATERIALS = 6)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 250, MAT_IRON = 250, MAT_GLASS = 250, MAT_URANIUM = 250)
+	reliability = 100
+	category = "Bluespace"
+	build_path = /obj/item/weapon/reagent_containers/glass/beaker/vial/noreact
+
 /datum/design/gps
 	name = "Global Positioning System"
 	desc = "Helping lost spacemen find their way through the planets since 2016."
 	id = "gps"
 	req_tech = list(Tc_BLUESPACE = 2, Tc_MAGNETS = 2)
 	build_type = PROTOLATHE
-	materials = list (MAT_IRON = 800, MAT_GLASS = 200)
+	materials = list(MAT_IRON = 800, MAT_GLASS = 200)
 	category = "Bluespace"
 	build_path = /obj/item/device/gps/science
+
+/datum/design/hologram_projector
+	name = "Hologram Projector"
+	desc = "The projector creates a lifelike hologram friend."
+	id = "hologram_projector"
+	req_tech = list(Tc_BLUESPACE = 2, Tc_MAGNETS = 2)
+	build_type = PROTOLATHE
+	materials = list (MAT_IRON = 2000, MAT_GLASS = 2000)
+	category = "Bluespace"
+	build_path = /obj/item/device/hologram_projector
 
 /datum/design/rcs_device
 	name = "Rapid Crate Sender"
@@ -103,3 +156,23 @@
 	materials = list (MAT_IRON = 4000, MAT_GLASS = 2000)
 	category = "Bluespace"
 	build_path = /obj/item/device/telepad_beacon
+
+/datum/design/p_gps
+	name = "Expedition Tracker"
+	desc = "A specialized GPS device designed for planetary exploration. Only tracks other devices on the same planet. Features an emergency distress beacon."
+	id = "p_gps"
+	req_tech = list(Tc_BLUESPACE = 3, Tc_MAGNETS = 3, Tc_EXPLORATION = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 250, MAT_IRON = 250, MAT_GLASS = 250, MAT_URANIUM = 250)
+	category = "Bluespace"
+	build_path = /obj/item/device/gps/planetary
+
+/datum/design/bert
+	name = "Bluespace Emergency Recall Tool"
+	desc = "A single-use device that sends the user back to their point of origin when activated. Useful for escaping dangerous situations."
+	id = "bert"
+	req_tech = list(Tc_BLUESPACE = 3, Tc_EXPLORATION = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 250, MAT_IRON = 250)
+	category = "Bluespace"
+	build_path = /obj/item/device/bert

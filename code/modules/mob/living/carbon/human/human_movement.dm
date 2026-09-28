@@ -1,3 +1,7 @@
+/mob/living/carbon/human
+	var/crawlcounter = 1
+	var/max_crawls_before_fatigue = 6
+
 /mob/living/carbon/human/movement_delay()
 	if(isslimeperson(src))
 		if (bodytemperature >= 330.23) // 135 F
@@ -9,10 +13,10 @@
 
 	if(flying)
 		return // Calculate none of the following because we're technically on a vehicle
-	if(reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
+	if(reagents.has_any_reagents(HYPERZINES))
 		return // Hyperzine ignores base slowdown
 	if(istype(loc, /turf/space))
-		return // Space ignores slowdown
+		return // Space ignores
 
 	if (species && species.move_speed_mod)
 		. += species.move_speed_mod
@@ -43,22 +47,24 @@
 				E = organ_name
 			else
 				E = get_organ(organ_name)
-			if(!E || (E.status & ORGAN_DESTROYED))
-				. += 4*multiplier
+			var/is_holding_cane = find_held_item_by_type(/obj/item/weapon/cane)
+			if(!E || (E.status & ORGAN_DESTROYED) || (E.status & ORGAN_PEG))
+				. += 2*multiplier
+				if(is_holding_cane)
+					. -= 1*multiplier //Halve the movement speed penalty
 			if(E.status & ORGAN_SPLINTED)
-				if(!find_held_item_by_type(/obj/item/weapon/cane))
+				if(!is_holding_cane)
 					. += 0.5*multiplier
 			else if(E.status & ORGAN_BROKEN)
-				if(!find_held_item_by_type(/obj/item/weapon/cane))
+				if(!is_holding_cane)
 					. += 1*multiplier
 				. += 0.5*multiplier
 
 
 /mob/living/carbon/human/movement_tally_multiplier()
 	. = ..()
-
-	if(!reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
-		if(!shoes)
+	if(!reagents.has_any_reagents(HYPERZINES))
+		if(!shoes && has_vulnerable_foot())
 			. *= NO_SHOES_SLOWDOWN
 	if(M_FAT in mutations) // hyperzine can't save you, fatty!
 		. *= 1.5
@@ -67,11 +73,11 @@
 
 	if(reagents.has_reagent(NUKA_COLA))
 		. *= 0.8
-	if(reagents.has_reagent(MEDCORES))
+	if(reagents.has_any_reagents(CORES))
 		. *= MAGBOOTS_SLOWDOWN_HIGH //Chemical magboots, imagine.
 
 	if(isslimeperson(src))
-		if(reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
+		if(reagents.has_any_reagents(HYPERZINES))
 			. *= 2
 		if(reagents.has_reagent(FROSTOIL))
 			. *= 5
@@ -102,6 +108,13 @@
 //		if(!check_drift && J.allow_thrust(0.01, src))
 //			return 1
 
+//Also allows jetpacks to work from suit storage slots
+	else if(istype(s_store, /obj/item/weapon/tank/jetpack))
+		var/obj/item/weapon/tank/jetpack/J = s_store
+		if(((!check_drift) || (check_drift && J.stabilization_on)) && (!lying) && (J.allow_thrust(0.01, src)))
+			inertia_dir = 0
+			return 1
+
 	//If no working jetpack then use the other checks
 	return ..()
 
@@ -112,7 +125,7 @@
 		prob_slip = 0 // Changing this to zero to make it line up with the comment, and also, make more sense.
 
 	//Do we have magboots or such on if so no slip
-	if(CheckSlip() < 0)
+	if(CheckSlip() == SLIP_HAS_MAGBOOTS)
 		prob_slip = 0
 
 	//Check hands and mod slip
@@ -128,17 +141,12 @@
 	return(prob_slip)
 
 /mob/living/carbon/human/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
-	var/old_z = src.z
-
 	. = ..()
 
 	/*if(status_flags & FAKEDEATH)
 		return 0*/
 
 	if(.)
-		if (old_z != src.z)
-			crewmonitor.queueUpdate(old_z)
-		crewmonitor.queueUpdate(src.z)
 
 		if(shoes && istype(shoes, /obj/item/clothing/shoes))
 			var/obj/item/clothing/shoes/S = shoes
@@ -151,9 +159,78 @@
 		for(var/obj/item/weapon/bomberman/dispenser in src)
 			if(dispenser.spam_bomb)
 				dispenser.attack_self(src)
+		
+		//FOOTSTEPS
+		if (!on_foot()) //are our feet on the ground?
+			return
+		if (m_intent != "run")
+			return
+		if (mind?.miming)
+			return
+		stepstaken++
+		
+		var/modulo = modulo_step
+		if(shoes && istype(shoes, /obj/item/clothing/shoes)) //shoes override
+			var/obj/item/clothing/shoes/S = shoes
+			if (S.clothing_flags & SILENT_SHOES)
+				return
+			modulo = S.modulo_steps<modulo? S.modulo_steps : modulo
+		if (stepstaken % modulo == 0) //once every other step by default, so that it doesn't spam too much (shoes override)
+			var/step_volume = 50
+			var/range = -4
+			var/list/sounds_to_play
+			
+			var/turf/T = get_turf(src)
+			if (!T || !T.footstep_sound || istype(T, /turf/space))
+				return
+			if (locate(/obj/machinery/conveyor) in T.contents)
+				return
 
-/mob/living/carbon/human/CheckSlip()
+			if(shoes && istype(shoes, /obj/item/clothing/shoes)) //shoes
+				var/obj/item/clothing/shoes/S = shoes
+				if (S.step_sound) //shoes override
+					sounds_to_play = S.step_sound
+					range = S.footsteps_range
+				else //otherwise just use the turf's sound
+					sounds_to_play = T.footstep_sound
+			else
+				var/datum/organ/external/foot = has_vulnerable_foot()
+				if (foot)
+					switch(footsound)
+						if (FOOTSOUND_HUMAN)
+							sounds_to_play = T.footstep_sound_barefoot
+						if (FOOTSOUND_VOX)
+							sounds_to_play = T.footstep_sound_claw
+				else //check for robo limbs?
+					sounds_to_play = T.footstep_sound
+
+			stepstaken = 0
+			if(!sounds_to_play)
+				return
+			if (istype(sounds_to_play, /list) && sounds_to_play.len)
+				playsound(src, pick(sounds_to_play), step_volume, 1, range)
+			else
+				playsound(src, sounds_to_play, step_volume, 1, range)
+				
+
+
+/mob/living/carbon/human/CheckSlip(slip_on_walking = FALSE, overlay_type = TURF_WET_WATER, slip_on_magbooties = FALSE)
+	var/shoes_slip_factor
+	switch (overlay_type)
+		if (TURF_WET_WATER, TURF_WET_ICE)
+			shoes_slip_factor = shoes && (shoes.clothing_flags & NOSLIP)
+		if (TURF_WET_LUBE)
+			shoes_slip_factor = shoes && (shoes.clothing_flags & IGNORE_LUBE)
+		else
+			shoes_slip_factor = TRUE // Shoes are of no interest for this.
+
+	var/magboots_slip_factor = (!slip_on_magbooties && shoes_slip_factor && (shoes.clothing_flags & MAGPULSE))
 	. = ..()
-	if(. && shoes && shoes.clothing_flags & NOSLIP)
-		. = (istype(shoes, /obj/item/clothing/shoes/magboots) ? -1 : 0)
-	return .
+
+	// We have magboots, and magboots can protect us
+	if (magboots_slip_factor)
+		return SLIP_HAS_MAGBOOTS
+	// We don't have magboots, or magboots can't protect us
+	return (. && !shoes_slip_factor)
+
+

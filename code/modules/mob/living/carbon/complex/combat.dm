@@ -5,9 +5,9 @@
 	return 0 //Punches don't stun
 
 /mob/living/carbon/complex/bullet_act(var/obj/item/projectile/P, var/def_zone)
-	if(check_shields(P.damage, "the [P.name]"))
-		P.on_hit(src, 2)
-		return 2
+	if(check_shields(P.damage, P))
+		P.on_hit(src, 100)
+		return PROJECTILE_COLLISION_BLOCKED
 	return (..(P , def_zone))
 
 /mob/living/carbon/complex/attack_hand(mob/living/M)

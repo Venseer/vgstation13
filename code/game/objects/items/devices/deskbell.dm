@@ -2,7 +2,7 @@
 
 /obj/item/device/deskbell
 	name = "desk bell"
-	desc = "ding. ding."
+	desc = "Ding. Ding."
 	icon_state = "deskbell_2"
 	force = 5
 	throwforce = 5
@@ -29,12 +29,12 @@
 	var/wrenching = 0
 
 /obj/item/device/deskbell/attackby(obj/item/W, mob/user)
-	if(iswrench(W) && isturf(src.loc))
+	if(W.is_wrench(user) && isturf(loc))
 		user.visible_message(
 			"[user] begins to [anchored ? "undo" : "wrench"] \the [src]'s securing bolts.",
 			"You begin to [anchored ? "undo" : "wrench"] \the [src]'s securing bolts..."
 			)
-		playsound(loc, 'sound/items/Ratchet.ogg', 50, 1)
+		W.playtoolsound(loc, 50)
 
 		if(wrenching)
 			return
@@ -52,21 +52,25 @@
 
 		return
 
-	if(istype(W,/obj/item/weapon/screwdriver))
+	if(W.is_screwdriver(user))
 		if(anchored)
 			to_chat(user, "You need to unwrench \the [src] first.")
 			return
-		var/obj/item/device/deskbell_assembly/A = new /obj/item/device/deskbell_assembly(get_turf(src))
-		A.frequency = frequency
-		A.has_signaler = 0
-		A.build_step = 1
-		A.final_name = name
-		A.update_icon()
-		qdel(src)
+		disassemble()
 		return
 
 	ring(user)
 	..()
+
+/obj/item/device/deskbell/proc/disassemble()
+	var/obj/item/device/deskbell_assembly/A = new /obj/item/device/deskbell_assembly(get_turf(src))
+	A.frequency = frequency
+	A.code = code
+	A.has_signaler = 1
+	A.build_step = 1
+	A.final_name = name
+	A.update_icon()
+	qdel(src)
 
 /obj/item/device/deskbell/attack_self(mob/living/carbon/user)
 	return attack_hand(user)
@@ -79,6 +83,7 @@
 
 /obj/item/device/deskbell/attack_hand(var/mob/user)
 	if(anchored)
+		disease_contact(user,HANDS)
 		ring()
 	add_fingerprint(user)
 	return
@@ -87,7 +92,7 @@
 	if(world.time - last_ring_time >= ring_delay)
 		last_ring_time = world.time
 		flick("[icon_state]-push", src)
-		playsound(src, 'sound/machines/ding2.ogg', 50, 1)
+		playsound(src, hitsound, 50, 1)
 		return 1
 	return 0
 
@@ -98,7 +103,9 @@
 				to_chat(user, "You must undo the securing bolts before you can pick it up.")
 				return
 			if( !user.get_active_hand() )		//if active hand is empty
-				src.forceMove(user)
+				if(istype(loc, /obj/item/weapon/storage))
+					var/obj/item/weapon/storage/bag = loc
+					bag.remove_from_storage(src)
 				user.put_in_hands(src)
 				user.visible_message("<span class='notice'>[user] picks up the [src].</span>", "<span class='notice'>You grab [src] from the floor!</span>")
 
@@ -128,44 +135,8 @@
 			radio_controller.remove_object(src, frequency)
 			radio_connection = radio_controller.add_object(src, frequency, RADIO_CHAT)
 
-/obj/item/device/deskbell/signaler/attackby(obj/item/W, mob/user)
-	if(iswrench(W))
-		user.visible_message(
-			"[user] begins to [anchored ? "undo" : "wrench"] \the [src]'s securing bolts.",
-			"You begin to [anchored ? "undo" : "wrench"] \the [src]'s securing bolts..."
-			)
-		playsound(loc, 'sound/items/Ratchet.ogg', 50, 1)
-
-		if(wrenching)
-			return
-		wrenching = 1
-		if(do_after(user, src, 30))
-			if(src)
-				anchored = !anchored
-				user.visible_message(
-					"<span class='notice'>[user] [anchored ? "wrench" : "unwrench"]es \the [src] [anchored ? "in place" : "from its fixture"]</span>",
-					"<span class='notice'>[bicon(src)] You [anchored ? "wrench" : "unwrench"] \the [src] [anchored ? "in place" : "from its fixture"].</span>",
-					"<span class='notice'>You hear a ratchet.</span>"
-					)
-		wrenching = 0
-
-		return
-
-	if(istype(W,/obj/item/weapon/screwdriver))
-		if(anchored)
-			to_chat(user, "You need to unwrench \the [src] first.")
-			return
-		var/obj/item/device/deskbell_assembly/A = new /obj/item/device/deskbell_assembly(get_turf(src))
-		A.frequency = frequency
-		A.code = code
-		A.has_signaler = 1
-		A.build_step = 1
-		A.update_icon()
-		radio_controller.remove_object(src, frequency)
-		qdel(src)
-		return
-
-	ring(user)
+/obj/item/device/deskbell/signaler/disassemble()
+	radio_controller.remove_object(src, frequency)
 	..()
 
 /obj/item/device/deskbell/signaler/ring()
@@ -185,7 +156,7 @@
 		if(!radio_connection)
 			return	//the desk bell also works like a simple send-only signaler.
 
-		var/datum/signal/signal = getFromPool(/datum/signal)
+		var/datum/signal/signal = new /datum/signal
 		signal.source = src
 		signal.encryption = code					//Since its default code is 0, which cannot be set on a remote signaling device,
 		signal.data["message"] = "ACTIVATE"			//there is no risk that one of the desk bells already there at round start could trigger a signaler
@@ -236,6 +207,10 @@
 	. = ..()
 	frequency = deskbell_freq_rnd
 
+/obj/item/device/deskbell/signaler/trader/New()
+	. = ..()
+	frequency = deskbell_freq_pox
+
 /////ASSEMBLY/////
 
 /obj/item/device/deskbell_assembly
@@ -276,11 +251,11 @@
 	else
 		switch(build_step)
 			if(0)
-				if(iswrench(W))
+				if(W.is_wrench(user))
 					to_chat(user, "<span class='notice'>You deconstruct \the [src].</span>")
-					playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+					W.playtoolsound(src, 50)
 					//new /obj/item/stack/sheet/metal( get_turf(src.loc), 2)
-					var/obj/item/stack/sheet/metal/M = getFromPool(/obj/item/stack/sheet/metal, get_turf(src))
+					var/obj/item/stack/sheet/metal/M = new /obj/item/stack/sheet/metal(get_turf(src))
 					M.amount = 2
 					qdel(src)
 					return
@@ -298,7 +273,7 @@
 					to_chat(user, "<span class='warning'>You must add wires first.</span>")
 					return
 			if(1)
-				if(istype(W,/obj/item/weapon/wirecutters))
+				if(W.is_wirecutter(user))
 					if(has_signaler)
 						to_chat(user, "<span class='warning'>You must remove the signaler first.</span>")
 						return
@@ -309,7 +284,7 @@
 					build_step--
 					update_icon()
 					return
-				if(istype(W,/obj/item/weapon/screwdriver))
+				if(W.is_screwdriver(user))
 					var/obj/item/device/deskbell/D = null
 					if(has_signaler)
 						D = new /obj/item/device/deskbell/signaler(get_turf(src))
@@ -334,8 +309,7 @@
 						else
 							code = S.code
 
-						qdel(W)
-						W = null
+						QDEL_NULL(W)
 						has_signaler = 1
 						update_icon()
 						return
@@ -364,6 +338,7 @@ var/global/deskbell_freq_hop = call(/obj/item/device/deskbell/signaler/proc/get_
 var/global/deskbell_freq_medbay = call(/obj/item/device/deskbell/signaler/proc/get_new_bellfreq)()
 var/global/deskbell_freq_brig = call(/obj/item/device/deskbell/signaler/proc/get_new_bellfreq)()
 var/global/deskbell_freq_rnd = call(/obj/item/device/deskbell/signaler/proc/get_new_bellfreq)()
+var/global/deskbell_freq_pox = call(/obj/item/device/deskbell/signaler/proc/get_new_bellfreq)()
 
 /obj/item/device/deskbell/signaler/proc/get_new_bellfreq()
 	var/i = rand(MINIMUM_FREQUENCY,MAXIMUM_FREQUENCY)

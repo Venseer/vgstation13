@@ -3,13 +3,13 @@
 //generic procs copied from obj/effect/alien
 /obj/effect/spider
 	name = "web"
-	desc = "it's stringy and sticky"
-	icon = 'icons/effects/effects.dmi'
+	desc = "It's stringy and sticky."
 	anchored = 1
 	density = 0
-	var/health = 15
+	health = 15
 	gender = NEUTER
 	w_type=NOT_RECYCLABLE
+	mouse_opacity = 1
 
 //similar to weeds, but only barfed out by nurses manually
 /obj/effect/spider/ex_act(severity)
@@ -35,7 +35,7 @@
 	var/damage = (W.is_hot() || W.is_sharp()) ? (W.force) : (W.force / SPIDERWEB_BRUTE_DIVISOR)
 
 	if(iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		if(WT.remove_fuel(0, user))
 			damage = 15
 			playsound(loc, 'sound/items/Welder.ogg', 100, 1)
@@ -63,7 +63,7 @@
 
 
 /obj/effect/spider/bullet_act(var/obj/item/projectile/Proj)
-	..()
+	. = ..()
 	health -= Proj.damage
 	healthcheck()
 
@@ -77,6 +77,7 @@
 		healthcheck()
 
 /obj/effect/spider/stickyweb
+	layer = BELOW_TABLE_LAYER
 	icon_state = "stickyweb1"
 
 /obj/effect/spider/stickyweb/New()
@@ -94,7 +95,7 @@
 		if(prob(50))
 			to_chat(mover, "<span class='warning'>You get stuck in \the [src] for a moment.</span>")
 			return 0
-	else if(istype(mover, /obj/item/projectile))
+	else if(istype(mover, /obj/item/projectile) && !istype(mover, /obj/item/projectile/web))
 		return prob(30)
 	return 1
 
@@ -103,14 +104,21 @@
 	desc = "They seem to pulse slightly with an inner life."
 	icon_state = "eggs"
 	var/amount_grown = 0
-	New()
-		..()
-		pixel_x = rand(3,-3) * PIXEL_MULTIPLIER
-		pixel_y = rand(3,-3) * PIXEL_MULTIPLIER
-		processing_objects.Add(src)
-	Destroy()
-		processing_objects.Remove(src)
-		..()
+
+/obj/effect/spider/eggcluster/New()
+	..()
+	pixel_x = rand(3,-3) * PIXEL_MULTIPLIER
+	pixel_y = rand(3,-3) * PIXEL_MULTIPLIER
+	processing_objects.Add(src)
+
+/obj/effect/spider/eggcluster/Destroy()
+	processing_objects.Remove(src)
+	..()
+
+/obj/effect/spider/eggcluster/healthcheck()
+	if(health <= 0)
+		new /obj/item/weapon/reagent_containers/food/snacks/spidereggs(loc)
+		qdel(src)
 
 /obj/effect/spider/eggcluster/process()
 	amount_grown += rand(0,2)
@@ -120,41 +128,7 @@
 			//new /obj/effect/spider/spiderling(src.loc)
 			new /mob/living/simple_animal/hostile/giant_spider/spiderling(src.loc)
 		qdel(src)
-/*s
-/obj/effect/spider/spiderling
-	name = "spiderling"
-	desc = "It never stays still for long."
-	icon_state = "spiderling"
-	anchored = 0
-	layer = HIDING_MOB_PLANE
-	health = 3
-	var/amount_grown = 0
-	var/obj/machinery/atmospherics/unary/vent_pump/entry_vent
-	var/travelling_in_vent = 0
-	New()
-		..()
-		pixel_x = rand(6,-6)
-		pixel_y = rand(6,-6)
-		processing_objects.Add(src)
-		//50% chance to grow up
-		if(prob(50))
-			amount_grown = 1
 
-/obj/effect/spider/spiderling/to_bump(atom/user)
-	if(istype(user, /obj/structure/table))
-		src.forceMove(user.loc)
-	else
-		..()
-
-/obj/effect/spider/spiderling/proc/die()
-	visible_message("<span class='alert'>[src] dies!</span>")
-	new /obj/effect/decal/cleanable/spiderling_remains(src.loc)
-	qdel(src)
-
-/obj/effect/spider/spiderling/healthcheck()
-	if(health <= 0)
-		die()
-*/
 /obj/effect/decal/cleanable/spiderling_remains
 	name = "spiderling remains"
 	desc = "Green squishy mess."
@@ -167,14 +141,30 @@
 	icon_state = "cocoon1"
 	health = 30
 
-	New()
-		..()
-		icon_state = pick("cocoon1","cocoon2","cocoon3")
+/obj/effect/spider/cocoon/New()
+	..()
+	icon_state = pick("cocoon1","cocoon2","cocoon3")
 
 /obj/effect/spider/cocoon/Destroy()
-	src.visible_message("<span class='warning'>\the [src] splits open.</span>")
+	src.visible_message("<span class='warning'>\The [src] splits open.</span>")
 	for(var/atom/movable/A in contents)
 		A.forceMove(src.loc)
 	..()
+
+/////////////////////////////////////SPIDER QUEEN STICKY PROJECTILE TRAP////////////////////////////////
+
+//Spawns on top of mobs hit with the queen's web projectile
+/obj/effect/rooting_trap/stickyweb
+	name = "sticky web"
+	desc = "A mess of sticky strings."
+	mouse_opacity = 1
+	icon_state = "stickyweb"
+
+/obj/effect/rooting_trap/stickyweb/stick_to(var/atom/A, var/side = null)
+	var/turf/T = get_turf(A)
+	playsound(T, 'sound/weapons/hivehand_empty.ogg', 75, 1)
+	. = ..()
+	if (.)
+		visible_message("<span class='warning'>\the sticky ball splatters over \the [A]'s legs, sticking them to \the [T].</span>")
 
 #undef SPIDERWEB_BRUTE_DIVISOR

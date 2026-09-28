@@ -1,6 +1,11 @@
 /mob/living/silicon/robot/verb/Namepick()
 	set category = "Robot Commands"
 
+	if(appearance_isbanned(src))
+		var/banreason = appearance_isbanned(src)
+		to_chat(src, "<span class='warning'>You have been appearance banned for the reason: [banreason]. You cannot change your name.</span>")
+		return
+
 	if(incapacitated())
 		return
 
@@ -132,15 +137,23 @@
 	else
 		sensor_type = input("Please select sensor type.", "Sensor Integration", null) as null|anything in module.sensor_augs
 	if(sensor_type)
+		if(sensor_mode != 0)
+			for(var/datum/visioneffect/V in huds)
+				remove_hud(V)
 		switch(sensor_type)
 			if("Security")
 				sensor_mode = SEC_HUD
+				apply_hud_by_type(/datum/visioneffect/security/arrest)
+				apply_hud_by_type(/datum/visioneffect/job)
+				apply_hud_by_type(/datum/visioneffect/implant)
 				to_chat(src, "<span class='notice'>Security records overlay enabled.</span>")
 			if("Medical")
 				sensor_mode = MED_HUD
+				apply_hud_by_type(/datum/visioneffect/medical)
 				to_chat(src, "<span class='notice'>Life signs monitor overlay enabled.</span>")
 			if("Light Amplification")
 				sensor_mode = NIGHT
+				apply_hud_by_type(/datum/visioneffect/night)
 				to_chat(src, "<span class='notice'>Light amplification mode enabled.</span>")
 			if("Mesons")
 				var/area/A = get_area(src)
@@ -148,9 +161,11 @@
 					to_chat(src, "<span class = 'warning'>Unable to initialize Meson Vision. Probable cause: [pick("Atmospheric anomaly","Poor boot paramater","Bulb burn-out")]</span>")
 				else
 					sensor_mode = MESON_VISION
+					apply_hud_by_type(/datum/visioneffect/meson)
 					to_chat(src, "<span class='notice'>Meson Vision augmentation enabled.</span>")
 			if("Thermal")
 				sensor_mode = THERMAL_VISION
+				apply_hud_by_type(/datum/visioneffect/thermal)
 				to_chat(src, "<span class='notice'>Thermal Optics augmentation enabled.</span>")
 			if("Disable")
 				sensor_mode = 0

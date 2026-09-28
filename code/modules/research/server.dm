@@ -3,7 +3,7 @@
 	icon = 'icons/obj/machines/telecomms.dmi'
 	icon_state = "server"
 	var/datum/research/files
-	var/health = 100
+	health = 100
 	var/list/id_with_upload = list()		//List of R&D consoles with upload to server access.
 	var/list/id_with_download = list()	//List of R&D consoles with download from server access.
 	var/id_with_upload_string = ""		//String versions for easy editing in map editor.
@@ -60,7 +60,7 @@
 		if(0 to T0C)
 			health = min(100, health + 1)
 		if(T0C to (T20C + 20))
-			health = Clamp(health, 0, 100)
+			health = clamp(health, 0, 100)
 		if((T20C + 20) to INFINITY)
 			health = max(0, health - 1)
 	if(health <= 0)
@@ -70,7 +70,14 @@
 		for(var/ID in files.known_tech)
 			var/datum/tech/T = files.known_tech[ID]
 			if(prob(1))
-				T.level = 0 // This never happens, so make it dramatic. T.level--
+				if(T.level <= 1) //He's dead, Jim!
+					continue
+				T.level = 1 // This never happens, so make it dramatic. T.level--
+				//Except it does happen and floods the admins!! Minimum level is 1, not 0
+				message_admins("[src] lost [T.id] tech levels due to heat damage.")
+				for(var/obj/machinery/computer/rdservercontrol/SC in machines)
+					SC.screen = -1 //Display an alert
+					SC.updateUsrDialog()
 				changed=1
 		if(changed)
 			files.RefreshResearch()
@@ -110,7 +117,7 @@
 		C.files.RefreshResearch()
 
 /obj/machinery/r_n_d/server/proc/produce_heat(heat_amt)
-	if(!(stat & (NOPOWER|BROKEN))) //Blatently stolen from space heater.
+	if(!(stat & (NOPOWER|BROKEN|FORCEDISABLE))) //Blatently stolen from space heater.
 		var/turf/simulated/L = loc
 		if(istype(L))
 			var/datum/gas_mixture/env = L.return_air()
@@ -235,12 +242,15 @@
 	return
 
 /obj/machinery/computer/rdservercontrol/attack_hand(mob/user as mob)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		return
 	user.set_machine(src)
 	var/dat = ""
 
 	switch(screen)
+		if(-1)
+			dat += "Alert! Technology data lost due to server heat damage.<BR><BR>"
+			dat += "<HR><A href='?src=\ref[src];main=1'>Main Menu</A>"
 		if(0) //Main Menu
 			dat += "Connected Servers:<BR><BR>"
 
@@ -298,18 +308,21 @@
 			for(var/obj/machinery/r_n_d/server/S in servers)
 				dat += "[S.name] <A href='?src=\ref[src];send_to=[S.server_id]'> (Transfer)</A><BR>"
 			dat += "<HR><A href='?src=\ref[src];main=1'>Main Menu</A>"
-	user << browse("<TITLE>R&D Server Control</TITLE><HR>[dat]", "window=server_control;size=575x400")
+	user << browse(HTML_SKELETON_TITLE("R&D Server Control", dat), "window=server_control;size=575x400")
 	onclose(user, "server_control")
 	return
 
 /obj/machinery/computer/rdservercontrol/attackby(var/obj/item/weapon/D as obj, var/mob/user as mob)
-	if(isscrewdriver(D))
-		playsound(src, 'sound/items/Screwdriver.ogg', 50, 1)
+
+	add_fingerprint(user)
+	updateUsrDialog()
+	if(D.is_screwdriver(user))
+		D.playtoolsound(src, 50)
 		if(do_after(user, src, 20))
 			if (src.stat & BROKEN)
 				to_chat(user, "<span class='notice'>The broken glass falls out.</span>")
 				var/obj/structure/computerframe/A = new /obj/structure/computerframe( src.loc )
-				getFromPool(/obj/item/weapon/shard, loc)
+				new /obj/item/weapon/shard(loc)
 				var/obj/item/weapon/circuitboard/rdservercontrol/M = new /obj/item/weapon/circuitboard/rdservercontrol( A )
 				for (var/obj/C in src)
 					C.forceMove(src.loc)
@@ -317,6 +330,7 @@
 				A.state = 3
 				A.icon_state = "3"
 				A.anchored = 1
+				src.transfer_fingerprints_to(A)
 				qdel(src)
 			else
 				to_chat(user, "<span class='notice'>You disconnect the monitor.</span>")
@@ -328,21 +342,28 @@
 				A.state = 4
 				A.icon_state = "4"
 				A.anchored = 1
+				src.transfer_fingerprints_to(A)
 				qdel(src)
-	else if(istype(D, /obj/item/weapon/card/emag) && !emagged)
-		playsound(src, 'sound/effects/sparks4.ogg', 75, 1)
+	else
+		return ..()
+
+/obj/machinery/computer/rdservercontrol/emag_act(mob/user)
+	if(!emagged)
+		. = ..()
 		emagged = 1
 		to_chat(user, "<span class='notice'>You disable the security protocols</span>")
-	src.updateUsrDialog()
-	return
 
+/obj/machinery/r_n_d/server/derelict
+	name = "Derelict R&D Server"
+	id_with_upload_string = "6"
+	id_with_download_string = "6"
+	server_id = 3
 
 /obj/machinery/r_n_d/server/robotics
 	name = "Robotics R&D Server"
 	id_with_upload_string = "1;2"
 	id_with_download_string = "1;2;3;4;5"
 	server_id = 2
-
 
 /obj/machinery/r_n_d/server/core
 	name = "Core R&D Server"

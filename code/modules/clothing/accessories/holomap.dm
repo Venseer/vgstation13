@@ -10,6 +10,7 @@ var/list/holomap_cache = list()
 	item_state = null
 	accessory_exclusion = HOLOMAP
 	w_class = W_CLASS_TINY
+	flammable = FALSE
 	var/destroyed = 0
 
 	//Holomap stuff
@@ -157,7 +158,9 @@ var/list/holomap_cache = list()
 #define HOLOMAP_DEAD	3
 
 /obj/item/clothing/accessory/holomap_chip/proc/handle_sanity(var/turf/T)
-	if((!attached_to) || (!activator) || (activator.get_item_by_slot(slot_w_uniform) != attached_to) || (!activator.client) || (holoMiniMaps[T.z] == null))
+	if((!attached_to) || (!activator) || (activator.get_item_by_slot(slot_w_uniform) != attached_to) || (!activator.client))
+		return FALSE
+	if(T.z < 1 || T.z > holoMiniMaps.len || holoMiniMaps[T.z] == null)
 		return FALSE
 	return TRUE
 
@@ -380,7 +383,7 @@ var/list/holomap_cache = list()
 		if(U && ishuman(U.loc))
 			var/mob/living/carbon/human/H = U.loc
 			var/obj/item/helmet = H.get_item_by_slot(slot_head)
-			if(helmet && "[helmet.type]" in prefix_update)
+			if(helmet && ("[helmet.type]" in prefix_update))
 				marker_prefix = prefix_update["[helmet.type]"]
 
 /obj/item/clothing/accessory/holomap_chip/raider/update_marker()

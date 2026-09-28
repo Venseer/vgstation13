@@ -5,12 +5,17 @@
 	var/abbreviation //For feedback
 	var/one_use = FALSE
 	var/list/spawned_items = list()
-	var/price = Sp_BASE_PRICE
+	var/price = SP_BASE_PRICE
 
 /datum/spellbook_artifact/proc/purchased(mob/living/user)
 	to_chat(user, "<span class='info'>You have purchased [name].</span>")
-	for(var/T in spawned_items)
-		new T(get_turf(user))
+	for(var/path in spawned_items)
+		var/obj/item/I = new path(get_turf(user))
+		if(user.mind)
+			var/datum/role/wizard/W = user.mind.GetRole(WIZARD)
+			if(W)
+				var/icon/tempimage = icon(I.icon, I.icon_state)
+				W.artifacts_bought += {"<img class='icon' src='data:image/png;base64,[iconsouth2base64(tempimage)]'> [name]<BR>"}
 
 /datum/spellbook_artifact/proc/can_buy(var/mob/user)
 	return TRUE
@@ -19,8 +24,32 @@
 	name = "Staff of Change"
 	desc = "An artefact that spits bolts of coruscating energy which cause the target's very form to reshape itself."
 	abbreviation = "ST"
-	price = 2 * Sp_BASE_PRICE
+	price = 2 * SP_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/gun/energy/staff/change)
+
+/datum/spellbook_artifact/staff_of_polymorph
+	name = "Staff of Polymorph"
+	desc = "An artefact that shoots highly chaotic bolts of energy which transform the target into a random creature for a short while. Using the staff on oneself will permanently corrupt the user's form, transforming into an unstable, writhing pollywog!"
+	abbreviation = "PM"
+	price = 20
+	spawned_items = list(/obj/item/weapon/gun/energy/staff/polymorph)
+
+/datum/spellbook_artifact/staff_of_swapping
+	name = "Staff of Swapping"
+	desc = "An artefact that fires a glowing bolt of energy which transfers the caster and targets position in space. Wielding in it both hands increases the power of the staff, and allows it to pass through certain objects."
+	abbreviation = "SW"
+	price = 20
+	spawned_items = list(/obj/item/weapon/gun/energy/staff/swapper)
+
+/datum/spellbook_artifact/staff_of_sinterklaas
+	name = "Staff of Sinterklaas"
+	desc = "An artefact that fires a glowing bolt of energy which turns the target into a jovial helper."
+	abbreviation = "SS"
+	price = 5
+	spawned_items = list(/obj/item/weapon/gun/energy/staff/sinterklaas, /obj/item/clothing/head/wizard/sinterklaas)
+
+/datum/spellbook_artifact/staff_of_sinterklaas/can_buy(var/mob/user)
+	return (Holiday == SINTERKLAAS)
 
 /datum/spellbook_artifact/mental_focus
 	name = "Mental Focus"
@@ -47,9 +76,9 @@
 	abbreviation = "HS"
 	spawned_items = list(
 	/obj/item/clothing/shoes/sandal,\
-	/obj/item/clothing/gloves/purple,\
+	/obj/item/clothing/gloves/purple/wizard,\
 	/obj/item/clothing/suit/space/rig/wizard,\
-	/obj/item/clothing/head/helmet/space/rig/wizard)
+	/obj/item/weapon/tank/emergency_oxygen/double/wizard)
 
 /datum/spellbook_artifact/staff_of_animation
 	name = "Staff of Animation"
@@ -59,36 +88,33 @@
 
 /datum/spellbook_artifact/staff_of_necro
 	name = "Staff of Necromancy"
-	desc = "An arcane staff capable of summoning undying minions from the corpses of your enemies. This magic doesn't affect machines."
+	desc = "An arcane staff capable of summoning undying minions from the corpses of your organic enemies. Stores 3 charges, and takes 20 seconds to gain a charge. Recharges twice as fast and provides a slight brute-healing effect when wielded by a lich."
 	abbreviation = "SN"
-	spawned_items = list(/obj/item/weapon/gun/energy/staff/necro)
-/*
-#define APPRENTICE_PRICE Sp_BASE_PRICE
+	spawned_items = list(/obj/item/weapon/staff/necro)
+
 /datum/spellbook_artifact/apprentice
 	name = "Contract of Apprenticeship"
-	desc = "A magical contract binding an apprentice wizard to your service, using it will summon them to your side."
+	desc = "A magical contract binding an apprentice wizard to your service. Using it will summon them to your side."
 	abbreviation = "CT"
-	spawned_items = list(/obj/item/weapon/antag_spawner/contract)
-	price = APPRENTICE_PRICE
-*/
+	spawned_items = list(/obj/item/wizard_apprentice_contract)
 
 /datum/spellbook_artifact/bundle
 	name = "Spellbook Bundle"
-	desc = "Feeling adventurous? Buy this bundle and recieve seven random spellbooks! Who knows what spells you will get? (Warning, each spell book may only be used once! No refunds)."
+	desc = "Feeling adventurous? Buy this bundle and receive seven random spellbooks! Who knows what spells you will get? (Warning, each spell book may only be used once! No refunds)."
 	abbreviation = "SB"
-	price = 5 * Sp_BASE_PRICE
-	spawned_items = list(/obj/item/weapon/storage/box/spellbook/random)
+	price = 4 * SP_BASE_PRICE
+	spawned_items = list(/obj/item/weapon/storage/box/spellbook)
 
 /datum/spellbook_artifact/potion_bundle
 	name = "Potion bundle"
 	desc = "As a dead wizard once said, life is a bag of potions. You never know what you're gonna get."
 	abbreviation = "PB"
-	price = 5 * Sp_BASE_PRICE
+	price = 4 * SP_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/bundle)
 
 /datum/spellbook_artifact/lesser_potion_bundle
 	name = "Lesser potion bundle"
-	desc = "Contains 10 unknown potions. For wizards that are unwilling to go all-in."
+	desc = "Contains 12 unknown potions. For wizards that are unwilling to go all-in."
 	abbreviation = "LPB"
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/lesser_bundle)
 
@@ -96,12 +122,12 @@
 	name = "Predicted potion bundle"
 	desc = "Contains 40 potions. I like the blue ones myself."
 	abbreviation = "LPB"
-	price = 5 * Sp_BASE_PRICE
+	price = 4 * SP_BASE_PRICE
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/predicted_potion_bundle)
 
 /datum/spellbook_artifact/lesser_predicted_potion_bundle
 	name = "Lesser predicted potion bundle"
-	desc = "Contains 8  potions. Don't go using them all in one place!"
+	desc = "Contains 10 potions. Don't go using them all in one place!"
 	abbreviation = "LPB"
 	spawned_items = list(/obj/item/weapon/storage/bag/potion/lesser_predicted_potion_bundle)
 
@@ -159,7 +185,7 @@
 	abbreviation = "SG"
 
 /datum/spellbook_artifact/summon_guns/can_buy(var/mob/user)
-	//Only roundstart wizards may summon guns, magic, or blades
+	//Only roundstart wizards may summon guns, magic, blades, or artifacts
 	return is_roundstart_wizard(user)
 
 
@@ -168,6 +194,12 @@
 
 	H.rightandwrong("guns")
 	to_chat(H, "<span class='userdanger'>You have summoned guns.</span>")
+	score.summon_guns_count++
+	if(prob(20) || ((score.summon_guns_count % 5) == 0)) // 20% chance, or every time guns are summoned 5 times.
+		for(var/mob/M in player_list)
+			if(!M.client)
+				continue
+			M.playsound_local(M, 'sound/misc/ak47.ogg', 50)
 
 //SUMMON MAGIC
 /datum/spellbook_artifact/summon_magic
@@ -176,7 +208,7 @@
 	abbreviation = "SM"
 
 /datum/spellbook_artifact/summon_magic/can_buy(var/mob/user)
-	//Only roundstart wizards may summon guns, magic, or blades
+	//Only roundstart wizards may summon guns, magic, blades, or artifacts
 	return is_roundstart_wizard(user)
 
 /datum/spellbook_artifact/summon_magic/purchased(mob/living/carbon/human/H)
@@ -192,7 +224,7 @@
 	abbreviation = "SS"
 
 /datum/spellbook_artifact/summon_swords/can_buy(var/mob/user)
-	//Only roundstart wizards may summon guns, magic, or blades
+	//Only roundstart wizards may summon guns, magic, blades, or artifacts
 	return is_roundstart_wizard(user)
 
 /datum/spellbook_artifact/summon_swords/purchased(mob/living/carbon/human/H)
@@ -200,6 +232,39 @@
 
 	H.rightandwrong("swords")
 	to_chat(H, "<span class='userdanger'>DEUS VULT!</span>")
+
+//SUMMON ARTIFACTS
+/datum/spellbook_artifact/summon_artifacts
+	name = "Summon Artifacts"
+	desc = "Share the secrets of the ancient world and bring peace to the station. Or chaos."
+	abbreviation = "SA"
+	price = SP_BASE_PRICE*2
+
+/datum/spellbook_artifact/summon_artifacts/can_buy(var/mob/user)
+	//Only roundstart wizards may summon guns, magic, blades, or artifacts
+	return is_roundstart_wizard(user)
+
+/datum/spellbook_artifact/summon_artifacts/purchased(mob/living/carbon/human/H)
+	..()
+
+	H.rightandwrong("artifact")
+	to_chat(H, "<span class='userdanger'>You have shared legendary treasures with the crew.</span>")
+
+//SUMMON POTIONS
+/datum/spellbook_artifact/summon_potions
+	name = "Summon Potions"
+	desc = "Launch a market crash or start the next potion depression. Either way there will be glass breaking and potions selling."
+	abbreviation = "SP"
+
+/datum/spellbook_artifact/summon_potions/can_buy(var/mob/user)
+	//Only roundstart wizards may summon guns, magic, or blades
+	return is_roundstart_wizard(user)
+
+/datum/spellbook_artifact/summon_swords/purchased(mob/living/carbon/human/H)
+	..()
+
+	H.rightandwrong("potions")
+	to_chat(H, "<span class='userdanger'>POTIONS FOR SALE!</span>")
 
 /datum/spellbook_artifact/glow_orbs
 	name = "Bundle of glow orbs"
@@ -221,7 +286,7 @@
 /datum/spellbook_artifact/santa_bundle
 	name = "Become Santa Claus"
 	desc = "Guess which station is on the naughty list?"
-	price = 3 * Sp_BASE_PRICE
+	price = 3 * SP_BASE_PRICE
 
 /datum/spellbook_artifact/santa_bundle/purchased(mob/living/carbon/human/H)
 	..()
@@ -244,24 +309,29 @@
 	H.equip_to_slot(santasuit,slot_wear_suit)
 
 	H.real_name = pick("Santa Claus","Jolly St. Nick","Sandy Claws","Sinterklaas","Father Christmas","Kris Kringle")
+	H.mutations += M_FAT
 	H.nutrition += 1000
+	H.update_mutations()
 
-	H.add_spell(new/spell/noclothes)
-	H.add_spell(new/spell/aoe_turf/conjure/snowmobile)
-	H.add_spell(new/spell/targeted/wrapping_paper)
-	H.add_spell(new/spell/aoe_turf/conjure/gingerbreadman)
+	H.add_spell(new/spell/passive/noclothes, iswizard = TRUE)
+	H.add_spell(new/spell/aoe_turf/conjure/snowmobile, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/wrapping_paper, iswizard = TRUE)
+	H.add_spell(new/spell/aoe_turf/conjure/gingerbreadman, iswizard = TRUE)
 //	H.add_spell(new/spell/targeted/flesh_to_coal)
 
 	to_chat(world,'sound/misc/santa.ogg')
 	SetUniversalState(/datum/universal_state/christmas)
 
 /datum/spellbook_artifact/santa_bundle/can_buy(var/mob/user)
-	return (Holiday == XMAS && !istype(universe, /datum/universal_state/christmas))
+	var/month = text2num(time2text(world.timeofday, "MM"))
+	if(month == 12) //December!!
+		return !istype(universe, /datum/universal_state/christmas) //There already is Christmas!
+	return FALSE
 
 /datum/spellbook_artifact/phylactery
 	name = "phylactery"
 	desc = "Creates a soulbinding artifact that, upon the death of the user, resurrects them as best it can. You must bind yourself to this through making an incision on your palm, holding the phylactery in that hand, and squeezing it."
-	spawned_items = list(/obj/item/phylactery)
+	spawned_items = list(/obj/item/clothing/head/wizard/lich, /obj/item/clothing/suit/wizrobe/lich, /obj/item/soulstone, /obj/item/phylactery)
 
 
 /datum/spellbook_artifact/darkness
@@ -269,11 +339,52 @@
 	abbreviation = "TS-D"
 	desc = "Exploits the magic of futurescience, tapping into the unfortunate target station's APCs, allowing you to destroy the stations lighting en-masse."
 	one_use = TRUE
-	price = 0.25*Sp_BASE_PRICE
+	price = 0.25*SP_BASE_PRICE
 	spawned_items = list(/obj/item/clothing/head/pumpkinhead)
 
 /datum/spellbook_artifact/darkness/purchased(mob/living/carbon/human/H)
 	..()
 	for(var/obj/machinery/power/apc/apc in power_machines)
-		if(apc.z == STATION_Z)
+		if(apc.z == map.zMainStation)
 			apc.overload_lighting()
+
+
+/datum/spellbook_artifact/prestidigitation
+	name = "Prestidigitation Bundle"
+	abbreviation = "PTDB"
+	desc = "A group of spells for general utility."
+	price = SP_BASE_PRICE
+
+/datum/spellbook_artifact/prestidigitation/purchased(mob/living/carbon/human/H)
+	..()
+	H.add_spell(new/spell/targeted/spark, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/extinguish, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/clean, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/unclean, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/create_trinket, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/cool_object, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/warm_object, iswizard = TRUE)
+	H.add_spell(new/spell/targeted/color_change, iswizard = TRUE)
+
+/datum/spellbook_artifact/blindingspeed
+	name = "Boots of Blinding Speed"
+	abbreviation = "BS"
+	desc = "Makes you much faster, but blinds you while you move."
+	price = 0.75 * SP_BASE_PRICE
+	spawned_items = list(/obj/item/clothing/shoes/blindingspeed)
+
+/datum/spellbook_artifact/nogunallowed
+	name = "No Gun Allowed"
+	abbreviation = "NGA"
+	desc = "Forgo the use of guns in exchange for magical power. Some within the Wizard Federation have lobbied to make this spell a legal obligation. Non-refundable."
+	price = -1 * SP_BASE_PRICE
+	one_use = TRUE
+
+/datum/spellbook_artifact/nogunallowed/can_buy(var/mob/user)
+	for(var/spell/passive/nogunallowed/NG in user.spell_list) //In case the user gets hold of a second spellbook
+		return FALSE
+	return iswizard(user) || isapprentice(user) || ismagician(user)
+
+/datum/spellbook_artifact/nogunallowed/purchased(mob/living/carbon/human/H)
+	..()
+	H.add_spell (new/spell/passive/nogunallowed, iswizard = TRUE)

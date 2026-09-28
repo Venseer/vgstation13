@@ -1,13 +1,12 @@
 /datum/hud/proc/robot_hud()
-
 	src.adding = list()
 	src.other = list()
 
 	var/obj/abstract/screen/using
-
+	var/mob/living/silicon/robot/R = mymob
 
 //Radio
-	using = getFromPool(/obj/abstract/screen)
+	using = new /obj/abstract/screen
 	using.name = "radio"
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
@@ -15,56 +14,74 @@
 	using.screen_loc = ui_movi
 	src.adding += using
 
+	using.pointer_to_list = &adding
+
 //Module select
 
-	using = getFromPool(/obj/abstract/screen)
+	using = new /obj/abstract/screen
 	using.name = INV_SLOT_SIGHT
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
 	using.icon_state = "sight"
 	using.screen_loc = ui_borg_sight
 	src.adding += using
-	mymob:sensor = using
+	R.sensor = using
 
-	using = getFromPool(/obj/abstract/screen)
+	using.pointer_to_var = &R.sensor
+	using.pointer_to_list = &adding
+
+
+	using = new /obj/abstract/screen
 	using.name = "module1"
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
 	using.icon_state = "inv1"
 	using.screen_loc = ui_inv1
 	src.adding += using
-	mymob:inv1 = using
+	R.inv1 = using
 
-	using = getFromPool(/obj/abstract/screen)
+	using.pointer_to_var = &R.inv1
+	using.pointer_to_list = &adding
+
+	using = new /obj/abstract/screen
 	using.name = "module2"
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
 	using.icon_state = "inv2"
 	using.screen_loc = ui_inv2
 	src.adding += using
-	mymob:inv2 = using
+	R.inv2 = using
 
-	using = getFromPool(/obj/abstract/screen)
+	using.pointer_to_var = &R.inv2
+	using.pointer_to_list = &adding
+
+	using = new /obj/abstract/screen
 	using.name = "module3"
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
 	using.icon_state = "inv3"
 	using.screen_loc = ui_inv3
 	src.adding += using
-	mymob:inv3 = using
+	R.inv3 = using
 
-	using = getFromPool(/obj/abstract/screen)
+	using.pointer_to_var = &R.inv3
+	using.pointer_to_list = &adding
+
+	using = new /obj/abstract/screen
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1.dmi'
 	using.icon_state = "block"
 	using.layer = HUD_BASE_LAYER
 	src.adding += using
-	mymob:robot_modules_background = using
+	R.robot_modules_background = using
+
+	using.pointer_to_var = &R.robot_modules_background
+	using.pointer_to_list = &adding
 
 //End of module select
 
 //Intent
-	using = getFromPool(/obj/abstract/screen)
+	using = new /obj/abstract/screen
 	using.name = "act_intent"
 	using.dir = SOUTHWEST
 	using.icon = 'icons/mob/screen1_robot.dmi'
@@ -73,29 +90,11 @@
 	src.adding += using
 	action_intent = using
 
-//Cell
-	mymob:cells = getFromPool(/obj/abstract/screen)
-	mymob:cells.icon = 'icons/mob/screen1_robot.dmi'
-	mymob:cells.icon_state = "charge-empty"
-	mymob:cells.name = "cell"
-	mymob:cells.screen_loc = ui_toxin
+	using.pointer_to_var = &action_intent
+	using.pointer_to_list = &adding
 
-//Health
-	mymob.healths = getFromPool(/obj/abstract/screen)
-	mymob.healths.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.healths.icon_state = "health0"
-	mymob.healths.name = "health"
-	mymob.healths.screen_loc = ui_borg_health 
-
-//Installed Module
-	mymob.hands = getFromPool(/obj/abstract/screen)
-	mymob.hands.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.hands.icon_state = "nomod"
-	mymob.hands.name = "module"
-	mymob.hands.screen_loc = ui_borg_module
-
-//Module Panel
-	using = getFromPool(/obj/abstract/screen)
+	//Module Panel
+	using = new /obj/abstract/screen
 	using.name = "panel"
 	using.icon = 'icons/mob/screen1_robot.dmi'
 	using.icon_state = "panel"
@@ -103,88 +102,103 @@
 	using.layer = HUD_BASE_LAYER
 	src.adding += using
 
-//Store
-	mymob.throw_icon = getFromPool(/obj/abstract/screen)
-	mymob.throw_icon.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.throw_icon.icon_state = "store"
-	mymob.throw_icon.name = "store"
-	mymob.throw_icon.screen_loc = ui_borg_store
+	using.pointer_to_list = &adding
 
-//Temp
-	mymob.bodytemp = getFromPool(/obj/abstract/screen)
-	mymob.bodytemp.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.bodytemp.icon_state = "temp0"
-	mymob.bodytemp.name = "environment temperature"
-	mymob.bodytemp.screen_loc = ui_borg_temp
-	
-//Pressure
-	mymob.pressure = getFromPool(/obj/abstract/screen)
-	mymob.pressure.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.pressure.icon_state = "pressure0"
-	mymob.pressure.name = "environment pressure"
-	mymob.pressure.screen_loc = ui_borg_pressure
+//Health
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "health0"
+	using.name = "health"
+	using.screen_loc = ui_borg_health
+
+	mymob.healths = using
+	using.pointer_to_var = &mymob.healths
+
+//Installed Module
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "nomod"
+	using.name = "module"
+	using.screen_loc = ui_borg_module
+
+	mymob.hands = using
+	mymob.hands.pointer_to_var = &mymob.hands
+
+//Store
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "store"
+	using.name = "store"
+	using.screen_loc = ui_borg_store
+
+	mymob.throw_icon = using
+	using.pointer_to_var = &mymob.throw_icon
 
 //Photography stuff
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "camera"
+	using.name = "Take Image"
+	using.screen_loc = ui_borg_camera
+	mymob.camera_icon = using
 
-	mymob.camera_icon = getFromPool(/obj/abstract/screen)
-	mymob.camera_icon.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.camera_icon.icon_state = "camera"
-	mymob.camera_icon.name = "Take Image"
-	mymob.camera_icon.screen_loc = ui_borg_camera
+	using.pointer_to_var = &mymob.camera_icon
 
-	mymob.album_icon = getFromPool(/obj/abstract/screen)
-	mymob.album_icon.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.album_icon.icon_state = "album"
-	mymob.album_icon.name = "View Images"
-	mymob.album_icon.screen_loc = ui_borg_album
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "album"
+	using.name = "View Images"
+	using.screen_loc = ui_borg_album
+	mymob.album_icon = using
 
- //unused, go home
-	mymob.oxygen = getFromPool(/obj/abstract/screen)
-	mymob.oxygen.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.oxygen.icon_state = "oxy0"
-	mymob.oxygen.name = "oxygen"
-	mymob.oxygen.screen_loc = ui_oxygen
+	using.pointer_to_var  = &mymob.album_icon
 
-	mymob.fire = getFromPool(/obj/abstract/screen)
-	mymob.fire.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.fire.icon_state = "fire0"
-	mymob.fire.name = "fire"
-	mymob.fire.screen_loc = ui_fire
+	using = new /obj/abstract/screen
+	using.icon = 'icons/mob/screen1_robot.dmi'
+	using.icon_state = "pull0"
+	using.name = "pull"
+	using.screen_loc = ui_borg_pull
+	mymob.pullin = using
 
-	mymob.pullin = getFromPool(/obj/abstract/screen)
-	mymob.pullin.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.pullin.icon_state = "pull0"
-	mymob.pullin.name = "pull"
-	mymob.pullin.screen_loc = ui_borg_pull
+	using.pointer_to_var  = &mymob.pullin
 
-	mymob.zone_sel = getFromPool(/obj/abstract/screen/zone_sel)
-	mymob.zone_sel.icon = 'icons/mob/screen1_robot.dmi'
-	mymob.zone_sel.overlays.len = 0
-	mymob.zone_sel.overlays += image('icons/mob/zone_sel.dmi', "[mymob.zone_sel.selecting]")
+	var/obj/abstract/screen/zone_sel/ZS = new /obj/abstract/screen/zone_sel
+	ZS.icon = 'icons/mob/screen1_robot.dmi'
+	ZS.overlays.len = 0
+	ZS.overlays += image('icons/mob/zone_sel.dmi', "[ZS.selecting]")
+	mymob.zone_sel = ZS
 
 	//Handle the gun settings buttons
-	mymob.gun_setting_icon = getFromPool(/obj/abstract/screen/gun/mode)
+	mymob.gun_setting_icon = new /obj/abstract/screen/gun/mode
+	mymob.healths.pointer_to_var = &mymob.gun_setting_icon
+
 	if (mymob.client)
 		if (mymob.client.gun_mode) // If in aim mode, correct the sprite
 			mymob.gun_setting_icon.dir = 2
 	for(var/obj/item/weapon/gun/G in mymob) // If targeting someone, display other buttons
 		if (G.target)
-			mymob.item_use_icon = getFromPool(/obj/abstract/screen/gun/item)
+			mymob.item_use_icon = new /obj/abstract/screen/gun/item
 			if (mymob.client.target_can_click)
 				mymob.item_use_icon.dir = 1
 			src.adding += mymob.item_use_icon
-			mymob.gun_move_icon = getFromPool(/obj/abstract/screen/gun/move)
+
+			mymob.item_use_icon.pointer_to_list = &src.adding
+
+			mymob.gun_move_icon = new /obj/abstract/screen/gun/move
 			if (mymob.client.target_can_move)
 				mymob.gun_move_icon.dir = 1
-				mymob.gun_run_icon = getFromPool(/obj/abstract/screen/gun/run)
+				mymob.gun_run_icon = new /obj/abstract/screen/gun/run
 				if (mymob.client.target_can_run)
 					mymob.gun_run_icon.dir = 1
 				src.adding += mymob.gun_run_icon
+				mymob.gun_run_icon.pointer_to_list = &src.adding
+
 			src.adding += mymob.gun_move_icon
+			mymob.gun_move_icon.pointer_to_list = &src.adding
 
 	mymob.client.reset_screen()
 
-	mymob.client.screen += list( mymob.throw_icon, mymob.zone_sel, mymob.fire, mymob.pressure, mymob.bodytemp, mymob.hands, mymob.healths, mymob:cells, mymob.pullin, mymob.gun_setting_icon, mymob.camera_icon, mymob.album_icon) //, mymob.rest, mymob.sleep, mymob.mach, mymob.oxygen)
+	mymob.client.screen += list( mymob.throw_icon, mymob.zone_sel, mymob.hands, mymob.healths, mymob.pullin, mymob.gun_setting_icon, mymob.camera_icon, mymob.album_icon)
 	mymob.client.screen += src.adding + src.other
 
 	return

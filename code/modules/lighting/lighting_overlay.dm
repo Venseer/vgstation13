@@ -11,8 +11,6 @@
 	layer            = LIGHTING_LAYER
 	invisibility     = INVISIBILITY_LIGHTING
 
-	blend_mode    = BLEND_MULTIPLY
-
 	var/needs_update = FALSE
 
 	#if WORLD_ICON_SIZE != 32
@@ -51,8 +49,11 @@
 		else
 			warning("A lighting overlay realised it was in nullspace in update_overlay() and got pooled!")
 
-		returnToPool(src)
+		qdel(src)
 		return
+
+	if (!T.lighting_corners_initialised || !T.corners)//may happen due to nano paint
+		T.generate_missing_corners()
 
 	// To the future coder who sees this and thinks
 	// "Why didn't he just use a loop?"
@@ -69,16 +70,32 @@
 	var/datum/lighting_corner/cb  = T.corners[4] || dummy_lighting_corner
 	var/datum/lighting_corner/ca  = T.corners[1] || dummy_lighting_corner
 
-	var/max = max(cr.cache_mx, cg.cache_mx, cb.cache_mx, ca.cache_mx)
-
-	color  = list(
-		cr.cache_r, cr.cache_g, cr.cache_b, 0,
-		cg.cache_r, cg.cache_g, cg.cache_b, 0,
-		cb.cache_r, cb.cache_g, cb.cache_b, 0,
-		ca.cache_r, ca.cache_g, ca.cache_b, 0,
-		0, 0, 0, 1
-	)
-	luminosity = max > LIGHTING_SOFT_THRESHOLD
+	if (T.paint_overlay && T.paint_overlay.nano_paint)
+		var/list/RGB = rgb2num(T.paint_overlay.main_color)
+		var/nano_R = RGB[1]/255
+		var/nano_G = RGB[2]/255
+		var/nano_B = RGB[3]/255
+		luminosity = 3
+		color  = list(
+			max(nano_R, cr.cache_r), max(nano_G, cr.cache_g), max(nano_B, cr.cache_b), 0,
+			max(nano_R, cg.cache_r), max(nano_G, cg.cache_g), max(nano_B, cg.cache_b), 0,
+			max(nano_R, cb.cache_r), max(nano_G, cb.cache_g), max(nano_B, cb.cache_b), 0,
+			max(nano_R, ca.cache_r), max(nano_G, ca.cache_g), max(nano_B, ca.cache_b), 0,
+			0, 0, 0, 1
+		)
+	else
+		var/max = max(cr.cache_mx, cg.cache_mx, cb.cache_mx, ca.cache_mx)
+		color  = list(
+			cr.cache_r, cr.cache_g, cr.cache_b, 0,
+			cg.cache_r, cg.cache_g, cg.cache_b, 0,
+			cb.cache_r, cb.cache_g, cb.cache_b, 0,
+			ca.cache_r, ca.cache_g, ca.cache_b, 0,
+			0, 0, 0, 1
+		)
+		if (T.paint_overlay && (T.paint_overlay.paintlights.len > 0))
+			luminosity = 2
+		else
+			luminosity = max > LIGHTING_SOFT_THRESHOLD
 
 // Variety of overrides so the overlays don't get affected by weird things.
 
@@ -101,17 +118,15 @@
 	return
 
 // Override here to prevent things accidentally moving around overlays.
-/atom/movable/lighting_overlay/forceMove(atom/destination, var/no_tp=FALSE, var/harderforce = FALSE)
+/atom/movable/lighting_overlay/forceMove(atom/destination, step_x = 0, step_y = 0, no_tp = FALSE, harderforce = FALSE, glide_size_override = 0)
 	if(harderforce)
 		. = ..()
-
-/atom/movable/lighting_overlay/resetVariables(...)
-	color = LIGHTING_BASE_MATRIX
-
-	return ..("color")
 
 /atom/movable/lighting_overlay/send_to_future(var/duration)
 	return
 
 /atom/movable/lighting_overlay/send_to_past(var/duration)
+	return
+
+/atom/movable/lighting_overlay/clean_act(var/cleanliness)
 	return

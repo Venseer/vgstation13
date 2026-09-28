@@ -5,7 +5,8 @@
 	if(say_disabled)
 		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
 		return
-	usr.say(to_utf8(message, usr))
+	usr.say(message)
+	remove_typing_indicator()
 
 /mob/verb/whisper(message as text)
 	set name = "Whisper"
@@ -22,18 +23,29 @@
 
 	if(say_disabled)	//This is here to try to identify lag problems
 		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
+		remove_typing_indicator()
 		return
 
 	if(!usr.stat && (usr.status_flags & FAKEDEATH))
 		to_chat(usr, "<span class='danger'>Doing this will give us away!</span>")
+		remove_typing_indicator()
 		return
 
-	message = utf8_sanitize(message, usr, MAX_MESSAGE_LEN)
+	message = html_encode(sanitize_speech(message))
 
 	if(usr.stat == DEAD)
 		usr.emote_dead(message)
 	else if(message)
 		usr.emote("me",usr.emote_type,message)
+	remove_typing_indicator()
+
+/datum/deadchat_listener //This datum allows you to read the currently funky deadchat. Simply make a child, instantiate an instance, and add functions to add/remove it from the global_deadchat_listeners.
+	var/name = "default"
+
+/datum/deadchat_listener/proc/deadchat_event(var/ckey, var/message)
+	return
+
+var/list/global_deadchat_listeners = list()
 
 /mob/proc/say_dead(var/message)
 	var/name = src.real_name
@@ -43,7 +55,7 @@
 		to_chat(usr, "<span class='danger'>Speech is currently admin-disabled.</span>")
 		return
 
-	if(client && !(client.prefs.toggles & CHAT_DEAD))
+	if(client && !(client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
 		to_chat(usr, "<span class='danger'>You have deadchat muted.</span>")
 		return
 
@@ -54,35 +66,15 @@
 	if(name != real_name)
 		alt_name = " (died as [real_name])"
 
-
-	var/turf/T = get_turf(src)
+	var/ckey = "[key_name(src)]"
+	for(var/datum/deadchat_listener/listener in global_deadchat_listeners)
+		listener.deadchat_event(ckey,message)
 	message = src.say_quote("\"[html_encode(message)]\"")
-	var/location_text = loc ? "[T.x],[T.y],[T.z]" : "nullspace"
+	var/location_text = get_coordinates_string(src)
 	log_say("[name]/[key_name(src)] (@[location_text]) Deadsay: [message]")
-	//var/rendered = "<span class='game deadsay'><span class='prefix'>DEAD:</span> <span class='name'>[name]</span>[alt_name] <span class='message'>[message]</span></span>"
-	var/rendered2 = null//edited
-	for(var/mob/M in player_list)
-		rendered2 = "<span class='game deadsay'><a href='byond://?src=\ref[M];follow2=\ref[M];follow=\ref[src]'>(Follow)</a><span class='prefix'> DEAD:</span> <span class='name'>[name]</span>[alt_name] <span class='message'>[message]</span></span>"//edited
-		if(istype(M, /mob/new_player) || !M.client)
-			continue
-		if(M.client && M.client.holder && M.client.holder.rights & R_ADMIN && (M.client.prefs.toggles & CHAT_DEAD)) //admins can toggle deadchat on and off. This is a proc in admin.dm and is only give to Administrators and above
-			to_chat(M, rendered2)//Admins can hear deadchat, if they choose to, no matter if they're blind/deaf or not.
 
-		else if(M.client && M.stat == DEAD && !istype(M, /mob/dead/observer/deafmute) && (M.client.prefs.toggles & CHAT_DEAD))
-			//M.show_message(rendered2, 2) //Takes into account blindness and such.
-			to_chat(M, rendered2)
-		else if(M.client && istype(M,/mob/living/carbon/brain) && (M.client.prefs.toggles & CHAT_DEAD))
-			var/mob/living/carbon/brain/B = M
-			if(B.brain_dead_chat())
-				to_chat(M, rendered2)
-
-/*
-/mob/proc/emote(var/act, var/type, var/message, var/auto)
-	if(timestopped)
-		return //under effects of time magick
-	if(act == "me")
-		return custom_emote(type, message)
-*/
+	for(var/mob/M in get_deadchat_hearers())
+		to_chat(M, "<span class='game deadsay'>[formatFollow(src)] <span class='name'>[name]</span>[alt_name] <span class='message'>[message]</span></span>")
 
 /mob/proc/get_ear()
 	// returns an atom representing a location on the map from which this
@@ -95,7 +87,7 @@
 /mob/proc/lingcheck()
 	return 0
 
-/mob/proc/construct_chat_check(var/setting)
+/mob/proc/cult_chat_check(var/setting)
 	return 0
 
 /mob/proc/hivecheck()
@@ -152,3 +144,34 @@
 	if(stat == DEAD || universal_understand)
 		return TRUE
 	return FALSE
+
+/mob/proc/forcesay(list/append)
+	if(stat == CONSCIOUS)
+		if(client)
+			var/virgin = 1	//has the text been modified yet?
+			var/temp = winget(client, "input", "text")
+			if(findtext(temp, "Say \"", 1, 7) && length(temp) > 5) //NOT case sensitive, because both "say" and "Say" can happen
+
+				temp = replacetext(temp, ";", "")	//general radio
+
+				if(findtext(trim_left(temp), ":", 6, 7))	//dept radio
+					temp = copytext(trim_left(temp), 8)
+					virgin = 0
+
+				if(virgin)
+					temp = copytext(trim_left(temp), 6)	//normal speech
+					virgin = 0
+
+				while(findtext(trim_left(temp), ":", 1, 2))	//dept radio again (necessary)
+					temp = copytext(trim_left(temp), 3)
+
+				if(findtext(temp, "*", 1, 2))	//emotes
+					return
+
+				var/trimmed = trim_left(temp)
+				if(length(trimmed))
+					if(append)
+						temp += pick(append)
+
+					say(temp)
+				winset(client, "input", "text=[null]")

@@ -33,8 +33,7 @@
 
 /obj/item/weapon/tank/Destroy()
 	if(air_contents)
-		qdel(air_contents)
-		air_contents = null
+		QDEL_NULL(air_contents)
 
 	if(istype(loc, /obj/machinery/portable_atmospherics))
 		var/obj/machinery/portable_atmospherics/holder = loc
@@ -184,17 +183,12 @@
 		if(istype(loc,/mob/living/carbon))
 			var/mob/living/carbon/location = loc
 			if(location.internal == src)
-				location.internal = null
-				location.internals.icon_state = "internal0"
+				location.equip_internals(null)
 				to_chat(usr, "<span class='notice'>You close the tank release valve.</span>")
-				if (location.internals)
-					location.internals.icon_state = "internal0"
 			else
 				if(location.wear_mask && (location.wear_mask.clothing_flags & MASKINTERNALS))
-					location.internal = src
+					location.equip_internals(src)
 					to_chat(usr, "<span class='notice'>You open \the [src] valve.</span>")
-					if (location.internals)
-						location.internals.icon_state = "internal1"
 				else
 					to_chat(usr, "<span class='notice'>You need something to connect to \the [src].</span>")
 
@@ -242,12 +236,13 @@
 		return
 
 	var/cap = 0
-	var/uncapped = 0
 	if(!air_contents)
 		return 0
 
 	var/pressure = air_contents.return_pressure()
+
 	if(pressure > TANK_FRAGMENT_PRESSURE)
+
 		if(!istype(src.loc,/obj/item/device/transfer_valve))
 			message_admins("Explosive tank rupture! last key to touch the tank was [src.fingerprintslast].")
 			log_game("Explosive tank rupture! last key to touch the tank was [src.fingerprintslast].")
@@ -258,19 +253,16 @@
 		air_contents.react()
 		pressure = air_contents.return_pressure()
 		var/range = (pressure-TANK_FRAGMENT_PRESSURE)/TANK_FRAGMENT_SCALE
-		if(range > MAX_EXPLOSION_RANGE)
-			cap = 1
-			uncapped = range
-		range = min(range, MAX_EXPLOSION_RANGE)		// was 8 - - - Changed to a configurable define -- TLE
+		score.largest_TTV = max(score.largest_TTV, range)
+		if(range > MAX_EXPLOSION_RANGE && get_z_level(src) == map.zMainStation)
+			cap = range
+		if(get_z_level(src) == map.zMainStation)
+			range = min(range, MAX_EXPLOSION_RANGE)		// was 8 - - - Changed to a configurable define -- TLE
 		var/turf/epicenter = get_turf(loc)
 
 //		to_chat(world, "<span class='notice'>Exploding Pressure: [pressure] kPa, intensity: [range]</span>")
-
-		explosion(epicenter, round(range*0.25), round(range*0.5), round(range), round(range*1.5), 1, cap)
-		if(cap)
-			for(var/obj/machinery/computer/bhangmeter/bhangmeter in doppler_arrays)
-				if(bhangmeter)
-					bhangmeter.sense_explosion(epicenter.x,epicenter.y,epicenter.z,round(uncapped*0.25), round(uncapped*0.5), round(uncapped),"???", cap)
+		var/mob/user = istype(src.loc,/obj/item/device/transfer_valve) ? get_mob_by_key(loc.fingerprintslast) : get_mob_by_key(fingerprintslast)
+		explosion(epicenter, round(range*0.25), round(range*0.5), round(range), round(range*1.5), 1, whodunnit = user, true_range = cap)
 
 		if(istype(src.loc,/obj/item/device/transfer_valve))
 			var/obj/item/device/transfer_valve/TV = src.loc

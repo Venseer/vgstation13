@@ -2,7 +2,7 @@
 
 /datum/design/posibrain
 	name = "Positronic Brain"
-	desc = "Allows for the construction of a positronic brain"
+	desc = "Allows for the construction of a positronic brain."
 	id = "posibrain"
 	req_tech = list(Tc_ENGINEERING = 4, Tc_MATERIALS = 6, Tc_BLUESPACE = 2, Tc_PROGRAMMING = 4)
 	build_type = PROTOLATHE
@@ -82,6 +82,7 @@
 	materials = list(MAT_IRON = 7000, MAT_GLASS = 7000)
 	category = "Robotics"
 	build_path = /obj/item/stack/nanopaste
+	use_design_materials = FALSE // Cannot be recycled because stack code doesn't work well with recycling
 
 /datum/design/robotanalyzer
 	name = "Cyborg Analyzer"
@@ -94,7 +95,7 @@
 	build_path = /obj/item/device/robotanalyzer
 
 /datum/design/diagnostic_hud
-	name = "diagnostic HUD"
+	name = "Diagnostic HUD"
 	desc = "A heads-up display that displays diagnostic information for compatible cyborgs and exosuits."
 	id = "diagnostic_hud"
 	req_tech = list(Tc_BIOTECH = 2, Tc_MAGNETS = 3)
@@ -102,3 +103,25 @@
 	materials = list(MAT_IRON = 100, MAT_GLASS = 100)
 	category = "Robotics"
 	build_path = /obj/item/clothing/glasses/hud/diagnostic
+
+/datum/design/mech_painter
+	name = "Mecha Painter"
+	desc = "A device used to paint mechs in various colours and fashions."
+	id = "mech_painter"
+	req_tech = list(Tc_MATERIALS = 1)
+	build_type = MECHFAB
+	materials = list(MAT_IRON = 100, MAT_GLASS = 100)
+	category = "Misc"
+	build_path = /obj/item/device/mech_painter
+
+/* Perhaps this can come back one day in the future, when one can't spam them every round
+/datum/design/killdozer_modkit
+	name = "Ripley Killdozer kit"
+	desc = "This never even shows up ingame???"
+	id = "killdozer_modkit"
+	req_tech = list(Tc_MATERIALS = 3, Tc_MAGNETS = 3, Tc_SYNDICATE = 2)
+	build_type = PROTOLATHE | MECHFAB
+	materials = list(MAT_IRON = 275000, MAT_GLASS = 1000) //LODSOFMETAL
+	category = "Robotics"
+	build_path = /obj/item/mecha_parts/mecha_equipment/passive/killdozer_kit
+*/

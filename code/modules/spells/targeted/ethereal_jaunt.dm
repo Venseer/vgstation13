@@ -3,21 +3,24 @@
 	desc = "This spell creates your ethereal form, temporarily making you invisible and able to pass through walls."
 	abbreviation = "EJ"
 	user_type = USER_TYPE_WIZARD
+	specialization = SSUTILITY
 
 	school = "transmutation"
-	charge_max = 300
+	charge_cooldown_max = 30 SECONDS
 	spell_flags = Z2NOCAST | NEEDSCLOTHES | INCLUDEUSER
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = SELFCAST
 	max_targets = 1
-	cooldown_min = 100 //50 deciseconds reduction per rank
-	duration = 50 //in deciseconds
+	cooldown_min = 10 SECONDS //5 SECONDS reduction per rank
+	duration = 5 SECONDS
+	level_max = list(SP_TOTAL = 5, SP_SPEED = 4, SP_POWER = 1)
 
 	hud_state = "wiz_jaunt"
 
 	var/enteranim = "liquify"
 	var/exitanim = "reappear"
 	var/mist = 1
+	var/empowered
 
 /image/jaunter
 
@@ -26,33 +29,45 @@
 
 /spell/targeted/ethereal_jaunt/cast(list/targets)
 	if(targets.len > 1)
-		mass_jaunt(targets, duration, enteranim, exitanim, mist)
+		mass_jaunt(targets, duration, enteranim, exitanim, mist, empowered)
 	else
-		ethereal_jaunt(targets[1], duration, enteranim, exitanim, mist)
+		ethereal_jaunt(targets[1], duration, enteranim, exitanim, mist, empowered)
 
-/proc/ethereal_jaunt(var/mob/living/target, duration, enteranim = "liquify", exitanim = "reappear", mist = 1)
+/spell/targeted/ethereal_jaunt/get_upgrade_info(upgrade_type, level)
+	if(upgrade_type == SP_POWER)
+		return "Makes you faster while jaunting."
+	return ..()
+
+/spell/targeted/ethereal_jaunt/empower_spell()
+	if(!can_improve(SP_POWER))
+		return 0
+	spell_levels[SP_POWER]++
+	empowered = 1
+
+/proc/ethereal_jaunt(var/mob/living/carbon/target, duration, enteranim = "liquify", exitanim = "reappear", mist = 1, var/empowered)
 	var/mobloc = get_turf(target)
 	var/previncorp = target.incorporeal_move //This shouldn't ever matter under usual circumstances
-	if(target.incorporeal_move == INCORPOREAL_ETHEREAL) //they're already jaunting, we have another fix for this but this is sane
+	if(target.incorporeal_move) //they're already jaunting, we have another fix for this but this is sane
 		return
 	target.unlock_from()
+	target.flags |= INVULNERABLE //Moved these up here to hopefully reduce incidents where someone can be attacked while jaunting.
+	var/old_density = target.density
+	target.setDensity(FALSE)
 	//Begin jaunting with an animation
 	anim(location = mobloc, a_icon = 'icons/mob/mob.dmi', flick_anim = enteranim, direction = target.dir, name = target.name,lay = target.layer+1,plane = target.plane)
 	if(mist)
-		target.ExtinguishMob()
-		var/datum/effect/effect/system/steam_spread/steam = new /datum/effect/effect/system/steam_spread()
+		target.extinguish()
+		var/datum/effect/system/steam_spread/steam = new /datum/effect/system/steam_spread()
 		steam.set_up(10, 0, mobloc)
 		steam.start()
-
 	//Turn on jaunt incorporeal movement, make him invincible and invisible
-	target.incorporeal_move = INCORPOREAL_ETHEREAL
-	target.invisibility = INVISIBILITY_MAXIMUM
-	target.flags |= INVULNERABLE
-	var/old_density = target.density
-	target.setDensity(FALSE)
+	if(empowered)
+		target.incorporeal_move = INCORPOREAL_ETHEREAL_IMPROVED
+	else
+		target.incorporeal_move = INCORPOREAL_ETHEREAL
+	target.make_invisible(ETHEREAL, 0, TRUE, 125, INVISIBILITY_LEVEL_TWO)
+	update_HUD_in_range(target) //This will do a lot of redundant calculations with mass jaunting, could probably be optimized.
 	target.candrop = 0
-	target.alphas["etheral_jaunt"] = 125 //Spoopy mode to know you are jaunting
-	target.handle_alpha()
 	for(var/obj/abstract/screen/movable/spell_master/SM in target.spell_masters)
 		SM.silence_spells(duration+25)
 	target.delayNextAttack(duration+25)
@@ -60,29 +75,33 @@
 
 	sleep(duration)
 
+	if (target.gcDestroyed)
+		return
+
 	//Begin unjaunting
 	mobloc = get_turf(target)
 	if(mist)
-		var/datum/effect/effect/system/steam_spread/steam = new /datum/effect/effect/system/steam_spread()
+		var/datum/effect/system/steam_spread/steam = new /datum/effect/system/steam_spread()
 		steam.set_up(10, 0, mobloc)
 		steam.start()
 	target.delayNextMove(25)
 	target.dir = SOUTH
 	sleep(20)
+	if (target.gcDestroyed)
+		return
 	anim(location = mobloc, a_icon = 'icons/mob/mob.dmi', flick_anim = exitanim, direction = target.dir, name = target.name,lay = target.layer+1,plane = target.plane)
 	sleep(5)
-
+	if (target.gcDestroyed)
+		return
 	//Forcemove him onto the tile and make him visible and vulnerable
 	target.forceMove(mobloc)
-	target.invisibility = 0
+	target.make_visible(ETHEREAL)
 	for(var/obj/abstract/screen/movable/spell_master/SM in target.spell_masters)
 		SM.silence_spells(0)
 	target.flags &= ~INVULNERABLE
 	target.setDensity(old_density)
 	target.candrop = 1
 	target.incorporeal_move = previncorp
-	target.alphas -= "etheral_jaunt"
-	target.handle_alpha()
 
 /proc/mass_jaunt(targets, duration, enteranim, exitanim, mist)
 	var/list/jaunts = list()
@@ -93,23 +112,23 @@
 		jaunts[target] = I
 	for(var/mob/living/target in targets)
 		spawn(0)
-			if(target.incorporeal_move != INCORPOREAL_ETHEREAL) //To avoid the potential for infinite jaunt
+			if(target.incorporeal_move != INCORPOREAL_ETHEREAL && target.incorporeal_move != INCORPOREAL_ETHEREAL_IMPROVED)//To avoid the potential for infinite jaunt
 				if(target.client)
 					for(var/A in jaunts)
 						target.client.images += jaunts[A]
-				var/on_moved_holder = target.on_moved
-				target.on_moved = new("owner"=src)
-				target.on_moved.Add(jaunts[target],"update_dir")
+				target.register_event(/event/moved, jaunts[target], /proc/update_dir_on_moved_callback)
 				ethereal_jaunt(target, duration, enteranim, exitanim, mist)
-				qdel(target.on_moved)
-				target.on_moved = on_moved_holder
+				target.unregister_event(/event/moved, jaunts[target], /proc/update_dir_on_moved_callback)
 				if(target.client)
 					for(var/A in jaunts)
 						target.client.images -= jaunts[A]
 
+/proc/update_dir_on_moved_callback(atom/movable/mover)
+	mover.update_dir()
+
 /spell/targeted/ethereal_jaunt/jauntgroup
 	name = "Group Jaunt"
-	desc = "This spell allows all people within range to be jaunted along with the user"
+	desc = "This spell allows all people within range to be jaunted along with the user."
 	hud_state = "group_jaunt"
 	user_type = USER_TYPE_OTHER
 
@@ -119,19 +138,19 @@
 	max_targets = 0
 	range = 3
 
-	charge_max = 600 //Double cooldown, makes it less spammable
-	duration = 100 //Double jaunt time, makes it easier to cooperate
+	charge_cooldown_max = 60 SECONDS //Double cooldown, makes it less spammable
+	duration = 10 SECONDS //Double jaunt time, makes it easier to cooperate
 
 /spell/targeted/ethereal_jaunt/shift
 	name = "Phase Shift"
-	desc = "This spell allows you to pass through walls"
+	desc = "This spell allows you to pass through walls."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 200
+	charge_cooldown_max = 20 SECONDS
 	spell_flags = Z2NOCAST | INCLUDEUSER | CONSTRUCT_CHECK
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = SELFCAST
-	duration = 50 //in deciseconds
+	duration = 5 SECONDS
 
 	hud_state = "const_shift"
 
@@ -141,7 +160,7 @@
 
 /spell/targeted/ethereal_jaunt/shift/alt
 	desc = "Vibrate through the veil for about 5 seconds, letting you move around freely through any obstacle."
-	charge_max = 170
+	charge_cooldown_max = 15 SECONDS
 	hud_state = "const_phase"
 	enteranim = "wraith2_phaseenter"
 	exitanim = "wraith2_phaseexit"
@@ -154,10 +173,10 @@
 
 	spell_flags = Z2NOCAST | INCLUDEUSER
 
-	charge_max = 1 MINUTES
-	invocation_type = SpI_NONE
+	charge_cooldown_max = 1 MINUTES
+	invocation_type = SP_INV_NONE
 	range = SELFCAST
-	duration = 50 //in deciseconds
+	duration = 5 SECONDS
 
 	override_base = "vamp"
 	hud_state = "vamp_mistform"
@@ -174,12 +193,18 @@
 		return FALSE
 	if (!user.vampire_power(blood_cost, CONSCIOUS))
 		return FALSE
+	if (!isvampire(user))
+		return FALSE
 
 /spell/targeted/ethereal_jaunt/vamp/cast(list/targets, var/mob/user)
-	var/datum/role/vampire/V = isvampire(user)
+	var/datum/role/vampire/V = user.mind.GetRole(VAMPIRE)
 	var/mob/living/simple_animal/hostile/scarybat/SB = new(get_turf(user))
 	SB.vamp_fac = V.faction
 	V.faction.members += SB
+	if (ishuman(user))
+		var/mob/living/carbon/human/H = user
+		for (var/datum/organ/external/O in H.organs)
+			O.release_restraints()
 	..()
 	if (!V)
 		return FALSE

@@ -51,8 +51,8 @@
 
 	for(var/obj/machinery/account_database/DB in account_DBs)
 		//Checks for a database on its Z-level, else it checks for a database at the main Station.
-		if((DB.z == src.z) || (DB.z == STATION_Z))
-			if(!(DB.stat & NOPOWER) && DB.activated )//If the database if damaged or not powered, people won't be able to use the EFTPOS anymore
+		if((DB.z == src.z) || (DB.z == map.zMainStation))
+			if(!(DB.stat & (NOPOWER|FORCEDISABLE)) && DB.activated )//If the database if damaged or not powered, people won't be able to use the EFTPOS anymore
 				linked_db = DB
 				break
 
@@ -82,7 +82,7 @@
 				<a href='?src=\ref[src];choice=change_code'>Change access code</a><br/>
 				<a href='?src=\ref[src];choice=change_id'>Change EFTPOS ID</a><br/>
 				Scan card to reset access code <a href='?src=\ref[src];choice=reset'>\[------\]</a>"}
-		user << browse(dat,"window=eftpos")
+		user << browse(HTML_SKELETON(dat),"window=eftpos")
 	else
 		user << browse(null,"window=eftpos")
 
@@ -162,14 +162,13 @@
 			if("reset")
 				//reset the access code - requires HoP/captain access
 				var/obj/item/I = usr.get_active_hand()
-				if (istype(I, /obj/item/weapon/card))
+				if (emag_check(I,usr))
+					return
+				else if (istype(I, /obj/item/weapon/card))
 					var/obj/item/weapon/card/id/C = I
 					if((access_cent_captain in C.access) || (access_hop in C.access) || (access_captain in C.access))
 						access_code = 0
 						to_chat(usr, "[bicon(src)] <span class='info'>Access code reset to 0.</span>")
-				else if (istype(I, /obj/item/weapon/card/emag))
-					access_code = 0
-					to_chat(usr, "[bicon(src)] <span class='info'>Access code reset to 0.</span>")
 
 	src.attack_self(usr)
 
@@ -184,11 +183,13 @@
 			playsound(src, 'sound/machines/alert.ogg', 50, 1)
 			visible_message("[bicon(src)] \The [src] buzzes.")
 
-
 /obj/item/device/eftpos/proc/scan_card(var/obj/item/weapon/card/I)
 	if (istype(I, /obj/item/weapon/card))
 		charge_card(I)
-	else
-		..()
-
 	//emag?
+
+//emag
+/obj/item/device/eftpos/emag_act(mob/user)
+	access_code = 0
+	to_chat(user, "[bicon(src)] <span class='info'>Access code reset to 0.</span>")
+	

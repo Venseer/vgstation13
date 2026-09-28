@@ -8,17 +8,25 @@ var/area/space_area
 	var/global/global_uid = 0
 	var/uid
 	var/obj/machinery/power/apc/areaapc = null
+	var/list/obj/machinery/alarm/air_alarms = list()
+	var/list/obj/machinery/light_switch/lightswitches = list()
+	var/list/obj/machinery/light/lights = list()
 	var/list/area_turfs
-	var/turret_protected = 0
-	var/list/turretTargets = list()
-	plane = ABOVE_LIGHTING_PLANE
+	var/datum/virtual_z/v
+	plane = LIGHTING_PLANE
 	layer = MAPPING_AREA_LAYER
 	var/base_turf_type = null
 	var/shuttle_can_crush = TRUE
 	var/project_shadows = FALSE
+	var/obj/effect/area_alert_holder/alert_holder = null
 	var/obj/effect/narration/narrator = null
+	var/holomap_draw_override = HOLOMAP_DRAW_NORMAL
 
-	flags = 0
+	flags = CAVES_ALLOWED
+
+/// Used for shuttle overrides so we can expose planet or space turfs depending on the shuttle's location.
+/area/proc/get_base_turf_type(turf/T)
+	return base_turf_type
 
 /area/New()
 	area_turfs = list()
@@ -35,13 +43,18 @@ var/area/space_area
 		power_equip = 0
 		power_environ = 0
 		space_area = src
-//		lighting_state = 4
-		//has_gravity = 0    // Space has gravity.  Because.. because.
+		for(var/datum/d in ambient_sounds)//can't think of a better way to do this.
+			qdel(d)
+		ambient_sounds = list(/datum/ambience/spaced1,/datum/ambience/spaced2,/datum/ambience/spaced3,/datum/ambience/spacemusic,/datum/ambience/mainmusic,/datum/ambience/traitormusic)
+		//lighting_state = 4
+		//gravity = 0    // Space has gravity.  Because.. because.
 
 	if(!requires_power)
 		power_light = 1
 		power_equip = 1
 		power_environ = 1
+
+	alert_holder = new(src)
 
 	..()
 
@@ -56,6 +69,9 @@ var/area/space_area
 /area/Destroy()
 	..()
 	areaapc = null
+	if (alert_holder)
+		QDEL_NULL(alert_holder)
+
 
 /*
  * Added to fix mech fabs 05/2013 ~Sayu.
@@ -120,6 +136,8 @@ var/area/space_area
 						a.cancelAlarm("Power", src, source)
 					else
 						a.triggerAlarm("Power", src, cameras, source)
+			for (var/obj/item/device/pager/P in pager_list)
+				P.triggerAlarm("Power", src)
 	return
 
 /area/proc/send_poweralert(var/obj/machinery/computer/station_alert/a)//sending alerts to newly built Station Alert Computers.
@@ -135,7 +153,7 @@ var/area/space_area
 
 	// Determine what the highest DL reported by air alarms is
 	for(var/obj/machinery/alarm/AA in src)
-		if((AA.stat & (NOPOWER|BROKEN)) || AA.shorted || AA.buildstage != 2)
+		if((AA.stat & (NOPOWER|BROKEN|FORCEDISABLE)) || AA.shorted || AA.buildstage != 2)
 			continue
 		var/reported_danger_level=AA.local_danger_level
 		if(AA.alarmActivated)
@@ -160,6 +178,8 @@ var/area/space_area
 			for(var/obj/machinery/computer/station_alert/a in machines)
 				if(src in (a.covered_areas))
 					a.triggerAlarm("Atmosphere", src, cameras, src)
+			for (var/obj/item/device/pager/P in pager_list)
+				P.triggerAlarm("Atmosphere", src)
 			door_alerts |= DOORALERT_ATMOS
 			UpdateFirelocks()
 		// Dropping from danger level 2.
@@ -175,7 +195,7 @@ var/area/space_area
 			UpdateFirelocks()
 		atmosalm = danger_level
 		for (var/obj/machinery/alarm/AA in src)
-			if ( !(AA.stat & (NOPOWER|BROKEN)) && !AA.shorted)
+			if ( !(AA.stat & (NOPOWER|BROKEN|FORCEDISABLE)) && !AA.shorted)
 				AA.update_icon()
 		return 1
 	return 0
@@ -184,8 +204,8 @@ var/area/space_area
 	var/danger_level = 0
 
 	// Determine what the highest DL reported by air alarms is
-	for(var/obj/machinery/alarm/AA in src)
-		if((AA.stat & (NOPOWER|BROKEN)) || AA.shorted || AA.buildstage != 2)
+	for(var/obj/machinery/alarm/AA in air_alarms)
+		if((AA.stat & (FORCEDISABLE|NOPOWER|BROKEN)) || AA.shorted || AA.buildstage != 2)
 			continue
 		var/reported_danger_level=AA.local_danger_level
 		if(AA.alarmActivated)
@@ -198,7 +218,7 @@ var/area/space_area
 
 
 /area/proc/UpdateFirelocks()
-	if(door_alerts != 0)
+	if(door_alerts != 0 && !doors_overridden)
 		CloseFirelocks()
 	else
 		OpenFirelocks()
@@ -249,6 +269,8 @@ var/area/space_area
 		for (var/obj/machinery/computer/station_alert/a in machines)
 			if(src in (a.covered_areas))
 				a.triggerAlarm("Fire", src, cameras, src)
+		for (var/obj/item/device/pager/P in pager_list)
+			P.triggerAlarm("Fire", src)
 
 /area/proc/send_firealert(var/obj/machinery/computer/station_alert/a)//sending alerts to newly built Station Alert Computers.
 	if(fire)
@@ -319,31 +341,24 @@ var/area/space_area
 		updateicon()
 	return
 
+/area/proc/get_ambience_list(mob/user)
+	//Check if the area has an AI and add the appropriate ambience
+	var/list/ambience_list = list()
+	ambience_list.Add(ambient_sounds)
+	for(var/mob/living/silicon/ai/AI in player_list)
+		if(get_area(AI) == src && !find_active_faction_by_type(/datum/faction/malf))
+			ambience_list.Add(/datum/ambience/AI, /datum/ambience/AI/safe, /datum/ambience/AI/back)
+			if(AI?.laws.name == "Asimov's Three Laws of Robotics")
+				ambience_list.Add(/datum/ambience/AI/harmonica)
+			break
+	if(user.loneliness_affected())
+		ambience_list.Add(/datum/ambience/nobodyhere)
+	if(ambience_list.len > 0)
+		return ambience_list
+
 /area/proc/updateicon()
-	if ((fire || eject || party || radalert) && ((!requires_power)?(!requires_power):power_environ))//If it doesn't require power, can still activate this proc.
-		// Highest priority at the top.
-		if(radalert && !fire)
-			icon_state = "radiation"
-		else if(fire && !radalert && !eject && !party)
-			icon_state = "blue"
-		/*else if(atmosalm && !fire && !eject && !party)
-			icon_state = "bluenew"*/
-		else if(!fire && eject && !party)
-			icon_state = "red"
-		else if(party && !fire && !eject)
-			icon_state = "party"
-		else
-			icon_state = "blue-red"
-	else
-	//	new lighting behaviour with obj lights
-		icon_state = null
-
-
-/*
-#define EQUIP 1
-#define LIGHT 2
-#define ENVIRON 3
-*/
+	if (alert_holder)
+		alert_holder.update()
 
 /area/proc/powered(var/chan)		// return true if the area has power to given channel
 
@@ -368,7 +383,7 @@ var/area/space_area
 /area/proc/power_change()
 	for(var/obj/machinery/M in src)	// for each machine in the area
 		M.power_change()				// reverify power status (to update icons etc.)
-	if (fire || eject || party)
+	if (fire || eject || party || radalert)
 		updateicon()
 
 /area/proc/usage(const/chan)
@@ -415,78 +430,61 @@ var/area/space_area
 /area/Entered(atom/movable/Obj, atom/OldLoc)
 	var/area/oldArea = get_area(OldLoc)
 
+	if(oldArea == src)
+		return 1
 	if(project_shadows)
 		Obj.update_shadow()
 	else if(istype(oldArea) && oldArea.project_shadows)
 		Obj.underlays -= Obj.shadow
 
 	Obj.area_entered(src)
+	if(planet)
+		Obj.planet = planet
 	for(var/atom/movable/thing in get_contents_in_object(Obj))
 		thing.area_entered(src)
+		if(planet)
+			thing.planet = planet
 
 	for(var/mob/mob_in_obj in Obj.contents)
+		if(istype(mob_in_obj))
+			INVOKE_EVENT(mob_in_obj, /event/mob_area_changed, "mob" = mob_in_obj, "newarea" = src, "oldarea" = oldArea)
+			if(oldArea?.v && src.v && (oldArea.v != src.v))
+				var/datum/virtual_z/old_v = oldArea.v
+				var/datum/virtual_z/new_v = src.v
+				if(istype(mob_in_obj, /mob/living))
+					var/mob/living/L = mob_in_obj
+					new_v.mob_entered(L)
+					INVOKE_EVENT(L, /event/v_transition, "user" = L, "from_v" = old_v, "to_v" = new_v)
 
-		CallHook("MobAreaChange", list("mob" = mob_in_obj, "new" = src, "old" = oldArea))
-
+	INVOKE_EVENT(src, /event/area_entered, "enterer" = Obj)
 	var/mob/M = Obj
 	if(istype(M))
-		CallHook("MobAreaChange", list("mob" = M, "new" = src, "old" = oldArea)) // /vg/ - EVENTS!
-		if(M.client && (M.client.prefs.toggles & SOUND_AMBIENCE) && isnull(media_source) && !M.client.ambience_playing)
-			M.client.ambience_playing = 1
-			var/sound = 'sound/ambience/shipambience.ogg'
-
-			if(prob(35))
-				//Ambience goes down here -- make sure to list each area seperately for ease of adding things in later, thanks!
-				//Note: areas adjacent to each other should have the same sounds to prevent cutoff when possible.- LastyScratch.
-				//TODO: This is dumb - N3X.
-				if(istype(src, /area/chapel))
-					sound = pick('sound/ambience/ambicha1.ogg', 'sound/ambience/ambicha2.ogg', 'sound/ambience/ambicha3.ogg', 'sound/ambience/ambicha4.ogg')
-				else if(istype(src, /area/medical/morgue))
-					sound = pick('sound/ambience/ambimo1.ogg', 'sound/ambience/ambimo2.ogg', 'sound/music/main.ogg')
-				else if(isspace(src))
-					sound = pick('sound/ambience/ambispace.ogg', 'sound/music/space.ogg', 'sound/music/main.ogg', 'sound/music/traitor.ogg', 'sound/ambience/spookyspace1.ogg', 'sound/ambience/spookyspace2.ogg')
-				else if(istype(src, /area/engineering))
-					sound = pick('sound/ambience/ambisin1.ogg', 'sound/ambience/ambisin2.ogg', 'sound/ambience/ambisin3.ogg', 'sound/ambience/ambisin4.ogg')
-				else if(istype(src, /area/AIsattele) || istype(src, /area/turret_protected/ai) || istype(src, /area/turret_protected/ai_upload) || istype(src, /area/turret_protected/ai_upload_foyer))
-					sound = pick('sound/ambience/ambimalf.ogg')
-				else if(istype(src, /area/maintenance/ghettobar))
-					sound = pick('sound/ambience/ghetto.ogg')
-				else if(istype(src, /area/shuttle/salvage/derelict))
-					sound = pick('sound/ambience/derelict1.ogg', 'sound/ambience/derelict2.ogg', 'sound/ambience/derelict3.ogg', 'sound/ambience/derelict4.ogg')
-				else if(istype(src, /area/mine/explored) || istype(src, /area/mine/unexplored))
-					sound = pick('sound/ambience/ambimine.ogg', 'sound/ambience/song_game.ogg', 'sound/music/torvus.ogg')
-				else if(istype(src, /area/maintenance/fsmaint2) || istype(src, /area/maintenance/port) || istype(src, /area/maintenance/aft) || istype(src, /area/maintenance/asmaint))
-					sound = pick('sound/ambience/spookymaint1.ogg', 'sound/ambience/spookymaint2.ogg')
-				else if(istype(src, /area/tcommsat) || istype(src, /area/turret_protected/tcomwest) || istype(src, /area/turret_protected/tcomeast) || istype(src, /area/turret_protected/tcomfoyer) || istype(src, /area/turret_protected/tcomsat))
-					sound = pick('sound/ambience/ambisin2.ogg', 'sound/ambience/signal.ogg', 'sound/ambience/signal.ogg', 'sound/ambience/ambigen10.ogg')
-				else
-					sound = pick('sound/ambience/ambigen1.ogg', 'sound/ambience/ambigen3.ogg', 'sound/ambience/ambigen4.ogg', 'sound/ambience/ambigen5.ogg', 'sound/ambience/ambigen6.ogg', 'sound/ambience/ambigen7.ogg', 'sound/ambience/ambigen8.ogg', 'sound/ambience/ambigen9.ogg', 'sound/ambience/ambigen10.ogg', 'sound/ambience/ambigen11.ogg', 'sound/ambience/ambigen12.ogg', 'sound/ambience/ambigen14.ogg')
-
-			M << sound(sound, 0, 0, CHANNEL_AMBIENCE, 25)
-
-			spawn(600) // Ewww - this is very very bad.
-				if(M && M.client)
-					M.client.ambience_playing = 0
-
+		INVOKE_EVENT(M, /event/mob_area_changed, "mob" = M, "newarea" = src, "oldarea" = oldArea)
+		if(oldArea?.v && src.v && (oldArea.v != src.v))
+			var/datum/virtual_z/old_v = oldArea.v
+			var/datum/virtual_z/new_v = src.v
+			if(istype(M, /mob/living))
+				var/mob/living/L = M
+				new_v.mob_entered(L)
+				INVOKE_EVENT(L, /event/v_transition, "user" = L, "from_v" = old_v, "to_v" = new_v)
 		if(narrator)
 			narrator.Crossed(M)
 
-	if(turret_protected)
-		if(isliving(Obj))
-			turretTargets |= Obj
-		else if(istype(Obj, /obj/mecha))
-			var/obj/mecha/Mech = Obj
-			if(Mech.occupant)
-				turretTargets |= Mech
-		// /vg/ vehicles
-		else if(istype(Obj, /obj/structure/bed/chair/vehicle))
-			turretTargets |= Obj
-		return 1
-
 /area/Exited(atom/movable/Obj)
-	if(turret_protected)
-		if(Obj in turretTargets)
-			turretTargets -= Obj
+	var/turf/T = get_turf(Obj)
+	var/datum/virtual_z/new_v = T?.v
+	if(v && v != new_v)
+		if(istype(Obj, /mob/living))
+			var/mob/living/L = Obj
+			v.mob_exited(L)
+			INVOKE_EVENT(L, /event/v_transition, "user" = L, "from_v" = v, "to_v" = new_v)
+		for(var/atom/movable/thing in get_contents_in_object(Obj))
+			if(istype(thing, /mob/living))
+				var/mob/living/L = thing
+				v.mob_exited(L)
+				INVOKE_EVENT(L, /event/v_transition, "user" = L, "from_v" = v, "to_v" = new_v)
+
+	INVOKE_EVENT(src, /event/area_exited, "exiter" = Obj)
 	..()
 
 /area/proc/subjectDied(target)
@@ -498,7 +496,7 @@ var/area/space_area
 /area/proc/gravitychange(var/gravitystate = 0, var/area/A)
 
 
-	A.has_gravity = gravitystate
+	A.gravity = gravitystate
 
 	if(gravitystate)
 		for(var/mob/living/carbon/human/H in A)
@@ -520,13 +518,6 @@ var/area/space_area
 	if(areaapc == apctoremove)
 		areaapc = null
 
-/area/proc/get_turfs()
-	var/list/L = list()
-	for(var/turf/T in contents)
-		L += T
-
-	return L
-
 /area/proc/get_atoms()
 	var/list/L = list()
 	for(var/atom/A in contents)
@@ -536,7 +527,7 @@ var/area/space_area
 
 /area/proc/get_shuttle()
 	for(var/datum/shuttle/S in shuttles)
-		if(S.linked_area == src)
+		if(S.has_area(src))
 			return S
 	return null
 
@@ -575,7 +566,6 @@ var/area/space_area
 
 var/list/ignored_keys = list("loc", "locs", "parent_type", "vars", "verbs", "type", "x", "y", "z", "group", "contents", "air", "zone", "light", "underlays", "lighting_overlay", "corners", "affecting_lights", "has_opaque_atom", "lighting_corners_initialised", "light_sources")
 var/list/moved_landmarks = list(latejoin, wizardstart) //Landmarks that are moved by move_area_to and move_contents_to
-var/list/transparent_icons = list("diagonalWall3","swall_f5","swall_f6","swall_f9","swall_f10") //icon_states for which to prepare an underlay
 
 /area/proc/move_contents_to(var/area/A, var/turftoleave=null, var/direction = null)
 	//Takes: Area. Optional: turf type to leave behind.
@@ -675,42 +665,18 @@ var/list/transparent_icons = list("diagonalWall3","swall_f5","swall_f6","swall_f
 						SX.air.copy_from(ST.zone.air)
 						ST.zone.remove(ST)
 
-					/* Quick visual fix for some weird shuttle corner artefacts when on transit space tiles */
-					if(direction && findtext(X.icon_state, "swall_s"))
-
-						// Spawn a new shuttle corner object
-						var/obj/corner = new()
-						corner.forceMove(X)
-						corner.setDensity(TRUE)
-						corner.anchored = 1
-						corner.icon = X.icon
-						corner.icon_state = replacetext(X.icon_state, "_s", "_f")
-						corner.tag = "delete me"
-						corner.name = "wall"
-
+					/* Quick visual fix for transit space tiles */
+					if(direction && (locate(/obj/structure/shuttle/diag_wall) in X))
 						// Find a new turf to take on the property of
-						var/turf/nextturf = get_step(corner, direction)
+						var/turf/nextturf = get_step(X, direction)
 						if(!nextturf || !istype(nextturf, /turf/space))
-							nextturf = get_step(corner, turn(direction, 180))
-
+							nextturf = get_step(X, turn(direction, 180))
 
 						// Take on the icon of a neighboring scrolling space icon
 						X.icon = nextturf.icon
 						X.icon_state = nextturf.icon_state
 
-
 					for(var/obj/O in T)
-
-						// Reset the shuttle corners
-						if(O.tag == "delete me")
-							X.icon = 'icons/turf/shuttle.dmi'
-							X.icon_state = replacetext(O.icon_state, "_f", "_s") // revert the turf to the old icon_state
-							X.name = "wall"
-							qdel(O) // prevents multiple shuttle corners from stacking
-							O = null
-							continue
-						if(!istype(O,/obj))
-							continue
 						O.forceMove(X)
 					for(var/mob/M in T)
 						if(!M.can_shuttle_move())
@@ -728,7 +694,7 @@ var/list/transparent_icons = list("diagonalWall3","swall_f5","swall_f6","swall_f
 					if(turftoleave)
 						fromupdate += T.ChangeTurf(turftoleave, allow = 1)
 					else
-						if(ispath(AA.type, /area/syndicate_station/start))
+						if(ispath(AA.type, /area/shuttle/nuclearops))
 							T.ChangeTurf(/turf/unsimulated/floor, allow = 1)
 							T.icon = 'icons/turf/snow.dmi'
 							T.icon_state = "snow"
@@ -768,3 +734,106 @@ var/list/transparent_icons = list("diagonalWall3","swall_f5","swall_f6","swall_f
 
 	for(var/obj/machinery/door/D in doors)
 		D.update_nearby_tiles()
+
+
+/area/proc/copy_contents_to(area/A , platingRequired = FALSE)
+	//This version is used by the Holodeck.
+	//Moving it here from unsorted.dm for easier maintenance in the future.
+
+	if(!A || !src)
+		return 0
+
+	var/list/turfs_src = get_area_turfs(src.type)
+	var/list/turfs_trg = get_area_turfs(A.type)
+
+	var/src_min_x = 0
+	var/src_min_y = 0
+	for (var/turf/T in turfs_src)
+		if(T.x < src_min_x || !src_min_x)
+			src_min_x	= T.x
+		if(T.y < src_min_y || !src_min_y)
+			src_min_y	= T.y
+
+	var/trg_min_x = 0
+	var/trg_min_y = 0
+	for (var/turf/T in turfs_trg)
+		if(T.x < trg_min_x || !trg_min_x)
+			trg_min_x	= T.x
+		if(T.y < trg_min_y || !trg_min_y)
+			trg_min_y	= T.y
+
+	var/list/refined_src = new/list()
+	for(var/turf/T in turfs_src)
+		refined_src += T
+		refined_src[T] = new/datum/coords
+		var/datum/coords/C = refined_src[T]
+		C.x_pos = (T.x - src_min_x)
+		C.y_pos = (T.y - src_min_y)
+
+	var/list/refined_trg = new/list()
+	for(var/turf/T in turfs_trg)
+		refined_trg += T
+		refined_trg[T] = new/datum/coords
+		var/datum/coords/C = refined_trg[T]
+		C.x_pos = (T.x - trg_min_x)
+		C.y_pos = (T.y - trg_min_y)
+
+	var/list/copiedobjs = list()
+
+	moving:
+		for (var/turf/T in refined_src)
+			var/datum/coords/C_src = refined_src[T]
+			for (var/turf/B in refined_trg)
+				var/datum/coords/C_trg = refined_trg[B]
+				if(C_src.x_pos == C_trg.x_pos && C_src.y_pos == C_trg.y_pos)
+					var/old_name = T.name
+					var/old_dir = T.dir
+					var/old_icon_state = T.icon_state
+					var/old_icon = T.icon
+
+					if(platingRequired)
+						if(istype(B, /turf/space))
+							continue moving
+
+					B.ChangeTurf(T.type)
+					B.name = old_name
+					B.dir = old_dir
+					B.icon_state = old_icon_state
+					B.icon = old_icon
+
+					B.return_air().copy_from(T.return_air())
+
+					for(var/obj/O in T)
+						copiedobjs += O.DuplicateObject(B)
+
+					for(var/mob/M in T)
+						if(!M.can_shuttle_move())
+							continue
+						copiedobjs += M.DuplicateObject(B)
+
+					refined_src -= T
+					refined_trg -= B
+					continue moving
+
+	for(var/obj/machinery/door/new_door in copiedobjs)
+		new_door.update_nearby_tiles()
+
+	return copiedobjs
+
+// If you're looking at this proc and thinking "that's exactly what I need!"
+// then you're wrong and you need to take a step back and reconsider.
+/atom/movable/proc/DuplicateObject(var/location)
+	var/atom/movable/duplicate = new src.type(location)
+	duplicate.change_dir(dir)
+	duplicate.plane = plane
+	duplicate.layer = layer
+	duplicate.name = name
+	duplicate.desc = desc
+	duplicate.pixel_x = pixel_x
+	duplicate.pixel_y = pixel_y
+	duplicate.pixel_w = pixel_w
+	duplicate.pixel_z = pixel_z
+	return duplicate
+
+/area/proc/make_geyser(turf/T)
+	return

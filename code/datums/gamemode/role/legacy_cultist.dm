@@ -1,12 +1,14 @@
 /datum/role/legacy_cultist
 	id = LEGACY_CULTIST
 	name = LEGACY_CULTIST
-	special_role = ROLE_LEGACY_CULTIST
+	special_role = LEGACY_CULTIST
 	disallow_job = FALSE
-	restricted_jobs = list("AI", "Cyborg", "Mobile MMI", "Security Officer", "Warden", "Detective", "Head of Security", "Captain", "Chaplain", "Head of Personnel", "Internal Affairs Agent")
+	restricted_jobs = list("AI", "Cyborg", "Mobile MMI", "Security Officer", "Warden", "Detective", "Head of Security", "Captain", "Chaplain", "Head of Personnel", "Internal Affairs Agent", "Merchant")
 	logo_state = "cult-logo"
 	greets = list("default","custom","admintoggle")
-	required_pref = ROLE_LEGACY_CULTIST
+	required_pref = CULTIST
+	default_admin_voice = "<span class='danger'>Nar-Sie</span>" // Nar-Sie's name always appear in red in the chat, makes it stand out.
+	admin_voice_style = "sinister"
 
 /datum/role/legacy_cultist/OnPostSetup(var/equip = FALSE)
 	. = ..()
@@ -57,7 +59,6 @@
 	antag.current << sound('sound/effects/vampire_intro.ogg')
 
 /datum/role/legacy_cultist/Drop()
-	stat_collection.cult_deconverted++
 	. = ..()
 	if (!antag)
 		return .
@@ -83,3 +84,14 @@
 	var/datum/faction/cult/narsie/C = faction
 	dat += "<a href='?src=\ref[faction];cult_mindspeak=\ref[src]'>Voice of [C.deity_name]</a><br/>"
 	return dat
+
+/datum/role/legacy_cultist/handle_reagent(var/reagent_id)
+	switch (reagent_id)
+		if (HOLYWATER)
+			var/mob/living/carbon/human/H = antag.current
+			if (!istype(H))
+				return
+			if (prob(10))
+				Drop()
+			else
+				to_chat(H, "<span class='danger'>A freezing liquid permeates your bloodstream. Your arcane knowledge is becoming obscure again.</span>")

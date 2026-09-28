@@ -157,7 +157,9 @@
 
 		if(prob(10))
 			to_chat(L, "<span class='userdanger'>\The [src] throws you to the ground!</span>")
-			L.Knockdown(rand(2,5))
+			var/incapacitation_duration = rand(2, 5)
+			L.Knockdown(incapacitation_duration)
+			L.Stun(incapacitation_duration)
 
 /mob/living/simple_animal/hostile/frog/adjustBruteLoss(amount)
 	.=..()
@@ -165,6 +167,8 @@
 	if(locked_to && prob(amount * 5))
 		detach()
 
+/mob/living/simple_animal/hostile/frog/get_butchering_products()
+	return list(/datum/butchering_product/frog_leg)
 
 /mob/living/simple_animal/hostile/frog/centurion
 	name = "hopper centurion"

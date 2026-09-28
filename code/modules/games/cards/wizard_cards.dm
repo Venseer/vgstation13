@@ -65,14 +65,21 @@ var/global/list/wizard_cards_normal = list(
 	char_image = image('icons/obj/wiz_cards.dmi',cardname)
 	update_icon()
 
+/obj/item/toy/singlecard/wizard/Destroy()
+	if(card_use)
+		QDEL_NULL(card_use)
+	..()
+
 /obj/item/toy/singlecard/wizard/update_icon()
 	if(flipped)
 		overlays -= char_image
 		icon_state = "wizcard_down"
 		name = "card"
+		desc = "A collectable trading card depicting various magical entities."
 	else
 		src.icon_state = initial(icon_state)
 		src.name = initial(src.name)
+		src.desc = initial(src.desc)
 		src.overlays += char_image
 
 /obj/item/toy/singlecard/wizard/attack_self(mob/user, params)

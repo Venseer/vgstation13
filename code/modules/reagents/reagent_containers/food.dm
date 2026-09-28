@@ -8,11 +8,21 @@
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/food.dmi', "right_hand" = 'icons/mob/in-hand/right/food.dmi')
 	possible_transfer_amounts = null
 	volume = 50 //Food can contain a beaker's worth of reagents unless specified otherwise. Do note large servings of complex food items can contain well over 50 reagents total
+	var/on_spawn_randomized_x = 5 // Randomized on_spawn pixel offsets. Set to null to have no random offset.
+	var/on_spawn_randomized_y = 5
+
+/obj/item/weapon/reagent_containers/food/verb/blow_on()
+	set name = "Blow on"
+	set category = "Object"
+	MiddleAltClick(usr)
 
 /obj/item/weapon/reagent_containers/food/New()
-		..()
-		src.pixel_x = rand(-5, 5) * PIXEL_MULTIPLIER	//Randomizes position slightly.
-		src.pixel_y = rand(-5, 5) * PIXEL_MULTIPLIER
+	..()
+	if(!isnull(on_spawn_randomized_x))
+		src.pixel_x = rand(-on_spawn_randomized_x, on_spawn_randomized_x) * PIXEL_MULTIPLIER
+	if(!isnull(on_spawn_randomized_y))
+		src.pixel_y = rand(-on_spawn_randomized_y, on_spawn_randomized_y) * PIXEL_MULTIPLIER
+	process_temperature()
 
 /obj/item/weapon/reagent_containers/food/fits_in_iv_drip()
 	return 1
@@ -20,7 +30,21 @@
 /obj/item/weapon/reagent_containers/food/dipping_sauce
 	var/dip_message = ""
 
+/obj/item/weapon/reagent_containers/food/update_icon()
+	..()
+	overlays.len = 0
+	update_temperature_overlays()
+	set_blood_overlay()//re-applying blood stains
+	if (on_fire && fire_overlay)
+		overlays += fire_overlay
+
+/obj/item/weapon/reagent_containers/food/flammable_reagent_check()
+	return FALSE //don't bother burning reagents in food
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /obj/item/weapon/reagent_containers/food/dipping_sauce/update_icon()
+	..()
 	if(!reagents || !reagents.has_reagent(DIPPING_SAUCE))
 		reagents.clear_reagents()
 		icon_state = "empty_dip"
@@ -57,7 +81,7 @@
 
 /obj/item/weapon/reagent_containers/food/dipping_sauce/guacamole
 	name = "guacamole"
-	desc = "The original recipe calls for avocado, but this space-age substitute has supplanted the ancient style in popularity."
+	desc = "The Avocado Rebellion of 2562 briefly caused all NT guac to be made with a cheap, fire-retardant synthetic substitute. But thanks to a quick orbital bombardment, workers' rights have once again been squashed, much like the avocados in this dip. Tasty."
 	icon_state = "guacamole"
 	dip_message = "Taste the tang!"
 
@@ -84,6 +108,7 @@
 		new /obj/item/weapon/reagent_containers/food/snacks/tortillachip(src)
 
 /obj/item/weapon/chipbasket/update_icon()
+	..()
 	if(contents.len>5)
 		icon_state = "chipbasket-full"
 	else if(contents.len)
@@ -134,12 +159,18 @@
 /obj/structure/poutineocean/attack_hand(mob/user)
 	to_chat(user, "<span class='warning'>You need a plate to get food from \the [src]!</span>")
 
-/obj/structure/poutineocean/attackby(obj/item/W, mob/user)
+/obj/structure/poutineocean/attackby(obj/item/W, mob/user, params)
 	if (istype(W, /obj/item/trash/plate))
-		if(user.drop_item(W))
-			qdel(W)
+		var/obj/item/trash/plate/P = W
+
+		if (P.plates.len > 0)
+			to_chat(user, "<span class='warning'>You're not sure anything good will happen from trying to fill a whole stack of plates at once.</span>")
+			return
+
+		if(user.drop_item(P))
 			var/obj/item/AM = new type_to_dispense(get_turf(src))
-			user.put_in_hands(AM)
+			var/obj/item/poutine_on_plate = P.try_to_put_on_plate(user,AM,params)
+			user.put_in_hands(poutine_on_plate)
 			user.visible_message("<span class='notice'>[user] gathers some [AM.name] from \the [src], and shovels it onto their plate!</span>", "<span class='notice'>You gather some [AM.name] from \the [src], and shovel it onto your plate!</span>")
 			return
 	..()

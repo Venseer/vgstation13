@@ -15,29 +15,38 @@
 	//Multikey checks and logging
 	lastKnownIP	= client.address
 	computer_id	= client.computer_id
-	log_access("Login: [key_name(src)] from [lastKnownIP ? lastKnownIP : "localhost"]-[computer_id] || BYOND v[client.byond_version]")
+	log_access("Login: [key_name(src)] from [lastKnownIP ? lastKnownIP : "localhost"]-[computer_id] || BYOND v[client.byond_version].[client.byond_build]")
 	if(config.log_access)
+		if(lastKnownIP == "127.0.0.1") //localhost
+			return
 		for(var/mob/M in player_list)
 			if(M == src)
 				continue
-			if( M.key && (M.key != key) )
+			if(M.key && (M.key != key))
 				var/matches
-				if( (M.lastKnownIP == client.address) )
+				var/matches_both = FALSE
+				if((M.lastKnownIP == client.address))
 					matches += "IP ([client.address])"
-				if( (M.computer_id == client.computer_id) )
+				if((M.computer_id == client.computer_id))
 					if(matches)
 						matches += " and "
+						matches_both = TRUE
 					matches += "ID ([client.computer_id])"
 #if WARN_FOR_CLIENTS_SHARING_IP
-					spawn() alert("You have logged in already with another key this round, please log out of this one NOW or risk being banned!")
+					if(!client.holder)
+						spawn() alert("You have logged in already with another key this round, please log out of this one NOW or risk being banned!")
 #endif
 				if(matches)
-					if(M.client)
-						message_admins("<font color='red'><B>Notice: </B><font color='blue'><A href='?src=\ref[usr];priv_msg=\ref[src]'>[key_name_admin(src)]</A> has the same [matches] as <A href='?src=\ref[usr];priv_msg=\ref[M]'>[key_name_admin(M)]</A>.</font>", 1)
-						log_access("Notice: [key_name(src)] has the same [matches] as [key_name(M)].")
-					else
-						message_admins("<font color='red'><B>Notice: </B><font color='blue'><A href='?src=\ref[usr];priv_msg=\ref[src]'>[key_name_admin(src)]</A> has the same [matches] as [key_name_admin(M)] (no longer logged in). </font>", 1)
-						log_access("Notice: [key_name(src)] has the same [matches] as [key_name(M)] (no longer logged in).")
+					message_admins("<font color='red'><B>Notice: </B><span class='notice'><A href='?src=\ref[usr];priv_msg=\ref[src]'>[key_name_admin(src)]</A> has the same [matches] as <A href='?src=\ref[usr];priv_msg=\ref[M]'>[key_name_admin(M)]</A>[M.client ? "" : " (no longer logged in)"].</span>", 1)
+					log_access("Notice: [key_name(src)] has the same [matches] as [key_name(M)][M.client ? "" : " (no longer logged in)"].")
+
+				if(matches_both)
+					var/admins_number = admins.len
+					var/admin_number_afk = get_afk_admins()
+					var/available_admins = admins_number - admin_number_afk
+					//Dunno if it's okay to log IP or ID here
+					send2adminirc("Notice: [key_name(src)] has the same IP and ID as [key_name(M)][M.client ? "" : " (no longer logged in)"].  [available_admins ? "" : "No non-AFK admins online"]")
+					send2admindiscord("**Notice: [key_name(src)] has the same IP and ID as [key_name(M)][M.client ? "" : " (no longer logged in)"].  [available_admins ? "" : "No non-AFK admins online"]**")
 
 // Do not call ..()
 // If you do so and the mob is in nullspace BYOND will attempt to move the mob a gorillion times
@@ -58,20 +67,24 @@
 
 	client.reset_screen()				//remove hud items just in case
 	hud_used = new /datum/hud(src)
-	gui_icons = new /datum/ui_icons(src)
 	client.screen += catcher //Catcher of clicks
 	client.screen += clickmaster // click catcher planesmaster on plane 0 with mouse opacity 0 - allows click catcher to work with SEE_BLACKNESS
 	client.screen += clickmaster_dummy // honestly fuck you lummox
+	client.screen += overdark_planemaster
+	client.screen += overdark_planemaster_target
 	client.initialize_ghost_planemaster() //We want to explicitly reset the planemaster's visibility on login() so if you toggle ghosts while dead you can still see cultghosts if revived etc.
+	client.initialize_fakecamera_planemaster()
+	update_perception()
+	create_lighting_planes()
+
+	create_orphan_planemasters()
+	list_perception_planemasters()
 
 	regular_hud_updates()
 
 	update_antag_huds()
 
 	update_action_buttons(TRUE)
-
-	if(round_end_info == "")
-		winset(client, "rpane.round_end", "is-visible=false")
 
 	delayNextMove(0)
 
@@ -80,7 +93,7 @@
 	reset_view()
 
 	if((flags & HEAR) && !(flags & HEAR_ALWAYS)) //Mobs with HEAR_ALWAYS will already have a virtualhearer
-		getFromPool(/mob/virtualhearer, src)
+		virtualhearer = new /mob/virtualhearer(src)
 
 	//Clear ability list and update from mob.
 	client.verbs -= ability_verbs
@@ -99,7 +112,13 @@
 
 		if(M_FARSIGHT in mutations)
 			client.changeView(max(client.view, world.view+1))
-	CallHook("Login", list("client" = src.client, "mob" = src))
+
+	/* Handle media initialization */
+	client.media = new /datum/media_manager(src)
+	client.media.open()
+	client.media.update_music()
+
+	register_event(/event/mob_area_changed, src, nameof(src::OnMobAreaChanged()))
 
 	if(spell_masters)
 		for(var/obj/abstract/screen/movable/spell_master/spell_master in spell_masters)
@@ -110,14 +129,20 @@
 		var/obj/location = loc
 		location.on_login(src)
 
-	if(client && client.haszoomed && !client.holder)
+	if(client && client.haszoomed)
 		client.changeView()
 		client.haszoomed = 0
 
-	if(bad_changing_colour_ckeys["[client.ckey]"] == 1)
-		client.updating_colour = 0
-		bad_changing_colour_ckeys["[client.ckey]"] = 0
 	update_colour()
+	if (client.byond_version >= 516)
+		winset(client, null, list("browser-options"="find,refresh,byondstorage"))
+		if(client.holder?.rights & R_DEBUG)
+			winset(client, null, list("browser-options"="+devtools"))
 
 	if(client)
 		client.CAN_MOVE_DIAGONALLY = 0
+
+	if(iscluwnebanned(src) && (timeofdeath > 0 || !iscluwne(src)))
+		log_admin("Cluwnebanned player [key_name(src)] attempted to join and was kicked.")
+		message_admins("<span class='notice'>Cluwnebanned player [key_name(src)] attempted to join and was kicked.</span>", 1)
+		del(client)

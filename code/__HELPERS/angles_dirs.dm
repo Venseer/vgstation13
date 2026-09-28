@@ -1,3 +1,11 @@
+// Moved from move_loop file, now has full inverted bitflag support!
+var/static/list/opposite_dirs = list(SOUTH,NORTH,NORTH|SOUTH,WEST,SOUTHWEST,NORTHWEST,NORTH|SOUTH|WEST,EAST,SOUTHEAST,NORTHEAST,NORTH|SOUTH|EAST,WEST|EAST,WEST|EAST|NORTH,WEST|EAST|SOUTH,WEST|EAST|NORTH|SOUTH)
+// This was originally a function too, both are now cut down to these.
+var/static/list/counterclockwise_perpendicular_dirs = list(EAST,WEST,EAST|WEST,SOUTH,SOUTHEAST,SOUTHWEST,EAST|WEST|SOUTH,NORTH,NORTHEAST,NORTHWEST,EAST|WEST|NORTH,NORTH|SOUTH,NORTH|SOUTH|EAST,NORTH|SOUTH|WEST,NORTH|SOUTH|EAST|WEST)
+
+// Saves writing a whole new list
+#define clockwise_perpendicular_dirs(A) opposite_dirs[counterclockwise_perpendicular_dirs[A]]
+
 /proc/Get_Angle(atom/movable/start,atom/movable/end)//For beams.
 	if(!start || !end)
 		return 0
@@ -15,6 +23,8 @@
 
 
 /proc/get_angle(atom/a, atom/b)
+	if(!a || !b)
+		return 0
 	return Atan2(b.y - a.y, b.x - a.x)
 
 
@@ -34,7 +44,7 @@
 	return angle
 
 
-proc/get_cardinal_dir(atom/A, atom/B)
+/proc/get_cardinal_dir(atom/A, atom/B)
 	var/dx = abs(B.x - A.x)
 	var/dy = abs(B.y - A.y)
 	return get_dir(A, B) & (rand() * (dx+dy) < dy ? 3 : 12)
@@ -74,26 +84,6 @@ proc/get_cardinal_dir(atom/A, atom/B)
 			return null
 
 
-/proc/reverse_direction(var/dir)
-	switch(dir)
-		if(NORTH)
-			return SOUTH
-		if(NORTHEAST)
-			return SOUTHWEST
-		if(EAST)
-			return WEST
-		if(SOUTHEAST)
-			return NORTHWEST
-		if(SOUTH)
-			return NORTH
-		if(SOUTHWEST)
-			return NORTHEAST
-		if(WEST)
-			return EAST
-		if(NORTHWEST)
-			return SOUTHEAST
-
-
 /proc/widen_dir(var/dir, var/angle = 45)
 	var/list/dirs = list()
 	dirs += dir
@@ -111,3 +101,145 @@ proc/get_cardinal_dir(atom/A, atom/B)
 		dirs += turn(dir, -45*steps)
 		steps--
 	return dirs
+
+// smoothing dirs - now you can tell the difference between a tile being surrounded by north and west and a tile being surrounded by northwest.
+// used for 3x3/diagonal smoothers - not suitable for cardinal smoothing.
+// because for some reason it seems that north and south and east and west byond variables are actually capped to 15 when adding other flags, we need to redefine those too.
+
+#define SMOOTHING_NORTH 	1
+#define SMOOTHING_SOUTH		2
+#define SMOOTHING_EAST		4
+#define SMOOTHING_WEST		8
+#define SMOOTHING_NORTHWEST 16
+#define SMOOTHING_NORTHEAST 32
+#define SMOOTHING_SOUTHEAST 64
+#define SMOOTHING_SOUTHWEST 128
+
+
+#define SMOOTHING_ALLNORTH SMOOTHING_NORTHWEST|SMOOTHING_NORTH|SMOOTHING_NORTHEAST // 16 + 1 + 32 = 49
+#define SMOOTHING_ALLEAST SMOOTHING_SOUTHEAST|SMOOTHING_EAST|SMOOTHING_NORTHEAST // 64 + 4 + 32 = 100
+#define SMOOTHING_ALLWEST SMOOTHING_SOUTHWEST|SMOOTHING_WEST|SMOOTHING_NORTHWEST // 128 + 8 + 16 = 152
+#define SMOOTHING_ALLSOUTH SMOOTHING_SOUTHWEST|SMOOTHING_SOUTH|SMOOTHING_SOUTHEAST // 128 + 2 + 64 = 194
+#define SMOOTHING_ALLDIRS 255
+
+
+// L curves - x is our object, # is smoothable, . is not
+/*
+
+###
+#X.  northwest - SMOOTHING_ALLNORTH|SMOOTHING_ALLWEST
+#..
+
+
+###
+.X#  northeast - SMOOTHING_ALLNORTH|SMOOTHING_ALLEAST
+..#
+
+
+#..
+#X.  southwest - SMOOTHING_ALLSOUTH|SMOOTHING_ALLWEST
+###
+
+..#
+.X#  southeast SMOOTHING_ALLSOUTH|SMOOTHING_ALLEAST
+###
+
+*/
+
+#define SMOOTHING_L_CURVE_NORTHWEST SMOOTHING_ALLNORTH|SMOOTHING_ALLWEST
+#define SMOOTHING_L_CURVE_NORTHEAST SMOOTHING_ALLNORTH|SMOOTHING_ALLEAST
+#define SMOOTHING_L_CURVE_SOUTHWEST SMOOTHING_ALLSOUTH|SMOOTHING_ALLWEST
+#define SMOOTHING_L_CURVE_SOUTHEAST SMOOTHING_ALLSOUTH|SMOOTHING_ALLEAST
+#define SMOOTHING_L_CURVES SMOOTHING_L_CURVE_NORTHWEST,SMOOTHING_L_CURVE_NORTHEAST,SMOOTHING_L_CURVE_SOUTHWEST,SMOOTHING_L_CURVE_SOUTHEAST
+
+/proc/dir_to_smoothingdir(var/dir)
+	switch(dir)
+		if(NORTHEAST)
+			return SMOOTHING_NORTHEAST
+		if(SOUTHEAST)
+			return SMOOTHING_SOUTHEAST
+		if(SOUTHWEST)
+			return SMOOTHING_SOUTHWEST
+		if(NORTHWEST)
+			return SMOOTHING_NORTHWEST
+	return dir
+
+
+/proc/smoothingdir_to_dir(var/dir)
+	switch(dir)
+		if(SMOOTHING_NORTHEAST,SMOOTHING_L_CURVE_NORTHEAST)
+			return NORTHEAST
+		if(SMOOTHING_SOUTHEAST,SMOOTHING_L_CURVE_SOUTHEAST)
+			return SOUTHEAST
+		if(SMOOTHING_SOUTHWEST,SMOOTHING_L_CURVE_SOUTHWEST)
+			return SOUTHWEST
+		if(SMOOTHING_NORTHWEST,SMOOTHING_L_CURVE_NORTHWEST)
+			return NORTHWEST
+		if(SMOOTHING_NORTH)
+			return NORTH
+		if(SMOOTHING_SOUTH)
+			return SOUTH
+		if(SMOOTHING_EAST)
+			return EAST
+		if(SMOOTHING_WEST)
+			return WEST
+	return dir
+
+/proc/dir2arrow(var/dir) // ↑ ↓ → ← ↖ ↘ ↙ ↗
+	switch(dir)
+		if(NORTH)
+			return "&uarr;"
+		if(SOUTH)
+			return "&darr;"
+		if(EAST)
+			return "&rarr;"
+		if(WEST)
+			return "&larr;"
+		if(NORTHEAST)
+			return "&#8599;"
+		if(SOUTHEAST)
+			return "&#8600;"
+		if(SOUTHWEST)
+			return "&#8601;"
+		if(NORTHWEST)
+			return "&#8598;"
+
+/proc/splitdiagonals(var/dir)
+	switch(dir)
+		if(NORTHEAST)
+			return list(NORTH,EAST)
+		if(SOUTHEAST)
+			return list(SOUTH,EAST)
+		if(SOUTHWEST)
+			return list(SOUTH,WEST)
+		if(NORTHWEST)
+			return list(NORTH,WEST)
+
+
+//bit operation that ensures dir is cardinal facing(N,E,S,W) just in case it's not.
+/atom/proc/force_cardinal_dir()
+	dir = dir^(dir&(dir-1))
+
+//Returns dir as a string
+/atom/proc/get_dir_as_string(var/atom/target)
+	if(src.loc && target.loc)
+		var/direction = get_dir(src.loc, target.loc)
+		switch(direction)
+			if(NORTH)
+				return "north"
+			if(SOUTH)
+				return "south"
+			if(WEST)
+				return "west"
+			if(EAST)
+				return "east"
+			if(NORTHEAST)
+				return "northeast"
+			if(NORTHWEST)
+				return "northwest"
+			if(SOUTHEAST)
+				return "southeast"
+			if(SOUTHWEST)
+				return "southwest"
+	else
+		return null

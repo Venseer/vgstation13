@@ -60,6 +60,11 @@
 
 	return 0
 
+/mob/proc/activate_empty_hand()
+	var/empty_hand = find_empty_hand_index()
+	if(empty_hand)
+		activate_hand(empty_hand)
+
 /mob/proc/empty_hand_indexes_amount()
 	. = 0
 
@@ -207,7 +212,7 @@
 	return put_in_hand(GRASP_RIGHT_HAND, W)
 
 /mob/proc/put_in_hand_check(var/obj/item/W, index)
-	if(lying) //&& !(W.flags & ABSTRACT))
+	if(lying && !W.laying_pickup) //&& !(W.flags & ABSTRACT))
 		return 0
 	if(!isitem(W))
 		return 0
@@ -215,7 +220,11 @@
 	if(held_items[index])
 		return 0
 
-	if(W.flags & MUSTTWOHAND)
+	// adjacent only loc checks one way around, so first part is necessary, also for anything inside too
+	if(W.loc && !W.recursive_in_contents_of(src) && !(Adjacent(W) || W.Adjacent(W)) && !W.arcanetampered)
+		return 0
+
+	if((W.flags & MUSTTWOHAND) && !(M_STRONG in mutations))
 		if(!W.wield(src, 1))
 			to_chat(src, "You need both hands to pick up \the [W].")
 			return 0
@@ -243,6 +252,7 @@
 //If both fail it drops it on the floor and returns 0.
 //This is probably the main one you need to know :)
 /mob/proc/put_in_hands(var/obj/item/W)
+
 	if(!W)
 		return 0
 	for (var/i = 1 to held_items.len)
@@ -250,13 +260,59 @@
 			return 0 // If it's already in your hands and you move it, it's in a superposition and breaks everything.
 	if(put_in_active_hand(W))
 		return 1
-	else if(put_in_inactive_hand(W))
+	if(put_in_inactive_hand(W))
 		return 1
-	else
-		W.forceMove(get_turf(src))
-		W.reset_plane_and_layer()
-		W.dropped()
+	W.forceMove(W.loc ? get_turf(W) : get_turf(src))
+	W.reset_plane_and_layer()
+	W.dropped()
+	return 0
+
+//Helper proc tied to above for creating something in-hand via construction
+/mob/proc/create_in_hands(var/obj/item/olditem, var/obj/item/newitem, var/obj/item/using, var/uses = 1, var/msg, var/vismsg, var/sound, var/move_in = FALSE)
+	if(!olditem || !newitem)
 		return 0
+	. = 0
+	if(ispath(newitem))
+		newitem = new newitem(olditem.loc)
+	if(!newitem) // If it deleted after creation
+		return 0
+	if(using)
+		if(istype(using,/obj/item/stack) && uses)
+			var/obj/item/stack/S = using
+			if(S.amount < uses)
+				to_chat(src, "<span class='warning'>You need at least [S.amount] [S.correct_name()] to make [newitem]!")
+				qdel(newitem)
+				return 0
+			S.use(uses)
+		else if(move_in)
+			if(using.loc != src)
+				using.forceMove(newitem)
+			else if(!drop_item(using, newitem, failmsg = TRUE))
+				qdel(newitem)
+				return 0
+		else
+			if(using.loc == src && !drop_item(using, failmsg = TRUE))
+				qdel(newitem)
+				return 0
+			qdel(using)
+		//using.transfer_fingerprints_to(newitem)
+	if(olditem.loc == src)
+		drop_item(olditem, force_drop = 1) // Necessary to show up in the same hand for below
+		. = put_in_hands(newitem)
+	newitem.cant_drop = olditem.cant_drop
+	newitem.canremove = olditem.canremove
+	if(move_in)
+		olditem.forceMove(newitem)
+	else
+		qdel(olditem)
+	if(vismsg)
+		visible_message(vismsg, msg)
+	else if(msg)
+		to_chat(src, msg)
+	if(sound)
+		playsound(src, sound, 50, 1)
+	if(olditem.loc != src)
+		. = 1 // return this if not runtiming
 
 /mob/proc/set_hand_amount(new_amount)
 	if(new_amount < held_items.len) //Decrease hand amount - drop items held in hands which will no longer exist!
@@ -291,7 +347,8 @@
 
 		//W.dropped(src)
 		//update_icons() // Redundant as u_equip will handle updating the specific overlay
-		return 1
+	return 1
+
 
 // Drops all and only equipped items, including items in hand
 /mob/proc/drop_all()
@@ -299,11 +356,22 @@
 		drop_from_inventory(I)
 	drop_hands()
 
+// deletes all and only equipped items, including items in hand
+/mob/proc/delete_all_equipped_items()
+	for (var/obj/item/I in get_all_slots())
+		qdel(I)
+	delete_held_items()
+
 //Drops the item in our hand - you can specify an item and a location to drop to
 
-/mob/proc/drop_item(var/obj/item/to_drop, var/atom/Target, force_drop = 0) //Set force_drop to 1 to force the item to drop (even if it can't be dropped normally)
+/mob/proc/drop_item(var/obj/item/to_drop, var/atom/Target, force_drop = 0, failmsg) //Set force_drop to 1 to force the item to drop (even if it can't be dropped normally)
+
+	if(failmsg == TRUE)
+		failmsg = to_drop ? "<span class='warning'>You can't let go of \the [to_drop]!</span>" : null
 
 	if(!candrop) //can't drop items while etheral
+		if(failmsg)
+			to_chat(src, failmsg)
 		return 0
 
 	if(!to_drop) //if we're not told to drop something specific
@@ -313,6 +381,8 @@
 		return 0 //bail
 
 	if((to_drop.cant_drop > 0) && !force_drop)
+		if(failmsg)
+			to_chat(src, failmsg)
 		return 0
 
 	if(!Target)
@@ -333,12 +403,24 @@
 	to_drop.dropped(src)
 
 	if(to_drop && to_drop.loc)
+		if(mind)
+			var/datum/role/R = mind.GetRole(TIMEAGENT)
+			if(R)
+				var/datum/objective/target/locate/rearrange/L = locate() in R.objectives.GetObjectives()
+				if(L)
+					L.check(list(to_drop))
 		return 1
+	if(failmsg)
+		to_chat(src, failmsg)
 	return 0
 
 /mob/proc/drop_hands(var/atom/Target, force_drop = 0) //drops both items
 	for(var/obj/item/I in held_items)
 		drop_item(I, Target, force_drop = force_drop)
+
+/mob/proc/delete_held_items(var/atom/Target) //deletes both items
+	for(var/obj/item/I in held_items)
+		qdel(I)
 
 //TODO: phase out this proc
 /mob/proc/before_take_item(var/obj/item/W)	//TODO: what is this?
@@ -352,7 +434,6 @@
 	if(!W)
 		return 0
 	var/success = 0
-
 	var/index = is_holding_item(W)
 	if(index)
 		held_items[index] = null
@@ -368,7 +449,7 @@
 		update_inv_wear_mask()
 	else
 		return 0
-
+	INVOKE_EVENT(src, /event/unequipped, W)
 	if(success)
 		if(client)
 			client.screen -= W
@@ -463,6 +544,9 @@
 			if(!src.handcuffed)
 				src.handcuffed = W
 				equipped = 1
+			if (!src.mutual_handcuffs)
+				src.mutual_handcuffs = W
+				equipped = 1
 		if(slot_belt)
 			if(!src.belt && src.w_uniform)
 				src.belt = W
@@ -525,8 +609,7 @@
 	else
 		switch(act_on_fail)
 			if(EQUIP_FAILACTION_DELETE)
-				qdel(W)
-				W = null
+				QDEL_NULL(W)
 			if(EQUIP_FAILACTION_DROP)
 				W.forceMove(get_turf(src)) // I think.
 	return equipped
@@ -546,12 +629,15 @@
 	else
 		return get_id_card()
 
-/mob/proc/slotID2slotname(slot_id)
+/mob/proc/slotID2slotname(slot_id, internal)
 	switch (slot_id)
 		if (slot_back)
 			return "back"
 		if (slot_wear_mask)
-			return "face"
+			if(internal)
+				return "mouth"
+			else
+				return "face"
 		if (slot_handcuffed)
 			return "hands"
 		if (slot_belt)

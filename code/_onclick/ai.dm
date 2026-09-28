@@ -13,10 +13,13 @@
 	if(client.buildmode) // comes after object.Click to allow buildmode gui objects to be clicked
 		build_click(src, client.buildmode, params, A)
 		return
-
 	if(control_disabled || stat)
 		return
-
+	var/list/modifiers = params2list(params)
+	if(modifiers["shift"] || modifiers["alt"] || modifiers["ctrl"])
+		return
+	if(istype(current, /obj/machinery/turret))
+		return
 	if(ismob(A) || ismecha(A))
 		ai_actual_track(A)
 	else
@@ -37,7 +40,14 @@
 
 	var/list/modifiers = params2list(params)
 	if(modifiers["middle"])
-		MiddleClickOn(A)
+		if(modifiers["shift"])
+			MiddleShiftClickOn(A)
+			return
+		else
+			MiddleClickOn(A)
+			return
+	if(modifiers["right"])
+		RightClickOn(A)
 		return
 	if(modifiers["shift"])
 		ShiftClickOn(A)
@@ -63,10 +73,16 @@
 		RestrainedClickOn(A)
 	else
 	*/
-	if(INVOKE_EVENT(on_uattack,list("atom"=A))) //This returns 1 when doing an action intercept
+	if(INVOKE_EVENT(src, /event/uattack, "atom" = A)) //This returns 1 when doing an action intercept
 		return
-	A.add_hiddenprint(src)
-	A.attack_ai(src)
+	
+	if(istype(current, /obj/machinery/turret))
+		var/obj/machinery/turret/T = current
+		if(T.enabled && T.raised)
+			T.shootAt(A)
+	else 
+		A.add_hiddenprint(src)
+		A.attack_ai(src)
 
 /*
 	AI has no need for the UnarmedAttack() and RangedAttack() procs,
@@ -93,50 +109,36 @@
 	A.AICtrlClick(src)
 /mob/living/silicon/ai/AltClickOn(var/atom/A)
 	A.AIAltClick(src)
+/mob/living/silicon/ai/MiddleShiftClickOn(var/atom/A)
+	A.AIMiddleShiftClick(src)
+/mob/living/silicon/ai/RightClickOn(var/atom/A)
+	A.AIRightClick(src)
+
 
 /*
 	The following criminally helpful code is just the previous code cleaned up;
 	I have no idea why it was in atoms.dm instead of respective files.
 */
 
-/atom/proc/AIShiftClick()
+/atom/proc/AIMiddleShiftClick()
 	return
 
-/obj/machinery/door/airlock/AIShiftClick()  // Opens and closes doors!
-	if(allowed(usr))
-		if(density)
-			Topic("aiEnable=7", list("aiEnable"="7"), 1)
-		else
-			Topic("aiDisable=7", list("aiDisable"="7"), 1)
-
+/atom/proc/AIShiftClick()
+	return
 
 /atom/proc/AICtrlClick()
 	return
 
-/obj/machinery/door/airlock/AICtrlClick() // Bolts doors
-	if(allowed(usr))
-		if(locked)
-			Topic("aiEnable=4", list("aiEnable"="4"), 1)
-		else
-			Topic("aiDisable=4", list("aiDisable"="4"), 1)
-
-/obj/machinery/power/apc/AICtrlClick() // turns off APCs.
-	if(allowed(usr))
-		Topic("breaker=1", list("breaker"="1"), 0) // 0 meaning no window (consistency! wait...)
-
+/atom/proc/AIRightClick()
+	return
 
 /atom/proc/AIAltClick(var/mob/living/silicon/ai/user)
 	AltClick(user)
 	return
-
-/obj/machinery/door/airlock/AIAltClick() // Eletrifies doors.
+	
+/obj/machinery/power/apc/AICtrlClick() // turns off APCs.
 	if(allowed(usr))
-		if(!secondsElectrified)
-			// permenant shock
-			Topic("aiEnable=6", list("aiEnable"="6"), 1) // 1 meaning no window (consistency!)
-		else
-			// disable/6 is not in Topic; disable/5 disables both temporary and permenant shock
-			Topic("aiDisable=5", list("aiDisable"="5"), 1)
+		Topic("breaker=1", list("breaker"="1"), 0) // 0 meaning no window (consistency! wait...)
 
 /obj/machinery/door/firedoor/AIShiftClick(var/mob/living/silicon/ai/user) // Allows examining firelocks
 	examine(user)

@@ -101,7 +101,8 @@
 	if(istype(L))
 		if(prob(15))
 			L.Knockdown(3)
-			L.visible_message("<span class='danger'>\the [src] knocks down \the [L]!</span>")
+			L.Stun(3)
+			L.visible_message("<span class='danger'>\The [src] knocks down \the [L]!</span>")
 
 /mob/living/simple_animal/hostile/carp/baby
 	desc = "A ferocious, fang-bearing creature that resembles a fish. This one, despite not being mature yet, is just as agressive as any of its brethren."
@@ -150,8 +151,12 @@
 			user.drop_item(F, force_drop = 1)
 
 			if(prob(25))
-				if(!friends.Find(user))
-					friends.Add(user)
+				var/already_friend = FALSE
+				for(var/datum/weakref/ref in friends)
+					if (ref.get() == user)
+						already_friend = TRUE
+				if (!already_friend)
+					friends += makeweakref(user)
 					to_chat(user, "<span class='info'>You have gained \the [src]'s trust.</span>")
 					var/image/heart = image('icons/mob/animal.dmi',src,"heart-ani2")
 					heart.plane = ABOVE_HUMAN_PLANE
@@ -179,6 +184,8 @@
 		//Start growing up
 		desc = "[initial(desc)] <span class='notice'>It ate a lot recently, and it appears to be ready to grow up.</span>"
 		spawn(rand(5 SECONDS, 30 SECONDS))
+			if(src.stat == DEAD)
+				return
 			grow_up()
 
 /mob/living/simple_animal/hostile/carp/baby/reagent_act(id, method, volume)
@@ -200,6 +207,38 @@
 /mob/living/simple_animal/hostile/carp/holocarp/death(var/gibbed = FALSE)
 	..(TRUE)
 	qdel(src)
+
+// Note: these 'friendly' carps behave like retaliate mobs.
+
+/mob/living/simple_animal/hostile/carp/friendly
+	desc = "A denizen of deep space. This one seems somewhat docile."
+	var/angry = FALSE
+	species_type = /mob/living/simple_animal/hostile/carp/friendly
+	childtype = /mob/living/simple_animal/hostile/carp/baby/friendly
+
+/mob/living/simple_animal/hostile/carp/friendly/CanAttack(var/atom/the_target)
+	if(angry)
+		return ..()
+	return FALSE
+
+/mob/living/simple_animal/hostile/carp/friendly/adjustBruteLoss(var/damage)
+	..(damage)
+	angry = TRUE
+
+/mob/living/simple_animal/hostile/carp/baby/friendly
+	desc = "A baby space carp. This one seems somewhat docile docile."
+	var/angry = FALSE
+	species_type = /mob/living/simple_animal/hostile/carp/friendly
+	childtype = /mob/living/simple_animal/hostile/carp/baby/friendly
+
+/mob/living/simple_animal/hostile/carp/baby/friendly/CanAttack(var/atom/the_target)
+	if(angry)
+		return ..()
+	return FALSE
+
+/mob/living/simple_animal/hostile/carp/baby/friendly/adjustBruteLoss(var/damage)
+	..(damage)
+	angry = TRUE
 
 #undef PHEROMONES_NO_EFFECT
 #undef PHEROMONES_NEUTRAL

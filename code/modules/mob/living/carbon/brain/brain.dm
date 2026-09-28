@@ -12,9 +12,7 @@
 	universal_understand = 1
 
 /mob/living/carbon/brain/New()
-	var/datum/reagents/R = new/datum/reagents(1000)
-	reagents = R
-	R.my_atom = src
+	create_reagents(1000)
 	..()
 	verbs -= /mob/living/carbon/verb/mob_sleep
 
@@ -33,8 +31,12 @@
 	return canmove
 
 /mob/living/carbon/brain/say(var/message)
-	if (container && istype(container, /obj/item/device/mmi/posibrain))
-		return ..(message, "R")
+	if (container && istype(container, /obj/item/device/mmi))
+		if(istype(container.loc,/obj/item/weapon/storage/belt/silicon))
+			RenderBeltChat(container.loc,src,message)
+			return 1
+		else
+			return ..(message, "R")
 	return ..(message)
 
 /mob/living/carbon/brain/say_understands(var/atom/movable/other)//Goddamn is this hackish, but this say code is so odd

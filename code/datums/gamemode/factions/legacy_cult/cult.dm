@@ -26,6 +26,8 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 	From his teachings, they were granted the ability to perform blood magic rituals allowing them to fight and grow their ranks, and given the goal of pushing his agenda.\
 	Nar-Sie's ultimate goal is to tear open a breach through reality so he can pull the station into his realm and feast on the crew's blood and souls."
 	deity_name = "Nar-Sie"
+	default_admin_voice = "<span class='danger'>Nar-Sie</span>" // Nar-Sie's name always appear in red in the chat, makes it stand out.
+	admin_voice_style = "sinister"
 	var/list/allwords = list("travel","self","see","hell","blood","join","tech","destroy", "other", "hide")
 	var/list/startwords = list("blood","join","self","hell")
 	var/list/bloody_floors = list()
@@ -42,7 +44,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 
 	initroletype = /datum/role/legacy_cultist
 	roletype = /datum/role/legacy_cultist
-	required_pref = ROLE_LEGACY_CULTIST
+	required_pref = CULTIST
 
 /datum/faction/cult/narsie/GetObjectivesMenuHeader()
 	var/icon/logo = icon('icons/logos.dmi', "cult-logo")
@@ -52,7 +54,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 /datum/faction/cult/narsie/OnPostSetup()
 	rune_controller = new()
 	forgeObjectives()
-	for(var/datum/role/R in members)
+	for(var/datum/role/legacy_cultist/R in members)
 		R.OnPostSetup(equip = TRUE)
 
 // Related to word randomisation
@@ -158,7 +160,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 		word=pick(allwords)
 	var/wordexp = "[cult_words[word]] is [word]..."
 	to_chat(cult_mob, "<span class='sinister'>You remember one thing from the dark teachings of your master... [wordexp]</span>")
-	cult_mob.mind.store_memory("<B>You remember that</B> [wordexp]", 0, 0)
+	cult_mob.mind.store_memory("<B>You remember that</B> [wordexp]", category=MIND_MEMORY_ANTAGONIST, forced=TRUE)
 
 /datum/faction/cult/narsie/AdminPanelEntry()
 	var/list/dat = ..()
@@ -359,8 +361,7 @@ var/global/list/rnwords = list("ire","ego","nahlizet","certum","veri","jatkaa","
 	if (!S.target) // No targets still ? Time to reroll the objective.
 		log_admin("LEGACY CULT: qdeling the objective...")
 		objective_holder.objectives -= current_objective
-		qdel(current_objective)
-		current_objective = null
+		QDEL_NULL(current_objective)
 		getNewObjective(debug = TRUE) // This objective never happened.
 		return
 	for (var/datum/role/R in members)

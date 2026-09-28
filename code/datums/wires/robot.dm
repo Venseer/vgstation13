@@ -36,12 +36,12 @@ var/const/BORG_WIRE_LAWCHECK    = 16 // Not used on MoMMIs
 	if(!istype(src, /datum/wires/robot/mommi))
 		. += text("<br>\n[(R.lawupdate ? "The LawSync light is on." : "The LawSync light is off.")]<br>\n[(R.connected_ai ? "The AI link light is on." : "The AI link light is off.")]")
 	. += text("<br>\n[((!isnull(R.camera) && R.camera.status == 1) ? "The Camera light is on." : "The Camera light is off.")]<br>\n")
-	. += text("<br>\n[(R.lockcharge ? "The lockdown light is on." : "The lockdown light is off.")]")
+	. += text("<br>\n[(R.lockdown ? "The lockdown light is on." : "The lockdown light is off.")]")
 	return .
 
 /datum/wires/robot/UpdateCut(var/index, var/mended, var/mob/user)
-
 	var/mob/living/silicon/robot/R = holder
+	..()
 	switch(index)
 		if(BORG_WIRE_LAWCHECK) //Cut the law wire, and the borg will no longer receive law updates from its AI
 			if(!mended)
@@ -54,8 +54,7 @@ var/const/BORG_WIRE_LAWCHECK    = 16 // Not used on MoMMIs
 
 		if (BORG_WIRE_AI_CONTROL) //Cut the AI wire to reset AI control
 			if(!mended)
-				if (R.connected_ai)
-					R.connected_ai = null
+				R.disconnect_AI()
 
 		if (BORG_WIRE_CAMERA)
 			if(!isnull(R.camera) && !R.scrambledcodes)
@@ -71,12 +70,13 @@ var/const/BORG_WIRE_LAWCHECK    = 16 // Not used on MoMMIs
 
 
 /datum/wires/robot/UpdatePulsed(var/index)
-
 	var/mob/living/silicon/robot/R = holder
+	..()
 	switch(index)
 		if (BORG_WIRE_AI_CONTROL) //pulse the AI wire to make the borg reselect an AI
 			if(!R.emagged && !isMoMMI(R))
-				R.connected_ai = select_active_ai()
+				R.disconnect_AI()
+				R.connect_AI(select_active_ai())
 
 		if (BORG_WIRE_CAMERA)
 			if(!isnull(R.camera) && R.camera.can_use() && !R.scrambledcodes)
@@ -87,7 +87,7 @@ var/const/BORG_WIRE_LAWCHECK    = 16 // Not used on MoMMIs
 					R.aicamera.sync(R)
 
 		if(BORG_WIRE_LOCKED_DOWN)
-			R.SetLockdown(!R.lockcharge) // Toggle
+			R.SetLockdown(!R.lockdown) // Toggle
 
 /datum/wires/robot/CanUse(var/mob/living/L)
 	if(!..())

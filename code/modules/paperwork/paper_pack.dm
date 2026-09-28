@@ -2,7 +2,6 @@
 //functions pretty much the same as a regular stack, but it can't be added to (to avoid having to store paper details)
 //mainly used for the blueprinter, but planning to nanopaper and paper bin functionality
 //TODO - Sprite this and add to paper bins
-//TODO - Add a ribbon to hair
 
 /obj/item/weapon/paper_pack
 	name = "paper pack"
@@ -12,14 +11,14 @@
 	gender = NEUTER
 	throwforce = 2
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_WOOD
 	throw_range = 5
 	throw_speed = 1
 	layer = ABOVE_DOOR_LAYER
 	pressure_resistance = 1
 	attack_verb = list("slaps", "baps", "whaps")
+	flammable = TRUE
 
-	autoignition_temperature = AUTOIGNITION_PAPER
-	fire_fuel = 1
 	var/amount = 0
 	var/maxamount = 20
 	var/papertype = /obj/item/weapon/paper

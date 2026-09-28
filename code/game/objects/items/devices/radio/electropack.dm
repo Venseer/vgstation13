@@ -141,6 +141,7 @@
 		spark(M)
 
 		M.Knockdown(10)
+		M.Stun(10)
 
 	if(master && isWireCut(1))
 		master.receive_signal()
@@ -166,6 +167,6 @@ Code:
 <A href='byond://?src=\ref[src];code=1'>+</A>
 <A href='byond://?src=\ref[src];code=5'>+</A><BR>
 </TT>"}
-	user << browse(dat, "window=radio")
+	user << browse(HTML_SKELETON(dat), "window=radio")
 	onclose(user, "radio")
 	return

@@ -19,10 +19,14 @@
 	return list(
 		/obj/item/clothing/under/rank/security = 3,
 		/obj/item/clothing/under/rank/security2 = 3,
+		/obj/item/clothing/under/rank/collar = 2,
 		/obj/item/clothing/shoes/jackboots = 3,
 		/obj/item/clothing/head/soft/sec = 3,
 		/obj/item/clothing/head/beret/sec = 3,
 		/obj/item/clothing/mask/bandana/red = 3,
+		/obj/item/clothing/head/peaked = 3,
+		/obj/item/clothing/head/garrison = 2,
+		/obj/item/clothing/head/cowboy/sec = 3,
 	)
 
 /obj/structure/closet/wardrobe/pink
@@ -62,7 +66,6 @@
 		/obj/item/clothing/suit/nun,
 		/obj/item/clothing/head/nun_hood,
 		/obj/item/clothing/suit/chaplain_hoodie,
-		/obj/item/clothing/head/chaplain_hood,
 		/obj/item/clothing/suit/holidaypriest,
 		/obj/item/clothing/under/wedding/bride_white,
 		/obj/item/weapon/storage/backpack/cultpack,
@@ -91,6 +94,9 @@
 		/obj/item/clothing/suit/unathi/mantle,
 		/obj/item/clothing/suit/unathi/robe,
 		/obj/item/clothing/shoes/sandal = 3,
+		/obj/item/clothing/under/leather_rags = 2,
+		/obj/item/clothing/under/shorts/black,
+		/obj/item/clothing/under/vox/vox_casual = 3,
 	)
 
 
@@ -160,7 +166,7 @@
 
 
 /obj/structure/closet/wardrobe/pjs
-	name = "Pajama wardrobe"
+	name = "pajama wardrobe"
 	icon_state = "white"
 	icon_closed = "white"
 
@@ -206,10 +212,8 @@
 		/obj/item/clothing/suit/storage/labcoat = 2,
 		/obj/item/clothing/shoes/black = 2,
 		/obj/item/clothing/gloves/black,
-		pick(
-			/obj/item/clothing/glasses/hud/diagnostic,
-			/obj/item/clothing/glasses/hud/diagnostic/prescription),
-		/obj/item/clothing/glasses/hud/diagnostic
+		/obj/item/clothing/glasses/hud/diagnostic = 2,
+		/obj/item/clothing/glasses/hud/diagnostic/prescription,
 	)
 
 /obj/structure/closet/wardrobe/chemistry_white
@@ -223,6 +227,8 @@
 		/obj/item/clothing/under/rank/pharma = 2,
 		/obj/item/clothing/shoes/white = 2,
 		/obj/item/clothing/suit/storage/labcoat/chemist = 2,
+		/obj/item/weapon/storage/backpack/messenger/chem,
+		/obj/item/weapon/storage/backpack/satchel_chem,
 	)
 
 
@@ -248,20 +254,29 @@
 		/obj/item/clothing/under/rank/geneticist = 2,
 		/obj/item/clothing/shoes/white = 2,
 		/obj/item/clothing/suit/storage/labcoat/genetics = 2,
+		/obj/item/weapon/storage/backpack/satchel_gen,
 	)
 
 
 /obj/structure/closet/wardrobe/virology_white
 	name = "virology wardrobe"
-	icon_state = "white"
-	icon_closed = "white"
+	icon_state = "viro"
+	icon_closed = "viro"
 
 /obj/structure/closet/wardrobe/virology_white/atoms_to_spawn()
 	return list(
-		/obj/item/clothing/under/rank/virologist = 2,
-		/obj/item/clothing/shoes/white = 2,
+		/obj/item/clothing/monkeyclothes/doctor = 2,
+		/obj/item/weapon/storage/backpack/messenger/viro,
+		/obj/item/weapon/storage/backpack/satchel_vir,
+		/obj/item/weapon/book/manual/virology_encyclopedia,
+		/obj/item/weapon/book/manual/virology_guide,
+		/obj/item/device/antibody_scanner = 2,
 		/obj/item/clothing/suit/storage/labcoat/virologist = 2,
+		/obj/item/clothing/under/rank/virologist = 2,
 		/obj/item/clothing/mask/surgical = 2,
+		/obj/item/clothing/shoes/white = 2,
+		/obj/item/clothing/glasses/hud/health = 2,
+		/obj/item/clothing/glasses/hud/health/prescription,
 	)
 
 
@@ -317,4 +332,5 @@
 		/obj/item/clothing/shoes/purple,
 		/obj/item/clothing/shoes/leather,
 		/obj/item/clothing/under/casualwear,
+		/obj/item/clothing/under/tourist,
 	)

@@ -1,5 +1,5 @@
 /obj/machinery/shield
-	name = "Emergency energy shield"
+	name = "emergency energy shield"
 	desc = "An energy shield used to contain hull breaches."
 	icon = 'icons/effects/effects.dmi'
 	icon_state = "shield-old"
@@ -8,10 +8,10 @@
 	anchored = 1
 	ghost_read = 0
 	ghost_write = 0
-	var/const/max_health = 200
-	var/health = max_health //The shield can only take so much beating (prevents perma-prisons)
+	maxHealth = 200
+	health = 200 //The shield can only take so much beating (prevents perma-prisons)
 
-/obj/machinery/shield/acidable()
+/obj/machinery/shield/dissolvable()
 	return 0
 
 /obj/machinery/shield/New()
@@ -31,18 +31,6 @@
 	else
 		return ..()
 
-//Looks like copy/pasted code... I doubt 'need_rebuild' is even used here - Nodrak
-/obj/machinery/shield/proc/update_nearby_tiles()
-	if (!SS_READY(SSair))
-		return 0
-
-	var/T = loc
-
-	if (isturf(T))
-		SSair.mark_for_update(T)
-
-	return 1
-
 /obj/machinery/shield/attackby(obj/item/weapon/W as obj, mob/living/user as mob)
 	if(!istype(W))
 		return
@@ -58,7 +46,7 @@
 
 
 	if (src.health <= 0)
-		visible_message("<span class='notice'>The [src] dissapates</span>")
+		visible_message("<span class='notice'>\The [src] dissapates</span>")
 		qdel(src)
 		return
 
@@ -66,7 +54,7 @@
 	spawn(20) if(src) opacity = 0
 
 	if(src.health <= 0)
-		visible_message("<span class='notice'>The [src] dissapates</span>")
+		visible_message("<span class='notice'>\The [src] dissapates</span>")
 		qdel(src)
 		return
 
@@ -75,9 +63,9 @@
 
 /obj/machinery/shield/bullet_act(var/obj/item/projectile/Proj)
 	health -= Proj.damage
-	..()
+	. = ..()
 	if(health <=0)
-		visible_message("<span class='notice'>The [src] dissapates</span>")
+		visible_message("<span class='notice'>\The [src] dissapates</span>")
 		qdel(src)
 		return
 	opacity = 1
@@ -128,7 +116,7 @@
 
 	//Handle the destruction of the shield
 	if (src.health <= 0)
-		visible_message("<span class='notice'>The [src] dissapates</span>")
+		visible_message("<span class='notice'>\The [src] dissapates</span>")
 		qdel(src)
 		return
 
@@ -137,25 +125,31 @@
 	spawn(20) if(src) opacity = 0
 
 /obj/machinery/shieldgen
-		name = "Emergency shield projector"
-		desc = "Used to seal minor hull breaches."
-		icon = 'icons/obj/objects.dmi'
-		icon_state = "shieldoff"
-		density = 1
-		opacity = 0
-		anchored = 0
-		pressure_resistance = 2*ONE_ATMOSPHERE
-		req_access = list(access_engine)
-		var/const/max_health = 100
-		var/health = max_health
-		var/active = 0
-		var/malfunction = 0 //Malfunction causes parts of the shield to slowly dissapate
-		var/list/deployed_shields = list()
-		var/locked = 0
-		ghost_read = 0
-		ghost_write = 0
+	name = "Emergency shield projector"
+	desc = "Used to seal minor hull breaches."
+	icon = 'icons/obj/objects.dmi'
+	icon_state = "shieldoff"
+	density = 1
+	opacity = 0
+	anchored = 0
+	pressure_resistance = 2*ONE_ATMOSPHERE
+	req_access = list(access_engine_minor)
+	maxHealth = 100
+	health = 100
+	var/active = 0
+	var/malfunction = 0 //Malfunction causes parts of the shield to slowly dissapate
+	var/list/deployed_shields = list()
+	var/locked = 0
+	ghost_read = 0
+	ghost_write = 0
 
-		machine_flags = EMAGGABLE | WRENCHMOVE | FIXED2WORK | SCREWTOGGLE
+	machine_flags = EMAGGABLE | WRENCHMOVE | FIXED2WORK | SCREWTOGGLE
+
+	hack_abilities = list(
+		/datum/malfhack_ability/toggle/disable,
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
 
 /obj/machinery/shieldgen/Destroy()
 	for(var/obj/machinery/shield/shield_tile in deployed_shields)
@@ -251,13 +245,13 @@
 		else
 			to_chat(user, "The [src] must first be secured to the floor.")
 
-/obj/machinery/shieldgen/emag(mob/user)
+/obj/machinery/shieldgen/emag_act(mob/user)
 	if(!emagged)
 		malfunction = 1
 		update_icon()
 		return 1
 
-/obj/machinery/shieldgen/wrenchAnchor(var/mob/user)
+/obj/machinery/shieldgen/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(locked)
 		to_chat(user, "The bolts are covered, unlocking this would retract the covers.")
 		return FALSE
@@ -281,7 +275,7 @@
 			if(!src || !coil)
 				return
 			coil.use(1)
-			health = max_health
+			health = maxHealth
 			malfunction = 0
 			to_chat(user, "<span class='notice'>You repair the [src]!</span>")
 			update_icon()
@@ -303,12 +297,12 @@
 		src.icon_state = malfunction ? "shieldoffbr":"shieldoff"
 
 ////FIELD GEN START //shameless copypasta from fieldgen, powersink, and grille
-#define maxstoredpower 500
 /obj/machinery/shieldwallgen
 		name = "shield generator"
 		desc = "A shield generator."
 		icon = 'icons/obj/stationobjs.dmi'
 		icon_state = "Shield_Gen"
+		var/active_state = "Shield_Gen +a"
 		anchored = 0
 		density = 1
 		req_access = list(access_teleporter)
@@ -320,47 +314,103 @@
 		var/recalc = 0
 		var/locked = 1
 		var/destroyed = 0
-//		var/maxshieldload = 200
-		var/obj/structure/cable/attached		// the attached cable
+		var/shieldload = 0
+		var/maxshieldload = 200
+		var/maxstoredpower = 500
+		var/datum/power_connection/consumer/cable/power_connection = null
 		var/storedpower = 0
+		var/storedpower_consumption = 50
 		flags = FPRINT
 		siemens_coefficient = 1
-		use_power = 0
+		use_power = MACHINE_POWER_USE_NONE
 
-		machine_flags = WRENCHMOVE | FIXED2WORK
+		machine_flags = WRENCHMOVE | FIXED2WORK | MULTITOOL_MENU
+
+		var/shield_type = /obj/machinery/shieldwall
+		var/list/shields = null
+		var/list/links = null
+		var/cover_self = FALSE // place a shield on the same tile as the generator?
+		var/directional = FALSE // If TRUE, only allows linking in one direction at a time
+		id_tag = null // For linking with access buttons
+		var/frequency = 1449 // Radio frequency for remote control
+		var/datum/radio_frequency/radio_connection
+		var/damage_multiplier = 1 // Multiplier for power consumption when shields are damaged
+
+/obj/machinery/shieldwallgen/New()
+	shields = list(
+		"[NORTH]" = list(),
+		"[SOUTH]" = list(),
+		"[EAST]" = list(),
+		"[WEST]" = list()
+	)
+	links = list(
+		"[NORTH]" = null,
+		"[SOUTH]" = null,
+		"[EAST]" = null,
+		"[WEST]" = null
+	)
+	power_connection = new(src)
+	power_connection.monitoring_enabled = TRUE
+	..()
+
+/obj/machinery/shieldwallgen/Destroy()
+	cleanup()
+	QDEL_NULL(links)
+	if(radio_connection)
+		radio_controller.remove_object(src, frequency)
+	if(power_connection)
+		QDEL_NULL(power_connection)
+	..()
+
+/obj/machinery/shieldwallgen/proc/set_frequency(new_frequency)
+	radio_controller.remove_object(src, frequency)
+	frequency = new_frequency
+	if(frequency)
+		radio_connection = radio_controller.add_object(src, frequency, RADIO_AIRLOCK)
+
+/obj/machinery/shieldwallgen/initialize()
+	if(!radio_controller)
+		return
+	if(frequency)
+		set_frequency(frequency)
 
 /obj/machinery/shieldwallgen/free_access
 	req_access = null
 
 /obj/machinery/shieldwallgen/proc/power()
-	if(!anchored)
-		power = 0
-		return 0
-	var/turf/T = src.loc
-
-	if(!T)
+	if (!anchored || !power_connection)
+		power = FALSE
 		return
-	var/obj/structure/cable/C = T.get_cable_node()
-	var/datum/powernet/PN
-	if(C)
-		PN = C.powernet		// find the powernet of the connected cable
 
-	if(!PN)
-		power = 0
-		return 0
+	if((power_connection.connected || power_connection.connect()))
+		// Store whatever power we've received this tick
+		storedpower += shieldload * power_connection.get_satisfaction()
 
-	var/surplus = max(PN.avail-PN.load, 0)
-	var/shieldload = min(rand(50,200), surplus)
-	if(shieldload==0 && storedpower <= 0)		// no cable or no power, and no power stored
-		power = 0
-		return 0
+		// Request power for next tick
+		shieldload = rand(storedpower_consumption, storedpower_consumption * 4)
+		power_connection.add_load(shieldload)
+		power_connection.monitor_demand = shieldload
+
+	// Attemp to consume stored power. If enough, we're powered,
+	if (storedpower >= storedpower_consumption)
+		storedpower -= storedpower_consumption
+		storedpower = clamp(storedpower, 0, maxstoredpower)
+		power = TRUE
 	else
-		power = 1	// IVE GOT THE POWER!
-		if(PN) //runtime errors fixer. They were caused by PN.newload trying to access missing network in case of working on stored power.
-			storedpower += shieldload
-			PN.load += shieldload //uses powernet power.
-//		message_admins("[PN.load]", 1)
-//		use_power(250) //uses APC power
+		power = FALSE
+
+/obj/machinery/shieldwallgen/proc/get_status_text()
+	if(!anchored)
+		return "<span class='warning'>It is not secured to the floor.</span>"
+	if(!power_connection.connected)
+		return "<span class='warning'>It is not connected to power.</span>"
+
+	. = "It is <span class='[storedpower>=storedpower_consumption?"info":"warning"]'>"
+	. += "[round((storedpower/maxstoredpower)*100)]%</span> charged. "
+	if(power_connection.get_satisfaction()>0)
+		. += "It is charging at at rate of [round(power_connection.get_satisfaction()*100)]%."
+	else
+		. += "<span class='warning'>It is not charging.</span>"
 
 /obj/machinery/shieldwallgen/attack_hand(mob/user as mob)
 	if(!anchored)
@@ -369,13 +419,13 @@
 	if(src.locked && !istype(user, /mob/living/silicon))
 		to_chat(user, "<span class='warning'>The controls are locked!</span>")
 		return 1
-	if(power != 1)
-		to_chat(user, "<span class='warning'>The shield generator needs to be powered by wire underneath.</span>")
+	if(!power)
+		to_chat(user, "<span class='warning'>The shield generator's status display flashes: [src.get_status_text()]</span>")
 		return 1
 
 	if(src.active)
 		src.active = 0
-		icon_state = "Shield_Gen"
+		icon_state = initial(icon_state)
 
 		user.visible_message("[user] turned the shield generator off.", \
 			"You turn off the shield generator.", \
@@ -383,50 +433,96 @@
 		src.cleanup()
 	else
 		src.active = 1
-		icon_state = "Shield_Gen +a"
+		icon_state = active_state
 		user.visible_message("[user] turned the shield generator on.", \
 			"You turn on the shield generator.", \
 			"You hear heavy droning.")
 	src.add_fingerprint(user)
 
-/obj/machinery/shieldwallgen/process()
-	spawn(100)
-		power()
-		if(power)
-			storedpower -= 50 //this way it can survive longer and survive at all
-	if(storedpower >= maxstoredpower)
-		storedpower = maxstoredpower
-	if(storedpower <= 0)
-		storedpower = 0
-//	if(shieldload >= maxshieldload) //there was a loop caused by specifics of process(), so this was needed.
-//		shieldload = maxshieldload
+/obj/machinery/shieldwallgen/examine(mob/user)
+	..()
+	to_chat(user, "<span class='info'>[src.get_status_text()]</span>")
 
-	if(src.active == 1 && power)
+/obj/machinery/shieldwallgen/process()
+	spawn(10 SECONDS)
+		power()
+		shieldload = clamp(shieldload, 0, maxshieldload)
+
+	if(active == 1 && power)
 		if(!anchored)
-			src.active = 0
+			active = 0
 			return
 		spawn(1)
-			setup_field(1)
+			setup_field(NORTH)
 		spawn(2)
-			setup_field(2)
+			setup_field(SOUTH)
 		spawn(3)
-			setup_field(4)
+			setup_field(EAST)
 		spawn(4)
-			setup_field(8)
-		src.active = 2
+			setup_field(WEST)
+		active = 2
 	if(!power && active)
-		src.visible_message("<span class='warning'>The [src.name] shuts down due to lack of power!</span>", \
+		visible_message("<span class='warning'>The [name] shuts down due to lack of power!</span>", \
 			"You hear heavy droning fade out")
-		icon_state = "Shield_Gen"
-		src.active = 0
+		icon_state = initial(icon_state)
+		active = 0
 		spawn(1)
-			src.cleanup(1)
-		spawn(1)
-			src.cleanup(2)
-		spawn(1)
-			src.cleanup(4)
-		spawn(1)
-			src.cleanup(8)
+			cleanup()
+
+/obj/machinery/shieldwallgen/proc/can_connect(var/obj/machinery/shieldwallgen/othergen)
+	return TRUE
+
+/obj/machinery/shieldwallgen/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return {"
+	<ul>
+		<li><b>Frequency:</b> <a href=\"?src=\ref[src];set_freq=-1\">[format_frequency(frequency)] GHz</a> (<a href=\"?src=\ref[src];set_freq=[1449]\">Reset</a>)</li>
+		<li>[format_tag("ID Tag","id_tag")]</li>
+	</ul>
+	"}
+
+/obj/machinery/shieldwallgen/multitool_topic(var/mob/user, var/list/href_list, var/obj/O)
+	if("set_freq" in href_list)
+		var/newfreq = frequency
+		if(href_list["set_freq"] != "-1")
+			newfreq = text2num(href_list["set_freq"])
+		else
+			newfreq = input(usr, "Specify a new frequency (GHz). Decimals assigned automatically.", src, frequency) as null|num
+		if(newfreq)
+			if(findtext(num2text(newfreq), "."))
+				newfreq *= 10
+			if(newfreq < 10000)
+				set_frequency(newfreq)
+				return MT_UPDATE
+	return ..()
+
+/obj/machinery/shieldwallgen/receive_signal(datum/signal/signal)
+	if(!signal || !id_tag)
+		return
+	if(signal.data["tag"] != id_tag)
+		return
+	switch(signal.data["command"])
+		if("toggle")
+			if(!anchored || !power)
+				return
+			if(active)
+				active = 0
+				icon_state = initial(icon_state)
+				cleanup()
+			else
+				active = 1
+				icon_state = active_state
+			send_status()
+		if("status")
+			send_status()
+
+/obj/machinery/shieldwallgen/proc/send_status()
+	if(radio_connection)
+		var/datum/signal/signal = new /datum/signal
+		signal.transmission_method = 1 //radio signal
+		signal.data["tag"] = id_tag
+		signal.data["timestamp"] = world.time
+		signal.data["active"] = active ? 1 : 0
+		radio_connection.post_signal(src, signal, range = 25, filter = RADIO_AIRLOCK)
 
 /obj/machinery/shieldwallgen/proc/setup_field(var/NSEW = 0)
 	var/turf/T = src.loc
@@ -437,6 +533,12 @@
 
 	if(!NSEW)//Make sure its ran right
 		return
+
+	// If directional is TRUE, check if we're already linked in another direction
+	if(directional)
+		for(var/dir_key in links)
+			if(links[dir_key] && dir_key != "[NSEW]")
+				return
 
 	if(NSEW == 1)
 		oNSEW = 2
@@ -456,6 +558,9 @@
 			steps -= 1
 			if(!G.active)
 				return
+			if(!G.can_connect(src))
+				return
+			links["[NSEW]"] = G
 			G.cleanup(oNSEW)
 			break
 
@@ -464,22 +569,41 @@
 
 	T2 = src.loc
 
+	var/shield_dir
+	var/list/shieldlist = list()
 	for(var/dist = 0, dist < steps, dist += 1) // creates each field tile
 		var/field_dir = get_dir(T2,get_step(T2, NSEW))
+		switch(field_dir)
+			if(NORTH,SOUTH)
+				shield_dir = WEST
+			if(EAST,WEST)
+				shield_dir = NORTH
 		T = get_step(T2, NSEW)
 		T2 = T
-		var/obj/machinery/shieldwall/CF = new/obj/machinery/shieldwall/(src, G) //(ref to this gen, ref to connected gen)
+		if(locate(/obj/machinery/shieldwall) in T) //stop once we meet an existing shield
+			break
+		var/obj/machinery/shieldwall/CF = new shield_type(src, G) //(ref to this gen, ref to connected gen)
 		CF.forceMove(T)
-		CF.dir = field_dir
+		CF.dir = shield_dir
+		shieldlist += CF
 
-/obj/machinery/shieldwallgen/wrenchAnchor(var/mob/user)
+	if(cover_self)
+		var/obj/machinery/shieldwall/CF2 = new shield_type(src, G)
+		CF2.forceMove(src.loc)
+		CF2.dir = shield_dir
+		shieldlist += CF2
+
+	shields["[NSEW]"] += shieldlist
+
+/obj/machinery/shieldwallgen/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(active)
 		to_chat(user, "Turn off the field generator first.")
 		return FALSE
 	. = ..()
-	if(!.)
-		return
-	power()
+	if(anchored)
+		power_connection.connect()
+	else
+		power_connection.disconnect()
 
 /obj/machinery/shieldwallgen/attack_ghost(mob/user)
 	if(isAdminGhost(user))
@@ -500,29 +624,57 @@
 		src.add_fingerprint(user)
 		visible_message("<span class='warning'>The [src.name] has been hit with the [W.name] by [user.name]!</span>")
 
-/obj/machinery/shieldwallgen/proc/cleanup(var/NSEW)
-	var/turf/T = src.loc
-
-	for(var/dist = 0 to 8) // checks out to 8 tiles away for fields
-		T = get_step(T, NSEW)
-		for(var/obj/machinery/shieldwall/F in T)
-			qdel(F)
-
-		for(var/obj/machinery/shieldwallgen/G in T)
-			if(!G.active)
-				return
-
-/obj/machinery/shieldwallgen/Destroy()
-	src.cleanup(1)
-	src.cleanup(2)
-	src.cleanup(4)
-	src.cleanup(8)
-	attached = null
-	..()
+/obj/machinery/shieldwallgen/proc/cleanup(var/dirs = NORTH|SOUTH|EAST|WEST)
+	for(var/direction in dirs)
+		QDEL_LIST(shields["[direction]"])
 
 /obj/machinery/shieldwallgen/bullet_act(var/obj/item/projectile/Proj)
 	storedpower -= Proj.damage
-	..()
+	return ..()
+
+// Holofield variant
+/obj/item/weapon/circuitboard/holofield
+	name = "Circuit board (Holofield Generator)"
+	desc = "A circuit board used to run a machine that generates a holofield which permits passage of crewmembers while blocking airflow and hostile fauna."
+	build_path = /obj/machinery/shieldwallgen/holofield
+	board_type = MACHINE
+	origin_tech = Tc_MAGNETS + "=2;" + Tc_BLUESPACE + "=3" + Tc_EXPLORATION + "=1"
+	req_components = list(
+							/obj/item/weapon/stock_parts/scanning_module = 3,
+							/obj/item/weapon/stock_parts/micro_laser = 4
+							)
+
+/obj/machinery/shieldwallgen/holofield
+	name = "holofield generator"
+	desc = "Generates a holofield which permits passage of crewmembers while blocking airflow and hostile fauna."
+	icon_state = "holo_gen"
+	active_state = "holo_gen_on"
+	anchored = 1
+	density = 0
+	plane = ABOVE_HUMAN_PLANE
+	layer = CLOSED_FIREDOOR_LAYER
+	shield_type = /obj/machinery/shieldwall/holofield
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
+	cover_self = TRUE
+	directional = TRUE
+	damage_multiplier = 5 // These are weaker than the base type since they allow passage
+	machine_flags = WRENCHMOVE | FIXED2WORK | MULTITOOL_MENU | SHUTTLEWRENCH
+
+/obj/machinery/shieldwallgen/holofield/can_connect(var/obj/machinery/shieldwallgen/othergen)
+	// Ensure only the same subtypes are connected
+	if(!istype(othergen, /obj/machinery/shieldwallgen/holofield))
+		return FALSE
+
+	// Ensure both generators are pointing towards each other
+	var/dir_to_other = get_dir(src, othergen)
+	var/dir_to_self = get_dir(othergen, src)
+	if(dir != dir_to_other)
+		return FALSE
+	if(othergen.dir != dir_to_self)
+		return FALSE
+
+	return TRUE
 
 //////////////Containment Field START
 /obj/machinery/shieldwall
@@ -533,12 +685,16 @@
 	anchored = 1
 	density = 1
 	luminosity = 3
+	pass_flags_self = PASSGLASS
 	var/needs_power = 0
 	var/active = 1
 	var/obj/machinery/shieldwallgen/gen_primary
 	var/obj/machinery/shieldwallgen/gen_secondary
 
-/obj/machinery/shieldwall/acidable()
+/obj/machinery/shieldwall/dissolvable()
+	return 0
+
+/obj/machinery/shieldwall/can_overload()
 	return 0
 
 /obj/machinery/shieldwall/New(var/obj/machinery/shieldwallgen/A, var/obj/machinery/shieldwallgen/B)
@@ -572,41 +728,40 @@
 		else
 			gen_secondary.storedpower -=10
 
-/obj/machinery/shieldwall/bullet_act(var/obj/item/projectile/Proj)
+/obj/machinery/shieldwall/proc/get_damaged(var/damage)
+	spark(src, 2)
+	visible_message("<span class='warning'>\The [src] absorbs the impact!</span>")
 	if(needs_power)
 		var/obj/machinery/shieldwallgen/G
 		if(prob(50))
 			G = gen_primary
 		else
 			G = gen_secondary
-		G.storedpower -= Proj.damage
-	..()
+		G.storedpower -= damage * G.damage_multiplier
 
+/obj/machinery/shieldwall/bullet_act(var/obj/item/projectile/Proj)
+	if(needs_power)
+		get_damaged(Proj.damage)
+	return ..()
+
+/obj/machinery/shieldwall/attack_animal(mob/living/user)
+	if(istype(user, /mob/living/simple_animal))
+		var/mob/living/simple_animal/M = user
+		if(M.melee_damage_upper <= 0)
+			return
+		get_damaged(M.melee_damage_upper)
 
 /obj/machinery/shieldwall/ex_act(severity)
 	if(needs_power)
-		var/obj/machinery/shieldwallgen/G
 		switch(severity)
 			if(1.0) //big boom
-				if(prob(50))
-					G = gen_primary
-				else
-					G = gen_secondary
-				G.storedpower -= 200
+				get_damaged(200)
 
 			if(2.0) //medium boom
-				if(prob(50))
-					G = gen_primary
-				else
-					G = gen_secondary
-				G.storedpower -= 50
+				get_damaged(50)
 
 			if(3.0) //lil boom
-				if(prob(50))
-					G = gen_primary
-				else
-					G = gen_secondary
-				G.storedpower -= 20
+				get_damaged(20)
 
 /obj/machinery/shieldwall/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
 	if(air_group || (height==0))
@@ -615,10 +770,47 @@
 	if(!mover)
 		return
 
-	if(istype(mover) && mover.checkpass(PASSGLASS))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return prob(20)
 	else
 		if (istype(mover, /obj/item/projectile))
 			return prob(10)
 		else
 			return !src.density
+
+/obj/machinery/shieldwall/holofield
+	name = "holofield"
+	desc = "A holofield."
+	icon_state = "holofield"
+	plane = ABOVE_HUMAN_PLANE
+	layer = CLOSED_CURTAIN_LAYER
+
+/obj/machinery/shieldwall/holofield/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
+	if(air_group)
+		return 0
+	else
+		if(ismob(mover)) // if they have an ID, they can pass
+			var/mob/M = mover
+			if(M.get_id_card())
+				return 1
+
+		if(istype(mover, /obj/machinery/bot)) // bots with ID cards can pass
+			var/obj/machinery/bot/bot = mover
+			if(bot.botcard)
+				return 1
+
+		if(istype(mover, /obj/mecha)) // mechas with occupants that have ID cards can pass
+			var/obj/mecha/mecha = mover
+			if(mecha.occupant && mecha.occupant.get_id_card())
+				return 1
+
+		if(istype(mover, /obj/structure/bed/chair/vehicle)) // vehicles with occupants that have ID cards can pass
+			var/obj/structure/bed/chair/vehicle/veh = mover
+			if(veh.occupant && veh.occupant.get_id_card())
+				return 1
+
+		if(istype(mover, /obj)) // items can pass
+			return 1
+
+		return 0
+

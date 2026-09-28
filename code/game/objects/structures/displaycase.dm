@@ -7,7 +7,7 @@
 	desc = "A display case for prized possessions. It tempts you to kick it."
 	density = 1
 	anchored = 1
-	var/health = 30
+	health = 30
 	var/obj/item/occupant = null
 	var/destroyed = 0
 	var/locked = 0
@@ -24,8 +24,7 @@
 /obj/structure/displaycase/Destroy()
 	..()
 	if(circuit)
-		qdel(circuit)
-		circuit = null
+		QDEL_NULL(circuit)
 	dump()
 
 /obj/structure/displaycase/proc/setContent()
@@ -44,8 +43,7 @@
 	update_icon()
 
 /obj/structure/displaycase/gooncode/setContent()
-	occupant=new /obj/item/toy/gooncode(src)
-	desc = "The glass is cracked and there are traces of something leaking out."
+	occupant=new /obj/item/weapon/coin/pomf(src)
 	locked=1
 	req_access=list(access_captain)
 	update_icon()
@@ -82,7 +80,7 @@
 /obj/structure/displaycase/ex_act(severity)
 	switch(severity)
 		if (1)
-			getFromPool(/obj/item/weapon/shard, loc)
+			new /obj/item/weapon/shard(loc)
 			if (occupant)
 				dump()
 			qdel(src)
@@ -98,14 +96,14 @@
 
 /obj/structure/displaycase/bullet_act(var/obj/item/projectile/Proj)
 	health -= Proj.damage
-	..()
+	. = ..()
 	src.healthcheck()
 	return
 
 
 /obj/structure/displaycase/blob_act()
 	if (prob(75))
-		getFromPool(/obj/item/weapon/shard, loc)
+		new /obj/item/weapon/shard(loc)
 		if(occupant)
 			dump()
 		qdel(src)
@@ -115,7 +113,7 @@
 		if (!( src.destroyed ))
 			setDensity(FALSE)
 			src.destroyed = 1
-			getFromPool(/obj/item/weapon/shard, loc)
+			new /obj/item/weapon/shard(loc)
 			playsound(src, "shatter", 70, 1)
 			update_icon()
 	else
@@ -128,16 +126,17 @@
 	else
 		src.icon_state = "glassbox2[locked]"
 	overlays.len = 0
+
 	if(occupant)
-		var/icon/occupant_icon=getFlatIcon(occupant)
-		occupant_icon.Scale(19,19)
-		occupant_overlay = image(occupant_icon)
-		occupant_overlay.pixel_x= 8 * PIXEL_MULTIPLIER
-		occupant_overlay.pixel_y= 8 * PIXEL_MULTIPLIER
+		var/mutable_appearance/temp = new(occupant.appearance)
+		var/matrix/scale = matrix()
+		scale.Scale(0.7,0.7)
+		temp.transform = scale
+
 		if(locked)
-			occupant_overlay.alpha=128//ChangeOpacity(0.5)
-		//underlays += occupant_overlay
-		overlays += occupant_overlay
+			temp.alpha=128//ChangeOpacity(0.5)
+		overlays += temp
+
 	return
 
 /obj/structure/displaycase/npc_tamper_act(mob/living/L)
@@ -159,7 +158,7 @@
 		user.visible_message("[user.name] pries \the [src] apart.", \
 			"You pry \the [src] apart.", \
 			"You hear something pop.")
-		playsound(src, 'sound/items/Crowbar.ogg', 50, 1)
+		W.playtoolsound(src, 50)
 		dump()
 
 		var/obj/item/weapon/circuitboard/airlock/C = circuit
@@ -244,7 +243,7 @@
 				"You gently run your hands over \the [src] in appreciation of its contents.", \
 				"You hear someone streaking glass with their greasy hands.")
 
-/obj/structure/displaycase/acidable()
+/obj/structure/displaycase/dissolvable()
 	return 0
 
 

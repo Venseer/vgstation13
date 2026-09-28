@@ -17,7 +17,6 @@
 	var/obj/machinery/telepad/telepad = null
 
 	// VARIABLES //
-	var/teles_left       // How many teleports left until it becomes uncalibrated
 	var/x_off            // X offset
 	var/y_off            // Y offset
 	var/x_player_off = 0 // x offset set by player
@@ -26,39 +25,44 @@
 	var/y_co = 1         // Y coordinate
 	var/z_co = 1         // Z coordinate
 
-	use_power = 1
+	var/ignores_jamming = FALSE
+
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 10
 	active_power_usage = 300
 	power_channel = EQUIP
 	var/obj/item/weapon/cell/cell
 	var/teleport_cell_usage=1000 // 100% of a standard cell
 	processing=1
+	mech_flags = MECH_SCAN_FAIL
+	id_tag = "teleconsole"
 
 	light_color = LIGHT_COLOR_BLUE
+
+/obj/machinery/computer/telescience/broken
+	icon_state = "teleportb"
+	stat = BROKEN
 
 /obj/machinery/computer/telescience/get_cell()
 	return cell
 
 /obj/machinery/computer/telescience/New()
 	..()
-	teles_left = rand(12,14)
 	x_off = rand(-10,10)
 	y_off = rand(-10,10)
 	x_player_off = 0
 	y_player_off = 0
-	if (ticker && ticker.mode == GAME_STATE_PLAYING)
-		initialize()
 
 /obj/machinery/computer/telescience/initialize()
 	..()
-	if (!ticker || ticker.current_state != GAME_STATE_PLAYING)
-		cell = new/obj/item/weapon/cell(src)
-		cell.charge = 0
-
-	var/obj/machinery/telepad/possible_telepad = locate() in range(src, 7)
-	if (!possible_telepad.linked)
-		telepad = possible_telepad
-		telepad.linked = src
+	if(ticker && ticker.current_state < GAME_STATE_PLAYING)
+		cell = new/obj/item/weapon/cell(src) // Stops cell duping, provides one 1000 cell at roundstart
+	for(var/obj/machinery/telepad/possible_telepad in range(src, 7))
+		if(telepad)
+			return //Stop checking if we are linked
+		if (!possible_telepad.linked) //Check if the telepad is linked to something else
+			telepad = possible_telepad
+			telepad.linked = src
 
 /obj/machinery/computer/telescience/Destroy()
 	if (telepad)
@@ -67,8 +71,42 @@
 
 	..()
 
+
+//Plagiarized cloning console multi-tool code
+/obj/machinery/computer/telescience/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return ""
+
+/obj/machinery/computer/telescience/canLink(var/obj/T)
+	return (istype(T,/obj/machinery/telepad) && get_dist(src,T) < 7)
+
+/obj/machinery/computer/telescience/isLinkedWith(var/obj/T)
+	return (telepad == T)
+
+/obj/machinery/computer/telescience/linkWith(var/mob/user, var/obj/T, var/list/context)
+	if(istype(T, /obj/machinery/telepad))
+		telepad = T
+		telepad.linked = src
+		return 1
+
+/obj/machinery/computer/telescience/unlinkFrom(mob/user, obj/buffer)
+	if(telepad.linked)
+		telepad.linked = null
+	if(telepad)
+		telepad = null
+	return 1
+
+//Plagiarized conveyor belt multi-tool code
+/obj/machinery/computer/telescience/canClone(var/obj/machinery/T)
+	return (istype(T, /obj/machinery/telepad) && get_dist(src, T) < 7)
+
+/obj/machinery/computer/telescience/clone(var/obj/machinery/T)
+	if(istype(T, /obj/machinery/telepad))
+		telepad = T
+		telepad.linked = src
+		return 1
+
 /obj/machinery/computer/telescience/process()
-	if(!cell || (stat & (BROKEN|NOPOWER)) || !anchored)
+	if(!cell || (stat & (BROKEN|NOPOWER|FORCEDISABLE)) || !anchored)
 		return
 
 	var/used = cell.give(100)
@@ -87,30 +125,27 @@
 		to_chat(user, "<span class='warning'>There is already a cell in \the [name].</span>")
 		return TRUE
 
-	if(user.drop_item(W, src))
+	if(user.drop_item(W, src, failmsg = TRUE))
 		cell = W
 		user.visible_message("[user] inserts a cell into \the [src].", "You insert a cell into \the [src].")
 		nanomanager.update_uis(src)
-	else
-		to_chat(user, "<span class='warning'>You can't let go of \the [W]!</span>")
-
-
-/obj/machinery/computer/telescience/update_icon()
-	if(stat & BROKEN)
-		icon_state = "teleportb"
-		return
-
-	if(stat & NOPOWER)
-		src.icon_state = "teleport0"
-
-	else
-		icon_state = initial(icon_state)
 
 /obj/machinery/computer/telescience/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open = NANOUI_FOCUS)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		return
 	if(!isAdminGhost(user) && (user.stat || user.restrained()))
 		return
+
+	var/requires_recalibration=null
+	if(telepad)
+		if(!telepad.teles_left && !telepad.infinite_teles)
+			requires_recalibration = "REQUIRED"
+		else if(telepad.teles_left && !telepad.infinite_teles)
+			requires_recalibration = "NOT REQUIRED"
+		else
+			requires_recalibration = "NEVER REQUIRED"
+	else
+		requires_recalibration = "ERROR - TELEPAD NOT FOUND"
 
 	var/list/cell_data=null
 	if(cell)
@@ -124,7 +159,8 @@
 		"coordx" = x_co,
 		"coordy" = y_co,
 		"coordz" = z_co,
-		"cell" = cell_data
+		"cell" = cell_data,
+		"recalibration_status" = requires_recalibration
 	)
 
 	ui = nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
@@ -139,9 +175,6 @@
 
 /obj/machinery/computer/telescience/attack_paw(mob/user)
 	to_chat(user, "You are too primitive to use this computer.")
-
-/obj/machinery/computer/telescience/attack_ai(mob/user)
-	return src.attack_hand(user)
 
 /obj/machinery/computer/telescience/attack_hand(mob/user)
 	ui_interact(user)
@@ -189,7 +222,7 @@
 
 	if(prob(1))
 		// The OH SHIT FUCK GOD DAMN IT LYNCH THE SCIENTISTS event.
-		visible_message("<span class='warning'>The telepad changes colors rapidly, and opens a portal, and you see what your mind seems to think is the very threads that hold the pattern of the universe together, and a eerie sense of paranoia creeps into you.</span>")
+		visible_message("<span class='warning'>The telepad changes colors rapidly, and opens a portal, and you see what your mind seems to think is the very threads that hold the pattern of the universe together, and an eerie sense of paranoia creeps into you.</span>")
 		for(var/mob/living/carbon/O in viewers(src, null)) //I-IT'S A FEEEEATUUUUUUUREEEEE
 			spacevine_infestation()
 		spark(telepad)
@@ -246,7 +279,7 @@ var/list/telesci_warnings = list(
 	/obj/machinery/the_singularitygen,
 	/obj/item/weapon/grenade,
 	/obj/item/device/transfer_valve,
-	/obj/item/device/fuse_bomb,
+	/obj/item/cannonball/fuse_bomb,
 	/obj/item/device/onetankbomb,
 	/obj/machinery/portable_atmospherics/canister
 )
@@ -255,34 +288,43 @@ var/list/telesci_warnings = list(
 	if (!telepad)
 		return
 
-	var/trueX = x_co + x_off - x_player_off + WORLD_X_OFFSET[z_co]
-	var/trueY = y_co + y_off - y_player_off + WORLD_Y_OFFSET[z_co]
-	trueX = Clamp(trueX, 1, world.maxx)
-	trueY = Clamp(trueY, 1, world.maxy)
+	var/trueX = x_co + x_off - x_player_off + get_world_x_offset(z_co)
+	var/trueY = y_co + y_off - y_player_off + get_world_y_offset(z_co)
+	var/datum/virtual_z/vz = map.getVLevel(z_co)
+	trueX = clamp(vz.x(trueX), vz.x_min, vz.x_max)
+	trueY = clamp(vz.y(trueY), vz.y_min, vz.y_max)
 
-	var/turf/target = locate(trueX, trueY, z_co)
+	var/turf/target = locate(trueX, trueY, vz.z())
 	var/area/A=target.loc
 	if(A && A.jammed)
-		if(!telepad.amplifier || A.jammed==SUPER_JAMMED)
+		if(!telepad.amplifier || A.jammed==SUPER_JAMMED || vz.teleJammed==VZ_TELEPORTATION_FORBIDDEN)
+			message_admins("A.jammed = [A.jammed], telepad.amplifier = [telepad.amplifier], vz.teleJammed = [vz.teleJammed]")
 			src.visible_message("<span class='warning'>[bicon(src)] \The [src] turns on and the lights dim. You can see a faint shape, but it loses focus and the telepad shuts off with a buzz.  Perhaps you need more signal strength?", "<span class='warning'>You hear something buzz.</span></span>")
 			return
 
 		if(prob(25))
-			qdel(telepad.amplifier)
-			telepad.amplifier = null
+			QDEL_NULL(telepad.amplifier)
 			src.visible_message("[bicon(src)]<span class='notice'>You hear something shatter.</span>","[bicon(src)]<span class='notice'>You hear something shatter.</span>")
-
 	spark(telepad, 5)
 	flick("pad-beam", telepad)
 	to_chat(user, "<span class='caution'>Teleport successful.</span>")
 	spark(target, 5)
 	var/turf/source = target
 	var/turf/dest = get_turf(telepad)
+	var/datum/virtual_z/vz_source = source.get_virtual_z()
 	if(direction == DIRECTION_SEND)
 		source = dest
 		dest = target
 
 	var/things = 0
+	var/breadtype
+	for(var/i in rand(1,3))
+		if(telepad.arcanetampered) // i have done nothing but arcane tamper telepads for 3 days!
+			breadtype = pick(typesof(/obj/item/weapon/reagent_containers/food/snacks/sliceable/bread))
+			new breadtype(dest)
+		if(arcanetampered)
+			breadtype = pick(typesof(/obj/item/weapon/reagent_containers/food/snacks/sliceable/bread))
+			new breadtype(dest)
 	for(var/atom/movable/ROI in source)
 		if(ROI.anchored)
 			continue
@@ -292,7 +334,24 @@ var/list/telesci_warnings = list(
 			message_admins(log)
 
 		log_admin(log)
-		do_teleport(ROI, dest, 0)
+		do_teleport(ROI, dest, 0, aijamming=ignores_jamming)
+		if(vz.teleJammed==VZ_TELEPORTATION_EXPENSIVE || vz_source.teleJammed==VZ_TELEPORTATION_EXPENSIVE) //Ouch!
+			if(isliving(user))
+				var/mob/living/L = user
+				if(prob(50))
+					L.adjustCloneLoss(rand(5, 15))
+					to_chat(L, "<span class='warning'>You feel your cells tearing apart as the telepad struggles to reconstruct you!</span>")
+				if(prob(40))
+					L.dizziness += rand(10, 30)
+				if(prob(30) && ishuman(L))
+					var/mob/living/carbon/human/H = L
+					H.vomit()
+		if(telepad.arcanetampered) // i have done nothing but arcane tamper telepads for 3 days!
+			breadtype = pick(typesof(/obj/item/weapon/reagent_containers/food/snacks/sliceable/bread))
+			new breadtype(dest)
+		if(arcanetampered)
+			breadtype = pick(typesof(/obj/item/weapon/reagent_containers/food/snacks/sliceable/bread))
+			new breadtype(dest)
 		if (++things > 10)
 			break
 
@@ -311,9 +370,14 @@ var/list/telesci_warnings = list(
 		to_chat(user, "<span class='caution'>Error: not enough buffer energy.</span>")
 		return
 
+	if(telepad?.linked != src)
+		to_chat(user, "<span class='caution'>Error: No telepad linked.</span>")
+		return
+
 	cell.use(teleport_cell_usage)
-	if(teles_left > 0)
-		teles_left -= 1
+	if(telepad.teles_left > 0)
+		if(!telepad.infinite_teles)
+			telepad.teles_left -= 1
 		doteleport(user, direction)
 	else
 		telefail()
@@ -324,9 +388,9 @@ var/list/telesci_warnings = list(
 
 	x_co = rand(MIN_X, MAX_X)
 	y_co = rand(MIN_Y, MAX_Y)
-	var/new_z = rand(1, map.zLevels.len)
-	if(new_z != map.zCentcomm)
-		z_co = new_z
+	var/datum/virtual_z/new_v = rand(1, map.vLevels.len)
+	if(new_v.id != map.zCentcomm)
+		z_co = new_v.id
 
 	if (cell && cell.charge < teleport_cell_usage)
 		var/direction = pick(DIRECTION_RECEIVE, DIRECTION_SEND)
@@ -347,7 +411,7 @@ var/list/telesci_warnings = list(
 		return TRUE
 
 	if(href_list["setPOffsetY"])
-		var/new_y = input("Please input desired X offset.", name, y_player_off) as num
+		var/new_y = input("Please input desired Y offset.", name, y_player_off) as num
 		if(new_y < -MAX_POFFSET || new_y > MAX_POFFSET)
 			to_chat(usr, "<span class='caution'>Error: Invalid Y offset (-10 to 10)</span>")
 		else
@@ -393,22 +457,28 @@ var/list/telesci_warnings = list(
 
 	if(href_list["eject_cell"])
 		if(cell)
-			usr.put_in_hands(cell)
+			if (usr.put_in_hands(cell))
+				usr.visible_message("<span class='notice'>[usr] removes the cell from \the [src].</span>", "<span class='notice'>You remove the cell from \the [src].</span>")
+			else
+				visible_message("<span class='notice'>\The [src] beeps as its cell is removed.</span>")
+				cell.forceMove(get_turf(src))
 			cell.add_fingerprint(usr)
 			cell.updateicon()
 			src.cell = null
-			usr.visible_message("[usr] removes the cell from \the [name].", "You remove the cell from \the [name].")
 			update_icon()
 		return TRUE
 
 	if(href_list["recal"])
-		teles_left = rand(12,14)
+		telepad.RefreshParts() //It relies on the telepad's components to determine the amount of teleportations left
 		x_off = rand(-10,10)
 		y_off = rand(-10,10)
 		spark(telepad)
 		to_chat(usr, "<span class='caution'>Calibration successful.</span>")
 		return TRUE
 	return FALSE
+
+/obj/machinery/computer/telescience/centcomm
+	ignores_jamming = TRUE
 
 #undef DIRECTION_SEND
 #undef DIRECTION_RECEIVE

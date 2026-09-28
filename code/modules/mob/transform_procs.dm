@@ -1,5 +1,3 @@
-#define MONKEY_ANIM_TIME 22
-
 // A standardized proc for turning a mob into a monkey
 // ignore_primitive will force the mob to specifically become a monkey and not its primitive type
 // returns the monkey mob
@@ -26,18 +24,21 @@
 	dropBorers()
 	return ..()
 
-/mob/proc/Postmorph(var/mob/new_mob = null)
+/mob/proc/Postmorph(var/mob/new_mob = null, var/namepick = FALSE, var/namepick_message = null)
 	if(!new_mob)
 		return
 	if(mind)
 		mind.transfer_to(new_mob)
+		//namepick
+		if(namepick)
+			mob_rename_self(new_mob, null, namepick_message, FALSE)
 	else
 		new_mob.key = key
 	new_mob.a_intent = a_intent
 	qdel(src)
 
 
-/mob/proc/monkeyize(var/ignore_primitive = TRUE)
+/mob/proc/monkeyize(var/ignore_primitive = FALSE, var/choose_name = FALSE)
 	if(ismonkey(src)) //What's the point
 		return
 	if(!Premorph())
@@ -46,13 +47,16 @@
 		var/atom/movable/overlay/animation = new(loc)
 		animation.icon_state = "blank"
 		animation.icon = 'icons/mob/mob.dmi'
+		animation.plane = ABOVE_HUMAN_PLANE
 		animation.master = src
-		flick("h2monkey", animation)
+		invisibility = 101
+		var/moneky_anim = get_monkey_anim()
+		flick(moneky_anim, animation)
 		sleep(MONKEY_ANIM_TIME)
 		animation.master = null
 		qdel(animation)
 	var/mob/living/carbon/monkey/Mo
-	if(ignore_primitive)
+	if(ignore_primitive || !ishuman(src))
 		Mo = new /mob/living/carbon/monkey(loc)
 	else
 		var/mob/living/carbon/human/H = src
@@ -66,8 +70,7 @@
 			Mo.dna.SetSEValueRange(MONKEYBLOCK, 0xDAC, 0xFFF)
 	if(isliving(src))
 		var/mob/living/L = src
-		Mo.suiciding = L.suiciding
-		Mo.take_overall_damage(L.getBruteLoss(), L.getFireLoss())
+		Mo.take_overall_damage(L.getBruteLoss() + L.getCloneLoss(), L.getFireLoss())
 		Mo.setToxLoss(L.getToxLoss())
 		Mo.setOxyLoss(L.getOxyLoss())
 		Mo.stat = L.stat
@@ -75,12 +78,20 @@
 			Mo.viruses += D
 			D.affected_mob = Mo
 			L.viruses -= D //But why?
+		Mo.virus2 = virus_copylist(L.virus2)
+		if (L.immune_system)
+			L.immune_system.transfer_to(Mo)
 	Mo.delayNextAttack(0)
-	Postmorph(Mo)
+	Postmorph(Mo, choose_name, "You have been turned into a monkey! Pick a monkey name for your new monkey self.")
 	return Mo
 
-/mob/living/carbon/human/monkeyize(ignore_primitive = FALSE)
-	.=..()
+/mob/proc/get_monkey_anim()
+	return "h2monkey"
+
+/mob/living/carbon/human/get_monkey_anim()
+	if (species)
+		return species.monkey_anim
+	return ..()
 
 /mob/proc/Cluwneize()
 	if(!Premorph())
@@ -93,7 +104,7 @@
 	new_mob.mutations += M_FAT
 	new_mob.setBrainLoss(100)
 	Postmorph(new_mob)
-	to_chat(new_mob, "<span class='sinister'>Instantly, what was your clothes fall off, and are replaced with a mockery of all that is clowning; Disgusting-looking garb that the foulest of creatures would be afraid of wearing. Your very face begins to shape, mold, into something truely disgusting. A mask made of flesh. Your body is feeling the worst pain it has ever felt. As you think it cannot get any worse, one of your arms turns into a horrific meld of flesh and plastic, making a limb made entirely of bike horns.</span>")
+	to_chat(new_mob, "<span class='sinister'>Instantly, what was your clothes fall off, and are replaced with a mockery of all that is clowning; Disgusting-looking garb that the foulest of creatures would be afraid of wearing. Your very face begins to shape, mold, into something truly disgusting. A mask made of flesh. Your body is feeling the worst pain it has ever felt. As you think it cannot get any worse, one of your arms turns into a horrific meld of flesh and plastic, making a limb made entirely of bike horns.</span>")
 	to_chat(new_mob, "<span class='sinister'>Your very soul is being torn apart. What was organs, blood, flesh, is now darkness. And inside the infernal void that was once a living being, something sinister takes root. As what you were goes away, you try to let out a frantic plea of 'Help me! Please god help me!' but your god has abandoned you, and all that leaves your horrible mouth is a strangled 'HONK!'.</span>")
 	new_mob.say("HONK!")
 	return new_mob
@@ -107,9 +118,6 @@
 		return
 	if(client)
 		src << sound(null, repeat = FALSE, wait = FALSE, volume = 85, channel = CHANNEL_LOBBY)// stop the jams for AIs
-	var/mob/living/silicon/ai/O = new (get_turf(src), base_law_type,,1)//No MMI but safety is in effect.
-	O.invisibility = 0
-	O.aiRestorePowerRoutine = 0
 	var/obj/loc_landmark
 	if(!spawn_here)
 		for(var/obj/effect/landmark/start/sloc in landmarks_list)
@@ -125,35 +133,40 @@
 						continue
 					loc_landmark = tripai
 		if (!loc_landmark)
-			to_chat(O, "Oh god sorry we can't find an unoccupied AI spawn location, so we're spawning you on top of someone.")
+			to_chat(src, "Oh god sorry we can't find an unoccupied AI spawn location, so we're spawning you on top of someone.")
 			for(var/obj/effect/landmark/start/sloc in landmarks_list)
 				if (sloc.name == "AI")
 					loc_landmark = sloc
-		O.forceMove(loc_landmark.loc)
+		forceMove(loc_landmark.loc)
+	var/mob/living/silicon/ai/O = new (get_turf(src), base_law_type,,1)//No MMI but safety is in effect.
+	O.invisibility = 0
+	O.aiRestorePowerRoutine = 0
+	if(!spawn_here)
 		for (var/obj/item/device/radio/intercom/comm in O.loc)
 			comm.ai += O
 	if(mind)
 		mind.transfer_to(O)
-		O.mind.original = O
+		O.mind.assigned_role = "AI"
 	else
 		O.key = key
 	O.verbs += /mob/living/silicon/ai/proc/show_laws_verb
 	O.verbs += /mob/living/silicon/ai/proc/ai_statuschange
 	O.job = "AI"
-	O.rename_self("ai",1)
+	mob_rename_self(O,"ai", null, 1)
 	. = O
 	if(del_mob)
 		qdel(src)
 
-/mob/proc/Robotize(var/delete_items = FALSE, var/skipnaming=FALSE)
+	O.show_intro_text()
+
+/mob/proc/Robotize(var/delete_items = FALSE, var/skipnaming=FALSE, var/malfAI=null)
 	if(!Premorph(delete_items))
 		return
-	var/mob/living/silicon/robot/O = new /mob/living/silicon/robot(get_turf(src))
+	var/mob/living/silicon/robot/O = new /mob/living/silicon/robot(get_turf(src), malfAI)
 	. = O
 	if(mind)		//TODO
 		mind.transfer_to(O)
 		if(O.mind.assigned_role == "Cyborg")
-			O.mind.original = O
 		else if(mind && mind.special_role)
 			O.mind.store_memory("In case you look at this after being borged, the objectives are only here until I find a way to make them not show up for you, as I can't simply delete them without screwing up round-end reporting. --NeoFite")
 	else
@@ -161,27 +174,30 @@
 	O.forceMove(loc)
 	O.mmi = new /obj/item/device/mmi(O)
 	O.mmi.transfer_identity(src)//Does not transfer key/client.
-	if(jobban_isbanned(O, "Cyborg")) //You somehow managed to get borged, congrats.
+	var/datum/job/job_datum = locate(/datum/job/cyborg) in job_master.occupations
+	if(jobban_isbanned(O, "Cyborg") || (job_datum ? !job_datum.player_old_enough(O.client) : 0)) //You somehow managed to get borged, congrats.
 		to_chat(src, "<span class='warning' style=\"font-family:Courier\">WARNING: Illegal operation detected.</span>")
 		to_chat(src, "<span class='danger'>Self-destruct mechanism engaged.</span>")
 		O.self_destruct()
-		message_admins("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban.")
-		log_game("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban.")
+		message_admins("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban or lack of player age.")
+		log_game("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban or lack of player age.")
+		return FALSE
 	if(!skipnaming)
 		spawn()
 			O.Namepick()
+	if(O.mind) //Otherwise it would runtime if done against mindless mobs
+		O.mind.assigned_role = "Cyborg"
 	qdel(src)
 	return O
 
-/mob/proc/MoMMIfy()
-	if(!Premorph())
+/mob/proc/MoMMIfy(var/delete_items = FALSE, var/skipnaming=FALSE, var/malfAI=null)
+	if(!Premorph(delete_items))
 		return
-	var/mob/living/silicon/robot/mommi/O = new /mob/living/silicon/robot/mommi/nt(get_turf(src))
+	var/mob/living/silicon/robot/mommi/O = new /mob/living/silicon/robot/mommi/nt(get_turf(src), malfAI)
 	. = O
 	if(mind)		//TODO
 		mind.transfer_to(O)
 		if(O.mind.assigned_role == "Cyborg")
-			O.mind.original = O
 		else if(mind && mind.special_role)
 			O.mind.store_memory("In case you look at this after being borged, the objectives are only here until I find a way to make them not show up for you, as I can't simply delete them without screwing up round-end reporting. --NeoFite")
 	else
@@ -195,8 +211,11 @@
 		O.self_destruct()
 		message_admins("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban.")
 		log_game("[key_name(O)] was forcefully transformed into a [job] and had its self-destruct mechanism engaged due \his job ban.")
-	spawn()
-		O.Namepick()
+	if(!skipnaming)
+		spawn()
+			O.Namepick()
+	if(O.mind)
+		O.mind.assigned_role = "Mobile MMI"
 	qdel(src)
 	return O
 
@@ -269,12 +288,11 @@
 		new_human.setGender(gender) //The new human will inherit its gender
 	else //If its gender is NEUTRAL or PLURAL,
 		new_human.setGender(pick(MALE, FEMALE)) //The new human's gender will be random
-	var/datum/preferences/A = new()	//Randomize appearance for the human
-	A.randomize_appearance_for(new_human)
+	new_human.randomise_appearance_for(new_human.gender)
 	if(!new_species || !(new_species in all_species))
-		var/list/restricted = list("Krampus", "Horror")
-		new_species = pick(all_species - restricted)
-	new_human.set_species(new_species)
+		new_species = pick(whitelisted_species)
+	new_human.set_species(new_species, transfer_damage = TRUE, target_override = src) //Transfer damage from the current mob to the new one
+	new_human.regenerate_icons()
 	if(isliving(src))
 		var/mob/living/L = src
 		new_human.languages |= L.languages
@@ -295,8 +313,10 @@
 	return new_frank
 
 /mob/proc/Animalize()
-	var/list/mobtypes = existing_typesof(/mob/living/simple_animal)
-	var/mobpath = input("Which type of mob should [src] turn into?", "Choose a type") in mobtypes
+	var/mobtext = input("Filter to a type name", "Choose a type") as text
+	var/mobpath = filter_typelist_input("Which type of mob should [src] turn into?", "Choose a type", get_matching_types(mobtext, /mob/living/simple_animal))
+	if(!mobpath)
+		return
 	if(!safe_animal(mobpath))
 		to_chat(usr, "<span class='warning'>Sorry but this mob type is currently unavailable.</span>")
 		return
@@ -308,14 +328,57 @@
 	return new_mob
 
 /mob/living/carbon/human/proc/GALize()
-	s_tone = -100 //Nichi saro ni itte hada o yaku
+	if(ishuman(src))
+		var/mob/living/carbon/human/M = src
+		if(!M.is_wearing_item(/obj/item/clothing/under/galo))
+			var/obj/item/clothing/under/galo/G = new /obj/item/clothing/under/galo(get_turf(M))
+			if(M.w_uniform)
+				M.u_equip(M.w_uniform, 1)
+			M.equip_to_slot(G, slot_w_uniform)
+		if(!M.is_wearing_item(/obj/item/clothing/glasses/sunglasses))
+			var/obj/item/clothing/glasses/sunglasses/S = new /obj/item/clothing/glasses/sunglasses(get_turf(M))
+			if(M.glasses)
+				M.u_equip(M.glasses, 1)
+			M.equip_to_slot(S, slot_glasses)
+	my_appearance.s_tone = -100 //Nichi saro ni itte hada o yaku
 	update_body()
-	if(gender == MALE && h_style != "Toriyama 2")
-		h_style = "Toriyama 2" //Yeah, gyaru otoko sengen
-	r_facial = r_hair = 255
-	g_facial = g_hair = 255
-	b_facial = b_hair = 0
+	if(gender == MALE && my_appearance.h_style != "Toriyama 2")
+		my_appearance.h_style = "Toriyama 2" //Yeah, gyaru otoko sengen
+	my_appearance.r_facial = my_appearance.r_hair = 255
+	my_appearance.g_facial = my_appearance.g_hair = 255
+	my_appearance.b_facial = my_appearance.b_hair = 0
 	update_hair()
 	playsound(src, 'sound/misc/gal-o-sengen.ogg', 50, 1)// GO GO GO GO GO GO GAL-O-SENGEN
 
-#undef MONKEY_ANIM_TIME
+/mob/living/carbon/human/proc/zwartepietify()
+	if(ishuman(src)) //daar word aan de deur geklopt
+		if(!isjusthuman(src))
+			src.Humanize("Human")
+		var/mob/living/carbon/human/M = src
+		if(!M.is_wearing_item(/obj/item/clothing/under/jester))
+			var/obj/item/clothing/under/jester/JE = new /obj/item/clothing/under/jester(get_turf(M))
+			if(M.w_uniform) //hard geklopt
+				M.u_equip(M.w_uniform, 1)
+			M.equip_to_slot(JE, slot_w_uniform)
+			JE.canremove = 0
+		if(!M.is_wearing_item(/obj/item/clothing/gloves/black))
+			var/obj/item/clothing/gloves/black/BG = new /obj/item/clothing/gloves/black(get_turf(M))
+			if(M.gloves) //zacht geklopt
+				M.u_equip(M.gloves, 1)
+			M.equip_to_slot(BG, slot_gloves)
+			BG.canremove = 0
+		my_appearance.s_tone = -250
+		lip_style = "red"
+		update_body() //daar word aan de deur geklopt
+		if(my_appearance.h_style != "Afro")
+			my_appearance.h_style = "Afro"
+		if(my_appearance.f_style  != "Shaven")
+			my_appearance.f_style  = "Shaven"
+		my_appearance.r_facial = my_appearance.r_hair = 5
+		my_appearance.g_facial = my_appearance.g_hair = 5
+		my_appearance.b_facial = my_appearance.b_hair = 5
+		update_hair() //wie zal dat zijn?
+
+		drop_hands(force_drop = 1)
+		var/strooigoed = new /obj/item/weapon/reagent_containers/food/snacks/kruidnoten(get_active_hand())
+		put_in_hands(strooigoed)

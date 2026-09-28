@@ -2,8 +2,8 @@
 	name = "alien larva" //The alien larva, not 'Alien Larva'
 	real_name = "alien larva"
 	icon_state = "larva0"
-	status_flags = CANSTUN
-	pass_flags = PASSTABLE
+	status_flags = CANSTUN|UNPACIFIABLE
+	pass_flags = PASSTABLE | PASSRAILING
 
 	maxHealth = 25
 	health = 25
@@ -13,18 +13,18 @@
 
 	var/growth = 0
 	var/time_of_birth
+	var/stowaway = FALSE // If TRUE, evolution is restricted to Hunter only (set by odyssey_xeno ruleset)
 
 //This is fine right now, if we're adding organ specific damage this needs to be updated
 /mob/living/carbon/alien/larva/New()
-	var/datum/reagents/R = new/datum/reagents(100)
-	reagents = R
-	R.my_atom = src
+	create_reagents(100)
 	if(name == "alien larva")
 		name = "alien larva ([rand(1, 1000)])"
 	real_name = name
 	regenerate_icons()
 	add_language(LANGUAGE_XENO)
 	default_language = all_languages[LANGUAGE_XENO]
+	init_language = default_language
 	..()
 
 	add_spell(new /spell/aoe_turf/alien_hide, "alien_spell_ready", /obj/abstract/screen/movable/spell_master/alien)
@@ -42,7 +42,7 @@
 	..(amount)
 
 
-/mob/living/carbon/alien/larva/ex_act(severity)
+/mob/living/carbon/alien/larva/ex_act(severity, var/child=null, var/mob/whodunnit)
 	if(flags & INVULNERABLE)
 		return
 
@@ -51,9 +51,12 @@
 
 	var/b_loss = null
 	var/f_loss = null
+	var/dmg_phrase = ""
+	var/msg_admin = (src.key || src.ckey || (src.mind && src.mind.key)) && whodunnit
 	switch (severity)
 		if(1)
 			b_loss += 500
+			add_attacklogs(src, whodunnit, "got caught in an explosive blast[whodunnit ? " from" : ""]", addition = "Severity: [severity], Gibbed", admin_warn = msg_admin)
 			gib()
 			return
 		if(2)
@@ -61,12 +64,16 @@
 			f_loss += 60
 			ear_damage += 30
 			ear_deaf += 120
+			dmg_phrase = "Damage: 120"
 		if(3)
 			b_loss += 30
 			if(prob(50))
 				Paralyse(1)
 			ear_damage += 15
 			ear_deaf += 60
+			dmg_phrase = "Damage: 30"
+
+	add_attacklogs(src, whodunnit, "got caught in an explosive blast[whodunnit ? " from" : ""]", addition = "Severity: [severity], [dmg_phrase]", admin_warn = msg_admin)
 
 	adjustBruteLoss(b_loss)
 	adjustFireLoss(f_loss)
@@ -142,7 +149,6 @@
 	return FALSE
 
 /mob/living/carbon/alien/larva/var/co2overloadtime = null
-/mob/living/carbon/alien/larva/var/temperature_resistance = T0C+75
 
 // new damage icon system
 // now constructs damage icon for each organ from mask * damage field
@@ -164,6 +170,7 @@
 /mob/living/carbon/alien/larva/reset_layer()
 	if(stat == DEAD)
 		plane = MOB_PLANE
+	loc.adjust_layer(src)
 
 /mob/living/carbon/alien/larva/proc/transfer_personality(var/client/candidate)
 	ckey = candidate.ckey

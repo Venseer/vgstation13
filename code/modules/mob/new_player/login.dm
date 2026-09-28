@@ -3,6 +3,8 @@
 	if(join_motd)
 		to_chat(src, "<div class=\"motd\">[join_motd]</div>")
 
+	client.reset_screen()
+
 	if(!mind)
 		mind = new /datum/mind(key)
 		mind.active = 1
@@ -16,6 +18,14 @@
 	change_sight(adding = SEE_TURFS)
 	player_list |= src
 
+/* Handle media initialization */
+	client.media = new /datum/media_manager(src)
+	client.media.open()
+	client.media.update_music()
+	if(client)
+		spawn()
+			client.playtitlemusic()
+
 /*
 	var/list/watch_locations = list()
 	for(var/obj/effect/landmark/landmark in landmarks_list)
@@ -28,11 +38,12 @@
 	new_player_panel()
 	if(ckey in deadmins)
 		client.verbs += /client/proc/readmin
+
 #if SHOW_CHANGELOG_ON_NEW_PLAYER_LOGIN
 	spawn(0)
 		if(client)
 			//If the changelog has changed, show it to them
-			if(client.prefs.lastchangelog != changelog_hash)
+			if(client.prefs.get_pref(/datum/preference_setting/string/changelog) != changelog_hash)
 				// Need to send them the CSS and images :V
 				client.getFiles(
 					'html/postcardsmall.jpg',
@@ -56,8 +67,6 @@
 					'html/changelog.html'
 					)
 				src << browse('html/changelog.html', "window=changes;size=675x650")
-				client.prefs.lastchangelog = changelog_hash
-				client.prefs.save_preferences()
+				client.prefs.SetChangelog(ckey, changelog_hash)
 				winset(client, "rpane.changelog", "background-color=none;font-style=;")
-			client.playtitlemusic()
 #endif

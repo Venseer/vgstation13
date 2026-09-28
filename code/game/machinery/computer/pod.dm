@@ -86,7 +86,7 @@
 
 
 /obj/machinery/computer/pod/proc/launch_sequence(var/ident_tag)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (FORCEDISABLE|NOPOWER|BROKEN))
 		return
 	var/anydriver = 0
 	for(var/obj/machinery/mass_driver/M in mass_drivers)
@@ -124,11 +124,6 @@
 			spawn()
 				M.close()
 	return
-
-
-/obj/machinery/computer/pod/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return attack_hand(user)
 
 
 /obj/machinery/computer/pod/attack_paw(var/mob/user as mob)
@@ -175,7 +170,7 @@
 	dat += "<BR><A href='?src=\ref[src];add=1'>add another id_tag</A>"
 
 	dat += "<BR><BR><A href='?src=\ref[user];mach_close=computer'>Close</A></TT></BODY></HTML>"
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 	add_fingerprint(usr)
 	onclose(user, "computer")
 	return
@@ -299,5 +294,5 @@
 
 /obj/machinery/computer/pod/old/swf
 	name = "Magix System IV"
-	desc = "An arcane artifact that holds much magic. Running E-Knock 2.2: Sorceror's Edition"
+	desc = "An arcane artifact that holds much magic. Running E-Knock 2.2: Sorceror's Edition!"
 	circuit = /obj/item/weapon/circuitboard/swfdoor

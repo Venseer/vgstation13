@@ -15,10 +15,10 @@
 	not_next_to=list()
 
 	decorations=list(
-		/obj/item/weapon/screwdriver=2,
-		/obj/item/weapon/crowbar=2,
+		/obj/item/tool/screwdriver=2,
+		/obj/item/tool/crowbar=2,
 		/obj/item/stack/metal=1,
-		/obj/item/weapon/wrench=2
+		/obj/item/tool/wrench=2
 	)
 
 /layout_rule/place_adjacent/workbench/wooden
@@ -75,7 +75,7 @@
 		/obj/item/weapon/pickaxe/diamond				=3,
 		/obj/item/weapon/pickaxe/drill/diamond			=3,
 		/obj/item/weapon/pickaxe/gold					=3,
-		/obj/item/weapon/pickaxe/plasmacutter			=2,
+		/obj/item/weapon/pickaxe/plasmacutter/accelerator			=2,
 		/obj/structure/closet/syndicate/resources		=2,
 		/obj/item/weapon/melee/energy/sword/pirate		=1,
 		/obj/mecha/working/ripley/mining				=1
@@ -84,57 +84,93 @@
 
 	flags = CONTIGUOUS_WALLS | CONTIGUOUS_FLOORS
 
-/mining_surprise/alien_nest
-	name="Hidden Nest"
-	floortypes = list(
-		/turf/unsimulated/floor/asteroid=100
-	)
+/datum/map_element/mining_surprise/geode
+	name="Geode"
+	file_path = "maps/randomvaults/mining/geode.dmm"
+	can_rotate = TRUE
 
-	walltypes = list(
-		/turf/unsimulated/mineral/random/high_chance=1
-	)
+/datum/map_element/mining_surprise/crashed_tradeship
+	name="Crashed Tradeship"
+	file_path = "maps/randomvaults/mining/crashed_tradeship.dmm"
+	can_rotate = TRUE
 
-	spawntypes = list(
-		/obj/item/clothing/mask/facehugger				=4,
-		/obj/mecha/working/ripley/mining				=1
-	)
-	fluffitems = list(
-		/obj/effect/decal/remains/human                 = 5,
-		/obj/effect/decal/cleanable/blood/xeno          = 5,
-		/obj/effect/decal/mecha_wreckage/ripley			= 1
-	)
-	complex_max_size=6
-	room_size_max=7
+/datum/map_element/mining_surprise/crashed_pod
+	name="Crashed Pod"
+	file_path = "maps/randomvaults/mining/crashed_pod.dmm"
+	can_rotate = TRUE
 
-	var/const/eggs_left=10 // Per complex
-	var/turf/weeds[0] // Turfs with weeds.
-	postProcessComplex()
-		..()
-		var/list/all_floors=list()
-		for(var/surprise_room/room in rooms)
-			var/list/w_cand=room.GetTurfs(TURF_FLOOR)
-			all_floors |= w_cand
-			var/egged=0
-			while(w_cand.len>0)
-				var/turf/weed_turf = pick(w_cand)
-				w_cand -= weed_turf
-				if(weed_turf.density)
-					continue
-				if(locate(/obj/effect/alien) in weed_turf)
-					continue
-				if(weed_turf && !egged)
-					new /obj/effect/alien/weeds/node(weed_turf)
-					weeds += weed_turf
-					break
+/datum/map_element/mining_surprise/digsite
+	name="Abandoned Digsite"
+	file_path = "maps/randomvaults/mining/abandoned_digsite.dmm"
 
-		for(var/e=0;e<eggs_left;e++)
-			var/turf/egg_turf = pick(all_floors)
-			if(egg_turf && !(locate(/obj/effect/alien) in egg_turf))
-				new /obj/effect/alien/egg(egg_turf)
+/datum/map_element/mining_surprise/forge
+	name="Abandoned Forge"
+	file_path = "maps/randomvaults/mining/abandoned_forge.dmm"
 
+/datum/map_element/mining_surprise/aliens
+	name="Alien Hive"
+	file_path = "maps/randomvaults/mining/huggernest.dmm"
+	can_rotate = TRUE
 
 /datum/map_element/mining_surprise/angie
 	name = "Angie's lair"
 	desc = "From within this rich soil, the stone gathers moss."
 
 	file_path = "maps/randomvaults/mining/angie_lair.dmm"
+	can_rotate = TRUE
+
+/datum/map_element/mining_surprise/maria
+	name = "Maria's hive"
+	desc = "Writhing ground, twisted veins, the feeling of utter helplessness is normal. Do not look away."
+
+	file_path = "maps/randomvaults/mining/mariahive.dmm"
+	can_rotate = TRUE
+
+/datum/map_element/mining_surprise/mine_bar
+	name = "The Buried Bar"
+	desc = "A miner walks into a bar, Dusky says \"Sorry, you're too young to be served\"."
+
+	file_path = "maps/randomvaults/mining/bar.dmm"
+
+/datum/map_element/hoboshack
+	name = "Space hobo shack"
+
+	file_path = "maps/misc/hoboshack.dmm"
+	can_rotate = TRUE
+
+///datum/map_element/hoboshack/type1 //it was a duplicate of the original just rotated
+//	name = "Space hobo shack"
+//
+//	file_path = "maps/misc/hoboshack.dmm"
+
+/datum/map_element/hoboshack/botany
+	name = "Space hobo shack - Botany"
+
+	file_path = "maps/misc/hoboshack_botany.dmm"
+
+/datum/map_element/hoboshack/ghettolab
+	name = "Space hobo shack - Ghetto Lab"
+
+	file_path = "maps/misc/hoboshack_ghettolab.dmm"
+
+/datum/map_element/hoboshack/rcd
+	name = "Space hobo shack - RCD"
+
+	file_path = "maps/misc/hoboshack_rcd.dmm"
+
+/datum/map_element/hoboshack/clown
+	name = "Space hobo shack - Clown"
+
+	file_path = "maps/misc/hoboshack_clown.dmm"
+	can_rotate = FALSE
+
+/datum/map_element/hoboshack/saucer
+	name = "Space hobo shack - Crashed Saucer"
+
+	file_path = "maps/misc/hoboshack_saucer.dmm"
+
+/datum/map_element/hoboshack/spaceranch
+	name = "Space hobo shack - Space Ranch"
+
+	file_path = "maps/misc/hoboshack_spaceranch.dmm"
+	can_rotate = FALSE

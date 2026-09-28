@@ -17,7 +17,7 @@ using metal and glass, it uses glass and reagents (usually sulfuric acis).
 	build_time = IMPRINTER_BUILD_TIME
 	build_number = 1
 
-	research_flags = HASOUTPUT | TAKESMATIN | CONSOLECONTROL | LOCKBOXES
+	research_flags = HASOUTPUT | TAKESMATIN | CONSOLECONTROL | LOCKBOXES | MULTIOUTPUT
 
 	// Don't log reagent transfers.  They're just spammy.
 	log_reagents = 0
@@ -67,7 +67,12 @@ using metal and glass, it uses glass and reagents (usually sulfuric acis).
 	var/T = 0
 	for(var/obj/item/weapon/reagent_containers/glass/G in component_parts)
 		T += G.reagents.maximum_volume - G.reagents.total_volume
-	create_reagents(T) // This is only a buffer for handling reagents poured into the imprinter before they flow into the beakers
+	// This is only a buffer for handling reagents poured into the imprinter before they flow into the beakers.
+	// RefreshParts() re-runs on every part exchange; resize in place rather than re-creating (which would QDEL_NULL the existing reagents and lose anything currently in the buffer).
+	if(reagents)
+		reagents.maximum_volume = T
+	else
+		create_reagents(T)
 
 	T = 0
 	for(var/obj/item/weapon/stock_parts/matter_bin/M in component_parts)
@@ -110,3 +115,7 @@ using metal and glass, it uses glass and reagents (usually sulfuric acis).
 
 /obj/machinery/r_n_d/fabricator/circuit_imprinter/hide_own_reagents()
 	return TRUE
+
+/obj/machinery/r_n_d/fabricator/circuit_imprinter/suicide_act(var/mob/living/user)
+	to_chat(viewers(user), "<span class='danger'>[user] is placing \his mouth underneath the imprinter nozzle and turning the machine on! It looks like \he's trying to commit suicide.</span>")
+	return(SUICIDE_ACT_BRUTELOSS)

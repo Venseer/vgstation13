@@ -6,10 +6,11 @@
 	icon_state = "TheSingGen"
 	anchored = 0
 	density = 1
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	var/energy = 0
 
 	machine_flags = WRENCHMOVE | FIXED2WORK
+	pass_flags_self = 0
 
 /obj/machinery/the_singularitygen/process()
 	if (energy < 200)
@@ -27,6 +28,6 @@
 	new /obj/machinery/singularity(get_turf(src), 50)
 	qdel(src)
 
-/obj/machinery/the_singularitygen/wrenchAnchor(var/mob/user)
+/obj/machinery/the_singularitygen/wrenchAnchor(var/mob/user, var/obj/item/I)
 	src.add_hiddenprint(user)
 	. = ..()

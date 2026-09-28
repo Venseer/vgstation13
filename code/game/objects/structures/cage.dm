@@ -34,6 +34,13 @@
 		toggle_door() //Open it
 		toggle_door() //Close it again!
 
+/obj/structure/cage/autoclose/no_cover
+	name = "cage (coverless)"
+	desc = "A large and heavy plasteel box, used to store dangerous animals and humans. This cage has no cover, so keep your distance from the beast contained within."
+
+/obj/structure/cage/autoclose/no_cover/toggle_cover(mob/user)
+	return
+
 /obj/structure/cage/autoclose/cover/New()
 	..()
 
@@ -41,9 +48,13 @@
 		toggle_cover()
 
 /obj/structure/cage/Destroy()
-	for(var/atom/movable/M in contents)
-		M.forceMove(src.loc)
-
+	switch(cover_state)
+		if(C_OPENED)
+			for(var/mob/living/L in get_locked(/datum/locking_category/cage))
+				qdel(L)
+		if(C_CLOSED)
+			for(var/atom/movable/M in contents)
+				qdel(M)
 	..()
 
 /obj/structure/cage/update_icon()
@@ -51,11 +62,11 @@
 
 	if(cover_state == C_CLOSED)
 		var/image/cover_overlay = image('icons/obj/cage.dmi', icon_state = "cage_cover", layer = OBJ_LAYER)
-		cover_overlay.plane = OBJ_PLANE
+		cover_overlay.plane = FLOAT_PLANE
 		overlays += cover_overlay
 	else if(door_state == C_CLOSED) //Door is only visible when the cover is open
 		var/image/door_overlay = image('icons/obj/cage.dmi', icon_state = "cage_door")
-		door_overlay.plane = ABOVE_HUMAN_PLANE
+		door_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
 		overlays += door_overlay
 
 /obj/structure/cage/attack_animal(mob/living/simple_animal/user)
@@ -69,6 +80,34 @@
 		else
 			toggle_door(user)
 
+/obj/structure/cage/ex_act(var/severity)
+	var/list/affected_mobs = severity < 3 ? remove_mobs() : get_mobs()
+	for(var/atom/movable/M in affected_mobs)
+		M.ex_act(severity)
+	..()
+
+/obj/structure/cage/shuttle_act(var/datum/shuttle/S)
+	var/list/affected_mobs = remove_mobs()
+	for(var/atom/movable/M in affected_mobs)
+		M.shuttle_act(S)
+	..()
+
+/obj/structure/cage/bullet_act(var/obj/item/projectile/Proj)
+	if (!locked_atoms?.len)
+		return PROJECTILE_COLLISION_DEFAULT
+	if(cover_state != C_OPENED)
+		return PROJECTILE_COLLISION_DEFAULT
+	var/mob/victim = pick(locked_atoms)
+	if (!istype(victim))
+		return PROJECTILE_COLLISION_DEFAULT
+	if(prob(75))
+		var/act = victim.bullet_act(Proj)
+		if(act == PROJECTILE_COLLISION_DEFAULT)
+			visible_message("<span class='warning'>\The [victim] is hit by \the [Proj]!")
+		return act
+	return PROJECTILE_COLLISION_DEFAULT
+
+
 /obj/structure/cage/verb/toggle_cover_v()
 	set name = "Toggle Cover"
 	set category = "Object"
@@ -81,7 +120,7 @@
 		toggle_cover(usr)
 
 /obj/structure/cage/attackby(obj/item/W, mob/user)
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		if(anchored)
 			to_chat(user, "<span class='info'>You start unsecuring \the [src] from \the [loc].</span>")
 		else
@@ -91,7 +130,7 @@
 			to_chat(user, "<span class='info'>You start securing \the [src] to \the [loc].</span>")
 
 		spawn()
-			playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
+			W.playtoolsound(src, 100)
 			if(do_after(user, src, 50))
 				anchored = !anchored
 				to_chat(user, "<span class='info'>[anchored ? "You successfully secure \the [src] to \the [loc]." : "You successfully unsecure \the [src] from \the [loc]."]")
@@ -196,13 +235,16 @@
 			if(cover_state == C_OPENED)
 				toggle_cover() //Close the cover, too
 
-			door_state = C_CLOSED
-			setDensity(TRUE)
-
 			for(var/mob/living/L in get_turf(src))
+				if(L.size >= SIZE_HUGE)
+					continue
 				add_mob(L)
 				log_admin("[key_name(usr)] has trapped \the [L] in a cage at [formatJumpTo(src)]")
 				message_admins("[key_name(usr)] has trapped \the [L] in a cage at [formatJumpTo(src)]")
+
+
+			door_state = C_CLOSED
+			setDensity(TRUE)
 
 		if(C_CLOSED) //Open the door
 			if(cover_state == C_CLOSED)
@@ -235,6 +277,33 @@
 		return TRUE
 
 	return checked in get_locked(/datum/locking_category/cage)
+
+/obj/structure/cage/proc/get_mobs()
+	switch(cover_state)
+		if(C_OPENED)
+			. = get_locked(/datum/locking_category/cage)
+		if(C_CLOSED)
+			. = contents
+
+/obj/structure/cage/proc/remove_mobs()
+	. = list()
+	switch(cover_state)
+		if(C_OPENED) //Cover is opened - mob is atom unlocked from the cage
+			for(var/mob/living/L in get_locked(/datum/locking_category/cage))
+				unlock_atom(L)
+				. |= L
+		if(C_CLOSED) //Cover is closed - mob is removed from the cage
+			for(var/atom/movable/M in contents)
+				M.forceMove(src.loc)
+				. |= M
+
+/obj/structure/cage/random_mob/New()
+	..()
+	spawn()
+		toggle_cover() // Spawn closed for cargo forwards
+		var/mobtype = pick(existing_typesof(/mob/living/simple_animal) - (existing_typesof_list(blacklisted_mobs) + existing_typesof_list(boss_mobs)))
+		var/mob/living/simple_animal/ourmob = new mobtype
+		add_mob(ourmob)
 
 #undef C_OPENED
 #undef C_CLOSED

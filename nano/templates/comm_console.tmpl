@@ -1,4 +1,4 @@
-<!-- 
+<!--
 Title: Communications
 Used In File(s): /code/game/machinery/computers/communications.dm
 -->
@@ -15,7 +15,6 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 	{{if !data.is_ai}}
 	<div class="notice">Please remember to {{:helper.link('Log Out','locked',{'operation':'logout'},null,'fixed')}}</div>
 	{{/if}}
-	
 	<div class="item">
 		<h3>Emergency Shuttle:</h3>
 		{{if data.shuttle.eta}}
@@ -28,11 +27,12 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 		<div class="itemContents">
 			{{if data.shuttle.pos == 0}}
 				{{if data.shuttle.on && !data.is_ai}}
-					{{:helper.link('Cancel Shuttle','arrowreturnthick-1-w',{'operation':'cancelshuttle'})}}
+					{{:helper.link(data.shuttle.cancel_label,'arrowreturnthick-1-w',{'operation':'cancelshuttle'})}}
 				{{else !data.shuttle.on}}
-					{{:helper.link('Call Shuttle','arrowthickstop-1-s',{'operation':'callshuttle'})}}
+					{{:helper.link(data.shuttle.call_label,'arrowthickstop-1-s',{'operation':'callshuttle'})}}
 				{{/if}}
 			{{/if}}
+			{{:helper.link('Show logs', 'note', {'operation': 'ViewShuttleLog'})}}
 		</div>
 	</div>
 
@@ -64,6 +64,7 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 			<div class="line">
 				{{:helper.link('Message List','comment',{'operation':'messagelist'})}}
 			</div>
+			{{if !data.is_odyssey}}
 			<div class="line">
 				{{if data.portopen}}
 					{{:helper.link('Close Trader Port','key',{'operation':'SetPortRestriction'},null,'redBackground')}}
@@ -71,9 +72,35 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 					{{:helper.link('Open Trader Port','key',{'operation':'SetPortRestriction'},null,'linkOn')}}
 				{{/if}}
 			</div>
+			{{if data.authenticated==2}}
+				<div class="line">
+					{{if data.exploration_terminated}}
+						{{:helper.link('Reactivate Exploration Program','power',{'operation':'ToggleExplorationProgram'},null,'linkOn')}}
+					{{else}}
+						{{:helper.link('Suspend Exploration Program','cancel',{'operation':'ToggleExplorationProgram'},null,'redBackground')}}
+					{{/if}}
+				</div>
+			{{/if}}
+			{{/if}}
 			{{if data.str_security_level == "red" || data.str_security_level == "delta"}}
 				<div class="line">
 					{{:helper.link('Request Response Team','alert',{'operation':'emergency_screen'})}}
+				</div>
+			{{/if}}
+			{{if data.defcon_1_enabled}}
+				<div class="line">
+					<div class="notice">DEFCON-1 Biohazard Level 5 supplies	</div>
+					<i>The equipment will be transfered in any available spot adjacent to the console.</i> <br/>
+					Last shipment: {{:data.last_shipment_time}}, new supplies available at {{:data.next_shipment_time}}
+				</div>
+				<div class="line">
+					{{:helper.link('Request Medical Supplies','',{'operation':'request_supplies', 'supplies':'medical'})}}
+				</div>
+				<div class="line">
+					{{:helper.link('Request Engineering Supplies','',{'operation':'request_supplies', 'supplies':'engineering'})}}
+				</div>
+				<div class="line">
+					{{:helper.link('Request Weapons','',{'operation':'request_supplies', 'supplies':'weapons'})}}
 				</div>
 			{{/if}}
 		</div>
@@ -84,13 +111,13 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 		<h3>Presets</h3>
 		{{for data.stat_display.presets}}
 			<div class="line">
-				<div class="statusLabel">{{:helper.link(value.label,'info',{'operation':'setstat','statdisp':name},null,(name==data.stat_display.type?'linkOn':''))}}</div>
+				<div class="statusLabel">{{:helper.link(value.label,'info',{'operation':'setstat','statdisp':value.name},null,(value.name==data.stat_display.type?'linkOn':''))}}</div>
 			</div>
 		{{/for}}
 		<h3>Alerts</h3>
 		{{for data.stat_display.alerts}}
 			<div class="line">
-				<div class="statusLabel">{{:helper.link(value.label,'alert',{'operation':'setstat','statdisp':'alert','alert':alert},null,(name==data.stat_display.type?'linkOn':''))}}</div>
+				<div class="statusLabel">{{:helper.link(value.label,'alert',{'operation':'setstat','statdisp':'alert','alert':value.alert},null,(value.alert==data.stat_display.type?'linkOn':''))}}</div>
 			</div>
 		{{/for}}
 		<h3>Messages</h3>
@@ -160,6 +187,22 @@ Used In File(s): /code/game/machinery/computers/communications.dm
 				<div class="itemContents {{:data.str_security_level}}">{{>data.str_security_level}}</div>
 			</div>
 			{{:helper.link('Request Emergency Response Team','comment',{'operation':'request_emergency_team'},null,(data.ert_sent==1?'linkOff':''))}}
+		</div>
+	{{else data.screen == 6}}
+		<!-- SHUTTLE LOG -->
+		<h3>Emergency shuttle log</h3>
+		{{:helper.link('Back', 'home', {'operation': 'main'})}}
+		<div class="item">
+			<div class="line">
+				<div class="itemLabel">
+					History:
+				</div>
+				<div class="itemContents">
+					{{for data.shuttle_log}}
+						<br>{{>value.text}}
+					{{/for}}
+				</div>
+			</div>
 		</div>
 	{{/if}}<!-- SCREEN -->
 {{/if}}<!-- AUTHENTICATED -->

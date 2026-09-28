@@ -1,8 +1,9 @@
 
 /datum/artifact_effect/teleport
 	effecttype = "teleport"
+	valid_artifact_styles = list(ARTIFACT_STYLE_ANOMALY, ARTIFACT_STYLE_WIZARD)
 	effect = list(ARTIFACT_EFFECT_TOUCH, ARTIFACT_EFFECT_AURA, ARTIFACT_EFFECT_PULSE)
-	effect_type = 6
+	effect_hint = EFFECT_HINT_INTERDIMENSIONAL_BLUESPACE_PHASING
 
 /datum/artifact_effect/teleport/DoEffectTouch(var/mob/user)
 	var/weakness = GetAnomalySusceptibility(user)
@@ -20,7 +21,7 @@
 
 /datum/artifact_effect/teleport/DoEffectAura()
 	if(holder)
-		for (var/mob/living/M in range(src.effectrange,holder))
+		for (var/mob/living/M in range(src.effectrange,get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(M)
 			if(prob(100 * weakness))
 				var/list/randomturfs = new/list()
@@ -35,7 +36,7 @@
 
 /datum/artifact_effect/teleport/DoEffectPulse()
 	if(holder)
-		for (var/mob/living/M in range(src.effectrange, holder))
+		for (var/mob/living/M in range(src.effectrange, get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(M)
 			if(prob(100 * weakness))
 				var/list/randomturfs = new/list()

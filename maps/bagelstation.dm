@@ -7,9 +7,6 @@
 	nameShort = "bagel"
 	nameLong = "Bagelstation"
 	map_dir = "bagelstation"
-	tDomeX = 128
-	tDomeY = 58
-	tDomeZ = 2
 	zLevels = list(
 		/datum/zLevel/station,
 		/datum/zLevel/centcomm,
@@ -28,21 +25,22 @@
 	enabled_jobs = list(/datum/job/trader)
 
 	load_map_elements = list(
-	/datum/map_element/dungeon/holodeck
+	/datum/map_element/dungeon/holodeck,
+	/datum/map_element/dungeon/mecha_graveyard
 	)
 
 	center_x = 260
 	center_y = 236
 
-
 //All security airlocks have randomized wires
-/obj/machinery/door/airlock/glass_security/New()
-	.=..()
-	wires = new /datum/wires/airlock/secure(src)
+//Disabled from the game
+// /obj/machinery/door/airlock/glass_security/New()
+// 	.=..()
+// 	wires = new /datum/wires/airlock/secure(src)
 
-/obj/machinery/door/airlock/security/New()
-	.=..()
-	wires = new /datum/wires/airlock/secure(src)
+// /obj/machinery/door/airlock/security/New()
+// 	.=..()
+// 	wires = new /datum/wires/airlock/secure(src)
 
 #include "bagelstation.dmm"
 #endif

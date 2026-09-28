@@ -15,25 +15,24 @@
 	can_border_transition = 1
 	var/static/list/parallax_appearances
 
-/turf/space/New()
+/turf/space/initialize()
 	if(loc)
 		var/area/A = loc
 		A.area_turfs += src
-
-/turf/space/initialize()
+	if(skip_turf_init)
+		return
 	if(!parallax_appearances)
 		parallax_appearances = list()
 		for(var/i in 0 to 25)
-			var/I = "[i]"
-			icon_state = I
-			var/image/parallax_overlay = image('icons/turf/space_parallax1.dmi', I)
+			icon_state = "[i]"
+			var/image/parallax_overlay = image('icons/turf/space_parallax1.dmi', icon_state)
 			parallax_overlay.plane = SPACE_DUST_PLANE
 			parallax_overlay.alpha = 80
 			parallax_overlay.blend_mode = BLEND_ADD
 			overlays += parallax_overlay
-			parallax_appearances[I] = appearance
+			parallax_appearances += appearance
 			overlays.Cut()
-	appearance = parallax_appearances["[((x + y) ^ ~(x * y) + z) % 26]"]
+	appearance = parallax_appearances[rand(1,26)]
 
 /turf/space/spawned_by_map_element(var/datum/map_element/ME, var/list/objects)
 	initialize()
@@ -100,8 +99,7 @@
 					A.loc.Entered(A)
 	else if (src.x >= world.maxx)
 		if(istype(A, /obj/item/projectile/meteor))
-			qdel(A)
-			A = null
+			QDEL_NULL(A)
 			return
 
 		var/list/cur_pos = src.get_global_map_pos()
@@ -127,8 +125,7 @@
 					A.loc.Entered(A)
 	else if (src.y <= 1)
 		if(istype(A, /obj/item/projectile/meteor))
-			qdel(A)
-			A = null
+			QDEL_NULL(A)
 			return
 		var/list/cur_pos = src.get_global_map_pos()
 		if(!cur_pos)
@@ -154,8 +151,7 @@
 
 	else if (src.y >= world.maxy)
 		if(istype(A, /obj/item/projectile/meteor)||istype(A, /obj/effect/space_dust))
-			qdel(A)
-			A = null
+			QDEL_NULL(A)
 			return
 		var/list/cur_pos = src.get_global_map_pos()
 		if(!cur_pos)
@@ -183,14 +179,14 @@
 /turf/space/singularity_act()
 	return
 
-/turf/space/ChangeTurf(var/turf/N, var/tell_universe=1, var/force_lighting_update = 0, var/allow = 1)
-	return ..(N, tell_universe, 1, allow)
+/turf/space/ChangeTurf(var/turf/N, var/tell_universe=1, var/force_lighting_update = 0, var/allow = 1, var/defer_edges = FALSE)
+	return ..(N, tell_universe, 1, allow, defer_edges)
 
 /turf/space/lighting_build_overlay()
 	return
 
 /turf/space/void
-	name = "the void"
+	name = "\proper the void"
 	icon_state = "void"
 	desc = "The final final frontier."
 	plane = ABOVE_PARALLAX_PLANE
@@ -203,3 +199,26 @@
 
 /turf/space/has_gravity()
 	return 0
+
+/turf/space/densityChanged()
+	..()
+	var/atom/A = has_dense_content()
+	if(A)
+		for(var/obj/effect/beam/B in src)
+			B.Crossed(A)
+
+/turf/space/can_place_cables(var/override_space = FALSE)
+	if (override_space)
+		return TRUE
+	var/obj/structure/catwalk/support = locate() in src
+	return !isnull(support)
+
+/turf/space/attack_construct(var/mob/user)
+	if(istype(user,/mob/living/simple_animal/construct/builder))
+		var/spell/aoe_turf/conjure/floor/S = locate() in user.spell_list
+		S.perform(user, 0, list(src))
+		return 1
+	return 0
+
+/turf/space/AddTracks(var/typepath,var/bloodDNA,var/comingdir,var/goingdir,var/bloodcolor=DEFAULT_BLOOD,var/luminous=FALSE)
+	return null

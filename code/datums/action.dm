@@ -35,8 +35,7 @@
 	if(owner)
 		Remove(owner)
 	target = null
-	qdel(button)
-	button = null
+	QDEL_NULL(button)
 	return ..()
 
 /datum/action/proc/Grant(mob/M)
@@ -109,7 +108,13 @@
 		img.pixel_y = 0
 		current_button.overlays += img
 
-
+/datum/action/item_action/target_appearance/ApplyIcon(obj/abstract/screen/movable/action_button/current_button) // useful when you want to preserve the target's overlays on the button
+	current_button.overlays = null
+	if(target)
+		var/mutable_appearance/mut = new(target.appearance)
+		mut.plane = FLOAT_PLANE
+		mut.layer = FLOAT_LAYER
+		current_button.overlays += mut
 
 //Presets for item actions
 /datum/action/item_action
@@ -175,6 +180,9 @@
 /datum/action/item_action/toggle_light
 	name = "Toggle Light"
 
+/datum/action/item_action/toggle_anon
+	name = "Toggle Anonymity"
+
 /datum/action/item_action/activate_siren
 	name = "Activate Siren"
 
@@ -189,6 +197,9 @@
 
 /datum/action/item_action/toggle_hood
 	name = "Toggle Hood"
+
+/datum/action/item_action/toggle_belt
+	name = "Toggle Belt"
 
 //toggle_helmet_mask has to have its own functions as to not conflict with plasmamen lights
 /datum/action/item_action/toggle_helmet_mask
@@ -213,3 +224,41 @@
 /datum/action/item_action/generic_toggle/New()
 	..()
 	name = "Toggle [target]"
+
+/datum/action/item_action/toggle_rig_suit
+	name = "Toggle rig suit"
+
+/datum/action/item_action/toggle_rig_suit/Trigger()
+	if(IsAvailable() && owner && target && isrig(target))
+		var/obj/item/clothing/suit/space/rig/R = target
+		R.toggle_suit()
+		return TRUE
+	return FALSE
+
+/datum/action/item_action/toggle_rig_light
+	name = "Toggle rig light"
+
+/datum/action/item_action/toggle_rig_light/Trigger()
+	if(IsAvailable() && target && isrighelmet(target))
+		var/obj/item/clothing/head/helmet/space/rig/R = target
+		R.toggle_light(owner)
+		return TRUE
+	return FALSE
+
+/datum/action/item_action/toggle_meson_scanner //Only used for the CE contacts, so it's named separately
+	name = "Toggle meson scanner"
+	icon_icon = 'icons/obj/clothing/glasses.dmi'
+	button_icon_state = "meson"
+
+/datum/action/item_action/alt/Trigger()
+	if(!IsAvailable())
+		return FALSE
+	if(target)
+		var/obj/item/I = target
+		I.AltClick(owner)
+	return TRUE
+
+/datum/action/item_action/alt/toggle_material_scanner
+	name = "Toggle material scanner"
+	icon_icon = 'icons/obj/clothing/glasses.dmi'
+	button_icon_state = "material"

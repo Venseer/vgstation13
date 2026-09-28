@@ -21,12 +21,13 @@
 	var/movedir			// the actual direction to move stuff in
 
 	var/list/affecting	// the list of all items that will be moved this ptick
-	var/id_tag = ""			// the control ID	- must match controller ID
+	id_tag = ""			// the control ID	- must match controller ID
 
 	var/frequency = 1367
 	var/datum/radio_frequency/radio_connection
 
-	var/max_moved = 25
+	var/max_moved = 25 //Max allowed to move at once
+	var/will_move = 25	//Amount currently attempting to move at once
 
 	machine_flags = SCREWTOGGLE | CROWDESTROY | MULTITOOL_MENU
 
@@ -49,7 +50,7 @@
 		return
 	else if(!operable)
 		operating = 0
-	else if(stat & NOPOWER)
+	else if(stat & (FORCEDISABLE|NOPOWER))
 		operating = 0
 	else
 		operating = 1
@@ -105,6 +106,8 @@
 
 	if(!id_tag) //Without an ID tag we'll never work, so let's try to copy it from one of our neighbors.
 		copy_radio_from_neighbors()
+	if(!id_tag) //still no go
+		id_tag = "[rand(9999)]"
 
 	update_nearby_conveyors() //smooth with diagonals
 
@@ -157,8 +160,8 @@
 			var/turf/T = get_step(loc, directions[i])
 			var/obj/machinery/conveyor/C = locate() in T
 			if(C && (C.dir & C.dir-1) && !C.smoothed) //found an unsmoothed diagonal conveyor belt
-				var/list/secondarydirections = conveyor_directions(C.dir) //retrieve its dirs
-				if(directions[i] == reverse_direction(secondarydirections[i])) //check if the direction it is pointing is towards/away from us, if necessary reverse it
+				var/list/secondarydirections = conveyor_directions(C.dir, C.in_reverse) //retrieve its dirs
+				if(directions[i] == opposite_dirs[secondarydirections[i]]) //check if the direction it is pointing is towards/away from us, if necessary reverse it
 					in_reverse = 1
 					C.smoothed = 1
 					C.update_nearby_conveyors() //For diagonal to smooth out the other connected diagonals
@@ -223,17 +226,17 @@
 		return
 	if(!operable)
 		operating = 0
-	if(stat & NOPOWER)
+	if(stat & (FORCEDISABLE|NOPOWER))
 		operating = 0
 	var/disp_op = operating
-	if(in_reverse && disp_op!=0)
+	if((in_reverse && disp_op!=0 && !arcanetampered) || ((!in_reverse || disp_op==0) && arcanetampered))
 		disp_op = -operating
 	icon_state = "conveyor[disp_op]"
 
 	// machine process
 	// move items to the target location
 /obj/machinery/conveyor/process()
-	if(stat & (BROKEN | NOPOWER))
+	if(stat & (BROKEN | NOPOWER | FORCEDISABLE))
 		return
 	if(!operating)
 		return
@@ -241,31 +244,35 @@
 
 	affecting = loc.contents - src		// moved items will be all in loc
 	spawn(1)	// slight delay to prevent infinite propagation due to map order	//TODO: please no spawn() in process(). It's a very bad idea
-		var/items_moved = 0
+		var/items_checked = 0
 		for(var/atom/movable/A in affecting)
 			if(!A.anchored)
 				if(A.loc == src.loc) // prevents the object from being affected if it's not currently here.
-					A.set_glide_size(DELAY2GLIDESIZE(SS_WAIT_FAST_MACHINERY))
-					step(A,movedir)
-					items_moved++
-			if(items_moved >= max_moved)
+					items_checked++
+					for(var/atom/dest in get_step(src, movedir)) //Should/can this be optimized to not check ALL atoms?
+						if(Adjacent(dest) && dest.conveyor_act(A, src))
+							break
+					if(A && A.loc == src.loc) //Check that our location didn't check from conveyor_acting on machinery.
+						A.set_glide_size(DELAY2GLIDESIZE(SS_WAIT_FAST_MACHINERY))
+						step(A,movedir)
+			if(items_checked >= will_move)
 				break
 
 /obj/machinery/conveyor/togglePanelOpen(var/obj/item/toggle_item, mob/user)
 	return
 
-/obj/machinery/conveyor/crowbarDestroy(mob/user)
+/obj/machinery/conveyor/crowbarDestroy(mob/user, obj/item/tool/crowbar/I)
 	return
 
 /obj/machinery/conveyor/attackby(obj/item/W, mob/user)
 	if(iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		if(WT.do_weld(user, src, 30, 0))
 			user.visible_message("<span class='warning'>Plates of metal are cut off \the [src] by [user.name] with the welding tool.</span>", \
 			"<span class='warning'>You cut the metal plates off \the [src] with the welding tool.</span>", \
 			"<span class='warning'>You hear welding.</span>")
 			new /obj/structure/conveyor_assembly(loc,dir)
-			getFromPool(/obj/item/stack/sheet/metal, loc, 3)
+			new /obj/item/stack/sheet/metal(loc, 3)
 			qdel(src)
 			return 1
 	. = ..()
@@ -279,10 +286,10 @@
 		return
 	if(!isturf(over_location) || !Adjacent(user))
 		return
-	var/obj/O = user.get_active_hand()
+	var/obj/item/O = user.get_active_hand()
 	if(iscrowbar(O))
 		update_dir(get_dir(src, over_location))
-		playsound(src, 'sound/items/Crowbar.ogg', 25, 1)
+		O.playtoolsound(src, 25)
 		to_chat(user, "You change the direction of \the [src] using \the [O].")
 		return
 	return ..()
@@ -305,6 +312,8 @@
 			<a href="?src=\ref[src];setdir=[SOUTHWEST]" title="Southwest">[src.in_reverse ? "&#8599;" : "&#8601;"]</a>
 			<a href="?src=\ref[src];reverse" title="Reverse Direction">&#8644;</a>
 		</li>
+		<li><b>Moving at once:</b> <a href="?src=\ref[src];set_amount=[will_move]">[will_move] object(s)"</a>
+		</li>
 		<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=1367">Reset</a>)</li>
 		<li><b>ID Tag:</b> <a href="?src=\ref[src];set_id=1">[dis_id_tag]</a></li>
 
@@ -312,20 +321,34 @@
 		<li>To make counter-clockwise corners: Use the Reverse Direction button in this menu. Diagonals will attempt to auto set direction based on connected straight line segments.</li>
 	</ul>"}
 
+/obj/machinery/conveyor/DuplicateObject(var/location)
+	var/obj/machinery/conveyor/duplicate = ..()
+	duplicate.in_reverse = in_reverse
+	duplicate.backwards = backwards
+	duplicate.forwards = forwards
+	duplicate.movedir = movedir
+	return duplicate
 
 /obj/machinery/conveyor/multitool_topic(var/mob/user,var/list/href_list,var/obj/O)
 	. = ..()
 	if(.)
 		return .
 	if("setdir" in href_list)
-		operating=0
 		update_dir(text2num(href_list["setdir"]))
 		return MT_UPDATE
 	if("reverse" in href_list)
-		operating=0
 		in_reverse=!in_reverse
 		updateConfig()
 		return MT_UPDATE
+	if("set_amount" in href_list)
+		setAmount()
+		return MT_UPDATE
+
+/obj/machinery/conveyor/proc/setAmount()
+	var/newMove = text2num(input("Amount to move at once", "Set amount to move", will_move) as null|num)
+	if(newMove == null || newMove <0)
+		newMove = will_move
+	will_move = min(newMove, max_moved)
 
 /obj/machinery/conveyor/canClone(var/obj/machinery/O)
 	return is_type_in_list(O, list(/obj/machinery/conveyor_switch, /obj/machinery/conveyor))
@@ -403,7 +426,7 @@
 	var/convdir = 0 			// lock to one direction. -1 = reverse, 0 = not locked, 1 = forward
 	var/operated = 1			// true if just operated
 
-	var/id_tag = "" 			// must match conveyor IDs to control them
+	id_tag = "" 			// must match conveyor IDs to control them
 
 	var/frequency = 1367
 	var/datum/radio_frequency/radio_connection
@@ -457,6 +480,12 @@
 /obj/machinery/conveyor_switch/New()
 	..()
 	if(!id_tag)
+		for(var/obj/machinery/conveyor/conveyor in orange(src,1))
+			if(conveyor && conveyor.id_tag)
+				id_tag = conveyor.id_tag
+				set_frequency(conveyor.frequency)
+				break
+	if(!id_tag) //still no go
 		id_tag = "[rand(9999)]"
 		set_frequency(frequency) //I tried just assigning the ID tag during initialize(), but that didn't work somehow, probably because it makes TOO MUCH SENSE
 	update()
@@ -517,7 +546,7 @@
 
 /obj/machinery/conveyor_switch/proc/send_command(var/command)
 	if(radio_connection)
-		var/datum/signal/signal = getFromPool(/datum/signal)
+		var/datum/signal/signal = new /datum/signal
 		signal.source=src
 		signal.transmission_method = 1 //radio signal
 		signal.data["tag"] = id_tag
@@ -531,9 +560,9 @@
 	. = ..()
 	if(.)
 		return .
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		to_chat(user, "<span class='notice'>Deconstructing \the [src]...</span>")
-		playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
+		W.playtoolsound(src, 100)
 		if(do_after(user, src,50))
 			to_chat(user, "<span class='notice'>You disassemble \the [src].</span>")
 			var/turf/T=get_turf(src)

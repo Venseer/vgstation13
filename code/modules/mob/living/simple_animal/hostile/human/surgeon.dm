@@ -17,7 +17,7 @@
 	gender = MALE
 
 	corpse = /obj/effect/landmark/corpse/surgeon
-	items_to_drop = list(/obj/item/weapon/circular_saw/plasmasaw)
+	items_to_drop = list(/obj/item/tool/circular_saw/plasmasaw)
 
 /mob/living/simple_animal/hostile/humanoid/surgeon/boss
 	name = "Doctor Peter Holden"
@@ -25,6 +25,7 @@
 	icon_dead = null //this isn't even his final form
 	maxHealth = 150
 	health = 150
+	status_flags = CANSTUN|CANKNOCKDOWN|CANPARALYSE|CANPUSH|UNPACIFIABLE
 
 	min_oxy = 0
 	max_oxy = 0
@@ -47,7 +48,7 @@
 /mob/living/simple_animal/hostile/humanoid/surgeon/boss/death(var/gibbed = FALSE)
 	visible_message("<span class=danger><B>Before he can die, the mad surgeon takes a drink of a foul-smelling concoction and begins to mutate! </span></B>")
 	say("[pick("YOU CAN'T KILL ME THAT EASILY!", "I WONT LET YOU STOP ME!", "GET OUT OF MY FACILITY!", "I MUST CONTINUE MY RESEARCH!", "I'M GONNA WRECK IT!", "I'VE GOT A BONE TO PICK WITH YOU!")]")
-	var/obj/effect/effect/smoke/S = new /obj/effect/effect/smoke(get_turf(src))
+	var/obj/effect/smoke/S = new /obj/effect/smoke(get_turf(src))
 	S.time_to_live = 20
 	new /mob/living/simple_animal/hostile/humanoid/surgeon/skeleton/(get_turf(src))
 	..(gibbed)
@@ -55,7 +56,7 @@
 
 /mob/living/simple_animal/hostile/humanoid/surgeon/skeleton
 	name = "\improper Skeletal Surgeon"
-	desc = "He wont be pushed around any longer"
+	desc = "He won't be pushed around any longer!"
 	icon = 'icons/mob/surgeon.dmi'
 	icon_state = "skelesurgeon"
 	icon_living = "skelesurgeon"
@@ -63,6 +64,7 @@
 	icon_dying_time = 33
 	maxHealth = 400
 	health = 400
+	status_flags = CANSTUN|CANKNOCKDOWN|CANPARALYSE|CANPUSH|UNPACIFIABLE
 
 	min_oxy = 0
 	max_oxy = 0
@@ -96,7 +98,7 @@
 
 /mob/living/simple_animal/hostile/humanoid/surgeon/skeleton/morph //morph mask version
 	name = "\improper Skeletal giant"
-	desc = "A giant and imposing skeleton"
+	desc = "A giant and imposing skeleton."
 	icon_state = "skelegiant"
 	icon_living = "skelegiant"
 	icon_dying = "skelegiant_death"

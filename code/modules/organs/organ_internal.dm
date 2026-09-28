@@ -14,9 +14,17 @@
 	var/removed_type //When removed, forms this object.
 	var/list/transplant_data // Blood DNA and colour of donor
 	var/rejecting            // Is this organ already being rejected?
-	var/obj/item/organ/internal/organ_holder
 	var/datum/dna/owner_dna
 
+
+/datum/organ/internal/Destroy()
+	if(owner && (src in owner.internal_organs))
+		owner.internal_organs -= src
+		owner.internal_organs_by_name -= organ_type
+		var/datum/organ/external/E = owner.organs_by_name[parent_organ] //Fuck this setup
+		E.internal_organs -= src
+		owner = null
+	..()
 
 /datum/organ/internal/Copy()
 	var/datum/organ/internal/I = ..()
@@ -29,7 +37,6 @@
 	I.removed_type = removed_type
 	I.transplant_data = transplant_data
 	I.rejecting = rejecting
-	I.organ_holder = null
 	I.owner_dna = owner_dna
 	return I
 
@@ -70,24 +77,7 @@
 		handle_antibiotics()
 
 		//** Handle the effects of infections
-		var/antibiotics = owner.reagents.get_reagent_amount(SPACEACILLIN)
-
-		if (germ_level > 0 && germ_level < INFECTION_LEVEL_ONE/2 && prob(30))
-			germ_level--
-
-		if (germ_level >= INFECTION_LEVEL_ONE/2)
-			//aiming for germ level to go from ambient to INFECTION_LEVEL_TWO in an average of 15 minutes
-			if(antibiotics < 5 && prob(round(germ_level/6)))
-				germ_level++
-
-		if (germ_level >= INFECTION_LEVEL_TWO)
-			var/datum/organ/external/parent = owner.get_organ(parent_organ)
-			//spread germs
-			if (antibiotics < 5 && parent.germ_level < germ_level && ( parent.germ_level < INFECTION_LEVEL_ONE*2 || prob(30) ))
-				parent.germ_level++
-
-			if (prob(3))	//about once every 30 seconds
-				take_damage(1,silent=prob(30))
+		handle_germs()
 
 		// Process unsuitable transplants. TODO: consider some kind of
 		// immunosuppressant that changes transplant data to make it match.
@@ -114,6 +104,26 @@
 
 		if(cancer_stage)
 			handle_cancer()
+
+/datum/organ/internal/proc/handle_germs()
+	var/antibiotics = owner.reagents.get_reagent_amount(SPACEACILLIN)
+
+	if (germ_level > 0 && germ_level < INFECTION_LEVEL_ONE/2 && prob(30))
+		germ_level--
+
+	if (germ_level >= INFECTION_LEVEL_ONE/2)
+		//aiming for germ level to go from ambient to INFECTION_LEVEL_TWO in an average of 15 minutes
+		if(antibiotics < 5 && prob(round(germ_level/6)))
+			germ_level++
+
+	if (germ_level >= INFECTION_LEVEL_TWO)
+		var/datum/organ/external/parent = owner.get_organ(parent_organ)
+		//spread germs
+		if (antibiotics < 5 && parent.germ_level < germ_level && ( parent.germ_level < INFECTION_LEVEL_ONE*2 || prob(30) ))
+			parent.germ_level++
+
+		if (prob(3))	//about once every 30 seconds
+			take_damage(1,silent=prob(30))
 
 /datum/organ/internal/handle_cancer()
 
@@ -142,6 +152,8 @@
 /datum/organ/internal/proc/take_damage(amount, var/silent=0)
 	if(!owner)
 		return
+	if(owner?.status_flags & GODMODE)
+		return 0	//godmode
 	if(src.robotic == 2)
 		src.damage += (amount * 0.8)
 	else
@@ -200,6 +212,7 @@
 	organ_type = "brain"
 	removed_type = /obj/item/organ/internal/brain
 	vital = 1
+	var/list/specific_damages = list(MOTOR_L = 0,COORDINATION_L = 0,SPEECH_L = 0,INTELLIGENCE_L = 0,SIGHT_L = 0)
 
 /datum/organ/internal/brain/ash
 	removed_type = /obj/item/organ/internal/brain/ash
@@ -233,7 +246,6 @@
 		if(owner)
 			removed_organ.had_mind = !isnull(owner.mind)
 		removed_organ.update()
-		organ_holder = removed_organ
 		removed_organ.stabilized = FALSE
 	return removed_organ
 

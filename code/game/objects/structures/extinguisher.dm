@@ -12,8 +12,12 @@
 	has_extinguisher = null
 	opened = 1
 
-/obj/structure/extinguisher_cabinet/New()
+/obj/structure/extinguisher_cabinet/New(loc, var/ndir)
 	..()
+	if(ndir)
+		pixel_x = (ndir & 3)? 0 : (ndir == 4 ? WORLD_ICON_SIZE : -WORLD_ICON_SIZE)
+		pixel_y = (ndir & 3)? (ndir == 1 ? WORLD_ICON_SIZE : -WORLD_ICON_SIZE) : 0
+		dir = ndir
 	update_icon()
 
 /obj/structure/extinguisher_cabinet/attackby(obj/item/O, mob/user)
@@ -24,6 +28,11 @@
 			if(user.drop_item(O, src))
 				has_extinguisher = O
 				to_chat(user, "<span class='notice'>You place [O] in [src].</span>")
+				if(!O.reagents.is_full())
+					var/avail_vol = O.reagents.maximum_volume - O.reagents.total_volume
+					O.reagents.add_reagent(WATER, avail_vol)
+					playsound(src, 'sound/effects/refill.ogg', 50, 1)
+					to_chat(user, "<span class='notice'>\The [src] refills \the [O] using its internal water supply.</span>")
 		else
 			opened = !opened
 	else if(iswelder(O))
@@ -59,6 +68,13 @@
 	attack_hand(user)
 	return
 
+/obj/structure/extinguisher_cabinet/AltClick(var/mob/user)
+	if(user.incapacitated() || !Adjacent(user))
+		..()
+		return
+	opened = !opened
+	update_icon()
+
 
 /obj/structure/extinguisher_cabinet/update_icon()
 	if(!opened)
@@ -73,7 +89,7 @@
 		icon_state = "extinguisher_empty"
 
 
-/obj/structure/extinguisher_cabinet/proc/weld(var/obj/item/weapon/weldingtool/WE, var/mob/user)
+/obj/structure/extinguisher_cabinet/proc/weld(var/obj/item/tool/weldingtool/WE, var/mob/user)
 	if(!istype(WE))
 		return
 	if(has_extinguisher)
@@ -85,4 +101,6 @@
 	if(!WE.remove_fuel(1, user))
 		return
 	to_chat(user, "<span class='notice'>You cut \the [src] off of the wall.</span>")
+	WE.playtoolsound(src, 50)
+	new /obj/item/mounted/frame/extinguisher_cabinet(get_turf(src))
 	qdel(src)

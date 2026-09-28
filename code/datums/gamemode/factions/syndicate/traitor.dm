@@ -1,9 +1,11 @@
 /datum/faction/syndicate
 	name = "The Syndicate"
 	ID = SYNDICATE
-	required_pref = ROLE_TRAITOR
+	required_pref = TRAITOR
 	desc = "A coalition of companies that actively work against Nanotrasen's intentions. Seen as Freedom fighters by some, Rebels and Malcontents by others."
 	logo_state = "synd-logo"
+	default_admin_voice = "The Syndicate"
+	admin_voice_style = "syndradio"
 
 //________________________________________________
 
@@ -19,11 +21,6 @@
 
 /datum/faction/syndicate/traitor/auto
 	accept_latejoiners = TRUE
-
-/datum/faction/syndicate/traitor/dagent
-	roletype = /datum/role/traitor/rogue
-	initroletype = /datum/role/traitor/rogue
-
 
 /datum/faction/syndicate/greytide
 	name = "Greytide link"

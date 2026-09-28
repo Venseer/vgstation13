@@ -2,7 +2,7 @@
 
 /obj/machinery/singularity/narsie/large/exit
 	name = "Bluespace Rift"
-	desc = "NO TIME TO EXPLAIN, JUMP IN"
+	desc = "NO TIME TO EXPLAIN, JUMP IN!"
 	icon = 'icons/obj/rift.dmi'
 	icon_state = "rift"
 	move_self = FALSE
@@ -13,6 +13,7 @@
 
 /obj/machinery/singularity/narsie/large/exit/New()
 	..()
+	global_cascade_portal = src
 	processing_objects.Add(src)
 
 /obj/machinery/singularity/narsie/large/exit/update_icon()
@@ -62,3 +63,11 @@
 
 				spawn (0)
 					step_towards(AM, src)
+
+/datum/map_element/dungeon/rift_beach
+	name = "Rift Beach"
+	file_path = "maps/misc/riftbeach1.dmm"
+	unique = TRUE
+
+/datum/map_element/dungeon/rift_beach/pre_load()
+	file_path = "maps/misc/riftbeach[rand(1,3)].dmm"

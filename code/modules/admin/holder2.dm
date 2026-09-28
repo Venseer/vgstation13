@@ -5,15 +5,16 @@ var/list/admin_datums = list()
 	var/client/owner	= null
 	var/rights = 0
 	var/fakekey			= null
+	var/admin_examine   = 0 //If on, allows the admin to see additional examine messages.
 
 	var/datum/marked_datum
+	var/list/copied_filters = list()
 	var/atom/marked_appearance //Reference to an atom or an image
 
 	var/admincaster_screen = 0	//See newscaster.dm under machinery for a full description
 	var/datum/feed_message/admincaster_feed_message = new /datum/feed_message   //These two will act as holders.
 	var/datum/feed_channel/admincaster_feed_channel = new /datum/feed_channel
 	var/admincaster_signature	//What you'll sign the newsfeeds as
-	var/sessKey		= 0
 
 /datum/admins/New(initial_rank = "Temporary Admin", initial_rights = 0, ckey)
 	if(!ckey)
@@ -25,11 +26,19 @@ var/list/admin_datums = list()
 	rights = initial_rights
 	admin_datums[ckey] = src
 
+/datum/admins/Destroy()
+	marked_datum = null
+	marked_appearance = null
+	disassociate()
+	return ..()
+
 /datum/admins/proc/associate(client/C)
 	if(istype(C))
 		owner = C
 		owner.holder = src
 		owner.add_admin_verbs()	//TODO
+		if(C.byond_version >= 516 && C.holder.rights & R_DEBUG)
+			winset(C, null, list("browser-options"="+devtools"))
 		admins |= C
 		owner.verbs -= /client/proc/readmin
 
@@ -85,13 +94,13 @@ you will have to do something like if(client.rights & R_ADMIN) yourself.
 					return 1
 				else
 					if(show_msg)
-						to_chat(usr, "<font color='red'>Error: You do not have sufficient rights to do that. You require one of the following flags:[rights2text(rights_required," ")].</font>")
+						to_chat(usr, "<span class='red'>Error: You do not have sufficient rights to do that. You require one of the following flags:[rights2text(rights_required," ")].</span>")
 		else
 			if(usr.client.holder)
 				return 1
 			else
 				if(show_msg)
-					to_chat(usr, "<font color='red'>Error: You are not an admin.</font>")
+					to_chat(usr, "<span class='red'>Error: You are not an admin.</span>")
 	return 0
 
 // Making this a bit less of a roaring asspain. - N3X
@@ -115,7 +124,7 @@ you will have to do something like if(client.rights & R_ADMIN) yourself.
 			if(usr.client.holder.rights != other.holder.rights)
 				if( (usr.client.holder.rights & other.holder.rights) == other.holder.rights )
 					return 1	//we have all the rights they have and more
-		to_chat(usr, "<font color='red'>Error: Cannot proceed. They have more or equal rights to us.</font>")
+		to_chat(usr, "<span class='red'>Error: Cannot proceed. They have more or equal rights to us.</span>")
 	return 0
 
 
@@ -124,26 +133,5 @@ you will have to do something like if(client.rights & R_ADMIN) yourself.
 	admin_datums -= ckey
 	if(holder)
 		holder.disassociate()
-		del(holder)
+		qdel(holder)
 	return 1
-
-/datum/admins/proc/checkSessionKey(var/recurse=0)
-	if(recurse==5)
-		return "\[BROKEN\]";
-	recurse++
-	var/DBQuery/query = dbcon.NewQuery("DELETE FROM admin_sessions WHERE expires < Now()")
-	query.Execute()
-
-	query = dbcon.NewQuery("SELECT sessID FROM admin_sessions WHERE ckey = '[owner.ckey]' AND expires > Now()")
-	query.Execute()
-
-	sessKey=0
-	while(query.NextRow())
-		sessKey = query.item[1]
-		query=dbcon.NewQuery("UPDATE admin_sessions SET expires=DATE_ADD(NOW(), INTERVAL 24 HOUR), IP='[owner.address]' WHERE ckey = '[owner.ckey]")
-		query.Execute()
-		return sessKey
-
-	query=dbcon.NewQuery("INSERT INTO admin_sessions (sessID,ckey,expires, IP) VALUES (UUID(), '[owner.ckey]', DATE_ADD(NOW(), INTERVAL 24 HOUR), '[owner.address]')")
-	query.Execute()
-	return checkSessionKey(recurse)

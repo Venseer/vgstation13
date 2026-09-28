@@ -1,3 +1,5 @@
+#define MAX_PRESSURE 50*ONE_ATMOSPHERE
+
 /obj/machinery/portable_atmospherics/scrubber
 	name = "Portable Air Scrubber"
 
@@ -6,15 +8,20 @@
 	density = 1
 
 	var/on = 0
-	var/volume_rate = 800
+	var/volume_rate = 5000 //litres / tick
+	var/scrubbing_rate = 300 //litres / tick, max amount of gas put in internal tank per tick
+	var/scrubbed_gases[] = list()
+	var/list/default_scrubbed_gases = list( GAS_SLEEPING, GAS_CARBON, GAS_PLASMA )
+	volume = 2000
 
-	volume = 750
+/obj/machinery/portable_atmospherics/scrubber/New()
+	..()
+	for(var/gas_id in default_scrubbed_gases)
+		scrubbed_gases[gas_id] = TRUE
 
-	var/minrate = 0//probably useless, but whatever
-	var/maxrate = 10 * ONE_ATMOSPHERE
 
 /obj/machinery/portable_atmospherics/scrubber/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 
@@ -30,7 +37,8 @@
 	icon_state = "scrubber:0"
 	anchored = 1
 	volume = 50000
-	volume_rate = 5000
+	volume_rate = 20000
+	scrubbing_rate = 1200
 
 	var/global/gid = 1
 	var/id = 0
@@ -53,13 +61,13 @@
 		icon_state = "scrubber:0"
 
 /obj/machinery/portable_atmospherics/scrubber/huge/attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		if(on)
 			to_chat(user, "<span class='notice'>Turn it off first!</span>")
 			return
 
 		anchored = !anchored
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+		W.playtoolsound(src, 50)
 		to_chat(user, "<span class='notice'>You [anchored ? "wrench" : "unwrench"] \the [src].</span>")
 
 		return
@@ -69,12 +77,12 @@
 /obj/machinery/portable_atmospherics/scrubber/huge/stationary
 	name = "Stationary Air Scrubber"
 
-	attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
-		if(iswrench(W))
-			to_chat(user, "<span class='notice'>The bolts are too tight for you to unscrew!</span>")
-			return
+/obj/machinery/portable_atmospherics/scrubber/huge/stationary/attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
+	if(W.is_wrench(user))
+		to_chat(user, "<span class='notice'>The bolts are too tight for you to unscrew!</span>")
+		return
 
-		..()
+	..()
 
 
 /obj/machinery/portable_atmospherics/scrubber/update_icon()
@@ -114,42 +122,44 @@
 /obj/machinery/portable_atmospherics/scrubber/process()
 	..()
 
-	if(on)
+	if(on && air_contents.return_pressure() < MAX_PRESSURE)
 		var/datum/gas_mixture/environment = get_environment()
 		var/transfer_moles = min(1, volume_rate / environment.volume) * environment.total_moles()
+		var/removed_volume = min(volume_rate, environment.volume)
 
 		//Take a gas sample
 		var/datum/gas_mixture/removed = remove_sample(environment, transfer_moles)
 
 		//Filter it
+		//copypasted from scrubber code with modifications to add the scrubbing rate limit
 		if (removed)
-			var/datum/gas_mixture/filtered_out = new
+			var/datum/gas_mixture/total_to_filter = new
+			total_to_filter.temperature = removed.temperature
+			for(var/gas_type in scrubbed_gases)
+				if(scrubbed_gases[gas_type])
+					total_to_filter.adjust_gas((gas_type), removed[gas_type], FALSE)
+			total_to_filter.update_values() //since the FILTER macro doesn't update to save perf, we need to update here
+			//calculate the amount of moles in scrubbing_rate litres of gas in removed and apply the scrubbing rate limit
+			var/filter_moles = min(1, scrubbing_rate / removed_volume) * removed.total_moles()
+			var/datum/gas_mixture/filtered_out = total_to_filter.remove(filter_moles)
 
-			filtered_out.temperature = removed.temperature
-
-
-			filtered_out.adjust_multi(
-				GAS_PLASMA, removed[GAS_PLASMA],
-				GAS_CARBON, removed[GAS_CARBON],
-				GAS_SLEEPING, removed[GAS_SLEEPING],
-				GAS_OXAGENT, removed[GAS_OXAGENT])
 			removed.subtract(filtered_out)
 
-		//Remix the resulting gases
+			//Remix the resulting gases
 			air_contents.merge(filtered_out)
-
 			return_sample(environment, removed)
 		//src.update_icon()
 		nanomanager.update_uis(src)
+		//Updating the pipenet if we're on a connector
+		if (on && connected_port)
+			var/datum/pipe_network/P = connected_port.return_network(src)
+			if (P)
+				P.update = 1
 	//src.updateDialog()
 	return
 
 /obj/machinery/portable_atmospherics/scrubber/return_air()
 	return air_contents
-
-/obj/machinery/portable_atmospherics/scrubber/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/portable_atmospherics/scrubber/attack_paw(var/mob/user as mob)
 	return src.attack_hand(user)
@@ -163,10 +173,13 @@
 	data["portConnected"] = connected_port ? 1 : 0
 	data["tankPressure"] = round(air_contents.return_pressure() > 0 ? air_contents.return_pressure() : 0)
 	data["rate"] = round(volume_rate)
-	data["minrate"] = round(minrate)
-	data["maxrate"] = round(maxrate)
 	data["on"] = on ? 1 : 0
-
+	var/list/scrub_toggles = list()
+	for(var/gas_id in XGM.noteworthy_gases)
+		var/datum/gas/gas_datum = XGM.gases[gas_id]
+		var/list/gas_info = list(list("name" = gas_datum.short_name || gas_datum.name, "id" = gas_id, "active" = scrubbed_gases[gas_datum.id]))
+		scrub_toggles += gas_info
+	data["scrub_toggles"] = scrub_toggles
 	data["hasHoldingTank"] = holding ? 1 : 0
 	if (holding)
 		data["holdingTank"] = list("name" = holding.name, "tankPressure" = round(holding.air_contents.return_pressure() > 0 ? holding.air_contents.return_pressure() : 0))
@@ -197,9 +210,9 @@
 		if(holding)
 			eject_holding()
 
-	if(href_list["volume_adj"])
-		var/diff = text2num(href_list["volume_adj"])
-		volume_rate = Clamp(volume_rate+diff, minrate, maxrate)
+	if(href_list["scrub_toggle"])
+		scrubbed_gases[href_list["scrub_toggle"]] = !scrubbed_gases[href_list["scrub_toggle"]]
+		return 1
 
 	src.add_fingerprint(usr)
 	return 1
@@ -213,6 +226,12 @@
 /obj/machinery/portable_atmospherics/scrubber/mech
 	volume = 50000
 	volume_rate = 20000
+	scrubbing_rate = 1200
+	var/obj/mecha/mech //the mech associated with this scrubber
+
+/obj/machinery/portable_atmospherics/scrubber/mech/New(var/location)
+	..()
+	src.mech = location
 
 /obj/machinery/portable_atmospherics/scrubber/mech/get_environment()
 	var/turf/T = get_turf(src)
@@ -225,3 +244,36 @@
 /obj/machinery/portable_atmospherics/scrubber/mech/return_sample(var/environment, var/removed)
 	var/turf/T = get_turf(src)
 	T.assume_air(removed)
+
+//required to allow the pilot to use the scrubber UI
+/obj/machinery/portable_atmospherics/scrubber/mech/is_on_same_z(var/mob/user)
+	if(user == mech.occupant)
+		return TRUE
+	return FALSE
+
+/obj/machinery/portable_atmospherics/scrubber/mech/is_in_range(var/mob/user)
+	if(user == mech.occupant)
+		return TRUE
+	return FALSE
+
+//Have to override this to let it connect from the mech
+/obj/machinery/portable_atmospherics/connect(obj/machinery/atmospherics/unary/portables_connector/new_port)
+	//Make sure not already connected to something else
+	if(connected_port || !new_port || new_port.connected_device)
+		return 0
+
+	//Perform the connection
+	connected_port = new_port
+	connected_port.connected_device = src
+
+	anchored = 1 //Prevent movement
+
+	//Actually enforce the air sharing
+	var/datum/pipe_network/network = connected_port.return_network(src)
+	if(network && !network.gases.Find(air_contents))
+		network.gases += air_contents
+		network.update = 1
+	update_icon()
+	return 1
+
+#undef MAX_PRESSURE

@@ -1,9 +1,10 @@
 /obj/machinery/chem_master/snackbar_machine
 	name = "\improper SnackBar Machine"
-	desc = "An explosion of flavour in every bite"
+	desc = "An explosion of flavour in every bite."
 	condi = 1
 	icon_state = "snackbar"
 	chem_board = /obj/item/weapon/circuitboard/snackbar_machine
+	light_color = LIGHT_COLOR_GREEN
 	windowtype = "snackbar_machine"
 
 /obj/machinery/chem_master/snackbar_machine/Topic(href, href_list)
@@ -16,15 +17,15 @@
 	if(href_list["createpill"] || href_list["createpill_multiple"] || href_list["ejectp"] || href_list["change_pill"])
 		return //No href exploits, fuck off
 
-	if(..())
-		return 1
-
 	usr.set_machine(src)
 
-	if(beaker && href_list["createbar"])
+	if(container && href_list["createbar"])
 		var/obj/item/weapon/reagent_containers/food/snacks/snackbar/SB = new/obj/item/weapon/reagent_containers/food/snacks/snackbar(src.loc)
 		reagents.trans_to(SB, 10)
 		src.updateUsrDialog()
+		return 1
+
+	if(..())
 		return 1
 
 	return
@@ -37,10 +38,10 @@
 	user.set_machine(src)
 
 	var/dat = list()
-	if(!beaker)
+	if(!container)
 		dat += "Please insert a beaker.<BR>"
 	else
-		var/datum/reagents/R = beaker.reagents
+		var/datum/reagents/R = container.reagents
 		dat += "<A href='?src=\ref[src];eject=1'>Eject beaker and Clear Buffer</A><BR>"
 		if(!R.total_volume)
 			dat += "Beaker is empty."

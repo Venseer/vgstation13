@@ -17,7 +17,7 @@
 	icon_state = "TheSingGen"
 	anchored = 1
 	density = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 200
 	active_power_usage = 1000
 	var/on = 1
@@ -67,14 +67,12 @@
 /obj/machinery/computer/gravity_control_computer/attack_paw(mob/user as mob)
 	return attack_hand(user)
 
-/obj/machinery/computer/gravity_control_computer/attack_ai(mob/user as mob)
-	return attack_hand(user)
 
 /obj/machinery/computer/gravity_control_computer/attack_hand(mob/user as mob)
 	user.set_machine(src)
 	add_fingerprint(user)
 
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (FORCEDISABLE|BROKEN|NOPOWER))
 		return
 
 	updatemodules()
@@ -90,10 +88,10 @@
 		dat += "<br><tt>Currently Supplying Gravitons To:</tt><br>"
 
 		for(var/area/A in gravity_generator:localareas)
-			if(A.has_gravity && gravity_generator:on)
+			if(A.gravity && gravity_generator:on)
 				dat += "<tt><font color=green>[A]</tt></font><br>"
 
-			else if (A.has_gravity)
+			else if (A.gravity)
 				dat += "<tt><font color=yellow>[A]</tt></font><br>"
 
 			else
@@ -108,7 +106,7 @@
 	else
 		dat += "No local gravity generator detected!"
 
-	user << browse(dat, "window=gravgen")
+	user << browse(HTML_SKELETON(dat), "window=gravgen")
 	onclose(user, "gravgen")
 
 

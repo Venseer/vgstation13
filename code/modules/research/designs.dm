@@ -52,6 +52,8 @@ The required techs are the following:
 #define PODFAB		32  //Used by the spacepod part fabricator. Same idea as the mechfab
 #define FLATPACKER	64  //This design creates a machine, not an item.
 #define GENFAB		128 //Generic item.
+#define AMMOLATHE	256	//Adding this for ammolathes but its pretty much the same as PROTOLATHE.
+#define MEDALPRINTER 512 //Outputs misc items from metal, silver, gold and plasma. Similar to the protolathe.
 //Note: More then one of these can be added to a design but imprinter and lathe designs are incompatable.
 
 /datum/design							//Datum for object designs, used in construction
@@ -68,6 +70,7 @@ The required techs are the following:
 	var/locked = 0						//If true it will spawn inside a lockbox with currently sec access
 	var/list/req_lock_access			//Sets the access for the lockbox that a locked item spawns in
 	var/category = "Misc"				//Primarily used for Mech Fabricators, but can be used for anything
+	var/use_design_materials = TRUE		//Determines whether the printed item will have the design's material costs as its materials
 
 //A proc to calculate the reliability of a design based on tech levels and innate modifiers.
 //Input: A list of /datum/tech; Output: The new reliabilty.
@@ -76,7 +79,7 @@ The required techs are the following:
 	for(var/datum/tech/T in temp_techs)
 		if(T.id in req_tech)
 			new_reliability += T.level
-	new_reliability = Clamp(new_reliability, reliability_base, 100)
+	new_reliability = clamp(new_reliability, reliability_base, 100)
 	reliability = new_reliability
 	return
 
@@ -85,7 +88,7 @@ The required techs are the following:
 //it then finds the design which has a buildpath of that type
 //material_strict will check the atom's materials against the design's materials if set to 1, but won't for machines
 //If you want to check machine materials strictly as well, set material_strict to 2
-proc/FindDesign(var/atom/movable/part, material_strict = 0)
+/proc/FindDesign(var/atom/movable/part, material_strict = 0)
 	if(ispath(part))
 		return FindTypeDesign(part)
 
@@ -98,7 +101,7 @@ proc/FindDesign(var/atom/movable/part, material_strict = 0)
 				var/all_correct = 1
 
 				for(var/matID in D.materials)
-					if(copytext(matID, 1, 2) == "$" && (part.materials.storage[matID] != D.materials[matID])) //if it's a materal, but it doesn't match the atom's values
+					if(copytext(matID, 1, 2) == "$" && (part.materials.storage[matID] != D.materials[matID])) //if it's a material, but it doesn't match the atom's values
 						all_correct = 0
 						break
 				if(all_correct)
@@ -106,14 +109,19 @@ proc/FindDesign(var/atom/movable/part, material_strict = 0)
 			else
 				return D
 
-proc/FindTypeDesign(var/part_path)
+/proc/FindTypeDesign(var/part_path)
 	for(var/datum/design/D in design_list)
 		if(D.build_path == part_path)
 			return D
 
 //Acts as FindDesign, but makes a new design if it doesn't find one
 //Doesn't take types for the design creation, so don't rely on it for that
-proc/getScanDesign(var/obj/O)
+/proc/getScanDesign(var/obj/O)
+	//all the designs are hidden somewhere in the backend
+	//so if you have an unupgraded machine scanned earlier it'll overwrite an upgraded machine you scan later
+	//that's why we have to force it to make a new datum if it's a machine
+	if(istype(O, /obj/machinery))
+		return new/datum/design/mechanic_design(O)
 	var/datum/design/D
 	if(O.materials)
 		D = FindDesign(O, 1) //The 1 means we check strict materials - if we don't have materials, we just check the type
@@ -141,22 +149,35 @@ proc/getScanDesign(var/obj/O)
 	//log_admin("[total] for [part.name]")
 	return total
 
+//Do something to this buildable right after we finish building it
+//obj/O: The freshly created object
+//obj/machinery/r_n_d/fabricator/F: the machine where the object was just manufactured
+/datum/design/proc/after_craft(var/obj/O, var/obj/machinery/r_n_d/fabricator/F)
+// Reduce the printed item materials accordingly
+	for(var/obj/item/I in O.contents)
+		if(!I.materials)
+			continue
+		for(var/matID in I.materials.storage)
+			I.materials.storage[matID] = F.get_resource_cost_w_coeff_no_design(I.materials.storage[matID], matID)
 ////////////////////////////////////////
 //Disks for transporting design datums//
 ////////////////////////////////////////
 
 /obj/item/weapon/disk/design_disk
-	name = "Component Design Disk"
+	name = "component design disk"
 	desc = "A disk for storing device design data for construction in lathes."
-	icon = 'icons/obj/cloning.dmi'
-	icon_state = "datadisk2"
-	item_state = "card-id"
-	w_class = W_CLASS_TINY
-	starting_materials = list(MAT_IRON = 30, MAT_GLASS = 10)
-	w_type = RECYK_ELECTRONIC
+	icon_state = "disk_design"
 	var/datum/design/blueprint
 
 /obj/item/weapon/disk/design_disk/New()
 	..()
 	src.pixel_x = rand(-5, 5) * PIXEL_MULTIPLIER
 	src.pixel_y = rand(-5, 5) * PIXEL_MULTIPLIER
+
+
+/obj/item/weapon/disk/design_disk/ammolathe
+	name = "component design disk (Ammolathe)"
+
+/obj/item/weapon/disk/design_disk/ammolathe/New()
+	..()
+	blueprint = new/datum/design/ammolathe(src)

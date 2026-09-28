@@ -5,6 +5,9 @@
 	origin_tech = Tc_COMBAT + "=2"
 	var/obj/item/holstered = null
 	accessory_exclusion = HOLSTER
+	w_type = RECYK_BIOLOGICAL //leather
+	flammable = TRUE
+	on_armory_manifest = TRUE
 	var/holster_verb_name = "Holster"
 
 /obj/item/clothing/accessory/holster/proc/can_holster(obj/item/weapon/gun/W)
@@ -22,14 +25,12 @@
 	if(user.attack_delayer.blocked())
 		return
 
-	if(user.drop_item(I, src))
+	if(user.drop_item(I, src, failmsg = TRUE))
 		holstered = I
 		holstered.add_fingerprint(user)
 		user.visible_message("<span class='notice'>[user] holsters \the [holstered].</span>", "<span class='notice'>You holster \the [holstered].</span>")
 		update_icon()
 		return 1
-	else
-		to_chat(user, "<span class='warning'>You can't let go of \the [I]!</span>")
 
 /obj/item/clothing/accessory/holster/proc/unholster(mob/user as mob)
 	if(!holstered)
@@ -39,15 +40,14 @@
 		to_chat(user, "<span class='warning'>You can't hold \the [holstered] like this!</span>")
 		return
 
-	if(user.put_in_active_hand(holstered) || user.put_in_inactive_hand(holstered))
-		unholster_message(user)
-		holstered.add_fingerprint(user)
-		holstered = null
-		update_icon()
+	var/obj/item/item_from_holster = holstered //Keep a local reference as holstered is cleared during put_in_hand at exited() and we still need it for fingerprints and the message.
+	if(user.put_in_active_hand(item_from_holster) || user.put_in_inactive_hand(item_from_holster))
+		unholster_message(user, item_from_holster)
+		item_from_holster.add_fingerprint(user)
 	else
-		to_chat(user, "<span class='warning'>You need an empty hand to draw \the [holstered]!</span>")
+		to_chat(user, "<span class='warning'>You need an empty hand to draw \the [item_from_holster]!</span>")
 
-/obj/item/clothing/accessory/holster/proc/unholster_message(user)
+/obj/item/clothing/accessory/holster/proc/unholster_message(mob/user, obj/item/item_from_holster)
 	return
 
 /obj/item/clothing/accessory/holster/verb/holster_verb()
@@ -115,6 +115,12 @@
 		attached_to.verbs -= new/obj/item/clothing/accessory/holster/verb/holster_verb(attached_to,holster_verb_name)
 	..()
 
+/obj/item/clothing/accessory/holster/Exited(var/atom/movable/Obj, var/atom/newloc)
+	..()
+	if(holstered == Obj)
+		holstered = null
+		update_icon()
+
 //
 // Handguns
 //
@@ -123,18 +129,18 @@
 	desc = "A handgun holster that clips to a suit. Perfect for concealed carry."
 	holster_verb_name = "Holster (Handgun)"
 
-/obj/item/clothing/accessory/holster/handgun/can_holster(obj/item/weapon/gun/W)
-	if(!istype(W))
+/obj/item/clothing/accessory/holster/handgun/can_holster(obj/item/weapon/W)
+	if(!isgun(W) && !isbanana(W) && !istype(W, /obj/item/weapon/reagent_containers/food/snacks/grown/bluespacebanana))
 		return
 	return W.isHandgun()
 
-/obj/item/clothing/accessory/holster/handgun/unholster_message(mob/user)
+/obj/item/clothing/accessory/holster/handgun/unholster_message(mob/user, obj/item/item_from_holster)
 	if(user.a_intent == I_HURT)
-		user.visible_message("<span class='warning'>[user] draws \the [holstered], ready to shoot!</span></span>", \
-		"<span class='warning'>You draw \the [holstered], ready to shoot!</span>")
+		user.visible_message("<span class='warning'>[user] draws \the [item_from_holster], ready to shoot!</span>", \
+		"<span class='warning'>You draw \the [item_from_holster], ready to shoot!</span>")
 	else
-		user.visible_message("<span class='notice'>[user] draws \the [holstered], pointing it at the ground.</span>", \
-		"<span class='notice'>You draw \the [holstered], pointing it at the ground.</span>")
+		user.visible_message("<span class='notice'>[user] draws \the [item_from_holster], pointing it at the ground.</span>", \
+		"<span class='notice'>You draw \the [item_from_holster], pointing it at the ground.</span>")
 
 /obj/item/clothing/accessory/holster/handgun/wornout
 	desc = "A worn-out handgun holster. Perfect for concealed carry."
@@ -146,6 +152,30 @@
 	name = "waistband holster"
 	desc = "A handgun holster that clips to a suit. Made of expensive leather."
 	_color = "holster_low"
+
+/obj/item/clothing/accessory/holster/handgun/preloaded
+	var/gun_type
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/New()
+	..()
+	if(!holstered)
+		holstered = new gun_type(src)
+		update_icon()
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/mateba
+	gun_type = /obj/item/weapon/gun/projectile/mateba
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/NTUSP
+	gun_type = /obj/item/weapon/gun/projectile/NTUSP
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/NTUSP/fancy
+	gun_type = /obj/item/weapon/gun/projectile/NTUSP/fancy
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/glock
+	gun_type = /obj/item/weapon/gun/projectile/glock
+
+/obj/item/clothing/accessory/holster/handgun/preloaded/glock/fancy
+	gun_type = /obj/item/weapon/gun/projectile/glock/fancy
 
 //
 // Knives
@@ -167,20 +197,22 @@
 
 	return is_type_in_list(W, list(\
 		/obj/item/weapon/kitchen/utensil, \
-		/obj/item/weapon/screwdriver, \
-		/obj/item/weapon/wirecutters, \
+		/obj/item/tool/screwdriver, \
+		/obj/item/tool/solder, \
+		/obj/item/tool/wirecutters, \
 		/obj/item/weapon/pen, \
-		/obj/item/weapon/scalpel, \
+		/obj/item/tool/scalpel, \
 		/obj/item/weapon/minihoe, \
 		/obj/item/weapon/hatchet, \
 		/obj/item/weapon/pickaxe/shovel/spade, \
 		/obj/item/weapon/reagent_containers/food/snacks/grown/banana, \
-		/obj/item/weapon/bikehorn
+		/obj/item/weapon/bikehorn, \
+		/obj/item/weapon/gun/projectile/banana
 		)) //honk
 
-/obj/item/clothing/accessory/holster/knife/unholster_message(mob/user)
-	user.visible_message("<span class='warning'>[user] pulls \a [holstered] from its holster!</span>", \
-	"<span class='warning'>You draw your [holstered.name]!</span>")
+/obj/item/clothing/accessory/holster/knife/unholster_message(mob/user, obj/item/item_from_holster)
+	user.visible_message("<span class='warning'>[user] pulls \a [item_from_holster] from its holster!</span>", \
+	"<span class='warning'>You draw your [item_from_holster.name]!</span>")
 
 /obj/item/clothing/accessory/holster/knife/boot
 	desc = "A knife holster that can be attached to any pair of boots."
@@ -218,3 +250,6 @@
 
 /obj/item/clothing/accessory/holster/knife/boot/preloaded/skinning
 	knife_type = /obj/item/weapon/kitchen/utensil/knife/skinning
+
+/obj/item/clothing/accessory/holster/knife/boot/preloaded/energysword
+	knife_type = /obj/item/weapon/melee/energy/sword

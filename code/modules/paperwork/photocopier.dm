@@ -6,7 +6,7 @@
 	icon_state = "bigscanner"
 	anchored = 1
 	density = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 30
 	active_power_usage = 200
 	power_channel = EQUIP
@@ -40,10 +40,6 @@
 
 	RefreshParts()
 
-/obj/machinery/photocopier/attack_ai(mob/user)
-	src.add_hiddenprint(user)
-	return attack_hand(user)
-
 /obj/machinery/photocopier/attack_paw(mob/user)
 	return attack_hand(user)
 
@@ -53,7 +49,7 @@
 		return
 
 	if(copy)
-		copies = Clamp(copies, 0, 10)
+		copies = clamp(copies, 0, 10)
 		spawn()
 			copying = 1
 			for(var/i = 0, i < copies, i++)
@@ -62,11 +58,11 @@
 				if(toner > 0)
 					var/obj/item/weapon/paper/paper_type = copy.type
 					var/obj/item/weapon/paper/c = new paper_type(loc)
-					if(toner > 10)	//lots of toner, make it dark
+					if(toner > 3)	//lots of toner, make it dark
 						c.info = "<font color = #101010>"
 					else			//no toner? shitty copies for you!
 						c.info = "<font color = #808080>"
-					var/copied = html_decode(copy.info)
+					var/copied = copy.info
 					copied = replacetext(copied, "color:", "nocolor:")	//state of the art techniques in action
 					c.info += copied
 					c.info += "</font>"
@@ -82,27 +78,34 @@
 			copying = 0
 		updateUsrDialog()
 	else if(photocopy)
-		copies = Clamp(copies, 0, 10)
+		copies = clamp(copies, 0, 10)
 		spawn()
 			copying = 1
 			for(var/i = 0, i < copies, i++)
 				if(!copying)
 					break
-				if(toner >= 5)  //Was set to = 0, but if there was say 3 toner left and this ran, you would get -2 which would be weird for ink
-					var/obj/item/weapon/photo/p = new /obj/item/weapon/photo (loc)
+				if(toner >= 2)  //Was set to = 0, but if there was say 3 toner left and this ran, you would get -2 which would be weird for ink
+					var/obj/item/weapon/photo/p
+					if (istype(photocopy, /obj/item/weapon/photo/id))
+						p = new /obj/item/weapon/photo/id (loc)
+					else
+						p = new /obj/item/weapon/photo (loc)
 					var/icon/I = icon(photocopy.icon, photocopy.icon_state)
 					var/icon/img = icon(photocopy.img)
+					var/greyscaled = 0
 					if(greytoggle == "Greyscale")
-						if(toner > 10) //plenty of toner, go straight greyscale
+						if(toner > 3) //plenty of toner, go straight greyscale
 							I.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(0,0,0)) //I'm not sure how expensive this is, but given the many limitations of photocopying, it shouldn't be an issue.
 							img.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(0,0,0))
+							greyscaled = 1
 						else //not much toner left, lighten the photo
 							I.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(100,100,100))
 							img.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(100,100,100))
-						toner -= 5	//photos use a lot of ink!
+							greyscaled = 2
+						toner -= 2	//photos use a lot of ink!
 					else if(greytoggle == "Color")
-						if(toner >= 10)
-							toner -= 10 //Color photos use even more ink!
+						if(toner >= 3)
+							toner -= 3 //Color photos use even more ink!
 						else
 							continue
 					p.icon = I
@@ -112,15 +115,28 @@
 					p.scribble = photocopy.scribble
 					p.pixel_x = rand(-10, 10) * PIXEL_MULTIPLIER
 					p.pixel_y = rand(-10, 10) * PIXEL_MULTIPLIER
+					p.photo_size = photocopy.photo_size
 					p.blueprints = photocopy.blueprints //a copy of a picture is still good enough for the syndicate
 					p.info = photocopy.info
+					p.double_agent_completion_ids = photocopy.double_agent_completion_ids.Copy()
+
+					if (istype(photocopy, /obj/item/weapon/photo/id))
+						var/obj/item/weapon/photo/id/id_photo = photocopy
+						var/obj/item/weapon/photo/id/new_id = p
+						new_id.background = id_photo.background
+						new_id.four_sides = icon(id_photo.four_sides)
+						switch (greyscaled)
+							if (1)
+								new_id.four_sides.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(0,0,0))
+							if (2)
+								new_id.four_sides.MapColors(rgb(77,77,77), rgb(150,150,150), rgb(28,28,28), rgb(100,100,100))
 
 					sleep(15)
 				else
 					break
 			copying = 0
 	else if(ass) //ASS COPY. By Miauw
-		copies = Clamp(copies, 0, 10)
+		copies = clamp(copies, 0, 10)
 		spawn()
 			copying = 1
 			for(var/i = 0, i < copies, i++)
@@ -129,7 +145,7 @@
 				var/icon/temp_img
 				if(ishuman(ass) && (ass.get_item_by_slot(slot_w_uniform) || ass.get_item_by_slot(slot_wear_suit)))
 					to_chat(user, "<span class='notice'>You feel kind of silly copying [ass == user ? "your" : ass][ass == user ? "" : "\'s"] ass with [ass == user ? "your" : "their"] clothes on.</span>")
-				else if(toner >= 5 && check_ass()) //You have to be sitting on the copier and either be a xeno or a human without clothes on.
+				else if(toner >= 2 && check_ass()) //You have to be sitting on the copier and either be a xeno or a human without clothes on.
 					if(isalien(ass) || istype(ass,/mob/living/simple_animal/hostile/alien)) //Xenos have their own asses, thanks to Pybro.
 						temp_img = icon("icons/ass/assalien.png")
 					else if(ishuman(ass) || istype(ass, /mob/living/simple_animal/hostile/gremlin)) //Suit checks are in check_ass
@@ -151,7 +167,7 @@
 					small_img.Scale(8, 8)
 					ic.Blend(small_img,ICON_OVERLAY, 10, 13)
 					p.icon = ic
-					toner -= 5
+					toner -= 2
 					sleep(15)
 				else
 					break
@@ -180,7 +196,7 @@
 	dat += "Current toner level: [toner]"
 	if(!toner)
 		dat +="<BR>Please insert a new toner cartridge!"
-	user << browse(dat, "window=copier")
+	user << browse(HTML_SKELETON(dat), "window=copier")
 	onclose(user, "copier")
 
 /obj/machinery/photocopier/Topic(href, href_list)
@@ -191,20 +207,12 @@
 	else if(href_list["remove"])
 		copying = 0
 		if(copy)
-			if(!istype(usr,/mob/living/silicon/ai)) //surprised this check didn't exist before, putting stuff in AI's hand is bad
-				copy.forceMove(usr.loc)
-				usr.put_in_hands(copy)
-			else
-				copy.forceMove(src.loc)
+			usr.put_in_hands(copy)
 			to_chat(usr, "<span class='notice'>You take [copy] out of [src].</span>")
 			copy = null
 			updateUsrDialog()
 		else if(photocopy)
-			if(!istype(usr,/mob/living/silicon/ai)) //same with this one, wtf
-				photocopy.forceMove(usr.loc)
-				usr.put_in_hands(photocopy)
-			else
-				photocopy.forceMove(src.loc)
+			usr.put_in_hands(photocopy)
 			to_chat(usr, "<span class='notice'>You take [photocopy] out of [src].</span>")
 			photocopy = null
 			updateUsrDialog()
@@ -280,11 +288,11 @@
 		var/xdim = input(usr, "Default paper width", "Formatting", 400) as num|null
 		if(!xdim)
 			return
-		xdim = Clamp(xdim,100,800)
+		xdim = clamp(xdim,100,800)
 		var/ydim = input(usr, "Default paper height", "Formatting", 400) as num|null
 		if(!ydim)
 			return
-		ydim = Clamp(ydim,100,900)
+		ydim = clamp(ydim,100,900)
 		copy.display_x = xdim
 		copy.display_y = ydim
 		to_chat(usr, "<span class='notice'>The machine hums a moment as it configures your document.</span>")
@@ -323,8 +331,8 @@
 				updateUsrDialog()
 		else
 			to_chat(user, "<span class='notice'>This cartridge is not yet ready for replacement! Use up the rest of the toner.</span>")
-	else if(iswrench(O))
-		playsound(loc, 'sound/items/Ratchet.ogg', 50, 1)
+	else if(O.is_wrench(user))
+		O.playtoolsound(loc, 50)
 		anchored = !anchored
 		to_chat(user, "<span class='notice'>You [anchored ? "wrench" : "unwrench"] [src].</span>")
 	else if(istype(O, /obj/item/weapon/grab)) //For ass-copying.
@@ -343,7 +351,7 @@
 				copy.forceMove(src.loc)
 				copy = null
 			updateUsrDialog()
-	else if(isscrewdriver(O))
+	else if(O.is_screwdriver(user))
 		if(anchored)
 			to_chat(user, "[src] needs to be unanchored.")
 			return
@@ -359,7 +367,7 @@
 	if(opened)
 		if(iscrowbar(O))
 			to_chat(user, "You begin to remove the circuits from the [src].")
-			playsound(src, 'sound/items/Crowbar.ogg', 50, 1)
+			O.playtoolsound(src, 50)
 			if(do_after(user, src, 50))
 				var/obj/machinery/constructable_frame/machine_frame/M = new /obj/machinery/constructable_frame/machine_frame(src.loc)
 				M.state = 1
@@ -381,14 +389,12 @@
 				qdel(src)
 			else
 				if(toner > 0)
-					var/obj/effect/decal/cleanable/blood/oil/O = getFromPool(/obj/effect/decal/cleanable/blood/oil, get_turf(src))
-					O.New(O.loc)
+					new /obj/effect/decal/cleanable/blood/oil(get_turf(src))
 					toner = 0
 		else
 			if(prob(50))
 				if(toner > 0)
-					var/obj/effect/decal/cleanable/blood/oil/O = getFromPool(/obj/effect/decal/cleanable/blood/oil, get_turf(src))
-					O.New(O.loc)
+					new /obj/effect/decal/cleanable/blood/oil(get_turf(src))
 					toner = 0
 	return
 
@@ -397,8 +403,7 @@
 		qdel(src)
 	else
 		if(toner > 0)
-			var/obj/effect/decal/cleanable/blood/oil/O = getFromPool(/obj/effect/decal/cleanable/blood/oil, get_turf(src))
-			O.New(O.loc)
+			new /obj/effect/decal/cleanable/blood/oil(get_turf(src))
 			toner = 0
 	return
 
@@ -480,7 +485,7 @@
 	return 0
 
 /obj/machinery/photocopier/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
-	if(air_group || (height==0))
+	if(!mover || air_group || (height==0))
 		return 1
 
 	return (!mover.density || !density || mover.pass_flags)

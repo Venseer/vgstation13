@@ -12,13 +12,13 @@
 
 /datum/design/recharger
 	name = "Circuit Design (Recharger)"
-	desc = "Allows for the construction of circuit boards used to build Weapon Rechargers"
+	desc = "Allows for the construction of circuit boards used to build Weapon Rechargers."
 	id="recharger"
 	req_tech = list(Tc_POWERSTORAGE = 2, Tc_COMBAT = 2)
 	build_type = IMPRINTER
-	materials = list(MAT_GLASS = 2000, SACID = 3)
+	materials = list(MAT_GLASS = 1000, SACID = 3)
 	category = "Machine Boards"
-	build_path = /obj/item/weapon/circuitboard/recharger
+	build_path = /obj/item/weapon/circuitboard/small/recharger
 
 
 /datum/design/photocopier
@@ -31,19 +31,29 @@
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/photocopier
 
+/datum/design/book_binder
+	name = "Circuit Design (Book Binder)"
+	desc = "Allows for the construction of circuit boards to build book binders."
+	id = "photocopier"
+	req_tech = list ("powerstorage" = 2, "engineering" = 2, "programming" = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/bookbinder
+
 /datum/design/fax
 	name = "Circuit Design (Fax)"
 	desc = "Allows for the construction of circuit boards to build fax machines."
 	id = "fax"
 	req_tech = list ("bluespace" = 2, "materials" = 2)
 	build_type = IMPRINTER
-	materials = list(MAT_GLASS = 2000, SACID = 20)
+	materials = list(MAT_GLASS = 1000, SACID = 20)
 	category = "Machine Boards"
-	build_path = /obj/item/weapon/circuitboard/fax
+	build_path = /obj/item/weapon/circuitboard/small/fax
 
 /datum/design/condimaster
 	name = "Circuit Design (CondiMaster)"
-	desc = "Allows for the cosntruction of circuit boards used to build CondiMasters"
+	desc = "Allows for the cosntruction of circuit boards used to build CondiMasters."
 	id="condimaster"
 	req_tech = list ("engineering" = 3, "biotech" = 4)
 	build_type = IMPRINTER
@@ -53,7 +63,7 @@
 
 /datum/design/snackbarmachine
 	name = "Circuit Design (SnackBar Machine)"
-	desc = "Allows for the cosntruction of circuit boards used to build SnackBar Machines"
+	desc = "Allows for the cosntruction of circuit boards used to build SnackBar Machines."
 	id="snackbarmachine"
 	req_tech = list ("engineering" = 3, "biotech" = 4)
 	build_type = IMPRINTER
@@ -87,6 +97,16 @@
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/stacking_unit
 
+/datum/design/unloading_machine
+	name = "Circuit Design (Unloading Machine)"
+	desc = "A circuit board used to run a machine that unloads items and ore from one place to another."
+	id = "unloadingmachine"
+	req_tech = list(Tc_PROGRAMMING = 2, Tc_MATERIALS = 3, Tc_ENGINEERING = 3)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/unloading_machine
+
 /datum/design/coin_press
 	name = "Circuit Design (Coin Press)"
 	desc = "Allows for the construction of circuit boards used to build a coin press."
@@ -96,6 +116,16 @@
 	materials = list(MAT_GLASS = 2000, SACID = 20)
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/coin_press
+
+/datum/design/medal_printer
+	name = "Circuit Design (Medal Printer)"
+	desc = "Allows for the construction of circuit boards used to build a medal printer."
+	id = "medal_printer"
+	req_tech = list(Tc_PROGRAMMING = 4, Tc_MATERIALS = 4, Tc_ENGINEERING = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, MAT_GOLD = 1000, MAT_SILVER = 1000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/medal_printer
 
 /datum/design/vendomat
 	name = "Circuit Design (Vending Machine)"
@@ -109,7 +139,7 @@
 
 /datum/design/sorting_machine
 	name = "Circuit Design (Recycling Sorting Machine)"
-	desc = "Allows for the construction of circuit boards used to build a recycling sorting machine"
+	desc = "Allows for the construction of circuit boards used to build a recycling sorting machine."
 	id = "sortingmachine"
 	req_tech = list(Tc_MATERIALS = 3, Tc_ENGINEERING = 3, Tc_PROGRAMMING = 3)
 	build_type = IMPRINTER
@@ -118,9 +148,15 @@
 
 /datum/design/sorting_machine/destination
 	name = "Circuit Design (Destinations Sorting Machine)"
-	desc = "Allows for the construction of circuit boards used to build a destinations sorting machine"
+	desc = "Allows for the construction of circuit boards used to build a destinations sorting machine."
 	id = "destsortingmachine"
 	build_path = /obj/item/weapon/circuitboard/sorting_machine/destination
+
+/datum/design/sorting_machine/item
+	name = "Circuit Design (Item Sorting Machine)"
+	desc = "Allows for the construction of circuit boards used to build an item sorting machine."
+	id = "itemsortingmachine"
+	build_path = /obj/item/weapon/circuitboard/sorting_machine/item
 
 /datum/design/washing_machine
 	name = "Circuit Design (Washing Machine)"
@@ -140,3 +176,63 @@
 	materials = list(MAT_GLASS = 2000, SACID = 20)
 	category = "Machine Boards"
 	build_path = /obj/item/weapon/circuitboard/holopad
+
+/datum/design/ammolathe
+	name = "Circuit Design (Ammolathe)"
+	desc = "Allows for the construction of circuit boards used to build ammolathes."
+	id = "ammolathe"
+	req_tech = list(Tc_PROGRAMMING = 2, Tc_ENGINEERING = 2, Tc_COMBAT = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/ammolathe
+	locked = TRUE
+	req_lock_access = list(access_armory, access_weapons)
+
+/datum/design/chem_dispenser/brewer
+	name = "Circuit Design (Brewer)"
+	desc = "Allows for the construction of circuit boards used to build a brewer."
+	id = "brewer"
+	build_path = /obj/item/weapon/circuitboard/chem_dispenser/brewer
+
+/datum/design/chem_dispenser/soda_dispenser
+	name = "Circuit Design (Soda Dispenser)"
+	desc = "Allows for the construction of circuit boards used to build a soda dispenser."
+	id = "soda_dispenser"
+	build_path = /obj/item/weapon/circuitboard/chem_dispenser/soda_dispenser
+
+/datum/design/chem_dispenser/booze_dispenser
+	name = "Circuit Design (Booze Dispenser)"
+	desc = "Allows for the construction of circuit boards used to build a booze dispenser."
+	id = "booze_dispenser"
+	build_path = /obj/item/weapon/circuitboard/chem_dispenser/booze_dispenser
+
+/datum/design/photobooth
+	name = "Circuit Design (Photo Booth)"
+	desc = "Allows for the construction of circuit boards used to build a photo booth."
+	id = "photobooth"
+	req_tech = list(Tc_PROGRAMMING = 2)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/photobooth
+
+/datum/design/disk_duplicator
+	name = "Circuit Design (Disk Duplicator)"
+	desc = "Allows for the construction of circuit boards used to build a disk duplicator."
+	id = "disk_duplicator"
+	req_tech = list(Tc_PROGRAMMING = 2, Tc_ENGINEERING = 2, Tc_MAGNETS = 2)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/disk_duplicator
+
+/datum/design/crate_weigher
+	name = "Circuit Design (Crate Weigher)"
+	desc = "Allows for the construction of circuit boards used to build a crate weigher."
+	id = "crate_weigher"
+	req_tech = list(Tc_ENGINEERING = 3, Tc_MAGNETS = 2)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Machine Boards"
+	build_path = /obj/item/weapon/circuitboard/crate_weigher

@@ -1,15 +1,15 @@
 //////////////////////////////Construct Spells/////////////////////////
 
 /spell/aoe_turf/conjure/construct
-	name = "Artificer"
-	desc = "This spell conjures a construct which may be controlled by Shades"
+	name = "Conjure Shell"
+	desc = "This spell conjures a construct shell which may then be controlled by a shade. A human is needed to capture the shade inside a soul stone, and set it inside the shell."
 	user_type = USER_TYPE_ARTIFACT
 
 	school = "conjuration"
-	charge_max = 600
+	charge_cooldown_max = 60 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 
 	summon_type = list(/obj/structure/constructshell)
@@ -19,7 +19,7 @@
 /spell/aoe_turf/conjure/construct/lesser
 	user_type = USER_TYPE_CULT
 
-	charge_max = 1800
+	charge_cooldown_max = 180 SECONDS
 	summon_type = list(/obj/structure/constructshell/cult)
 	hud_state = "const_shell"
 	override_base = "cult"
@@ -30,19 +30,24 @@
 	hud_state = "const_shell_alt"
 
 /spell/aoe_turf/conjure/construct/lesser/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
-	playsound(user, 'sound/items/welder.ogg', 100, 1)
+	if(!delay_animation)
+		delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
+		playsound(user, 'sound/items/welder.ogg', 100, 1)
 	. = ..()
 
+/spell/aoe_turf/conjure/construct/lesser/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(50, DEVOTION_TIER_2, "conjure_shell", AM)
+
 /spell/aoe_turf/conjure/floor
-	name = "Floor Construction"
-	desc = "This spell constructs a cult floor"
+	name = "Conjure Floor"
+	desc = "This spell conjures a cult floor. You can also click existing floors up to 3 tiles away to convert them."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 50
+	charge_cooldown_max = 5 SECONDS
 	spell_flags = Z2NOCAST | CONSTRUCT_CHECK
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 3
 	summon_type = list(/turf/simulated/floor/engine/cult)
 
@@ -61,27 +66,30 @@
 	. = ..()
 	if (!.)
 		if (convert_floor)
-			charge_max = 10
+			charge_cooldown_max = 1 SECONDS
 		else
-			charge_max = 50
+			charge_cooldown_max = 5 SECONDS
 
 /spell/aoe_turf/conjure/floor/conjure_animation(var/atom/movable/overlay/animation, var/turf/target)
 	animation.icon_state = "cultfloor"
 	flick("cultfloor",animation)
 	shadow(target,holder.loc,"artificer_convert")
 	spawn(10)
-		qdel(animation)
-		animation = null
+		QDEL_NULL(animation)
+
+/spell/aoe_turf/conjure/floor/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(10, DEVOTION_TIER_1, "convert_floor", AM)
 
 /spell/aoe_turf/conjure/wall
-	name = "Lesser Construction"
-	desc = "This spell constructs a cult wall"
+	name = "Conjure Wall"
+	desc = "This spell conjures a cult wall. You can also click existing non-reinforced walls up to 3 tiles away to convert them."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 100
+	charge_cooldown_max = 10 SECONDS
 	spell_flags = Z2NOCAST | CONSTRUCT_CHECK
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 3
 	summon_type = list(/turf/simulated/wall/cult)
 
@@ -100,27 +108,30 @@
 	. = ..()
 	if (!.)
 		if (convert_wall)
-			charge_max = 20
+			charge_cooldown_max = 2 SECONDS
 		else
-			charge_max = 100
+			charge_cooldown_max = 10 SECONDS
 
 /spell/aoe_turf/conjure/wall/conjure_animation(var/atom/movable/overlay/animation, var/turf/target)
 	animation.icon_state = "cultwall"
 	flick("cultwall",animation)
 	shadow(target,holder.loc,"artificer_convert")
 	spawn(10)
-		qdel(animation)
-		animation = null
+		QDEL_NULL(animation)
+
+/spell/aoe_turf/conjure/wall/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(10, DEVOTION_TIER_1, "convert_wall", AM)
 
 /spell/aoe_turf/conjure/door
-	name = "Cult Door"
-	desc = "This spell constructs a cult wall"
+	name = "Conjure Door"
+	desc = "This spell conjures a cult door. Those automatically open and close upon the passage of a cultist, construct or shade."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 100
+	charge_cooldown_max = 10 SECONDS
 	spell_flags = Z2NOCAST | CONSTRUCT_CHECK
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 3
 	summon_type = list(/obj/machinery/door/mineral/cult)
 
@@ -136,102 +147,103 @@
 	flick("",animation)
 	shadow(target,holder.loc,"artificer_convert")
 	spawn(10)
-		qdel(animation)
-		animation = null
+		QDEL_NULL(animation)
 
-/spell/aoe_turf/conjure/wall/reinforced
+/spell/aoe_turf/conjure/door/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(10, DEVOTION_TIER_1, "summon_door", AM)
+
+/spell/aoe_turf/conjure/wall/reinforced//what?
 	name = "Greater Construction"
-	desc = "This spell constructs a reinforced metal wall"
-	user_type = USER_TYPE_CULT
+	desc = "This spell constructs a reinforced metal wall."
+	user_type = USER_TYPE_CULT//why?
 
-	charge_max = 300
+	charge_cooldown_max = 30 SECONDS
 	spell_flags = Z2NOCAST
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	cast_delay = 50
 	cast_sound = 'sound/items/welder.ogg'
 
-	summon_type = list(/turf/simulated/wall/r_wall)
-
-/spell/aoe_turf/conjure/wall/reinforced/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	. = ..()
+	summon_type = list(/turf/simulated/wall/r_wall)//it's not even a cult wall?
 
 /spell/aoe_turf/conjure/soulstone
-	name = "Summon Soulstone"
-	desc = "This spell reaches into Nar-Sie's realm, summoning one of the legendary fragments across time and space"
+	name = "Conjure Soul Stone Shard"
+	desc = "This spell reaches into Nar-Sie's realm, summoning one of the legendary fragments across time and space. An altar would let you let you conjure a perfect Soul Gem instead, producing better constructs."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 3000
+	charge_cooldown_max = 300 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	cast_delay = 30
 
-	summon_type = list(/obj/item/device/soulstone)
+	summon_type = list(/obj/item/soulstone)
 
 	hud_state = "const_stone"
 	override_base = "cult"
 
 /spell/aoe_turf/conjure/soulstone/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
-	playsound(user, 'sound/items/welder.ogg', 100, 1)
+	if(!delay_animation)
+		delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
+		playsound(user, 'sound/items/welder.ogg', 100, 1)
 	. = ..()
 
+/spell/aoe_turf/conjure/soulstone/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(20, DEVOTION_TIER_2, "conjure_soulstone", AM)
+
 /spell/aoe_turf/conjure/pylon
-	name = "Red Pylon"
-	desc = "This spell conjures a fragile crystal from Nar-Sie's realm. Makes for a convenient light source."
+	name = "Conjure Pylon"
+	desc = "This spell conjures a fragile crystal from Nar-Sie's realm. Makes for a convenient light source, or a weak obstacle."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 200
+	charge_cooldown_max = 20 SECONDS
 	spell_flags = CONSTRUCT_CHECK|IGNORESPACE|IGNOREDENSE|NODUPLICATE
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	cast_delay = 20
 
-	summon_type = list(/obj/structure/cult_legacy/pylon)
+	summon_type = list(/obj/structure/cult/pylon)
 
 	cast_sound = 'sound/items/welder.ogg'
 	hud_state = "const_pylon"
 	override_base = "cult"
 
+/spell/aoe_turf/conjure/pylon/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(10, DEVOTION_TIER_1,"raise_structure","Pylon")
+
 /spell/aoe_turf/conjure/pylon/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
-	playsound(user, 'sound/items/welder.ogg', 100, 1)
+	if(!delay_animation)
+		delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
+		playsound(user, 'sound/items/welder.ogg', 100, 1)
 	. = ..()
 
-/spell/aoe_turf/conjure/pylon/cast(list/targets)
-	..()
-	var/turf/spawn_place = pick(targets)
-	for(var/obj/structure/cult_legacy/pylon/P in spawn_place.contents)
-		if(P.isbroken)
-			P.repair(usr)
-		continue
-	return
 
 /spell/aoe_turf/conjure/forcewall/lesser
 	name = "Shield"
-	desc = "Allows you to pull up a shield to protect yourself and allies from incoming threats"
+	desc = "Allows you to pull up a shield to protect yourself and allies from incoming threats."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 300
+	charge_cooldown_max = 30 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	summon_type = list(/obj/effect/forcefield/cult)
-	duration = 200
+	duration = 20 SECONDS
 
 	override_base = "cult"
 	hud_state = "const_juggwall"
 
 //Code for the Juggernaut construct's forcefield, that seemed like a good place to put it.
 /obj/effect/forcefield/cult
-	desc = "That eerie looking obstacle seems to have been pulled from another dimension through sheer force"
+	desc = "That eerie looking obstacle seems to have been pulled from another dimension through sheer force."
 	name = "Juggerwall"
-	icon = 'icons/effects/effects.dmi'
 	icon_state = "m_shield_cult"
 	light_color = LIGHT_COLOR_RED
 	luminosity = 2
@@ -251,13 +263,13 @@
 	desc = "Raise a temporary line of indestructible walls to block your enemies' path and protect your allies."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 250
+	charge_cooldown_max = 25 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	summon_type = list(/obj/effect/forcefield/cult/large)
-	duration = 200
+	duration = 20 SECONDS
 
 	hud_state = "const_juggwall2"
 	override_base = "cult"
@@ -316,7 +328,7 @@
 /obj/effect/forcefield/cult/large
 	desc = "That eerie looking obstacle seems to have been pulled from another dimension through sheer force."
 	name = "Juggerwall"
-	icon = 'icons/effects/effects.dmi'
+	mouse_opacity = 1
 	icon_state = "juggerwall"
 	light_color = LIGHT_COLOR_RED
 	luminosity = 2
@@ -327,7 +339,7 @@
 
 /obj/effect/forcefield/cult/large/Destroy()
 	if (loc)
-		new /obj/effect/red_afterimage(loc,src)
+		new /obj/effect/afterimage/red(loc,src)
 	if (side1)
 		qdel(side1)
 	if (side2)
@@ -336,41 +348,15 @@
 	side2 = null
 	..()
 
-/spell/juggerdash
-	name = "Jugger-Dash"
-	desc = "Charge in a line and knock down anything in your way, even some walls."
-	user_type = USER_TYPE_CULT
-	hud_state = "const_juggdash"
-	override_base = "cult"
-	charge_max = 150
-	spell_flags = 0
-	var/dash_range = 20
-
-/spell/juggerdash/choose_targets(var/mob/user = usr)
-	return list(user)
-
-/spell/juggerdash/cast_check(var/skipcharge = FALSE, var/mob/user = usr)
-	if(user.throwing)
-		return FALSE
-	else
-		return ..()
-
-/spell/juggerdash/cast(var/list/targets, var/mob/user)
-	playsound(user, 'sound/effects/juggerdash.ogg', 100, 1)
-	var/mob/living/simple_animal/construct/armoured/perfect/jugg = user
-	jugg.crashing = null
-	var/landing = get_distant_turf(get_turf(user), jugg.dir, dash_range)
-	jugg.throw_at(landing, dash_range , 2)
-
 /spell/aoe_turf/conjure/hex
 	name = "Conjure Hex"
 	desc = "Build a lesser construct to defend an area."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 600
+	charge_cooldown_max = 60 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	cast_delay = 60
 	summon_type = list(/mob/living/simple_animal/hostile/hex)
@@ -383,30 +369,43 @@
 	return list(get_turf(user))
 
 /spell/aoe_turf/conjure/hex/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
-	playsound(user, 'sound/items/welder.ogg', 100, 1)
+	if(!delay_animation)
+		delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
+		playsound(user, 'sound/items/welder.ogg', 100, 1)
 	. = ..()
 
 /spell/aoe_turf/conjure/hex/before_channel(var/mob/user)
 	var/mob/living/simple_animal/construct/builder/perfect/artificer = user
-	if (artificer.minions.len >= 3)
-		to_chat(user,"<span class='warning'>You cannot sustain more than 3 lesser constructs alive.</span>")
-		return 1
+	if (artificer.minions.len >= 2)
+		to_chat(user,"<span class='warning'>You cannot sustain more than 2 hexes. Creating a new one will replace your oldest one.</span>")
 	return 0
 
 /spell/aoe_turf/conjure/hex/on_creation(var/mob/living/simple_animal/hostile/hex/AM, var/mob/user)
-	AM.master = user
-	AM.master.minions.Add(AM)
+	var/mob/living/simple_animal/construct/builder/perfect/builder = user
+	AM.master = builder
+	AM.no_master = FALSE
+	builder.minions.Add(AM)
+	AM.setupglow(builder.construct_color)
+	if (builder.minions.len >= 3)
+		var/mob/living/simple_animal/hostile/hex/SA = builder.minions[1]
+		builder.minions.Remove(SA)
+		SA.master = null//The old hex will crumble on its own within the next 10 seconds.
+
+	if (iscultist(builder))
+		builder.DisplayUI("Cultist Right Panel")
+
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(40, DEVOTION_TIER_2,"summon_hex",AM)
 
 /spell/aoe_turf/conjure/struct
 	name = "Conjure Structure"
-	desc = "Raise a cult structure that you may then operate."
+	desc = "Raise a cult structure that you may then operate, such as an altar, a forge, or a spire."
 	user_type = USER_TYPE_CULT
 
-	charge_max = 200
+	charge_cooldown_max = 20 SECONDS
 	spell_flags = 0
 	invocation = "none"
-	invocation_type = SpI_NONE
+	invocation_type = SP_INV_NONE
 	range = 0
 	cast_delay = 60
 	summon_type = list(/obj/structure/cult/altar)
@@ -415,13 +414,16 @@
 	hud_state = "const_struct"
 	cast_sound = 'sound/items/welder.ogg'
 
+	var/structure
+
 /spell/aoe_turf/conjure/struct/choose_targets(mob/user = usr)
 	return list(get_turf(user))
 
 
 /spell/aoe_turf/conjure/struct/spell_do_after(var/mob/user as mob, delay as num, var/numticks = 5)
-	delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
-	playsound(user, 'sound/items/welder.ogg', 100, 1)
+	if(!delay_animation)
+		delay_animation = new /obj/effect/artificer_underlay(get_turf(user))
+		playsound(user, 'sound/items/welder.ogg', 100, 1)
 	. = ..()
 
 /spell/aoe_turf/conjure/struct/before_channel(var/mob/user)
@@ -433,10 +435,10 @@
 		return 1
 	var/list/choices = list(
 		list("Altar", "radial_altar", "Allows for crafting soul gems, and performing various other cult rituals."),
-		list("Spire", "radial_spire", "Lets human cultists acquire Arcane Tattoos."),
+		list("Spire", "radial_spire", "Allows all cultists in the level to communicate with each others using :x"),
 		list("Forge", "radial_forge", "Enables the forging of cult blades and armor, as well as new construct shells. Raise the temperature of nearby creatures."),
 	)
-	var/structure = show_radial_menu(user,T,choices,'icons/obj/cult_radial3.dmi',"radial-cult")
+	structure = show_radial_menu(user,T,choices,'icons/obj/cult_radial3.dmi',"radial-cult")
 	if (!T.Adjacent(user) || !structure )
 		return 1
 	switch(structure)
@@ -447,6 +449,97 @@
 		if("Forge")
 			summon_type = list(/obj/structure/cult/forge)
 	return 0
+
+/spell/aoe_turf/conjure/struct/on_creation(atom/movable/AM, mob/user)
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(10, DEVOTION_TIER_1,"raise_structure",structure)
+
+/spell/aoe_turf/conjure/path_entrance
+	name = "Path Entrance"
+	desc = "Place an entrance to a shortcut through the veil between this world and the other one."
+	user_type = USER_TYPE_CULT
+
+	charge_cooldown_max = 60 SECONDS
+	spell_flags = Z2NOCAST | CONSTRUCT_CHECK
+	invocation = "none"
+	invocation_type = SP_INV_NONE
+	range = 1
+	summon_type = list(/obj/effect/rune)
+
+	override_base = "cult"
+	hud_state = "const_entrance"
+	cast_sound = null
+
+	var/chosen_path = ""
+
+/spell/aoe_turf/conjure/path_entrance/choose_targets(mob/user = usr)
+	return list(get_turf(user))
+
+/spell/aoe_turf/conjure/path_entrance/before_channel(var/mob/user)
+	var/turf/T = get_turf(user)
+	var/obj/effect/rune/rune = locate() in T
+	if (rune)
+		to_chat(user,"<span class='warning'>You cannot draw on top of an already existing rune.</span>")
+		return 1
+	if(istype(T, /turf/space))
+		to_chat(user, "<span class='warning'>Get over a solid surface first!</span>")
+		return 1
+	return 0
+
+/spell/aoe_turf/conjure/path_entrance/on_creation(var/obj/effect/rune/R, var/mob/user)
+	var/turf/T = R.loc
+	log_admin("BLOODCULT: [key_name(user)] has created a new rune at [T.loc] (@[T.x],[T.y],[T.z]).")
+	message_admins("BLOODCULT: [key_name(user)] has created a new rune at [T.loc] <A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[T.x];Y=[T.y];Z=[T.z]'>(JMP)</a>.")
+	write_full_rune(R.loc, /datum/rune_spell/portalentrance)
+	R.one_pulse()
+	R.trigger(user)
+
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(30, DEVOTION_TIER_1, "new_path_entrance", R)
+
+/spell/aoe_turf/conjure/path_exit
+	name = "Path Exit"
+	desc = "Place an exit to a shotcut through the veil between this world and the other one."
+	user_type = USER_TYPE_CULT
+
+	charge_cooldown_max = 60 SECONDS
+	spell_flags = Z2NOCAST | CONSTRUCT_CHECK
+	invocation = "none"
+	invocation_type = SP_INV_NONE
+	range = 1
+	summon_type = list(/obj/effect/rune)
+
+	override_base = "cult"
+	hud_state = "const_exit"
+	cast_sound = null
+
+	var/chosen_path = ""
+
+/spell/aoe_turf/conjure/path_exit/choose_targets(mob/user = usr)
+	return list(get_turf(user))
+
+/spell/aoe_turf/conjure/path_exit/before_channel(var/mob/user)
+	var/turf/T = get_turf(user)
+	var/obj/effect/rune/rune = locate() in T
+	if (rune)
+		to_chat(user,"<span class='warning'>You cannot draw on top of an already existing rune.</span>")
+		return 1
+	if(istype(T, /turf/space))
+		to_chat(user, "<span class='warning'>Get over a solid surface first!</span>")
+		return 1
+	return 0
+
+/spell/aoe_turf/conjure/path_exit/on_creation(var/obj/effect/rune/R, var/mob/user)
+	var/turf/T = R.loc
+	log_admin("BLOODCULT: [key_name(user)] has created a new rune at [T.loc] (@[T.x],[T.y],[T.z]).")
+	message_admins("BLOODCULT: [key_name(user)] has created a new rune at [T.loc] <A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[T.x];Y=[T.y];Z=[T.z]'>(JMP)</a>.")
+	write_full_rune(R.loc, /datum/rune_spell/portalexit)
+	R.one_pulse()
+	R.trigger(user)
+
+	var/datum/role/cultist/C = iscultist(user)
+	C?.gain_devotion(30, DEVOTION_TIER_1, "new_path_exit", R)
+
 
 /obj/effect/artificer_underlay
 	icon = 'icons/obj/cult.dmi'

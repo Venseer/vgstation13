@@ -7,6 +7,7 @@
 	materials = list(MAT_IRON = 400, MAT_GLASS = 125)
 	category = "Medical"
 	build_path = /obj/item/stack/medical/bruise_pack
+	use_design_materials = FALSE //Cannot be recycled
 
 /datum/design/ointment
 	name = "Ointment"
@@ -17,6 +18,7 @@
 	materials = list(MAT_IRON = 400, MAT_GLASS = 125)
 	category = "Medical"
 	build_path = /obj/item/stack/medical/ointment
+	use_design_materials = FALSE
 
 /datum/design/adv_bruise_pack
 	name = "Advanced trauma kit"
@@ -27,6 +29,7 @@
 	materials = list(MAT_IRON = 600, MAT_GLASS = 250)
 	category = "Medical"
 	build_path = /obj/item/stack/medical/advanced/bruise_pack
+	use_design_materials = FALSE
 
 /datum/design/adv_ointment
 	name = "Advanced burn kit"
@@ -37,18 +40,18 @@
 	materials = list(MAT_IRON = 600, MAT_GLASS = 250)
 	category = "Medical"
 	build_path = /obj/item/stack/medical/advanced/ointment
+	use_design_materials = FALSE
 
-/datum/design/mass_spectrometer
-	name = "Mass-Spectrometer"
-	desc = "A device for analyzing chemicals in the blood."
-	id = "mass_spectrometer"
-	req_tech = list(Tc_BIOTECH = 2, Tc_MAGNETS = 2)
+/datum/design/adv_reagent_scanner
+	name = "Advanced Reagent Scanner"
+	desc = "A hand-held reagent scanner which identifies chemical agents."
+	id = "adv_mass_spectrometer"
+	req_tech = list(Tc_BIOTECH = 2, Tc_MAGNETS = 4)
 	build_type = PROTOLATHE
 	materials = list(MAT_IRON = 30, MAT_GLASS = 20)
-	reliability_base = 76
 	category = "Medical"
-	build_path = /obj/item/device/mass_spectrometer
-
+	build_path = /obj/item/device/reagent_scanner/adv
+/*
 /datum/design/adv_mass_spectrometer
 	name = "Advanced Mass-Spectrometer"
 	desc = "A device for analyzing chemicals in the blood and their quantities."
@@ -59,7 +62,7 @@
 	reliability_base = 74
 	category = "Medical"
 	build_path = /obj/item/device/mass_spectrometer/adv
-
+*/
 /datum/design/defibrillator
 	name = "Defibrillator"
 	desc = "A handheld emergency defibrillator, used to bring people back from the brink of death or put them there."
@@ -100,6 +103,16 @@
 	category = "Medical"
 	build_path = /obj/item/clothing/glasses/hud/health
 
+/datum/design/health_hud_prescription
+	name = "Health Scanner Glasses"
+	desc = "Prescription lenses featuring a heads-up display that scans the humans in view and provides accurate data about their health status."
+	id = "health_hud_prescription"
+	req_tech = list(Tc_BIOTECH = 2, Tc_MAGNETS = 3)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 50, MAT_GLASS = 50)
+	category = "Medical"
+	build_path = /obj/item/clothing/glasses/hud/health/prescription
+
 /datum/design/chemmask
 	name = "Chemical Mask"
 	desc = "A rather sinister mask designed for connection to a chemical pack, providing the pack's safeties are disabled."
@@ -111,14 +124,24 @@
 	build_path = /obj/item/clothing/mask/chemmask
 
 /datum/design/antibody_scanner
-	name = "Antibody Scanner"
-	desc = "Used to scan living beings for antibodies in their blood."
+	name = "Immunity Scanner"
+	desc = "A hand-held body scanner able to evaluate the immune system of the subject."
 	id = "antibody_scanner"
 	req_tech = list(Tc_MAGNETS = 2, Tc_BIOTECH = 2)
 	build_type = PROTOLATHE
 	materials = list (MAT_IRON = 1000, MAT_GLASS = 1000)
 	category = "Medical"
 	build_path = /obj/item/device/antibody_scanner
+
+/datum/design/vial_box
+	name = "Vial Box"
+	desc = "A small box for storing vials."
+	id = "vial_box"
+	req_tech = list(Tc_MATERIALS = 2)
+	build_type = PROTOLATHE
+	materials = list(MAT_GLASS = 50, MAT_IRON = 200)
+	category = "Medical"
+	build_path = /obj/item/weapon/storage/lockbox/vials
 
 /datum/design/plasmabeaker
 	name = "Plasma Beaker"
@@ -129,3 +152,13 @@
 	materials = list(MAT_IRON = 3750, MAT_PLASMA = 8000)
 	category = "Medical"
 	build_path = /obj/item/weapon/reagent_containers/glass/beaker/large/plasma
+
+/datum/design/ntresearchsleeper
+	name = "Experimental Sleeper Upgrade Module"
+	desc = "An advanced module for sleepers, adding several advanced capabilities depending on hardware."
+	id = "ntresearchsleeper"
+	req_tech = list(Tc_ENGINEERING = 5, Tc_BIOTECH = 7, Tc_NANOTRASEN = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 7500, MAT_GLASS = 3750, MAT_PLASMA = 3750, MAT_DIAMOND = 200)
+	category = "Medical"
+	build_path = /obj/item/device/plugin/sleeper/ntresearch

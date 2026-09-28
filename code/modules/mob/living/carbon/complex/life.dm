@@ -1,5 +1,4 @@
 /mob/living/carbon/complex/Life()
-	set invisibility = 0
 
 	if(timestopped)
 		return 0 //under effects of time magick
@@ -54,9 +53,8 @@
 	if(flags & INVULNERABLE)
 		return
 
-	if(reagents)
-		if(reagents.has_reagent(LEXORIN))
-			return
+	if(reagents &&reagents.has_any_reagents(LEXORINS))
+		return
 
 	if(!loc)
 		return //probably ought to make a proper fix for this, but :effort: --NeoFite
@@ -93,9 +91,8 @@
 	if(breath)
 		loc.assume_air(breath)
 
-/mob/living/carbon/complex/proc/get_breath_from_internal(volume_needed)
+/mob/living/carbon/complex/get_breath_from_internal(volume_needed)
 	return null
-
 
 /mob/living/carbon/complex/proc/handle_breath(datum/gas_mixture/breath)
 	if((status_flags & GODMODE) || (flags & INVULNERABLE))
@@ -166,10 +163,10 @@
 
 	if(Toxins_pp > safe_toxins_max) // Too much toxins
 		var/ratio = (breath[GAS_PLASMA]/safe_toxins_max) * 10
-		//adjustToxLoss(Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
+		//adjustToxLoss(clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
 		if(ratio)
 			if(reagents)
-				reagents.add_reagent(PLASMA, Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
+				reagents.add_reagent(PLASMA, clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
 			toxins_alert = max(toxins_alert, 1)
 	else
 		toxins_alert = 0
@@ -223,8 +220,11 @@
 	var/adjusted_pressure = calculate_affecting_pressure(pressure) //Returns how much pressure actually affects the mob.
 	switch(adjusted_pressure)
 		if(HAZARD_HIGH_PRESSURE to INFINITY)
-			adjustBruteLoss( min( ( (adjusted_pressure / HAZARD_HIGH_PRESSURE) -1 )*PRESSURE_DAMAGE_COEFFICIENT , MAX_HIGH_PRESSURE_DAMAGE) )
-			pressure_alert = 2
+			if( !(M_RESIST_HEAT in mutations) )
+				adjustBruteLoss( min( ( (adjusted_pressure / HAZARD_HIGH_PRESSURE) -1 )*PRESSURE_DAMAGE_COEFFICIENT , MAX_HIGH_PRESSURE_DAMAGE) )
+				pressure_alert = 2
+			else
+				pressure_alert = 1
 		if(WARNING_HIGH_PRESSURE to HAZARD_HIGH_PRESSURE)
 			pressure_alert = 1
 		if(WARNING_LOW_PRESSURE to WARNING_HIGH_PRESSURE)
@@ -273,7 +273,7 @@
 		silent = 0
 	else				//ALIVE. LIGHTS ARE ON
 		updatehealth()
-		if(health < config.health_threshold_dead || !has_brain())
+		if((health < config.health_threshold_dead || !has_brain()) && !(status_flags & BUDDHAMODE))
 			death()
 			blinded = 1
 			stat = DEAD
@@ -296,7 +296,7 @@
 		if(paralysis)
 			AdjustParalysis(-1)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if(halloss > 0)
 				adjustHalLoss(-3)
 		else if(sleeping)
@@ -304,7 +304,7 @@
 			adjustHalLoss(-3)
 			sleeping = max(sleeping-1, 0)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if( prob(10) && health && !hal_crit )
 				spawn(0)
 					emote("snore")
@@ -313,7 +313,7 @@
 				adjustHalLoss(-3)
 		//CONSCIOUS
 		else if(undergoing_hypothermia() >= SEVERE_HYPOTHERMIA)
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 		else
 			stat = CONSCIOUS
 			if(halloss > 0)
@@ -369,12 +369,9 @@
 			sleeping += 1
 			Paralyse(5)
 
-	confused = max(0, confused - 1)
-	// decrement dizziness counter, clamped to 0
-	if(resting)
-		dizziness = max(0, dizziness - 5)
-	else
-		dizziness = max(0, dizziness - 1)
+	remove_confused(1)
+	handle_dizziness()
+	handle_jitteriness()
 
 	updatehealth()
 	return //TODO: DEFERRED
@@ -386,18 +383,18 @@
 
 	regular_hud_updates()
 
-	if (stat == 2 || (M_XRAY in mutations))
+	if (stat == DEAD || (M_XRAY in mutations))
 		change_sight(adding = SEE_TURFS|SEE_MOBS|SEE_OBJS)
 		see_in_dark = 8
 		see_invisible = SEE_INVISIBLE_LEVEL_TWO
-	else if (stat != 2)
+	else if (stat != DEAD)
 		change_sight(removing = SEE_TURFS|SEE_MOBS|SEE_OBJS)
 		see_in_dark = 2
 		see_invisible = SEE_INVISIBLE_LIVING
 
 
 	if (healths)
-		if (stat != 2)
+		if (stat != DEAD)
 			switch(health)
 				if(150 to INFINITY)
 					healths.icon_state = "health0"
@@ -416,62 +413,69 @@
 		else
 			healths.icon_state = "health7"
 
-
-	if(pressure)
-		pressure.icon_state = "pressure[pressure_alert]"
+	switch(bodytemperature) //310.055 optimal body temp
+		if(345 to INFINITY)
+			temperature_alert = TEMP_ALARM_HEAT_STRONG
+		if(335 to 345)
+			temperature_alert = TEMP_ALARM_HEAT_MILD
+		if(327 to 335)
+			temperature_alert = TEMP_ALARM_HEAT_WEAK
+		if(295 to 327)
+			temperature_alert = TEMP_ALARM_SAFE
+		if(280 to 295)
+			temperature_alert = TEMP_ALARM_COLD_WEAK
+		if(260 to 280)
+			temperature_alert = TEMP_ALARM_COLD_MILD
+		else
+			temperature_alert = TEMP_ALARM_COLD_STRONG
 
 	update_pull_icon()
 
+	if(pressure_alert)
+		throw_alert(SCREEN_ALARM_PRESSURE, pressure_alert < 0 ? /obj/abstract/screen/alert/carbon/pressure/low : /obj/abstract/screen/alert/carbon/pressure/high, pressure_alert)
+	else
+		clear_alert(SCREEN_ALARM_PRESSURE)
+	if(oxygen_alert)
+		throw_alert(SCREEN_ALARM_BREATH, /obj/abstract/screen/alert/carbon/breath)
+	else
+		clear_alert(SCREEN_ALARM_BREATH)
+	if(toxins_alert)
+		throw_alert(SCREEN_ALARM_TOXINS, /obj/abstract/screen/alert/tox)
+	else
+		clear_alert(SCREEN_ALARM_TOXINS)
+	if(fire_alert)
+		throw_alert(SCREEN_ALARM_FIRE, /obj/abstract/screen/alert/carbon/burn/fire, fire_alert)
+	else
+		clear_alert(SCREEN_ALARM_FIRE)
+	if(temperature_alert)
+		throw_alert(SCREEN_ALARM_TEMPERATURE, temperature_alert < 0 ? /obj/abstract/screen/alert/carbon/temp/cold : /obj/abstract/screen/alert/carbon/temp/hot, temperature_alert)
+	else
+		clear_alert(SCREEN_ALARM_TEMPERATURE)
 
-	if (toxin)
-		toxin.icon_state = "tox[toxins_alert ? 1 : 0]"
-	if (oxygen)
-		oxygen.icon_state = "oxy[oxygen_alert ? 1 : 0]"
-	if (fire)
-		fire.icon_state = "fire[fire_alert ? 2 : 0]"
-	//NOTE: the alerts dont reset when youre out of danger. dont blame me,
-	//blame the person who coded them. Temporary fix added.
-
-	if(bodytemp)
-		switch(bodytemperature) //310.055 optimal body temp
-			if(345 to INFINITY)
-				bodytemp.icon_state = "temp4"
-			if(335 to 345)
-				bodytemp.icon_state = "temp3"
-			if(327 to 335)
-				bodytemp.icon_state = "temp2"
-			if(316 to 327)
-				bodytemp.icon_state = "temp1"
-			if(300 to 316)
-				bodytemp.icon_state = "temp0"
-			if(295 to 300)
-				bodytemp.icon_state = "temp-1"
-			if(280 to 295)
-				bodytemp.icon_state = "temp-2"
-			if(260 to 280)
-				bodytemp.icon_state = "temp-3"
-			else
-				bodytemp.icon_state = "temp-4"
 
 	if(stat != DEAD)
-		if(src.eye_blind || blinded)
-			overlay_fullscreen("blind", /obj/abstract/screen/fullscreen/blind)
-		else
-			clear_fullscreen("blind")
-		if (src.disabilities & NEARSIGHTED)
-			overlay_fullscreen("impaired", /obj/abstract/screen/fullscreen/impaired, 2)
-		else
-			clear_fullscreen("impaired")
-		if (src.eye_blurry)
-			overlay_fullscreen("blurry", /obj/abstract/screen/fullscreen/blurry)
-		else
-			clear_fullscreen("blurry")
-		if (src.druggy)
-			overlay_fullscreen("high", /obj/abstract/screen/fullscreen/high)
-		else
-			clear_fullscreen("high")
+		var/impaired_vision = get_impaired_vision_range()
+		if(impaired_vision > 0)
+			enable_nearsightedness(impaired_vision)
+		else if (perception_filters.enabled_filters & P_FILTER_IMPAIRED_VISION)
+			disable_nearsightedness()
 
-	if (stat != 2)
+		if(eye_blurry)
+			enable_blurriness(eye_blurry)
+		else if (perception_filters.enabled_filters & P_FILTER_BLURRY_VISION)
+			disable_blurriness()
+
+		if(druggy)
+			enable_druggy_overlays()
+		else
+			disable_druggy_overlays()
+	else
+		if (perception_filters.enabled_filters & P_FILTER_IMPAIRED_VISION)
+			disable_nearsightedness()
+		if (perception_filters.enabled_filters & P_FILTER_BLURRY_VISION)
+			disable_blurriness()
+
+	if (stat != DEAD)
 		if (machine)
 			if (!( machine.check_eye(src) ))
 				reset_view(null)

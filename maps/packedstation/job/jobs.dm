@@ -29,8 +29,8 @@
 	..()
 	total_positions = 3
 	spawn_positions = 3
-	access = list(access_maint_tunnels, access_mailsorting, access_cargo, access_cargo_bot, access_qm, access_mint, access_mining, access_mining_station)
-	minimal_access = list(access_maint_tunnels, access_cargo, access_cargo_bot, access_mining, access_mint, access_mining_station, access_mailsorting)
+	access = list(access_maint_tunnels, access_mailsorting, access_cargo, access_cargo_bot, access_qm, access_mining, access_mining_station)
+	minimal_access = list(access_maint_tunnels, access_cargo, access_cargo_bot, access_mining, access_mining_station, access_mailsorting)
 
 // Engineering
 
@@ -38,8 +38,8 @@
 	..()
 	total_positions = 4
 	spawn_positions = 4
-	access = list(access_eva, access_engine, access_engine_equip, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_construction, access_atmospherics, access_tcomsat)
-	minimal_access = list(access_engine, access_engine_equip, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_construction, access_tcomsat, access_atmospherics)
+	access = list(access_eva, access_engine_major, access_engine_minor, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_construction, access_atmospherics, access_tcomsat)
+	minimal_access = list(access_engine_major, access_engine_minor, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_construction, access_tcomsat, access_atmospherics)
 
 // Medical
 
@@ -71,7 +71,7 @@
 
 /datum/job/detective/New()
 	..()
-	access = list(access_sec_doors, access_forensics_lockers, access_morgue, access_maint_tunnels, access_court, access_engine)
+	access = list(access_sec_doors, access_forensics_lockers, access_morgue, access_maint_tunnels, access_court, access_engine_major)
 	minimal_access = list(access_sec_doors, access_forensics_lockers, access_morgue, access_maint_tunnels, access_court)
 
 /datum/job/officer/New()

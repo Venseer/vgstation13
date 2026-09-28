@@ -34,7 +34,7 @@
 
 	//Don't wander around
 	wander = FALSE
-	intent = I_HURT
+	a_intent = I_HURT
 
 	//Attack unconscious
 	stat_attack = 1
@@ -138,8 +138,7 @@
 
 	flick("hive_artificer_dying", src)
 	if(summoned_spikes)
-		qdel(summoned_spikes)
-		summoned_spikes = null
+		QDEL_NULL(summoned_spikes)
 
 /mob/living/simple_animal/hostile/hive_alien/constructor/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	.=..()

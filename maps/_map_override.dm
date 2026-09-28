@@ -30,10 +30,6 @@
 		#undef MAP_OVERRIDE
 		#include "roidstation.dm"
 		#define MAP_OVERRIDE 4
-	#elif MAP_OVERRIDE == 5
-		#undef MAP_OVERRIDE
-		#include "test_box.dm"
-		#define MAP_OVERRIDE 5
 	#elif MAP_OVERRIDE == 6
 		#undef MAP_OVERRIDE
 		#include "test_tiny.dm"
@@ -42,5 +38,57 @@
 		#undef MAP_OVERRIDE
 		#include "tgstation.dm"
 		#define MAP_OVERRIDE 7
+	#elif MAP_OVERRIDE == 8
+		#undef MAP_OVERRIDE
+		#include "snaxi.dm"
+		#define MAP_OVERRIDE 8
+	#elif MAP_OVERRIDE == 9
+		#undef MAP_OVERRIDE
+		#include "nrvhorizon.dm"
+		#define MAP_OVERRIDE 9
+	#elif MAP_OVERRIDE == 10
+		#undef MAP_OVERRIDE
+		#include "synergy.dm"
+		#define MAP_OVERRIDE 10
+	#elif MAP_OVERRIDE == 11
+		#undef MAP_OVERRIDE
+		#include "waystation.dm"
+		#define MAP_OVERRIDE 11
+	#elif MAP_OVERRIDE == 12
+		#undef MAP_OVERRIDE
+		#include "lowfatbagel.dm"
+		#define MAP_OVERRIDE 12
+	#elif MAP_OVERRIDE == 13
+		#undef MAP_OVERRIDE
+		#include "line.dm"
+		#define MAP_OVERRIDE 13
+	#elif MAP_OVERRIDE == 14
+		#undef MAP_OVERRIDE
+		#include "test_very_tiny.dm"
+		#define MAP_OVERRIDE 14
+	#elif MAP_OVERRIDE == 15
+		#undef MAP_OVERRIDE
+		#include "test_vault.dm"
+		#define MAP_OVERRIDE 15
+	#elif MAP_OVERRIDE == 16
+		#undef MAP_OVERRIDE
+		#include "wheelstation.dm"
+		#define MAP_OVERRIDE 16
+	#elif MAP_OVERRIDE == 17
+		#undef MAP_OVERRIDE
+		#include "tgstation-sec.dm"
+		#define MAP_OVERRIDE 17
+	#elif MAP_OVERRIDE == 18
+		#undef MAP_OVERRIDE
+		#include "junglestation.dm"
+		#define MAP_OVERRIDE 18
+	#elif MAP_OVERRIDE == 19
+		#undef MAP_OVERRIDE
+		#include "odyssey.dm"
+		#define MAP_OVERRIDE 19
+	#elif MAP_OVERRIDE == 20
+		#undef MAP_OVERRIDE
+		#include "theseus.dm"
+		#define MAP_OVERRIDE 20
 	#endif
 #endif

@@ -1,10 +1,8 @@
 /turf/simulated/wall/mineral
 	name = "mineral wall"
-	desc = "This shouldn't exist"
+	desc = "This shouldn't exist."
 	icon_state = ""
 	explosion_block = 1
-	var/last_event = 0
-	var/active = null
 
 /turf/simulated/wall/mineral/wood
 	name = "wooden wall"
@@ -17,23 +15,52 @@
 
 /turf/simulated/wall/mineral/wood/attackby(var/obj/item/W, var/mob/user)
 	if(W.sharpness_flags & CHOPWOOD)
-		playsound(src, 'sound/effects/woodcuttingshort.ogg', 50, 1)
-		user.visible_message("<span class='warning'>[user] smashes through \the [src] with \the [W].</span>", \
-							"<span class='notice'>You smash through \the [src].</span>",\
-							"<span class='warning'>You hear the sound of wood being cut</span>"
-							)
-		dismantle_wall()
+		user.visible_message("<span class='notice'>[user] starts chopping at \the [src] with \the [W].</span>", \
+				"<span class='notice'>You start chopping at \the [src] with \the [W].</span>", \
+				"<span class='warning'>You hear the sound of wood being cut.</span>")
+		W.playtoolsound(src, 100)
+		var/choptime = 50
+		if(istype(W, /obj/item/weapon/fireaxe))
+			choptime = 10
+		if(do_after(user, src, choptime))
+			user.visible_message("<span class='warning'>[user] smashes through \the [src] with \the [W].</span>", \
+						"<span class='notice'>You smash through \the [src].</span>")
+			W.playtoolsound(src, 100)
+			dismantle_wall()
 	else
 		..()
 
 /turf/simulated/wall/mineral/wood/ex_act(var/severity)
 	if(severity < 3)
-		getFromPool(/obj/item/stack/sheet/wood, src, 2)
+		new /obj/item/stack/sheet/wood(src, 2)
 	..()
+
+/turf/simulated/wall/mineral/wood/log
+	name = "log wall"
+	desc = "A log wall, ideal for a cabin."
+	girder_type = null
+	walltype = "log"
+	mineral = "log"
+	icon_state = "log0"
+	var/deconstruct_type = /turf/unsimulated/floor/snow/empty
+
+/turf/simulated/wall/mineral/wood/log/dismantle_wall()
+	new /obj/item/weapon/grown/log/tree(src)
+	for(var/obj/O in src.contents)
+		if(istype(O,/obj/effect/cult_shortcut))
+			qdel(O)
+		if(istype(O,/obj/structure/sign/poster))
+			var/obj/structure/sign/poster/P = O
+			P.roll_and_drop(src)
+	ChangeTurf(deconstruct_type)
+	update_near_walls()
+
+/turf/simulated/wall/mineral/wood/log/desert
+	deconstruct_type = /turf/simulated/floor/plating/ironsand
 
 /turf/simulated/wall/mineral/brick
 	name = "brick wall"
-	desc = "A wall with brick siding, it looks nice"
+	desc = "A wall with brick siding. It looks nice."
 	icon_state = "brick0"
 	walltype = "brick"
 	mineral = "brick"
@@ -47,6 +74,10 @@
 	//var/electro = 1
 	//var/shocked = null
 
+/turf/simulated/wall/mineral/gold/gold_old
+	icon_state = "gold_old0"
+	walltype = "gold_old"
+
 /turf/simulated/wall/mineral/silver
 	name = "silver wall"
 	desc = "A wall with silver plating. Shiny!"
@@ -55,6 +86,10 @@
 	mineral = "silver"
 	//var/electro = 0.75
 	//var/shocked = null
+
+/turf/simulated/wall/mineral/silver/silver_old
+	icon_state = "silver_old0"
+	walltype = "silver_old"
 
 /turf/simulated/wall/mineral/diamond
 	name = "diamond wall"
@@ -70,6 +105,54 @@
 	icon_state = "clown0"
 	walltype = "clown"
 	mineral = "clown"
+
+/turf/simulated/wall/mineral/phazon
+	name = "phazon wall"
+	desc = "A wall with phazon plating. You can't seem to make out any shapes on it."
+	icon_state = "phazon0"
+	walltype = "phazon"
+	mineral = "phazon"
+	var/spam_flag = 0
+
+/turf/simulated/wall/mineral/phazon/New()
+	. = ..()
+	phazontiles += src
+	color = list(1,0,0,0,
+				0,1,0,0,
+				rand(1,5)/10,0,1,0,
+				0,0,0,1,
+				0,0,0,0)
+
+/turf/simulated/wall/mineral/phazon/proc/teleport_hit(AM as mob|obj)
+	if(!spam_flag)
+		spam_flag = 1
+		phazon_teleport(AM)
+		color = list(1,0,0,0,
+					0,1,0,0,
+					rand(1,5)/10,0,1,0,
+					0,0,0,1,
+					0,0,0,0)
+		spawn(20)
+			spam_flag = 0
+
+/turf/simulated/wall/mineral/phazon/Bumped(AM as mob|obj)
+	..()
+	teleport_hit(AM)
+
+/turf/simulated/wall/mineral/phazon/attack_hand(mob/living/user)
+	. = ..()
+	teleport_hit(user)
+
+/proc/phazon_teleport(AM as mob|obj)
+	var/turf/destination = pick(phazontiles)
+	if(destination.density)
+		var/turf/other
+		for(var/direction in cardinal)
+			other = get_step(destination,direction)
+			if(other && !other.density)
+				destination = other
+				break
+	do_teleport(AM, destination)
 
 /turf/simulated/wall/mineral/sandstone
 	name = "sandstone wall"
@@ -95,11 +178,14 @@
 	walltype = "uranium"
 	mineral = "uranium"
 	explosion_block = 2
+	var/active = null
+	var/last_event = 0
 
 /turf/simulated/wall/mineral/uranium/proc/radiate()
 	if(!active)
 		if(world.time > last_event+15)
 			active = 1
+			emitted_harvestable_radiation(src, 3, range = 5)
 			for(var/mob/living/L in range(3,src))
 				L.apply_radiation(12,RAD_EXTERNAL)
 			for(var/turf/simulated/wall/mineral/uranium/T in range(3,src))
@@ -135,12 +221,12 @@
 	..()
 
 /turf/simulated/wall/mineral/plasma/proc/PlasmaBurn(temperature)
-	var/pdiff = performWallPressureCheck(src.loc)
+	var/pdiff = performWallPressureCheck(src)
 	if(pdiff > 0)
 		investigation_log(I_ATMOS, "with a pdiff of [pdiff] has caught on fire at [formatJumpTo(get_turf(src))]!")
 		message_admins("\The [src] with a pdiff of [pdiff] has caught of fire at [formatJumpTo(get_turf(src))]!")
 	spawn(2)
-	new /obj/structure/girder(src)
+	new girder_type(src)
 	src.ChangeTurf(/turf/simulated/floor)
 	for(var/turf/simulated/floor/target_tile in range(0,src))
 		/*if(target_tile.parent && target_tile.parent.group_processing)
@@ -150,14 +236,15 @@
 		napalm.temperature = 400+T0C
 		napalm.adjust_gas(GAS_PLASMA, toxinsToDeduce)
 		target_tile.assume_air(napalm)
-		spawn (0) target_tile.hotspot_expose(temperature, 400,surfaces=1)
+		spawn (0) target_tile.hotspot_expose(temperature, MEDIUM_FLAME,1)
 	for(var/obj/structure/falsewall/plasma/F in range(3,src))//Hackish as fuck, but until fire_act works, there is nothing I can do -Sieve
 		var/turf/T = get_turf(F)
 		T.ChangeTurf(/turf/simulated/wall/mineral/plasma/)
-		qdel (F)
-		F = null
+		QDEL_NULL (F)
 	for(var/turf/simulated/wall/mineral/plasma/W in range(3,src))
 		W.ignite((temperature/4))//Added so that you can't set off a massive chain reaction with a small flame
+	for(var/turf/simulated/wall/r_wall/mineral/plasma/W2 in range(3,src))
+		W2.ignite((temperature/4))
 	for(var/obj/machinery/door/airlock/plasma/D in range(3,src))
 		D.ignite(temperature/4)
 
@@ -204,3 +291,10 @@
 
 /turf/simulated/wall/mineral/clockwork/clockworkify()
 	return
+
+/turf/simulated/wall/mineral/gingerbread
+	name = "gingerbread wall"
+	desc = "Extremely stale and generally unappetizing."
+	icon_state = "gingerbread0"
+	walltype = "gingerbread"
+	mineral = "gingerbread"

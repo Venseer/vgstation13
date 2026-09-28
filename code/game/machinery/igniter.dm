@@ -4,20 +4,15 @@ var/global/list/igniters = list()
 	desc = "It's useful for igniting plasma."
 	icon = 'icons/obj/stationobjs.dmi'
 	icon_state = "igniter1"
-	var/id_tag = null
 	var/on = 1.0
 	var/obj/item/device/assembly_holder/assembly=null
 	anchored = 1.0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 2
 	active_power_usage = 4
 
 	ghost_read = 0 // Deactivate ghost touching.
 	ghost_write = 0
-
-/obj/machinery/igniter/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/igniter/attack_paw(mob/user as mob)
 	if ((ticker && ticker.mode.name == "monkey"))
@@ -35,11 +30,13 @@ var/global/list/igniters = list()
 	return
 
 /obj/machinery/igniter/process()	//ugh why is this even in process()?
-	if (src.on && !(stat & NOPOWER) )
-		var/turf/location = src.loc
-		if (isturf(location))
-			location.hotspot_expose(1000,500,1,surfaces=0)
+	if (src.on && !(stat & (NOPOWER|FORCEDISABLE)))
+		var/turf/simulated/T = get_turf(src)
+		if(!T || !istype(T))
+			return 0
+		T.hotspot_expose(1000,FULL_FLAME,0)
 	return 1
+
 
 /obj/machinery/igniter/proc/toggle_state()
 	use_power(50)
@@ -57,14 +54,14 @@ var/global/list/igniters = list()
 	..()
 
 /obj/machinery/igniter/power_change()
-	if(!( stat & NOPOWER) )
+	if(!( stat & (FORCEDISABLE|NOPOWER)) )
 		icon_state = "igniter[src.on]"
 	else
 		icon_state = "igniter0"
 
 /obj/machinery/igniter/attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
 	if(iswelder(W) && src.assembly)
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		to_chat(user, "<span class='notice'>You begin to cut \the [src] off the floor...</span>")
 		if (WT.do_weld(user, src, 40, 0))
 			user.visible_message( \
@@ -86,7 +83,6 @@ var/global/list/igniters = list()
 	desc = "A wall-mounted ignition device."
 	icon = 'icons/obj/stationobjs.dmi'
 	icon_state = "migniter"
-	var/id_tag = null
 	var/disable = 0
 	var/last_spark = 0
 	var/base_state = "migniter"
@@ -116,7 +112,7 @@ var/global/list/igniters = list()
 /obj/machinery/sparker/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(istype(W, /obj/item/device/detective_scanner))
 		return
-	if (isscrewdriver(W))
+	if (W.is_screwdriver(user))
 		add_fingerprint(user)
 		src.disable = !src.disable
 		if (src.disable)
@@ -129,7 +125,7 @@ var/global/list/igniters = list()
 			else
 				icon_state = "[base_state]-p"
 
-/obj/machinery/sparker/attack_ai()
+/obj/machinery/sparker/attack_ai(var/mob/user)
 	if (src.anchored)
 		return do_spark()
 	else
@@ -139,29 +135,23 @@ var/global/list/igniters = list()
 	if (!(powered()))
 		return
 
-	if ((src.disable) || (src.last_spark && world.time < src.last_spark + 50))
+	if ((src.disable) || (src.last_spark && world.time < src.last_spark + 5 SECONDS))
 		return
 
 
 	flick("[base_state]-spark", src)
-	spark(src, 2)
+	spark(src, 2, surfaceburn = TRUE)
 	src.last_spark = world.time
 	use_power(1000)
-	var/turf/location = src.loc
-	if (isturf(location))
-		location.hotspot_expose(1000,500,1,surfaces=1)
+	try_hotspot_expose(1000,MEDIUM_FLAME,1)
 	return 1
 
 /obj/machinery/sparker/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 	do_spark()
 	..(severity)
-
-/obj/machinery/ignition_switch/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/ignition_switch/attack_paw(mob/user as mob)
 	return src.attack_hand(user)
@@ -170,8 +160,8 @@ var/global/list/igniters = list()
 	return src.attack_hand(user)
 
 /obj/machinery/ignition_switch/attack_hand(mob/user as mob)
-
-	if(stat & (NOPOWER|BROKEN))
+	playsound(src,'sound/misc/click.ogg',30,0,-1)
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(active)
 		return

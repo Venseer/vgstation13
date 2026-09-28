@@ -13,7 +13,7 @@
 		/turf/simulated/floor/engine=1
 	)
 	spawntypes = list(
-		/obj/item/device/mass_spectrometer/adv=1,
+		/obj/item/device/reagent_scanner/adv=1,
 		/obj/item/clothing/glasses/hud/health=1,
 		/obj/machinery/bot/medbot/mysterious=1
 	)
@@ -22,7 +22,7 @@
 		/obj/item/weapon/reagent_containers/food/snacks/organ=2, // OM NOM
 		/obj/structure/closet/crate/freezer=2,
 		/obj/machinery/optable=1,
-		/obj/item/weapon/scalpel=1,
+		/obj/item/tool/scalpel=1,
 		/obj/item/weapon/storage/firstaid/regular=3,
 		/obj/item/weapon/tank/anesthetic=1,
 		///obj/item/weapon/surgical_drapes=2
@@ -45,7 +45,7 @@
 	spawntypes = list(
 		/mob/living/simple_animal/hostile/creature=1,
 		// /obj/item/organ/internal/heart=2,
-		/obj/item/device/soulstone=1
+		/obj/item/soulstone=1
 	)
 	fluffitems = list(
 		/obj/effect/gateway=1,
@@ -77,7 +77,7 @@
 		// /vg/: /obj/item/key=1
 		/obj/item/clothing/glasses/monocle=5,
 		// /vg/:
-		/obj/structure/bed/chair/vehicle/wizmobile=1
+		/obj/structure/bed/chair/vehicle/firebird=1
 	)
 	fluffitems = list(
 		/obj/structure/safe/floor/wizard=1,
@@ -132,16 +132,18 @@
 		/turf/simulated/floor/bluegrid=1
 	)
 	spawntypes = list(
-		/obj/item/weapon/pickaxe/plasmacutter=1,
+		/obj/item/weapon/pickaxe/plasmacutter/accelerator=1,
 		/obj/machinery/shieldgen=1,
 		/obj/item/weapon/cell/hyper=1
 	)
 	fluffitems = list(
 		/obj/structure/table/reinforced=2,
-		/obj/item/weapon/stock_parts/scanning_module/adv/phasic=3,
-		/obj/item/weapon/stock_parts/matter_bin/adv/super=3,
-		/obj/item/weapon/stock_parts/manipulator/nano/pico=3,
-		/obj/item/weapon/stock_parts/capacitor/adv/super=3,
+		/obj/item/weapon/stock_parts/capacitor/adv/super/ultra=3,
+		/obj/item/weapon/stock_parts/micro_laser/high/ultra/giga=3,
+		/obj/item/weapon/stock_parts/manipulator/nano/pico/femto=3,
+		/obj/item/weapon/stock_parts/scanning_module/adv/phasic/bluespace=3,
+		/obj/item/weapon/stock_parts/matter_bin/adv/super/bluespace=3,
+//		/obj/item/weapon/stock_parts/console_screen/reinforced/plasma/rplasma=3,
 		/obj/item/device/pda/clear=1
 	)
 
@@ -171,7 +173,7 @@
 	room_size_max=7
 
 	spawntypes = list(
-		/obj/item/weapon/gun/energy/floragun=1,
+		/obj/item/floral_somatoray=1,
 		//obj/item/seeds/novaflowerseed=2,
 		/obj/item/seeds/bluespacetomatoseed=2,
 		// /vg/:
@@ -180,7 +182,7 @@
 	fluffitems = list(
 		// /obj/structure/flora/kirbyplants=1,
 		/obj/structure/table/reinforced=2,
-		/obj/machinery/portable_atmospherics/hydroponics=1,
+		/obj/machinery/portable_atmospherics/hydroponics/loose=1,
 		/obj/effect/glowshroom/single=2,
 		/obj/item/weapon/reagent_containers/syringe/antitoxin=2,
 		/obj/item/weapon/reagent_containers/glass/bottle/diethylamine=3,

@@ -26,7 +26,7 @@
 		<div class="itemContent">
 			<div style="float: left; width: 180px;">{{:data.holdingTank.name}}</div> {{:helper.link('Eject', 'eject', {'remove_tank' : 1})}}
 		</div>
-	</div>q
+	</div>
 
 	<div class="item">
 		<div class="itemLabel">
@@ -41,25 +41,16 @@
 	<div class="item">&nbsp;</div>
 {{/if}}
 
-
 <h3>Power Regulator Status</h3>
+
 <div class="item">
 	<div class="itemLabel">
-		Volume Rate:
+		Scrubbing Gases:
 	</div>
 	<div class="itemContent">
-		{{:helper.displayBar(data.rate, data.minrate, data.maxrate)}}
-		<div style="clear: both; padding-top: 4px;">
-			{{:helper.link('-', null, {'volume_adj' : -1000}, (data.rate > data.minrate) ? null : 'disabled')}}
-			{{:helper.link('-', null, {'volume_adj' : -100}, (data.rate > data.minrate) ? null : 'disabled')}}
-			{{:helper.link('-', null, {'volume_adj' : -10}, (data.rate > data.minrate) ? null : 'disabled')}}
-			{{:helper.link('-', null, {'volume_adj' : -1}, (data.rate > data.minrate) ? null : 'disabled')}}
-			<div style="float: left; width: 80px; text-align: center;">&nbsp;{{:data.rate}} kPa&nbsp;</div>
-			{{:helper.link('+', null, {'volume_adj' : 1}, (data.rate < data.maxrate) ? null : 'disabled')}}
-			{{:helper.link('+', null, {'volume_adj' : 10}, (data.rate < data.maxrate) ? null : 'disabled')}}
-			{{:helper.link('+', null, {'volume_adj' : 100}, (data.rate < data.maxrate) ? null : 'disabled')}}
-			{{:helper.link('+', null, {'volume_adj' : 1000}, (data.rate < data.maxrate) ? null : 'disabled')}}
-		</div>
+		{{for data.scrub_toggles}}
+			{{:helper.link(value.name, null, {'scrub_toggle': value.id}, null, value.active ? 'greenBackground' : null)}}
+		{{/for}}
 	</div>
 </div>
 

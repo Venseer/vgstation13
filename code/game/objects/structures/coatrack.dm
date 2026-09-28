@@ -7,8 +7,9 @@
 	anchored = 0
 	pressure_resistance = ONE_ATMOSPHERE*5
 	flags = FPRINT
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 3
+	w_class = W_CLASS_LARGE
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	var/obj/item/clothing/suit/suit = null
 	var/obj/item/clothing/head/hat = null
 
@@ -16,6 +17,29 @@
 		/obj/item/clothing/suit/storage/det_suit,
 		/obj/item/clothing/suit/storage/forensics,
 		/obj/item/clothing/suit/storage/labcoat,
+		/obj/item/clothing/suit/storage/wintercoat,
+		/obj/item/clothing/suit/armor/hos,
+		/obj/item/clothing/suit/storage/draculacoat,
+		/obj/item/clothing/suit/raincoat,
+		/obj/item/clothing/suit/storage/capjacket,
+		/obj/item/clothing/suit/pirate,
+		/obj/item/clothing/suit/hgpirate,
+		/obj/item/clothing/suit/storage/trader,
+		/obj/item/clothing/suit/storage/lawyer,
+		/obj/item/clothing/suit/secdressjacket,
+		/obj/item/clothing/suit/storage/internalaffairs,
+		/obj/item/clothing/suit/storage/lawyer/bridgeofficer,
+		/obj/item/clothing/suit/storage/fr_jacket,
+		/obj/item/clothing/suit/storage/Hop_Coat,
+		/obj/item/clothing/suit/storage/syndicateexec,
+		/obj/item/clothing/suit/storage/armorjacketcapt,
+		/obj/item/clothing/suit/storage/capjacket,
+		/obj/item/clothing/suit/greatcoat,
+		/obj/item/clothing/suit/johnny_coat,
+		/obj/item/clothing/suit/leathercoat,
+		/obj/item/clothing/suit/browncoat,
+		/obj/item/clothing/suit/neocoat,
+		/obj/item/clothing/suit/inquisitor
 		)
 	var/list/allowed_hats = list(
 		/obj/item/clothing/head/det_hat,
@@ -25,8 +49,8 @@
 		/obj/item/clothing/head/that,
 		/obj/item/clothing/head/flatcap,
 		/obj/item/clothing/head/hgpiratecap,
-		/obj/item/clothing/head/helmet/tactical/warden,
-		/obj/item/clothing/head/helmet/tactical/HoS,
+		/obj/item/clothing/head/warden,
+		/obj/item/clothing/head/HoS,
 		)
 
 /obj/structure/coatrack/attack_hand(mob/user)
@@ -53,19 +77,19 @@
 /obj/structure/coatrack/attackby(obj/item/C, mob/user)
 	if (istype(C, /obj/item/clothing/suit) && !suit && is_type_in_list(C, allowed_suits))
 		if(user.drop_item(C, src))
-			to_chat(user, "<span class='notice'>You place your [C] on \the [src]</span>")
+			to_chat(user, "<span class='notice'>You place your [C.name] on \the [src]</span>")
 			playsound(src, "rustle", 50, 1, -5)
 			suit = C
 			update_icon()
 	else if (istype(C, /obj/item/clothing/head) && !hat && is_type_in_list(C, allowed_hats))
 		if(user.drop_item(C, src))
-			to_chat(user, "<span class='notice'>You place your [C] on \the [src]</span>")
+			to_chat(user, "<span class='notice'>You place your [C.name] on \the [src]</span>")
 			playsound(src, "rustle", 50, 1, -5)
 			hat = C
 			update_icon()
-	else if(iswrench(C))
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
-		getFromPool(/obj/item/stack/sheet/wood, get_turf(src), 2)
+	else if(C.is_wrench(user))
+		C.playtoolsound(src, 50)
+		new /obj/item/stack/sheet/wood(get_turf(src), 2)
 		qdel(src)//the hat and suit on the coat rack are automatically dropped by Destroy()
 	else
 		return ..()

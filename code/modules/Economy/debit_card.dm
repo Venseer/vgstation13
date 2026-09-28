@@ -9,7 +9,7 @@
 	melt_temperature = MELTPOINT_PLASTIC
 	w_class = W_CLASS_TINY
 	starting_materials = list(MAT_PLASTIC = 10)
-	w_type = RECYK_MISC
+	w_type = RECYK_PLASTIC
 	var/to_cut = 0.8
 	var/authorized_name = "" // The name of the card. Edited at any ATM.
 
@@ -33,7 +33,7 @@
 			to_chat(user, "<span class='notice'>The authorized user field on the card is blank.</span>")
 
 /obj/item/weapon/card/debit/proc/change_authorized_name(var/desired_authorized_name)
-	authorized_name = uppertext(sanitize_simple(utf8_sanitize(desired_authorized_name, length = DEBIT_MAX_AUTHORIZED_NAME_LENGTH)))
+	authorized_name = uppertext(sanitize_simple(strip_html_simple(desired_authorized_name, DEBIT_MAX_AUTHORIZED_NAME_LENGTH)))
 
 /obj/item/weapon/card/debit/attack_self(var/mob/user)
 	if(user.attack_delayer.blocked())
@@ -61,7 +61,7 @@
 
 /obj/item/weapon/card/debit/trader/New(var/new_loc, var/account_number)
 	if(!trader_account)
-		trader_account = create_trader_account
+		trader_account = create_account("Trader Shoal", starting_funds = 0, source_db=null, wage_payout=0, security_pref=1, ratio_pref=0, makehidden=TRUE, isStationAccount=FALSE)
 	return ..(new_loc, trader_account.account_number)
 
 /obj/item/weapon/card/debit/preferred
@@ -71,21 +71,22 @@
 	melt_temperature = MELTPOINT_STEEL
 	starting_materials = list(MAT_IRON = 10)
 	w_type = RECYK_METAL
+	flammable = FALSE
 	to_cut = 1
-	var/examine_held = "<span class='notice'>You feel more important just by holding it</span>"
+	var/examine_held = "<span class='notice'>You feel more important just by holding it.</span>"
 
 /obj/item/weapon/card/debit/preferred/examine(var/mob/user)
 	. = ..()
-	if(src in user.held_items || istype(user, /mob/dead))
+	if((src in user.held_items) || istype(user, /mob/dead))
 		to_chat(user, examine_held)
 
 /obj/item/weapon/card/debit/preferred/elite
 	name = "\improper elite debit card"
-	desc = "A very sturdy looking metal card containing near field circuitry. Whoever owns it must be really important"
+	desc = "A very sturdy looking metal card containing near field circuitry. Whoever owns it must be really important."
 	icon_state = "debit-elite"
 	starting_materials = list(MAT_IRON = 20)
 	to_cut = 1.5
-	examine_held = "<span class='notice'>You feel <b>incredibly</b> important just by holding it</span>"
+	examine_held = "<span class='notice'>You feel <b>incredibly</b> important just by holding it.</span>"
 
 /obj/item/weapon/card/debit/preferred/department
 	name = "\improper department debit card"
@@ -123,11 +124,11 @@
 		return FALSE
 
 /obj/item/weapon/card/debit/preferred/department/elite
-	desc = "A very sturdy looking metal card containing near field circuitry. Whoever owns it must be really important"
+	desc = "A very sturdy looking metal card containing near field circuitry. Whoever owns it must be really important."
 	icon_state = "debit-elite"
 	starting_materials = list(MAT_IRON = 20)
 	to_cut = 1.5
-	examine_held = "<span class='notice'>You feel <b>incredibly</b> important just by holding it</span>"
+	examine_held = "<span class='notice'>You feel <b>incredibly</b> important just by holding it.</span>"
 
 /obj/item/weapon/card/debit/preferred/department/cargo/New(var/new_loc, var/desired_department = "Cargo", var/desired_authorized_name)
 	..()

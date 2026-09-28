@@ -8,7 +8,7 @@
 
 # Fire - Fuel energy release
 #   The energy in joule released when burning one mol of a burnable substance
-/datum/ZAS_Setting/fire_fuel_energy_release 550000
+/datum/ZAS_Setting/fire_fuel_energy_release 2000000
 
 # Airflow - Small Movement Threshold %
 #   Percent of 1 Atm. at which items with the small weight classes will move.
@@ -60,7 +60,7 @@
 
 # Airflow - Push
 #   1=yes please rape my server, 0=no
-/datum/ZAS_Setting/airflow_push 0
+/datum/ZAS_Setting/airflow_push 1
 
 # Connections - Insulation
 #   How insulative a connection is, in terms of heat transfer.  1 is perfectly insulative, and 0 is perfectly conductive.

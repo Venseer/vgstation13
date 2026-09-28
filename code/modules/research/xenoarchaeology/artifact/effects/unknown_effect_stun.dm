@@ -1,11 +1,9 @@
 
 /datum/artifact_effect/stun
 	effecttype = "stun"
+	valid_artifact_styles = list(ARTIFACT_STYLE_ANOMALY, ARTIFACT_STYLE_ELDRITCH)
 	effect = list(ARTIFACT_EFFECT_TOUCH, ARTIFACT_EFFECT_AURA, ARTIFACT_EFFECT_PULSE)
-
-/datum/artifact_effect/stun/New()
-	..()
-	effect_type = pick(2,5)
+	effect_hint = EFFECT_HINT_INTERMITTENT_PSIONIC_WAVEFRONT
 
 /datum/artifact_effect/stun/DoEffectTouch(var/mob/toucher)
 	if(toucher && iscarbon(toucher))
@@ -19,7 +17,7 @@
 
 /datum/artifact_effect/stun/DoEffectAura()
 	if(holder)
-		for (var/mob/living/carbon/C in range(src.effectrange,holder))
+		for (var/mob/living/carbon/C in range(src.effectrange,get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(C)
 			if(prob(10 * weakness))
 				to_chat(C, "<span class='warning'>Your body goes numb for a moment.</span>")
@@ -32,7 +30,7 @@
 
 /datum/artifact_effect/stun/DoEffectPulse()
 	if(holder)
-		for (var/mob/living/carbon/C in range(src.effectrange,holder))
+		for (var/mob/living/carbon/C in range(src.effectrange,get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(C)
 			if(prob(100 * weakness))
 				to_chat(C, "<span class='warning'>A wave of energy overwhelms your senses!</span>")

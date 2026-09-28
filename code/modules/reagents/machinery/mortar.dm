@@ -3,28 +3,47 @@
 	desc = "This is a reinforced bowl, used for crushing stuff into reagents."
 	icon = 'icons/obj/chemical.dmi'
 	icon_state = "mortar"
+	item_state = "mortar"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/newsprites_lefthand.dmi', "right_hand" = 'icons/mob/in-hand/right/newsprites_righthand.dmi')
 	flags = FPRINT  | OPENCONTAINER
 	volume = 50
 	amount_per_transfer_from_this = 5
 	//We want the all-in-one grinder audience
+	var/crush_flick = "mortar_crush"
 
 	var/list/blend_items = list (
-		/obj/item/stack/sheet/metal           = list(IRON,20),
-		/obj/item/stack/sheet/mineral/plasma  = list(PLASMA,20),
-		/obj/item/stack/sheet/mineral/uranium = list(URANIUM,20),
-		/obj/item/stack/sheet/mineral/clown   = list(BANANA,20),
-		/obj/item/stack/sheet/mineral/silver  = list(SILVER,20),
-		/obj/item/stack/sheet/mineral/gold    = list(GOLD,20),
+		/obj/item/trash/scrap                 = list(IRON,10),
+		/obj/item/stack/sheet/metal           = list(IRON,U_PER_SHEET),
+		/obj/item/stack/sheet/glass           = list(SILICA,U_PER_SHEET),
+		/obj/item/stack/sheet/wood            = list(SAWDUST,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/plasma  = list(PLASMA,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/uranium = list(URANIUM,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/clown   = list(BANANA,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/silver  = list(SILVER,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/gold    = list(GOLD,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/diamond = list(DIAMONDDUST,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/reticulite = list(ZETADUST,U_PER_SHEET),
+		/obj/item/stack/sheet/mineral/phazon  = list(PHAZON,1),
+		/obj/item/stack/sheet/wax			  = list(WAX,5),
+		/obj/item/candle					  = list(WAX,1.25),
+		/obj/item/trash/candle				  = list(WAX,1),
 		/obj/item/weapon/grown/nettle         = list(FORMIC_ACID,10),
 		/obj/item/weapon/grown/deathnettle    = list(PHENOL,10),
-		/obj/item/stack/sheet/charcoal        = list("charcoal",20),
+		/obj/item/stack/sheet/charcoal        = list(CHARCOAL,U_PER_SHEET),
+		/obj/item/stack/sheet/bone	          = list(BONEMARROW,U_PER_SHEET),
+
 		/obj/item/weapon/reagent_containers/food/snacks/grown/soybeans   = list(SOYMILK,1),
 		/obj/item/weapon/reagent_containers/food/snacks/grown/tomato     = list(KETCHUP,2),
 		/obj/item/weapon/reagent_containers/food/snacks/grown/corn       = list(CORNOIL,3),
 		/obj/item/weapon/reagent_containers/food/snacks/grown/wheat      = list(FLOUR,5),
 		/obj/item/weapon/reagent_containers/food/snacks/grown/ricestalk  = list(RICE,5),
 		/obj/item/weapon/reagent_containers/food/snacks/grown/cherries   = list(CHERRYJELLY,1),
+		/obj/item/weapon/reagent_containers/food/snacks/grown/plastellium = list(PLASTICIDE,5),
+
 		/obj/item/weapon/reagent_containers/food/drinks/soda_cans        = list(ALUMINUM,10),
+		/obj/item/trash/soda_cans										 = list(ALUMINUM,10),
+		/obj/item/weapon/ectoplasm 										 = list(ECTOPLASM,5),
+		/obj/item/trash/egg												 = list(CALCIUMCARBONATE,1),
 		/obj/item/seeds	                      = list(BLACKPEPPER,5),
 		/obj/item/device/flashlight/flare     = list(SULFUR,10),
 		/obj/item/stack/cable_coil            = list(COPPER, 10),
@@ -35,19 +54,21 @@
 
 		//Recipes must include both variables!
 		/obj/item/weapon/reagent_containers/food = list("generic",0),
+		/obj/item/weapon/reagent_containers/pill = list("generic",0),
 		/obj/item/ice_crystal                = list(ICE, 10),
+		/obj/item/weapon/grown/novaflower    = list(NOVAFLOUR = 10),
+		/obj/item/weapon/grown/log    		 = list(SAWDUST = 10),
 	)
 
 
 	var/obj/item/crushable = null
 
 /obj/item/weapon/reagent_containers/glass/mortar/Destroy()
-	qdel(crushable)
-	crushable = null
+	QDEL_NULL(crushable)
 	. = ..()
 
 /obj/item/weapon/reagent_containers/glass/mortar/attackby(var/obj/item/O as obj, var/mob/user as mob)
-	if (isscrewdriver(O))
+	if (O.is_screwdriver(user))
 		if(crushable)
 			crushable.forceMove(user.loc)
 		new /obj/item/stack/sheet/metal(user.loc)
@@ -68,8 +89,7 @@
 		crushable = N
 		to_chat(user, "<span class='notice'>You place \the [N] in \the [src].</span>")
 		return 0
-	else if(!user.drop_item(O, src))
-		to_chat(user, "<span class='warning'>You can't let go of \the [O]!</span>")
+	else if(!user.drop_item(O, src, failmsg = TRUE))
 		return
 
 	crushable = O
@@ -94,18 +114,24 @@
 		to_chat(user, "<span class='warning'>There is no more space inside!</span>")
 		return
 	if(is_type_in_list(crushable, juice_items))
+		flick(crush_flick,src)
 		to_chat(user, "<span class='notice'>You smash the contents into juice!</span>")
 		var/id = null
 		for(var/i in juice_items)
 			if(istype(crushable, i))
 				id = juice_items[i]
-		if(!id)
+		if(!islist(id))
 			return
-		var/obj/item/weapon/reagent_containers/food/snacks/grown/juiceable = crushable
-		if(juiceable.potency == -1)
-			juiceable.potency = 0
-		reagents.add_reagent(id[1], min(round(5*sqrt(juiceable.potency)), volume - reagents.total_volume))
+		var/add_amount = id[id[1]]
+		if(istype(crushable,/obj/item/weapon/reagent_containers/food/snacks/grown))
+			var/obj/item/weapon/reagent_containers/food/snacks/grown/juiceable = crushable
+			if(juiceable.potency == -1)
+				juiceable.potency = 0
+			if(juiceable.potency)
+				add_amount = juiceable.potency
+		reagents.add_reagent(id[1], min(round(5*sqrt(add_amount)), volume - reagents.total_volume))
 	else if(is_type_in_list(crushable, blend_items))
+		flick(crush_flick,src)
 		to_chat(user, "<span class='notice'>You grind the contents into dust!</span>")
 		var/id = null
 		var/space = volume - reagents.total_volume
@@ -131,9 +157,9 @@
 			to_chat(user, "<span class ='warning'>An error was encountered. Report this message.</span>")
 			return
 	else
+		flick(crush_flick,src)
 		to_chat(user, "<span class='notice'>You smash the contents into nothingness.</span>")
-	qdel(crushable)
-	crushable = null
+	QDEL_NULL(crushable)
 	return
 
 /obj/item/weapon/reagent_containers/glass/mortar/examine(mob/user)

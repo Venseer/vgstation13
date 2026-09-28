@@ -11,22 +11,43 @@
 	machine_flags = WRENCHMOVE | FIXED2WORK | EMAGGABLE
 	emag_cost = 0
 	emagged = 0
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
+
+	hack_abilities = list(
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
 
 /obj/machinery/sweet/attackby(var/obj/O as obj, var/mob/user as mob)
-	if (stat & (NOPOWER|BROKEN))
+	if (stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return ..()
-	if (is_type_in_list(O, list(/obj/item/weapon/coin/, /obj/item/weapon/reagent_containers/food/snacks/chococoin)))
+
+	if(istype(O, /obj/item/weapon/coin/pomf))
+		var/obj/item/weapon/coin/real_coin = O
+		if(user.drop_item(O, src))
+			user.visible_message("<span class='notice'>[user] puts \a [real_coin] into [src] and turns the knob.", "<span class='notice'>You put \a [real_coin] into [src] and turn the knob.</span>")
+			src.visible_message("<span class='notice'>[src] clicks softly.</span>")
+			sleep(rand(10,15))
+			src.visible_message("<span class='notice'>[src] dispenses a...an egg?</span>")
+			spawn(30)
+				to_chat(user,"<span class='sinister'>...throw the egg...</span>")
+			new/obj/item/weapon/reagent_containers/food/snacks/egg/pomf(src.loc)
+
+			if(real_coin.string_attached)
+				to_chat(user, "<SPAN CLASS='notice'>You weren't able to pull the coin out fast enough, the machine ate it, string and all.</SPAN>")
+			qdel(O)
+			return
+	else if (is_type_in_list(O, list(/obj/item/weapon/coin/, /obj/item/weapon/reagent_containers/food/snacks/chococoin)))
 		if(emagged == 1)
 			if(user.drop_item(O, src))
-				user.visible_message("<span class='notice'>[user] puts a coin into [src] and turns the knob.", "You put a coin into [src] and turn the knob.</span>")
+				user.visible_message("<span class='notice'>[user] puts \a [O] into [src] and turns the knob.", "You put \a [O] into [src] and turn the knob.</span>")
 				src.visible_message("<span class='notice'>[src] rattles ominously!</span>")
 				sleep(rand(10,15))
 				src.visible_message("<span class='notice'>[src] dispenses a bag of strange sweets!</span>")
 				new /obj/item/weapon/storage/pill_bottle/sweets/strange(src.loc)
 		else
 			if(user.drop_item(O, src))
-				user.visible_message("<span class='notice'>[user] puts a coin into [src] and turns the knob.", "<span class='notice'>You put a coin into [src] and turn the knob.</span>")
+				user.visible_message("<span class='notice'>[user] puts \a [O] into [src] and turns the knob.", "<span class='notice'>You put \a [O] into [src] and turn the knob.</span>")
 				src.visible_message("<span class='notice'>[src] clicks softly.</span>")
 				sleep(rand(10,15))
 				src.visible_message("<span class='notice'>[src] dispenses a bag of sweets!</span>")
@@ -36,10 +57,13 @@
 			var/obj/item/weapon/coin/real_coin = O
 			if(real_coin.string_attached)
 				if(prob(30))
-					to_chat(user, "<SPAN CLASS='notice'>You were able to force the knob around and successfully pulled the coin out before [src] could swallow it.</SPAN>")
+					to_chat(user, "<SPAN CLASS='notice'>You were able to force the knob around and successfully pulled \the [real_coin] out before [src] could swallow it.</SPAN>")
+					user.put_in_hands(O)
+				else if(prob(real_coin.luckiness/10))
+					to_chat(user, "<SPAN CLASS='notice'>You just barely were able to pull \the [real_coin] out before [src] could swallow it, lucky!</SPAN>")
 					user.put_in_hands(O)
 				else
-					to_chat(user, "<SPAN CLASS='notice'>You weren't able to pull the coin out fast enough, the machine ate it, string and all.</SPAN>")
+					to_chat(user, "<SPAN CLASS='notice'>You weren't able to pull \the [real_coin] out fast enough, the machine ate it, string and all.</SPAN>")
 					qdel(O)
 		else
 			qdel(O)
@@ -49,7 +73,7 @@
 	else
 		return ..()
 
-/obj/machinery/sweet/emag(mob/user)
+/obj/machinery/sweet/emag_act(mob/user)
 	if(!emagged && user)
 		to_chat(user, "<span class='warning'>You inexplicably short out the [src.name].</span>")
 	emagged = !emagged

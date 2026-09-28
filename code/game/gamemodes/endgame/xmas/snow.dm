@@ -4,6 +4,8 @@
 #define SNOWCOVERING_MEDIUM 1
 #define SNOWCOVERING_LITTLE 0
 
+#define SNOWCOVERING_MAX 10
+
 #define TICK_JIGGLE(X) rand(((X)-((X)*0.1)),((X)+((X)*0.1)))
 
 var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound/misc/snow3.ogg', 'sound/misc/snow4.ogg', 'sound/misc/snow5.ogg', 'sound/misc/snow6.ogg')
@@ -18,9 +20,8 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 	alpha = 230
 	anchored = 1
 	density = 0
-	mouse_opacity = 1
 
-	var/snow_amount = SNOWCOVERING_FULL
+	var/snow_amount = SNOWCOVERING_MAX
 
 	var/next_update = 0 // world.time
 
@@ -43,36 +44,50 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 		overlays += image('icons/obj/flora/snowflora.dmi',pick(foliage))
 
 /obj/structure/snow/attackby(obj/item/W,mob/user)
-	if(istype(W,/obj/item/weapon/pickaxe/shovel))//using a shovel or spade harvests some snow and let's you click on the lower layers
+	if(isshovel(W))//using a shovel or spade harvests some snow and let's you click on the lower layers
 		playsound(loc, 'sound/items/shovel.ogg', 50, 1)
-		snow_amount = SNOWCOVERING_LITTLE
-		icon_state = "snow_dug"
-		new /obj/item/stack/sheet/snow(get_turf(src), 1)
-		new /obj/item/stack/sheet/snow(get_turf(src), 1)
-		new /obj/item/stack/sheet/snow(get_turf(src), 1)
-
-		if(snow_amount==SNOWCOVERING_LITTLE)
-			qdel(src)
-			return
-
-		// Start process(), if we need to.
-		if(!(src in processing_objects))
-			processing_objects.Add(src)
+		grab_snow(3)
 
 /obj/structure/snow/process()
-	..()
+	set waitfor = 0
 	if(world.time < next_update)
 		return
-	switch(snow_amount)
-		if(SNOWCOVERING_LITTLE)
-			icon_state = "snow_grabbed"
-			mouse_opacity = 1
-			snow_amount = SNOWCOVERING_MEDIUM
-		if(SNOWCOVERING_MEDIUM)
-			icon_state = "snow"
-			snow_amount = SNOWCOVERING_FULL
-			processing_objects.Remove(src)
+	if (snow_amount < SNOWCOVERING_MAX)
+		snow_amount++
+		update_icon()
+	else
+		processing_objects.Remove(src)
 	next_update=world.time + TICK_JIGGLE(300) // 30 seconds
+
+/obj/structure/snow/proc/grab_snow(var/amount_to_remove=1,var/mob/living/carbon/grabber=null)
+	var/turf/T = get_turf(src)
+	amount_to_remove = min(amount_to_remove, snow_amount)
+	for(var/i = 1 to amount_to_remove)
+		if (grabber)
+			grabber.put_in_hands(new /obj/item/stack/sheet/snow(loc))
+		else
+			new /obj/item/stack/sheet/snow(T, 1)
+		snow_amount--
+
+	if (snow_amount <= 0)
+		qdel(src)
+		return
+
+	next_update=world.time + TICK_JIGGLE(300)
+	update_icon()
+
+	// Start process(), if we need to.
+	if(!(src in processing_objects))
+		processing_objects.Add(src)
+
+/obj/structure/snow/update_icon()
+	switch(snow_amount)
+		if (0 to 3)
+			icon_state = "snow_dug"
+		if (4 to 9)
+			icon_state = "snow_grabbed"
+		else
+			icon_state = "snow"
 
 /obj/structure/snow/Crossed(mob/user)
 	..()
@@ -81,28 +96,16 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 
 
 /obj/structure/snow/attack_hand(mob/user)
-	if(snow_amount != SNOWCOVERING_FULL)
-		return
 	playsound(src, "rustle", 50, 1)
 	to_chat(user, "<span class='notice'>You start digging the snow with your hands.</span>")
 	if(do_after(user, src, 30))
-		snow_amount = SNOWCOVERING_MEDIUM
 		to_chat(user, "<span class='notice'>You form a snowball in your hands.</span>")
-		user.put_in_hands(new /obj/item/stack/sheet/snow())
-		icon_state = "snow_grabbed"
+		grab_snow(1,user)
 
-		if(snow_amount==SNOWCOVERING_LITTLE)
-			qdel(src)
-			return
-
-		// Start process(), if we need to.
-		if(!(src in processing_objects))
-			processing_objects.Add(src)
-	return
 
 //////COSMIC SNOW(the one that spreads everywhere)//////
 
-/* No.
+/* No. Someday maybe...
 /obj/structure/snow/cosmic
 	desc = "Winter is coming."
 
@@ -277,6 +280,14 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 
 	return ..()
 
+/obj/item/stack/sheet/snow/emag_act(mob/user)
+	to_chat(user, "<span class='warning'>You slide the emag across the snowball. Holy fuck. You are probably the most stupid person you've ever met.</span>")
+
+// making it do something funny like severing limbs would be a good idea
+// but i prefer this king of consistency with the above
+/obj/item/stack/sheet/snow/arcane_act(mob/user)
+	to_chat(user, "<span class='warning'>Doing this to a snowball is just as useless as using an emag. Give up.</span>")
+
 /obj/item/stack/sheet/snow/proc/remove_snowball()
 	if(src && (src.loc == spawn_loc) && istype(src.loc,/turf))
 		qdel(src)
@@ -288,7 +299,7 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 		TS.wet(100)
 	qdel(src)
 
-/obj/item/stack/sheet/snow/throw_at(atom/target, range, speed)
+/obj/item/stack/sheet/snow/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
 	playsound(src.loc, 'sound/weapons/punchmiss.ogg', 50, 1)
 	..()
 
@@ -322,7 +333,7 @@ var/list/snowsound = list('sound/misc/snow1.ogg', 'sound/misc/snow2.ogg', 'sound
 		..()
 
 var/global/list/datum/stack_recipe/snow_recipes = list (
-	new/datum/stack_recipe("snowman", /mob/living/simple_animal/hostile/retaliate/snowman, 10, time = 50, one_per_turf = 0, on_floor = 1),
+	new/datum/stack_recipe("snowman", /obj/structure/snowman, 10, time = 50, one_per_turf = 1, on_floor = 1),
 	new/datum/stack_recipe("snow barricade", /obj/structure/window/barricade/snow, 20, time = 50, one_per_turf = 1, on_floor = 1),
 	new/datum/stack_recipe("ice armor", /obj/item/clothing/suit/armor/ice, 50, time = 50, one_per_turf = 0, on_floor = 0),
 	)
@@ -338,8 +349,9 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 	anchored = 1.0
 	density = 1.0
 	health = 50.0
+	pass_flags_self = PASSTABLE
 	var/maxhealth = 50.0
-	materialtype = /obj/item/stack/sheet/snow
+	sheet_type = /obj/item/stack/sheet/snow
 
 /obj/structure/window/barricade/snow/attackby(obj/item/W as obj, mob/user as mob)
 	if (istype(W, /obj/item/stack/sheet/snow))
@@ -360,7 +372,7 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 				src.health -= W.force * 0.75
 			else
 		if (src.health <= 0)
-			visible_message("<span class='danger'>\the [src] is smashed apart!</span>")
+			visible_message("<span class='danger'>\The [src] is smashed apart!</span>")
 			new /obj/item/stack/sheet/snow(get_turf(src), 1)
 			new /obj/item/stack/sheet/snow(get_turf(src), 1)
 			new /obj/item/stack/sheet/snow(get_turf(src), 1)
@@ -371,13 +383,13 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 /obj/structure/window/barricade/snow/ex_act(severity)
 	switch(severity)
 		if(1.0)
-			visible_message("<span class='danger'>\the [src] is blown apart!</span>")
+			visible_message("<span class='danger'>\The [src] is blown apart!</span>")
 			qdel(src)
 			return
 		if(2.0)
 			src.health -= 25
 			if (src.health <= 0)
-				visible_message("<span class='danger'>\the [src] is blown apart!</span>")
+				visible_message("<span class='danger'>\The [src] is blown apart!</span>")
 				new /obj/item/stack/sheet/snow(get_turf(src), 1)
 				new /obj/item/stack/sheet/snow(get_turf(src), 1)
 				new /obj/item/stack/sheet/snow(get_turf(src), 1)
@@ -394,7 +406,7 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 /obj/structure/window/barricade/snow/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)//So bullets will fly over and stuff.
 	if(air_group || (height==0))
 		return 1
-	if(istype(mover) && mover.checkpass(PASSTABLE))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return 1
 	else
 		return 0
@@ -415,7 +427,6 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 	name = "snow_flora"
 	icon = 'icons/obj/flora/snowflora.dmi'
 	icon_state = "snowbush1"
-	autoignition_temperature=AUTOIGNITION_WOOD
 
 /obj/structure/snow_flora/sappling
 	name = "sappling"
@@ -570,13 +581,6 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 		"pine_2",
 		"pine_3",
 		)
-	/* No
-	if((snow_tiles >= COSMICFREEZE_LEVEL_3) && prob(20))
-		new /mob/living/simple_animal/hostile/giant_spider/spiderling(get_turf(src))
-
-	if((snow_tiles >= COSMICFREEZE_LEVEL_5) && prob(20))
-		new /mob/living/simple_animal/hostile/bear(get_turf(src))
-	*/
 
 /obj/structure/snow_flora/tree/pine/attackby(obj/item/W,mob/user)
 	var/list/cutting = list(
@@ -634,7 +638,7 @@ var/global/list/datum/stack_recipe/snow_recipes = list (
 
 /obj/item/ice_crystal
 	name = "ice crystal"
-	desc = "crystallized water. Take a chunk or two off to cool down your liquor."
+	desc = "Crystallized water. Take a chunk or two off to cool down your liquor."
 	icon_state = "ice_crystal"
 	melt_temperature = MELTPOINT_SNOW
 	w_class = W_CLASS_TINY

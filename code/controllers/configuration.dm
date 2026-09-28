@@ -14,6 +14,8 @@
 	var/log_admin = 0					// log admin actions
 	var/log_admin_only = FALSE
 	var/log_debug = 1					// log debug output
+	var/log_sql = 0						// log SQL events
+	var/log_sql_queries = 0				// debug info SQL queries
 	var/log_game = 0					// log game events
 	var/log_vote = 0					// log voting
 	var/log_whisper = 0					// log client whisper
@@ -26,10 +28,12 @@
 	var/log_rc = 0						// log requests consoles
 	var/log_hrefs = 0					// logs all links clicked in-game. Could be used for debugging and tracking down exploits
 	var/log_runtimes = 0                // Logs all runtimes.
-	var/sql_enabled = 1					// for sql switching
+	var/sql_enabled = 0					// for sql switching
 	var/allow_admin_ooccolor = 0		// Allows admins with relevant permissions to have their own ooc colour
 	var/allow_vote_restart = 0 			// allow votes to restart
 	var/allow_vote_mode = 0				// allow votes to change mode
+	var/toggle_maps = 0					// Change from votable maps = 0 to all compiled maps = 1
+	var/toggle_vote_method = 1			// Toggle voting methods: Weighted = 1, Majority = 2, Persistent = 3, Random = 4
 	var/allow_admin_jump = 1			// allows admin jumping
 	var/allow_admin_spawning = 1		// allows admin item spawning
 	var/allow_admin_rev = 1				// allows admin revives
@@ -62,14 +66,23 @@
 	var/respawn_delay=30
 	var/respawn_as_mommi = 0
 	var/respawn_as_mouse = 1
+	var/respawn_as_hobo = 1
 	var/guest_jobban = 1
 	var/usewhitelist = 0
 	var/kick_inactive = 0				//force disconnect for inactive players
 	var/load_jobs_from_txt = 0
-	var/ToRban = 0
 	var/automute_on = 0					//enables automuting/spam prevention
 	var/jobs_have_minimal_access = 0	//determines whether jobs use minimal access or expanded access.
 	var/copy_logs = null
+	var/cargo_forwarding_on_roundstart = 0
+	var/cargo_forwarding_amount_override = 0
+	var/roundstart_lights_on = 0
+
+	// BSQL things
+	var/bsql_debug = 0
+	var/async_query_timeout = 10
+	var/blocking_query_timeout = 5
+	var/bsql_thread_limit = 50
 
 	var/cult_ghostwriter = 1               //Allows ghosts to write in blood in cult rounds...
 	var/cult_ghostwriter_req_cultists = 10 //...so long as this many cultists are active.
@@ -113,12 +126,15 @@
 	var/health_threshold_softcrit = 0
 	var/health_threshold_crit = 0
 	var/health_threshold_dead = -100
+	var/burn_damage_ash = 0
 
 	var/organ_health_multiplier = 1
 	var/organ_regeneration_multiplier = 1
 
 	var/bones_can_break = 0
 	var/limbs_can_break = 0
+
+	var/voice_noises = 0
 
 	var/revival_pod_plants = 1
 	var/revival_cloning = 1
@@ -133,6 +149,7 @@
 	var/ban_legacy_system = 0	//Defines whether the server uses the legacy banning system with the files in /data or the SQL system. Config option in config.txt
 	var/use_age_restriction_for_jobs = 0 //Do jobs use account age restrictions? --requires database
 
+	var/bans_shown_in_hell_limit = 1 //Amount of permabanned players that show up in hell --requires database
 	var/simultaneous_pm_warning_timeout = 100
 
 	var/use_recursive_explosions //Defines whether the server uses recursive or circular explosions.
@@ -140,6 +157,8 @@
 	var/assistant_maint = 0 //Do assistants get maint access?
 	var/gateway_delay = 18000 //How long the gateway takes before it activates. Default is half an hour.
 	var/ghost_interaction = 0
+
+	var/human_captive_kickbite = 0 //Can restrained humans still kick and bite while also being pulled, grabbed, or buckled?
 
 	var/comms_password = ""
 	var/paperwork_library = 0 //use the library DLL.
@@ -158,16 +177,18 @@
 	var/emag_recharge_rate = 0
 	var/emag_recharge_ticks = 0
 
-	var/map_voting = 0
 	var/renders_url = ""
 
-	var/default_ooc_color = "#002eb8"
-
-	var/mommi_static = 0 //Scrambling mobs for mommis or not
+	var/grue_egglaying = 1 //Whether or not grues can lay eggs to reproduce
 
 	var/skip_minimap_generation = 0 //If 1, don't generate minimaps
+	var/skip_holominimap_generation = 0 //If 1, don't generate holominimaps
 	var/skip_vault_generation = 0 //If 1, don't generate vaults
+	var/skip_fixedvault_generation = 0 //If 1, don't generate fixed vaults
+	var/disable_vault_rotation = 0 //If 1, don't load vaults rotated
 	var/shut_up_automatic_diagnostic_and_announcement_system = 0 //If 1, don't play the vox sounds at the start of every shift.
+	var/no_lobby_music = 0 //If 1, don't play lobby music, regardless of client preferences.
+	var/no_ambience = 0 //If 1, don't play ambience, regardless of client preferences.
 
 	var/enable_roundstart_away_missions = 0
 
@@ -181,8 +202,37 @@
 	var/discord_url
 	var/discord_password
 
-	// Weighted Votes
-	var/weighted_votes = 0
+	// Dynamic Mode
+	var/high_population_override = 1//If 1, what rulesets can or cannot be called depend on the threat level only
+
+	var/thermal_dissipation = 1 //Whether or not thermal dissipation occurs.
+	var/reagents_heat_air = 0 //Whether or not reagents exchanging heat with the surrounding air actually heat or the cool air. If off, the energy change only applies to the reagents.
+
+	var/maprender_lags_game = 0 //If the map render checks tick or not to get done during a round
+
+	var/library_url = ""
+	var/branch_head = ""
+	var/stats_addr = ""
+
+	//Resources
+	var/rsclist = ""
+	var/rscstring = ""
+
+	// TGUI & tg asset thing
+	var/tgui_max_chunk_count = 32
+	var/tg_asset_transport = "simple" // simple or "webroot". Webroot is via CDN.
+	var/cache_assets = 1 // Disabled during dev, enabled during prod
+	var/smart_cache_assets = 1
+	var/save_spritesheets = 0 // Disabled by default.
+
+	var/asset_simple_preload = 0 // Disabled by default
+
+	// tg asset cdn via webroot systme. Currently unused.
+	var/asset_cdn_webroot = ""
+	var/asset_cdn_url = ""
+	//Is Dynamic+ Enabled
+	var/dynamic_plus = FALSE
+
 
 /datum/configuration/New()
 	. = ..()
@@ -247,8 +297,20 @@
 				if ("use_age_restriction_for_jobs")
 					config.use_age_restriction_for_jobs = 1
 
+				if ("bans_shown_in_hell_limit")
+					config.bans_shown_in_hell_limit = text2num(value)
+
 				if ("jobs_have_minimal_access")
 					config.jobs_have_minimal_access = 1
+
+				if ("cargo_forwarding_on_roundstart")
+					cargo_forwarding_on_roundstart = 1
+
+				if ("cargo_forwarding_amount_override")
+					cargo_forwarding_amount_override = text2num(value)
+
+				if("roundstart_lights_on")
+					roundstart_lights_on = 1
 
 				if ("use_recursive_explosions")
 					use_recursive_explosions = 1
@@ -276,6 +338,12 @@
 
 				if ("log_debug")
 					config.log_debug = text2num(value)
+
+				if ("log_sql")
+					config.log_sql = 1
+
+				if ("log_sql_queries")
+					config.log_sql_queries = 1
 
 				if ("log_game")
 					config.log_game = 1
@@ -316,12 +384,6 @@
 				if("allow_admin_ooccolor")
 					config.allow_admin_ooccolor = 1
 
-				if ("allow_vote_restart")
-					config.allow_vote_restart = 1
-
-				if ("allow_vote_mode")
-					config.allow_vote_mode = 1
-
 				if ("allow_admin_jump")
 					config.allow_admin_jump = 1
 
@@ -357,6 +419,12 @@
 
 				if ("no_respawn_as_mouse")
 					config.respawn_as_mouse = 0
+
+				if ("no_respawn_as_hobo")
+					config.respawn_as_hobo = 0
+
+				if ("no_grue_egglaying")
+					config.grue_egglaying = 0
 
 				if ("servername")
 					config.server_name = value
@@ -421,6 +489,12 @@
 				if("allow_random_events")
 					config.allow_random_events = 1
 
+				if("thermal_dissipation")
+					config.thermal_dissipation = value
+
+				if("reagents_heat_air")
+					config.reagents_heat_air = value
+
 				if("kick_inactive")
 					config.kick_inactive = 1
 
@@ -471,9 +545,6 @@
 				if("humans_need_surnames")
 					humans_need_surnames = 1
 
-				if("tor_ban")
-					ToRban = 1
-
 				if("automute_on")
 					automute_on = 1
 
@@ -501,6 +572,9 @@
 
 				if("uneducated_mice")
 					config.uneducated_mice = 1
+
+				if("human_captive_kickbite")
+					config.human_captive_kickbite = 1
 
 				if("comms_password")
 					config.comms_password = value
@@ -537,6 +611,18 @@
 					config.assistantratio = text2num(value)
 				if("copy_logs")
 					copy_logs = value
+
+				// BRSQL
+				if("bsql_debug")
+					bsql_debug = value
+				if("async_query_timeout")
+					async_query_timeout = text2num(value)
+				if("blocking_query_timeout")
+					blocking_query_timeout = text2num(value)
+				if("bsql_thread_limit")
+					bsql_thread_limit = text2num(value)
+
+
 				if("media_base_url")
 					media_base_url = value
 				if("media_secret_key")
@@ -547,18 +633,24 @@
 					vgws_ip = value
 				if("poll_results_url")
 					poll_results_url = value
-				if("map_voting")
-					map_voting = 1
 				if("renders_url")
 					renders_url = value
-				if("mommi_static")
-					mommi_static = 1
 				if("skip_minimap_generation")
 					skip_minimap_generation = 1
+				if("skip_holominimap_generation")
+					skip_holominimap_generation = 1
 				if("skip_vault_generation")
 					skip_vault_generation = 1
+				if("skip_fixedvault_generation")
+					skip_fixedvault_generation = 1
+				if("disable_vault_rotation")
+					disable_vault_rotation = 1
 				if("shut_up_automatic_diagnostic_and_announcement_system")
 					shut_up_automatic_diagnostic_and_announcement_system = 1
+				if("no_lobby_music")
+					no_lobby_music = 1
+				if("no_ambience")
+					no_ambience = 1
 				if("enable_roundstart_away_missions")
 					enable_roundstart_away_missions = 1
 				if("enable_wages")
@@ -575,9 +667,16 @@
 					discord_url = value
 				if("discord_password")
 					discord_password = value
-				if("weighted_votes")
-					weighted_votes = TRUE
-
+				if("library_url")
+					library_url = value
+				if("branch_head")
+					branch_head = value
+				if("stats_addr")
+					stats_addr = value
+				if("rsclist")
+					rsclist = value
+				if("rscstring")
+					rscstring = value
 				else
 					diary << "Unknown setting in configuration: '[name]'"
 
@@ -595,6 +694,8 @@
 					config.health_threshold_softcrit = value
 				if("health_threshold_dead")
 					config.health_threshold_dead = value
+				if("burn_damage_ash")
+					config.burn_damage_ash = value
 				if("revival_pod_plants")
 					config.revival_pod_plants = value
 				if("revival_cloning")
@@ -629,8 +730,14 @@
 					config.silent_borg = 1
 				if("borer_takeover_immediately")
 					config.borer_takeover_immediately = 1
+				if("maprender_lags_game")
+					config.maprender_lags_game = 1
 				if("hardcore_mode")
 					hardcore_mode = value
+				if("humans_speak")
+					voice_noises = 1
+				if("dynamic_plus")
+					config.dynamic_plus = TRUE
 				else
 					diary << "Unknown setting in configuration: '[name]'"
 
@@ -663,7 +770,7 @@
 			if ("address")
 				sqladdress = value
 			if ("port")
-				sqlport = value
+				sqlport = text2num(value)
 			if ("database")
 				sqldb = value
 			if ("login")

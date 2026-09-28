@@ -3,37 +3,99 @@
 #define MINIICONS_ON 1
 #define MINIICONS_UNCROPPED 2
 /obj/machinery/smartfridge
-	name = "\improper SmartFridge"
+	name = "\improper Foodstuff & Seeds Storage"
 	icon = 'icons/obj/vending.dmi'
 	icon_state = "smartfridge"
 	density = 1
+	opacity = 1
 	anchored = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 5
 	active_power_usage = 100
 	flags = NOREACT
+	source_temperature = T0C + 4
 	var/icon_on = "smartfridge"
 	var/icon_off = "smartfridge-off"
+	var/icon_broken = "smartfridge-broken"
+	var/icon_deny = null
+	var/moody_state = "overlay_vending_smartfridge"
 	var/list/datum/fridge_pile/piles = list()
 	var/opened = 0.0
-	var/display_miniicons = FALSE
+	var/display_miniicons = MINIICONS_ON
 
 	var/list/accepted_types = list(	/obj/item/weapon/reagent_containers/food/snacks/grown,
 									/obj/item/weapon/grown,
 									/obj/item/seeds,
 									/obj/item/weapon/reagent_containers/food/snacks/meat,
+									/obj/item/weapon/reagent_containers/food/snacks/honeycomb,
 									/obj/item/weapon/reagent_containers/food/snacks/egg,
+									/obj/item/weapon/reagent_containers/food/condiment,
+									/obj/item/weapon/reagent_containers/glass,
+									/obj/item/weapon/reagent_containers/food/drinks,
 									/obj/item/weapon/reagent_containers/food/condiment)
 
-	machine_flags = SCREWTOGGLE | CROWDESTROY | EJECTNOTDEL
+	machine_flags = SCREWTOGGLE | CROWDESTROY | EJECTNOTDEL | WRENCHMOVE | FIXED2WORK | EMAGGABLE
 
 	light_color = LIGHT_COLOR_CYAN
-	power_change()
-		..()
-		if(!(stat & (BROKEN|NOPOWER)))
-			set_light(2)
-		else
-			set_light(0)
+	light_power_on = 1
+	light_range_on = 2
+	var/max_contained_allowed //If defined, sets a maximum amount of contents inside the fridge. Multiplied by rating of matter bins
+	var/cached_total = 0 //Used to keep a rolling tally of contents without needing to iterate the list on every insert/removal
+
+/obj/machinery/smartfridge/power_change()
+	..()
+	update_icon()
+
+/obj/machinery/smartfridge/update_icon()
+	if (stat & BROKEN)
+		icon_state = icon_broken
+		kill_moody_light()
+		set_light(0)
+	else if (stat & (NOPOWER|FORCEDISABLE))
+		icon_state = icon_off
+		kill_moody_light()
+		set_light(0)
+	else
+		icon_state = icon_on
+		update_moody_light('icons/lighting/moody_lights.dmi', moody_state)
+		set_light(2)
+
+/obj/machinery/smartfridge/proc/breakdown()
+	stat |= BROKEN
+	update_icon()
+
+/obj/machinery/smartfridge/ex_act(var/severity)
+	switch(severity)
+		if(1)
+			qdel(src)
+		if(2)
+			if (prob(50))
+				qdel(src)
+			else
+				breakdown()
+		if(3)
+			if(prob(35))
+				breakdown()
+
+/obj/machinery/smartfridge/emp_act(var/severity)
+	if(stat & (BROKEN))
+		return
+	switch(severity)
+		if(1)
+			if(prob(75))
+				breakdown()
+		if(2)
+			if(prob(35))
+				breakdown()
+
+/obj/machinery/smartfridge/RefreshParts()
+	..()
+	if(!max_contained_allowed)
+		return
+	var/storage_mult = 0
+	for(var/obj/item/weapon/stock_parts/matter_bin/B in component_parts)
+		storage_mult += B.rating
+	max_contained_allowed = initial(max_contained_allowed) * storage_mult
 
 /datum/fridge_pile
 	var/name = ""
@@ -51,6 +113,7 @@
 /datum/fridge_pile/Destroy()
 	fridge.piles -= src.name
 	fridge = null
+	..()
 
 /datum/fridge_pile/proc/addAmount(var/amt)
 	amount += amt
@@ -58,7 +121,7 @@
 /datum/fridge_pile/proc/removeAmount(var/amt)
 	amount -= amt
 	if(amount <= 0)
-		returnToPool(src)
+		qdel(src)
 
 /********************************************************************
 **   Adding Stock Parts to VV so preconstructed shit has its candy **
@@ -81,10 +144,15 @@
 
 	RefreshParts()
 
+	update_nearby_tiles()
+
 /obj/machinery/smartfridge/Destroy()
 	for(var/key in piles)
-		returnToPool(piles[key])
+		qdel(piles[key])
 	piles.Cut()
+
+	update_nearby_tiles()
+
 	..()
 
 /obj/machinery/smartfridge/proc/accept_check(var/obj/item/O as obj, var/mob/user as mob)
@@ -92,48 +160,32 @@
 		if(istype(O, ac_type))
 			return 1
 
-/obj/machinery/smartfridge/seeds
-	name = "\improper MegaSeed Servitor"
-	desc = "When you need seeds fast!"
-	icon = 'icons/obj/vending.dmi'
-	icon_state = "seeds"
-	icon_on = "seeds"
-	icon_off = "seeds-off"
+/obj/machinery/smartfridge/thermal_energy_transfer()
+	return -75 //slow
 
-	accepted_types = list(/obj/item/seeds)
+/obj/machinery/smartfridge/process()
+	if(stat & (FORCEDISABLE|NOPOWER|BROKEN) || !anchored)
+		return
 
-	light_color = null
-
-/obj/machinery/smartfridge/seeds/New()
-	. = ..()
-
-	component_parts = newlist(
-		/obj/item/weapon/circuitboard/smartfridge/seeds,
-		/obj/item/weapon/stock_parts/manipulator,
-		/obj/item/weapon/stock_parts/manipulator,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/scanning_module,
-		/obj/item/weapon/stock_parts/console_screen,
-		/obj/item/weapon/stock_parts/console_screen
-	)
-
-	RefreshParts()
+	for(var/obj/item/I in contents)
+		I.attempt_heating(src)
 
 /obj/machinery/smartfridge/secure/medbay
-	name = "\improper Refrigerated Medicine Storage"
-	desc = "A refrigerated storage unit for storing medicine and chemicals."
-	icon_state = "smartfridge" //To fix the icon in the map editor.
-	icon_on = "smartfridge_chem"
+	name = "\improper Secure Medicine Storage"
+	desc = "A refrigerated storage unit for storing medicine and chemicals. Only medical staff are permitted to access it."
+	icon_state = "medfridge"
+	icon_on = "medfridge"
+	icon_off = "medfridge-off"
+	icon_broken = "medfridge-broken"
+	icon_deny = "medfridge-deny"
+	moody_state = "overlay_vending_medfridge"
 	req_one_access = list(access_chemistry, access_medical)
 
 	accepted_types = list(	/obj/item/weapon/reagent_containers/glass,
 							/obj/item/weapon/storage/pill_bottle,
 							/obj/item/weapon/reagent_containers/pill)
 
-/obj/machinery/smartfridge/medbay/New()
+/obj/machinery/smartfridge/secure/medbay/New()
 	..()
 	if(map.nameShort == "deff")
 		icon = 'maps/defficiency/medbay.dmi'
@@ -156,6 +208,12 @@
 /obj/machinery/smartfridge/chemistry
 	name = "\improper Smart Chemical Storage"
 	desc = "A refrigerated storage unit for medicine and chemical storage."
+	icon_state = "smartfridge"
+	icon_on = "smartfridge"
+	icon_off = "smartfridge-off"
+	icon_broken = "smartfridge-broken"
+	icon_deny = null
+	moody_state = "overlay_vending_smartfridge"
 
 	accepted_types = list(	/obj/item/weapon/storage/pill_bottle,
 							/obj/item/weapon/reagent_containers)
@@ -180,37 +238,41 @@
 
 	RefreshParts()
 
-/obj/machinery/smartfridge/drinks
-	name = "\improper Drink Showcase"
-	desc = "A refrigerated storage unit for tasty tasty alcohol."
-
-	accepted_types = list(	/obj/item/weapon/reagent_containers/glass,
-							/obj/item/weapon/reagent_containers/food/drinks,
-							/obj/item/weapon/reagent_containers/food/condiment)
-
-/obj/machinery/smartfridge/drinks/New()
+/obj/machinery/smartfridge/condiments/New()
 	. = ..()
 
-	component_parts = newlist(
-		/obj/item/weapon/circuitboard/smartfridge/drinks,
-		/obj/item/weapon/stock_parts/manipulator,
-		/obj/item/weapon/stock_parts/manipulator,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/matter_bin,
-		/obj/item/weapon/stock_parts/scanning_module,
-		/obj/item/weapon/stock_parts/console_screen,
-		/obj/item/weapon/stock_parts/console_screen
-	)
-
-	RefreshParts()
+	for(var/i = 0 to 2)
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/honey(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/hotsauce(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/coldsauce(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/ketchup(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/gravy/gravybig(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/cinnamon(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/soysauce(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/vinegar(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/drinks/ice(src))
+		insert_item(new /obj/item/weapon/reagent_containers/food/condiment/small/discount(src))
 
 /obj/machinery/smartfridge/extract
 	name = "\improper Slime Extract Storage"
 	desc = "A refrigerated storage unit for slime extracts."
+	icon_state = "slimefridge"
+	icon_on = "slimefridge"
+	icon_off = "slimefridge-off"
+	icon_broken = "slimefridge-broken"
+	icon_deny = null
+	moody_state = "overlay_vending_slimefridge"
 
-	accepted_types = list(/obj/item/slime_extract)
+	accepted_types = list(
+		/obj/item/slime_extract,
+		/obj/item/weapon/slimepotion,
+		/obj/item/weapon/slimepotion2,
+		/obj/item/weapon/slimesteroid,
+		/obj/item/weapon/slimesteroid2,
+		/obj/item/weapon/slimenutrient,
+		/obj/item/weapon/slimedupe,
+		/obj/item/weapon/slimeres
+	)
 
 /obj/machinery/smartfridge/extract/New()
 	. = ..()
@@ -235,6 +297,10 @@
 	desc = "A refrigerated storage unit for blood packs."
 	icon_state = "bloodbank"
 	icon_on = "bloodbank"
+	icon_off = "bloodbank-off"
+	icon_broken = "bloodbank-broken"
+	icon_deny = null
+	moody_state = "overlay_vending_bloodbank"
 
 	accepted_types = list(/obj/item/weapon/reagent_containers/blood)
 
@@ -259,31 +325,101 @@
 	RefreshParts()
 
 //Separate subtype for mapping so that all newly constructed blood banks don't get filled with blood packs
+/obj/machinery/smartfridge/bloodbank/filled/initialize()
+	. = ..()
+	for(var/i = 0 to 2)
+		insert_item(new /obj/item/weapon/reagent_containers/blood/APlus(src))
+		insert_item(new /obj/item/weapon/reagent_containers/blood/AMinus(src))
+		insert_item(new /obj/item/weapon/reagent_containers/blood/BPlus(src))
+		insert_item(new /obj/item/weapon/reagent_containers/blood/BMinus(src))
+		insert_item(new /obj/item/weapon/reagent_containers/blood/OPlus(src))
+		insert_item(new /obj/item/weapon/reagent_containers/blood/OMinus(src))
+	for(var/i = 0 to 5)
+		insert_item(new /obj/item/weapon/reagent_containers/blood/empty(src))
+
 /obj/machinery/smartfridge/bloodbank/filled/New()
 	. = ..()
+	if (ticker?.current_state == GAME_STATE_PLAYING)
+		initialize()
 
-	insert_item(new /obj/item/weapon/reagent_containers/blood/APlus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/AMinus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/BPlus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/BMinus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/OPlus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/OMinus(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/empty(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/empty(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/empty(src))
-	insert_item(new /obj/item/weapon/reagent_containers/blood/empty(src))
+/obj/machinery/smartfridge/mini
+	name = "\improper Minifridge"
+	desc = "A refrigerated storage unit for just about anything, with limited space."
+	icon = 'icons/obj/kitchen.dmi'
+	icon_state = "minifridge"
+	icon_on = "minifridge"
+	icon_off = "minifridge-off"
+	icon_broken = "minifridge-broken"
+	icon_deny = null
+	moody_state = "overlay_vending_minifridge"
+	opacity = 0
+	pass_flags = PASSTABLE | PASSMACHINE
+	max_contained_allowed = 11 //the silent minifridge standard, 5 pizzas and 7 drinks
 
+	accepted_types = list(	/obj/item/weapon/reagent_containers,
+							/obj/item/weapon/grown,
+							/obj/item/seeds,
+							/obj/item/weapon/storage/pill_bottle,)
 
-/obj/machinery/smartfridge/power_change()
-	if( powered() )
-		stat &= ~NOPOWER
-		if(!(stat & BROKEN))
-			icon_state = icon_on
-	else
-		spawn(rand(0, 15))
-		stat |= NOPOWER
-		if(!(stat & BROKEN))
-			icon_state = icon_off
+/obj/machinery/smartfridge/mini/New()
+	. = ..()
+	if(map.nameShort == "deff")
+		icon_state = "minifridge_black"
+		icon_on = "minifridge_black"
+		icon_off = "minifridge_black-off"
+		icon_broken = "minifridge_black-broken"
+
+	component_parts = newlist(
+		/obj/item/weapon/circuitboard/small/minifridge,
+		/obj/item/weapon/stock_parts/manipulator,
+		/obj/item/weapon/stock_parts/matter_bin,
+		/obj/item/weapon/stock_parts/matter_bin,
+		/obj/item/weapon/stock_parts/scanning_module,
+		/obj/item/weapon/stock_parts/console_screen,
+	)
+
+	RefreshParts()
+
+/obj/machinery/smartfridge/mini/attackby(obj/item/W, mob/user)
+	if (istype(W, /obj/item/toy/crayon/black) && icon_on == "minifridge")
+		user.visible_message("<span class='notice'>[user] starts coloring the case of \the [src].</span>", \
+							"<span class='notice'>You start coloring the case of \the [src].</span>")
+		if(do_after(user,src,3 SECONDS))
+			user.visible_message("<span class='notice'>[user] finishes coloring \the [src].</span>", \
+							"<span class='notice'>You finish coloring \the [src].</span>")
+			icon_state = "minifridge_black"
+			icon_on = "minifridge_black"
+			icon_off = "minifridge_black-off"
+			icon_broken = "minifridge_black-broken"
+			update_icon()
+		return
+	if (istype(W, /obj/item/weapon/soap) && icon_on != "minifridge")
+		user.visible_message("<span class='notice'>[user] starts cleaning the color off of the case of \the [src].</span>", \
+							"<span class='notice'>You start cleaning the color off of the case of \the [src].</span>")
+		if(do_after(user,src,3 SECONDS))
+			user.visible_message("<span class='notice'>[user] finishes cleaning \the [src].</span>", \
+							"<span class='notice'>You finish cleaning \the [src].</span>")
+			var/obj/item/weapon/soap/used_soap = W
+			used_soap.on_successful_use(user)
+			icon_state = "minifridge"
+			icon_on = "minifridge"
+			icon_off = "minifridge-off"
+			icon_broken = "minifridge-broken"
+			update_icon()
+		return
+	. = ..()
+
+//Default wrench time is standard for a minifridge, no 10 SECONDS wait needed!
+/obj/machinery/smartfridge/mini/wrenchAnchor(var/mob/user, var/obj/item/I, var/time_to_wrench = 3 SECONDS)
+	. = ..()
+
+/obj/machinery/smartfridge/mini/table_shift()
+	pixel_x = -3
+	pixel_y = 6
+
+/obj/machinery/smartfridge/mini/table_unshift()
+	pixel_x = 0
+	pixel_y = 0
 
 /*******************
 *   Item Adding
@@ -293,10 +429,21 @@
 
 // Returns TRUE on success
 /obj/machinery/smartfridge/proc/try_insert_item(var/obj/item/O, var/mob/user)
+	if(!allowed(user) && !emagged)
+		to_chat(user, "<span class='warning'>[bicon(src)] Access denied.</span>")
+		flick(icon_deny,src)
+		return FALSE
+	if(max_contained_allowed && cached_total >= max_contained_allowed)
+		to_chat(user, "<span class='warning'>[bicon(src)] \The [src] is full.</span>")
+		return FALSE
 	if(accept_check(O))
+		if(max_contained_allowed && (cached_total+O.w_class) > max_contained_allowed)
+			to_chat(user, "<span class='warning'>[bicon(src)] \The [O] is too large to fit, make some space.</span>")
+			return FALSE
 		if(!user.drop_item(O, src))
 			return FALSE
 		insert_item(O)
+		cached_total += O.w_class
 		user.visible_message(	"<span class='notice'>[user] has added \the [O] to \the [src].", \
 								"<span class='notice'>You add \the [O] to \the [src].")
 		updateUsrDialog()
@@ -316,13 +463,24 @@
 /obj/machinery/smartfridge/proc/dump_bag(var/obj/item/weapon/storage/bag/B, var/mob/user)
 	if(!istype(B))
 		return FALSE
+	if(!allowed(user) && !emagged)
+		to_chat(user, "<span class='warning'>[bicon(src)] Access denied.</span>")
+		flick(icon_deny,src)
+		return FALSE
 	var/objects_loaded = 0
 	for(var/obj/G in B.contents)
 		if(!accept_check(G))
 			continue
+		if(max_contained_allowed)
+			if(cached_total >= max_contained_allowed)
+				to_chat(user, "<span class='warning'>[bicon(src)] \The [src] is now full.</span>")
+				break
+			if((cached_total+G.w_class) > max_contained_allowed)
+				continue
 		if(!B.remove_from_storage(G, src))
 			continue
 		insert_item(G)
+		cached_total += G.w_class
 		objects_loaded++
 	if(objects_loaded)
 		user.visible_message("<span class='notice'>[user] loads \the [src] with \the [B].</span>", \
@@ -332,12 +490,43 @@
 	updateUsrDialog()
 	return TRUE
 
-/obj/machinery/smartfridge/attackby(var/obj/item/O as obj, var/mob/user as mob, params)
-	if(stat & NOPOWER)
-		to_chat(user, "<span class='notice'>\The [src] is unpowered and useless.</span>")
-		return 1
+//Unwrenching a SmartFridge is especially longer to make it much easier to intervene
+/obj/machinery/smartfridge/wrenchAnchor(var/mob/user, var/obj/item/I, var/time_to_wrench = 10 SECONDS)
 
+	. = ..()
+	if(.)
+		update_nearby_tiles()
+
+/obj/machinery/smartfridge/conveyor_act(var/atom/movable/AM, var/obj/machinery/conveyor/CB)
+	if((stat & (FORCEDISABLE|NOPOWER)) || (contents.len >= MAX_N_OF_ITEMS))
+		return FALSE
+	if(accept_check(AM))
+		piles = sortList(piles)
+		AM.forceMove(src)
+		insert_item(AM)
+		return TRUE
+	else if(istype(AM,/obj/item/weapon/storage/bag))
+		var/obj/item/weapon/storage/bag/B = AM
+		var/objects_loaded = 0
+		for(var/obj/G in B.contents)
+			if(!accept_check(G))
+				continue
+			if(!B.remove_from_storage(G, src))
+				continue
+			insert_item(G)
+			objects_loaded++
+		if(objects_loaded)
+			return TRUE
+	return FALSE
+
+/obj/machinery/smartfridge/attackby(var/obj/item/O as obj, var/mob/user as mob, params)
 	if(..())
+		return 1
+	if(stat & BROKEN)
+		to_chat(user, "<span class='notice'>\The [src] cannot accept items while it remains broken.</span>")
+		return 1
+	if(stat & (FORCEDISABLE|NOPOWER))
+		to_chat(user, "<span class='notice'>\The [src] is unpowered and useless.</span>")
 		return 1
 	if(contents.len >= MAX_N_OF_ITEMS)
 		to_chat(user, "<span class='notice'>\The [src] is full.</span>")
@@ -359,19 +548,24 @@
 /obj/machinery/smartfridge/attack_paw(mob/user as mob)
 	return src.attack_hand(user)
 
-/obj/machinery/smartfridge/attack_ai(mob/user as mob)
-	return src.attack_hand(user)
-
 /obj/machinery/smartfridge/attack_hand(mob/user as mob)
 	user.set_machine(src)
 	interact(user)
+
+/obj/machinery/smartfridge/emag_act(mob/user)
+	spark(src)
+	emagged = !emagged
+	if(emagged)
+		to_chat(user, "<span class='warning'>You disable the security protocols.</span>")
+	else
+		to_chat(user, "<span class='warning'>You restore the security protocols.</span>")
 
 /*******************
 *   SmartFridge Menu
 ********************/
 
 /obj/machinery/smartfridge/interact(mob/user as mob)
-	if(stat & NOPOWER)
+	if(stat & (BROKEN|FORCEDISABLE|NOPOWER))
 		return
 
 	var/dat = list()
@@ -388,8 +582,10 @@
 			if(MINIICONS_OFF)
 				imagedesc = "Off"
 		dat += "<span class='imageToggleButton'><TT>Images: <a href='byond://?src=\ref[src];display_miniicons=1;'>[imagedesc]</A></TT></span>"
-
-		dat += "<TT><b>Select an item:</b></TT>"
+		var/fullness = round(100*contents.len / MAX_N_OF_ITEMS,1)
+		if(max_contained_allowed)
+			fullness = max(fullness, round(100*cached_total/max_contained_allowed,1))
+		dat += "<TT><b>Select an item:</b> ([fullness]% full)</TT>"
 
 		var/list/shelves[MAX_SHELVES]
 		for(var/i = 1 to MAX_SHELVES)
@@ -445,13 +641,26 @@
 	popup.open()
 
 /obj/machinery/smartfridge/Topic(href, href_list)
-	if(..())
+	. = ..()
+	if(stat & BROKEN)
+		to_chat(usr, "<span class='warning'>\The [src] has broken down and must be re-assembled.</span>")
+		return 1
+	if(stat & (NOPOWER|FORCEDISABLE))
+		to_chat(usr, "<span class='warning'>\The [src] doesn't respond as it is unpowered.</span>")
+		return 1
+
+	if(.)
 		return 1
 
 	if(href_list["close"])
 		if(usr.machine == src)
 			usr.unset_machine()
 		return 1
+
+	if(!allowed(usr) && !emagged) //this explicitly means all topic() options below this line require access
+		to_chat(usr, "<span class='warning'>[bicon(src)] Access denied.</span>")
+		flick(icon_deny,src)
+		return
 
 	usr.set_machine(src)
 
@@ -468,6 +677,7 @@
 		for(var/obj/O in contents)
 			if(format_text(O.name) == formatted_name)
 				O.forceMove(src.loc)
+				cached_total -= O.w_class
 				i--
 				if(i <= 0)
 					break
@@ -489,6 +699,14 @@
 				display_miniicons = MINIICONS_ON
 
 	src.updateUsrDialog()
+
+/obj/machinery/smartfridge/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
+	if(!istype(mover))
+		return !anchored
+	return ..()
+
+/obj/machinery/smartfridge/get_heat_conductivity()
+	return HEAT_CONDUCTIVITY_REFRIGERATOR
 
 #undef MAX_SHELVES
 #undef MINIICONS_ON

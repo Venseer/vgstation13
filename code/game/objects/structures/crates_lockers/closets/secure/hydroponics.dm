@@ -16,12 +16,20 @@
 			/obj/item/clothing/suit/apron/overalls),
 		/obj/item/weapon/storage/bag/plants,
 		pick(
+			/obj/item/weapon/storage/backpack/satchel_hyd,
+			/obj/item/weapon/storage/backpack/messenger/hyd,
+			),
+		pick(
 			/obj/item/clothing/under/rank/hydroponics,
 			/obj/item/clothing/under/rank/botany,
+			/obj/item/clothing/under/rank/beekeeper,
 		),
 		/obj/item/device/analyzer/plant_analyzer,
 		/obj/item/clothing/head/greenbandana,
 		/obj/item/weapon/minihoe,
 		/obj/item/weapon/hatchet,
 		/obj/item/weapon/bee_net,
+		/obj/item/weapon/storage/belt/botanist,
+		/obj/item/clothing/suit/bio_suit/beekeeping,
+		/obj/item/clothing/head/bio_hood/beekeeping,
 	)

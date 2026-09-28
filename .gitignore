@@ -5,6 +5,9 @@
 *.lk
 info.json
 
+# Temporary file created by the build system
+*.m.dme
+
 # WinMerge backups
 *.bak
 
@@ -51,7 +54,8 @@ players2.sqlite
 
 # Map player count config
 /maps/voting/*/playercount.txt
-
+# Created by Dream Maker when opening maps that contain invalid type paths
+/maps/backup
 # Runtime condenser I/O files.
 /tools/Runtime\ Condenser/*.txt
 
@@ -61,11 +65,18 @@ players2.sqlite
 # Round-end statistics
 /data/statfiles/*
 
-cfg
+# Persistence files
+/data/persistence/*
 
-.vscode
+cfg
 *.code-workspace
 /byond
 
 # Thumbs.db (windows image caching)
 Thumbs.db
+
+# Bootstrapped node installation for the tgui build system
+.cache
+
+# Running OpenDream locally
+vgstation13.json

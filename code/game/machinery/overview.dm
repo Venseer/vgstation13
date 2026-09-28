@@ -165,7 +165,7 @@
 
 
 	for(var/i=0; i<icount;i++)
-		var/obj/abstract/screen/H = getFromPool(/obj/abstract/screen)
+		var/obj/abstract/screen/H = new /obj/abstract/screen
 
 		H.screen_loc = "[5 + i%icx],[6+ round(i/icx)]"
 
@@ -181,10 +181,8 @@
 		HI.Insert(I, frame=1, delay = 5)
 		HI.Insert(J, frame=2, delay = 5)
 
-		qdel(I)
-		I = null
-		qdel(J)
-		J = null
+		QDEL_NULL(I)
+		QDEL_NULL(J)
 		H.icon = HI
 		H.layer = 25
 		usr.mapobjs += H
@@ -298,7 +296,7 @@
 
 
 	for(var/i=0; i<icount;i++)
-		var/obj/abstract/screen/H = getFromPool(/obj/abstract/screen)
+		var/obj/abstract/screen/H = new /obj/abstract/screen
 
 		H.screen_loc = "[5 + i%icx],[6+ round(i/icx)]"
 
@@ -309,8 +307,7 @@
 		var/icon/I = imap[i+1]
 
 		H.icon = I
-		qdel(I)
-		I = null
+		QDEL_NULL(I)
 		H.layer = 25
 		usr.mapobjs += H
 
@@ -344,20 +341,20 @@
 
 		return
 
-proc/getr(col)
+/proc/getr(col)
 	return hex2num( copytext(col, 2,4))
 
-proc/getg(col)
+/proc/getg(col)
 	return hex2num( copytext(col, 4,6))
 
-proc/getb(col)
+/proc/getb(col)
 	return hex2num( copytext(col, 6))
 
 
 /mob/proc/clearmap()
 	src.client.screen -= src.mapobjs
 	for(var/obj/abstract/screen/O in mapobjs)
-		returnToPool(O)
+		qdel(O)
 
 	mapobjs = null
 	src.unset_machine()

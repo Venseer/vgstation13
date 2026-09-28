@@ -11,7 +11,7 @@
 	icon = 'icons/obj/atmos.dmi'
 	icon_state = "yellow"
 	density = 1
-	var/health = 100.0
+	health = 100.0
 	flags = FPRINT
 	siemens_coefficient = 1
 
@@ -25,7 +25,7 @@
 	pressure_resistance = 7*ONE_ATMOSPHERE
 	var/temperature_resistance = 1000 + T0C
 	volume = 1000
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	var/release_log = ""
 	var/busy = 0
 	starting_materials = list(MAT_IRON = 10*CC_PER_SHEET_METAL)
@@ -33,15 +33,44 @@
 	melt_temperature = MELTPOINT_STEEL
 
 	//Icon Update Code
-	var/global/list/status_overlays_pressure = list()
-	var/global/list/status_overlays_other = list()
 	var/overlay_status = 0
-
 	var/log="" // Bad boys, bad boys.
 
 /obj/machinery/portable_atmospherics/canister/New()
 	..()
 	old_color = canister_color
+	setup_sound()
+
+/obj/machinery/portable_atmospherics/canister/setup_sound()
+	sound_emitter = new(src)
+	if (sound_emitter)
+		var/sound/hiss = sound()
+		hiss.file = 'sound/machines/looping/gas_hiss.ogg'
+		hiss.repeat = 1
+		hiss.volume = 100
+		sound_emitter.add(hiss, "gas_hiss")
+
+/obj/machinery/portable_atmospherics/canister/proc/calc_sound_vol(var/p_delta, var/p_env)
+	var/soundvol = 0
+	if (p_env > 0.01)
+		// p_delta/p_env is usually 0~10
+		soundvol = clamp(10 * p_delta / p_env, 0.001, 100)
+	return soundvol
+
+/obj/machinery/portable_atmospherics/canister/proc/set_initial_sound_volume() // i copied some of this from process(). sorry
+	if(valve_open)
+		var/datum/gas_mixture/environment
+		if(holding && !arcanetampered)
+			environment = holding.air_contents
+		else
+			environment = loc.return_air()
+
+		var/env_pressure = environment.return_pressure()
+		var/soundvol = 0
+		if (env_pressure > 0.01)
+			var/pressure_delta = min(release_pressure - env_pressure, (air_contents.return_pressure() - env_pressure)/2)
+			soundvol = calc_sound_vol(pressure_delta, env_pressure)
+		sound_emitter.update_active_sound_param(volume = soundvol)
 
 /obj/machinery/portable_atmospherics/canister/sleeping_agent
 	name = "Canister: \[N2O\]"
@@ -67,6 +96,10 @@
 	canister_color = "orange"
 	can_label = 0
 
+/obj/machinery/portable_atmospherics/canister/plasma/broken
+	icon_state = "orange-1"
+	destroyed = 1
+
 /obj/machinery/portable_atmospherics/canister/carbon_dioxide
 	name = "Canister \[CO2\]"
 	icon_state = "black"
@@ -77,6 +110,18 @@
 	name = "Canister \[Air\]"
 	icon_state = "grey"
 	canister_color = "grey"
+	can_label = 0
+
+/obj/machinery/portable_atmospherics/canister/radon //for testing (or admin shittery)
+	name = "Canister \[Rn\]"
+	icon_state = "green"
+	canister_color = "green"
+	can_label = 0
+
+/obj/machinery/portable_atmospherics/canister/cryotheum // see above
+	name = "Canister \[O2β\]"
+	icon_state = "cyan"
+	canister_color = "cyan"
 	can_label = 0
 
 /obj/machinery/portable_atmospherics/canister/update_icon()
@@ -121,18 +166,21 @@
 
 /obj/machinery/portable_atmospherics/canister/proc/pressure_overlays(var/state)
 	var/static/list/status_overlays_pressure = list(
-		image(icon, "can-o0"),
-		image(icon, "can-o1"),
-		image(icon, "can-o2"),
-		image(icon, "can-o3")
+		image('icons/obj/atmos.dmi', "can-o0"), //Should be able to use icon as an arg here, but BYOND (as of v514) makes it null for some reason. null actually works fine here though because it uses src.icon by default. But for the sake of clarity we'll keep the explicit path here for now. Same situation with the vintage canisters in randomvaults/objects.dm.
+		image('icons/obj/atmos.dmi', "can-o1"),
+		image('icons/obj/atmos.dmi', "can-o2"),
+		image('icons/obj/atmos.dmi', "can-o3")
 	)
+
+	var/image/I = status_overlays_pressure[state]
+	I.plane = ABOVE_LIGHTING_PLANE
 
 	return status_overlays_pressure[state]
 
 /obj/machinery/portable_atmospherics/canister/proc/other_overlays(var/state)
 	var/static/list/status_overlays_other = list(
-		image(icon, "can-open"),
-		image(icon, "can-connector")
+		image('icons/obj/atmos.dmi', "can-open"),
+		image('icons/obj/atmos.dmi', "can-connector")
 	)
 
 	return status_overlays_other[state]
@@ -175,7 +223,6 @@
 		if (src.holding)
 			src.holding.forceMove(src.loc)
 			src.holding = null
-		INVOKE_EVENT(on_destroyed, list())
 		nanomanager.update_uis(src)
 		return 1
 	else
@@ -192,7 +239,7 @@
 	if(valve_open)
 		var/datum/gas_mixture/environment
 		var/transfer_vol //A band-aid fix for the fact the equation used below doesn't work as intended
-		if(holding)
+		if(holding && !arcanetampered)
 			environment = holding.air_contents
 			transfer_vol = holding.volume
 		else
@@ -202,6 +249,10 @@
 		var/env_pressure = environment.return_pressure()
 		var/pressure_delta = min(release_pressure - env_pressure, (air_contents.return_pressure() - env_pressure)/2)
 		//Can not have a pressure delta that would cause environment pressure > tank pressure
+		var/soundvol = 0
+		if (env_pressure > 0.01)
+			soundvol = calc_sound_vol(pressure_delta, env_pressure)
+		sound_emitter.update_active_sound_param(volume = soundvol)
 
 		var/transfer_moles = 0
 		if((air_contents.temperature > 0) && (pressure_delta > 0))
@@ -210,12 +261,18 @@
 			//Actually transfer the gas
 			var/datum/gas_mixture/removed = air_contents.remove(transfer_moles)
 
-			if(holding)
+			if(holding && !arcanetampered)
 				environment.merge(removed)
 			else
 				loc.assume_air(removed)
 			src.update_icon()
 		nanomanager.update_uis(src)
+
+		//Updating the pipenet if we're on a connector
+		if (connected_port)
+			var/datum/pipe_network/P = connected_port.return_network(src)
+			if (P)
+				P.update = 1
 
 	if(air_contents.return_pressure() < 1)
 		can_label = 1
@@ -252,20 +309,20 @@
 	if(Proj.damage)
 		src.health -= round(Proj.damage / 2)
 		healthcheck()
-	..()
+	return ..()
 
 /obj/machinery/portable_atmospherics/canister/attackby(var/obj/item/weapon/W as obj, var/mob/user as mob)
 	if(iswelder(W) && src.destroyed)
 		if(weld(W, user))
 			to_chat(user, "<span class='notice'>You salvage what's left of \the [src].</span>")
-			var/obj/item/stack/sheet/metal/M = getFromPool(/obj/item/stack/sheet/metal, get_turf(src))//new /obj/item/stack/sheet/metal(src.loc)
+			var/obj/item/stack/sheet/metal/M = new /obj/item/stack/sheet/metal(get_turf(src))//new /obj/item/stack/sheet/metal(src.loc)
 			M.amount = 3
 			qdel (src)
 		return
 
-	if(!iswrench(W) && !istype(W, /obj/item/weapon/tank) && !istype(W, /obj/item/device/analyzer) && !istype(W, /obj/item/device/pda))
+	if(!W.is_wrench(user) && !istype(W, /obj/item/weapon/tank) && !istype(W, /obj/item/device/analyzer) && !istype(W, /obj/item/device/pda))
 		visible_message("<span class='warning'>[user] hits the [src] with a [W]!</span>")
-		investigation_log(I_ATMOS, "<span style='danger'>was smacked with \a [W] by [key_name(user)]</span>")
+		investigation_log(I_ATMOS, "<span class='danger'>was smacked with \a [W] by [key_name(user)]</span>")
 		src.health -= W.force
 		src.add_fingerprint(user)
 		healthcheck()
@@ -287,11 +344,6 @@
 
 	nanomanager.update_uis(src) // Update all NanoUIs attached to src
 
-
-
-/obj/machinery/portable_atmospherics/canister/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/portable_atmospherics/canister/attack_paw(var/mob/user as mob)
 	return src.attack_hand(user)
@@ -351,34 +403,39 @@
 		return .
 
 	if(href_list["toggle"])
-		if (valve_open)
+		if (valve_open && !arcanetampered)
 			if (holding)
 				investigation_log(I_ATMOS, "had its valve <b>closed</b> by [key_name(usr)], stopping transfer into \the [holding].")
 			else
 				investigation_log(I_ATMOS, "had its valve <b>closed</b> by [key_name(usr)], stopping transfer into the <font color='red'><b>air</b></font>")
 		else
-			if (holding)
+			if (holding && !arcanetampered)
 				investigation_log(I_ATMOS, "had its valve <b>OPENED</b> by [key_name(usr)], starting transfer into \the [holding]")
 			else
 				var/naughty_stuff = air_contents.loggable_contents()
 				investigation_log(I_ATMOS, "had its valve <b>OPENED</b> by [key_name(usr)], starting transfer into the <font color='red'><b>air</b></font> ([naughty_stuff])")
 				if(naughty_stuff)
-					message_admins("[usr.real_name] ([formatPlayerPanel(usr,usr.ckey)]) opened a canister that contains [naughty_stuff] at [formatJumpTo(loc)]!")
-					log_admin("[usr]([ckey(usr.key)]) opened a canister that contains [naughty_stuff] at [loc.x], [loc.y], [loc.z]")
+					message_admins("[usr.real_name] ([formatPlayerPanel(usr,usr.ckey)]) opened a[arcanetampered ? "n arcane tampered" : ""] canister that contains [naughty_stuff] at [formatJumpTo(loc)]!")
+					log_admin("[usr]([ckey(usr.key)]) opened a[arcanetampered ? "n arcane tampered" : ""] canister that contains [naughty_stuff] at [loc.x], [loc.y], [loc.z]")
 
 		valve_open = !valve_open
+		if (!valve_open)
+			sound_emitter.stop()
+		else
+			sound_emitter.play("gas_hiss")
+			set_initial_sound_volume()
 
 	if (href_list["remove_tank"])
 		if(holding)
-			if(valve_open)
+			if(valve_open || arcanetampered)
 				var/naughty_stuff = air_contents.loggable_contents()
 				if(naughty_stuff)
-					message_admins("[usr.real_name] ([formatPlayerPanel(usr,usr.ckey)]) opened a canister that contains [naughty_stuff] at [formatJumpTo(loc)]!")
-					log_admin("[usr]([ckey(usr.key)]) opened a canister that contains [naughty_stuff] at [loc.x], [loc.y], [loc.z]")
+					message_admins("[usr.real_name] ([formatPlayerPanel(usr,usr.ckey)]) opened a[arcanetampered ? "n arcane tampered" : ""] canister that contains [naughty_stuff] at [formatJumpTo(loc)]!")
+					log_admin("[usr]([ckey(usr.key)]) opened a[arcanetampered ? "n arcane tampered" : ""] canister that contains [naughty_stuff] at [loc.x], [loc.y], [loc.z]")
 
 			if(istype(holding, /obj/item/weapon/tank))
 				holding.manipulated_by = usr.real_name
-			holding.forceMove(loc)
+			usr.put_in_hands(holding)
 			holding = null
 
 	if (href_list["pressure_adj"])
@@ -398,6 +455,8 @@
 				"\[CO2\]" = "black", \
 				"\[Air\]" = "grey", \
 				"\[CAUTION\]" = "yellow", \
+				"\[Rn\]" = "green", \
+				"\[O2β\]" = "cyan", \
 			)
 			var/label = input("Choose canister label", "Gas canister") as null|anything in colors
 			if (label)
@@ -445,7 +504,19 @@
 
 	update_icon()
 
-/obj/machinery/portable_atmospherics/canister/proc/weld(var/obj/item/weapon/weldingtool/WT, var/mob/user)
+
+/obj/machinery/portable_atmospherics/canister/radon/New(loc)
+	..(loc)
+	air_contents.adjust_gas(GAS_RADON, (maximum_pressure * filled) * air_contents.volume / (R_IDEAL_GAS_EQUATION * air_contents.temperature))
+	update_icon()
+
+/obj/machinery/portable_atmospherics/canister/cryotheum/New(loc)
+	..(loc)
+	air_contents.adjust_gas(GAS_CRYOTHEUM, (maximum_pressure * filled) * air_contents.volume / (R_IDEAL_GAS_EQUATION * air_contents.temperature))
+	update_icon()
+
+
+/obj/machinery/portable_atmospherics/canister/proc/weld(var/obj/item/tool/weldingtool/WT, var/mob/user)
 
 
 	if(busy)

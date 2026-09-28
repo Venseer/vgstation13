@@ -4,8 +4,11 @@
 	desc = "A tube of paste containing swarms of repair nanites. Very effective in repairing robotic machinery."
 	icon = 'icons/obj/nanopaste.dmi'
 	icon_state = "tube"
+	w_class = W_CLASS_SMALL
 	origin_tech = Tc_MATERIALS + "=4;" + Tc_ENGINEERING + "=3"
 	amount = 10
+	max_amount = 10
+	surgerysound = 'sound/items/bonegel.ogg'
 
 /obj/item/stack/nanopaste/attack(mob/living/M as mob, mob/user as mob)
 	if(!istype(M) || !istype(user))
@@ -17,8 +20,8 @@
 			R.adjustFireLoss(rand(-15, -20))
 			R.updatehealth()
 			use(1)
-			user.visible_message("<span class='notice'>[user] applies some [src] to [R]'s damaged areas.</span>", \
-				"<span class='notice'>You apply some [src] to [R]'s damaged areas.</span>")
+			user.visible_message("<span class='notice'>[user] applies some \the [src] to [R]'s damaged areas.</span>", \
+				"<span class='notice'>You apply some \the [src] to [R]'s damaged areas.</span>")
 		else
 			to_chat(user, "<span class='notice'>All [R]'s systems are nominal.</span>")
 
@@ -32,12 +35,12 @@
 					affecting.heal_damage(rand(15, 20), rand(15, 20), robo_repair = 1)
 					H.updatehealth()
 					use(1)
-					user.visible_message("<span class='notice'>[user] applies some [src] to [user != M ? "[M]'s":"their"] [affecting.display_name].</span>", \
-					"<span class='notice'>You apply some [src] to [user != M ? "[M]'s":"your"] [affecting.display_name].</span>")
+					user.visible_message("<span class='notice'>[user] applies some \the [src] to [user != M ? "[M]'s":"their"] [affecting.display_name].</span>", \
+					"<span class='notice'>You apply some \the [src] to [user != M ? "[M]'s":"your"] [affecting.display_name].</span>")
 				else
 					to_chat(user, "<span class='notice'>Nothing to fix here.</span>")
 		else
-			if(can_operate(H, user))
+			if(can_operate(H, user, src))
 				if(do_surgery(H,user,src))
 					return
 			else

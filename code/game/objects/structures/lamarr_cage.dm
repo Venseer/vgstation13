@@ -5,14 +5,14 @@
 	desc = "A glass lab container for storing interesting creatures."
 	density = 1
 	anchored = 1
-	var/health = 30
+	health = 30
 	var/occupied = 1
 	var/destroyed = 0
 
 /obj/structure/lamarr/ex_act(severity)
 	switch(severity)
 		if (1)
-			getFromPool(/obj/item/weapon/shard, loc)
+			new /obj/item/weapon/shard(loc)
 			Break()
 			qdel(src)
 		if (2)
@@ -27,14 +27,14 @@
 
 /obj/structure/lamarr/bullet_act(var/obj/item/projectile/Proj)
 	health -= Proj.damage
-	..()
+	. = ..()
 	src.healthcheck()
 	return
 
 
 /obj/structure/lamarr/blob_act()
 	if (prob(75))
-		getFromPool(/obj/item/weapon/shard, loc)
+		new /obj/item/weapon/shard(loc)
 		Break()
 		qdel(src)
 
@@ -43,7 +43,7 @@
 		if (!( src.destroyed ))
 			setDensity(FALSE)
 			src.destroyed = 1
-			getFromPool(/obj/item/weapon/shard, loc)
+			new /obj/item/weapon/shard(loc)
 			playsound(src, "shatter", 70, 1)
 			Break()
 	else
@@ -86,7 +86,7 @@
 	update_icon()
 	return
 
-/obj/structure/lamarr/acidable()
+/obj/structure/lamarr/dissolvable()
 	return 0
 
 /obj/item/clothing/mask/facehugger/lamarr

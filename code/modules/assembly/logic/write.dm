@@ -20,7 +20,7 @@
 
 /obj/item/device/assembly/read_write
 	name = "write/read circuit"
-	desc = "A small circuit intended for use in assembly frames. It can be connected to two assemblies: READ and WRITE. ."
+	desc = "A small circuit intended for use in assembly frames. It can be connected to two assemblies: READ and WRITE."
 
 	icon_state = "circuit_write"
 
@@ -106,7 +106,7 @@
 
 		stored_num = choice
 	if(href_list["set_txt_value"])
-		var/choice = stripped_input(usr, "Select a new string value to be stored in \the [src].", "\The [src]", max_length = MAX_TEXT_VALUE_LEN) as null|text
+		var/choice = stripped_input(usr, "Select a new string value to be stored in \the [src].", "\The [src]", max_length = MAX_TEXT_VALUE_LEN)
 
 		if(isnull(choice))
 			return

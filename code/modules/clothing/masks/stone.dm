@@ -7,9 +7,15 @@
 	body_parts_covered = FACE
 	w_class = 2
 	siemens_coefficient = 0 //it's made of stone, after all
+	mech_flags = MECH_SCAN_FAIL
+	flammable = FALSE
 	var/spikes_out = 0 //whether the spikes are extended
 	var/infinite = 0 //by default the mask is destroyed after one use
 	var/blood_to_give = 300 //seeing as the new vampire won't have had a whole round to prepare, they get some blood free
+
+/obj/item/clothing/mask/stone/Destroy()
+	new /datum/artifact_postmortem_data(src)
+	..()
 
 /obj/item/clothing/mask/stone/mob_can_equip(mob/M, slot, disable_warning = 0, automatic = 0)
 	if(spikes_out)
@@ -35,8 +41,7 @@
 		H.visible_message("<span class='warning'>Stone spikes shoot out from the sides of \the [src]!</span>")
 		if(H.wear_mask == src) //the mob is wearing this mask
 			if(H.mind)
-				var/datum/mind/M = H.mind
-				if(jobban_isbanned(M, "Syndicate") || jobban_isbanned(H, "vampire"))
+				if(isantagbanned(H) || jobban_isbanned(H, "vampire"))
 					to_chat(H, "<span class='danger'>[src] seems to actively reject your advances. You are cursed!</span>")
 					H.sleeping+=rand(20, 50)
 					H.hallucination+=rand(100,500)
@@ -70,7 +75,7 @@
 		visible_message("<span class='info'>\The [src] crumbles into dust...</span>")
 	qdel(src)
 
-/obj/item/clothing/mask/stone/acidable()
+/obj/item/clothing/mask/stone/dissolvable()
 	return 0
 
 /obj/item/clothing/mask/stone/infinite //this mask can be used any number of times

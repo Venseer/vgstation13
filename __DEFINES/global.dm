@@ -1,31 +1,39 @@
+var/list/protected_global_vars = list(
+	"sqlfdbklogin",
+	"sqlfdbkpass",
+	"sqlfdbkdb",
+	"sqladdress",
+	"sqlport",
+	"sqllogin",
+	"sqlpass",
+	"sqlfdbkdb",
+
+	"forbidden_varedit_object_types",
+	"unviewable_varedit_object_types",
+	"protected_global_vars", // Hhaha!
+)
+
 /proc/writeglobal(var/which, var/what)
+	if (which in protected_global_vars)
+		return "Cannot write variable."
 	global.vars[which] = what
 
 /proc/readglobal(var/which)
+	if (which in protected_global_vars)
+		return "Cannot read variable."
 	return global.vars[which]
 
-#define DNA_SE_LENGTH 58
-
-#define VOX_SHAPED "Vox","Skeletal Vox"
-
-#define GREY_SHAPED "Grey"
-
-#define UNDEAD_SHAPED "Skellington","Undead","Plasmaman"
 
 //Content of the Round End Information window
 var/round_end_info = ""
+var/round_end_info_no_img = ""
+var/last_round_end_info = ""
 
 //List of ckeys that have de-adminned themselves during this round
 var/global/list/deadmins = list()
 
 //List of vars that require DEBUG on top of VAREDIT to be able to edit
-var/list/lockedvars = list("vars", "client", "holder")
-
-//List of vars that you can NEVER edit through VV itself
-var/list/nevervars = list("step_x", "step_y", "step_size")
-
-// List of types and how many instances of each type there are.
-var/global/list/type_instances[0]
+var/list/lockedvars = list("vars", "client", "holder", "step_x", "step_y", "step_size")
 
 /var/global/datum/map/active/map = new() //Current loaded map
 //Defined in its .dm, see maps/_map.dm for more info.
@@ -63,6 +71,9 @@ var/eventchance = 10 //% per 5 mins
 var/event = 0
 var/hadevent = 0
 var/blobevent = 0
+
+var/admin_disable_rulesets = FALSE
+var/admin_disable_events = FALSE
 	///////////////
 var/starticon = null
 var/midicon = null
@@ -74,6 +85,9 @@ var/station_name = null
 var/game_version = "veegee"
 var/changelog_hash = ""
 var/game_year = (text2num(time2text(world.realtime, "YYYY")) + 544)
+var/time_taken_to_init = 0
+var/time_taken_in_lobby = 0
+var/roundstart_timestamp = 0
 
 var/going = 1.0
 var/master_mode = "extended"//"extended"
@@ -112,6 +126,8 @@ var/airtunnel_stop = 68 // default
 var/airtunnel_bottom = 72 // default
 var/list/monkeystart = list()
 var/list/wizardstart = list()
+var/list/grinchstart = list()
+var/list/hobostart = list()
 var/list/newplayer_start = list()
 var/list/latejoin = list()
 var/list/assistant_latejoin = list()
@@ -123,11 +139,16 @@ var/list/endgame_exits = list()
 var/list/tdome1 = list()
 var/list/tdome2 = list()
 var/list/tdomeobserve = list()
+var/list/tdomepacks = list()
 var/list/tdomeadmin = list()
 var/list/prisonsecuritywarp = list()	//prison security goes to these
 var/list/prisonwarped = list()	//list of players already warped
 var/list/blobstart = list()
 var/list/ninjastart = list()
+var/list/timeagentstart = list()
+var/list/prisonerstart = list()
+var/list/voxstart = list() //Vox raider spawn points
+var/list/voxlocker = list() //Vox locker spawn points
 //	list/traitors = list()	//traitor list
 var/list/cardinal = list( NORTH, SOUTH, EAST, WEST )
 var/list/diagonal = list(NORTHEAST, NORTHWEST, SOUTHEAST, SOUTHWEST)
@@ -138,6 +159,7 @@ var/global/universal_cult_chat = 0 //if set to 1, even human cultists can use cu
 var/datum/station_state/start_state = null
 var/datum/configuration/config = null
 
+var/hoboamount = 0
 var/suspend_alert = 0
 
 var/Debug = 0	// global debug switch
@@ -156,30 +178,17 @@ var/polarstar = 0 //1 means that the polar star has been found, 2 means that the
 // nanomanager, the manager for Nano UIs
 var/datum/nanomanager/nanomanager = new()
 
-#define FIRE_DAMAGE_MODIFIER 0.0215 //Higher values result in more external fire damage to the skin (default 0.0215)
-#define AIR_DAMAGE_MODIFIER 2.025 //More means less damage from hot air scalding lungs, less = more damage. (default 2.025)
-
-	//Don't set this very much higher then 1024 unless you like inviting people in to dos your server with message spam
-#define MAX_MESSAGE_LEN 1024
-#define MAX_PAPER_MESSAGE_LEN 3072
-#define MAX_BOOK_MESSAGE_LEN 9216
-#define MAX_NAME_LEN 26
-#define MAX_BROADCAST_LEN		512
-
-#define shuttle_time_in_station 1800 // 3 minutes in the station
-#define shuttle_time_to_arrive 6000 // 10 minutes to arrive
-
 	// MySQL configuration
 
 var/sqladdress = "localhost"
-var/sqlport = "3306"
-var/sqldb = "tgstation"
+var/sqlport = 3306
+var/sqldb = "feedback"
 var/sqllogin = "root"
 var/sqlpass = ""
 
 	// Feedback gathering sql connection
 
-var/sqlfdbkdb = "test"
+var/sqlfdbkdb = "feedback"
 var/sqlfdbklogin = "root"
 var/sqlfdbkpass = ""
 
@@ -204,72 +213,35 @@ var/forum_authenticated_group = "10"
 var/fileaccess_timer = 0
 var/custom_event_msg = null
 
-//Database connections
-//A connection is established on world creation. Ideally, the connection dies when the server restarts (After feedback logging.).
-var/DBConnection/dbcon	//Feedback database (New database)
-var/DBConnection/dbcon_old	//Tgstation database (Old database) - See the files in the SQL folder for information what goes where.
-
-#define MIDNIGHT_ROLLOVER		864000	//number of deciseconds in a day
-
 //Recall time limit:  2 hours
 var/recall_time_limit = 72000
 
-//Goonstyle scoreboard
-//NOW AN ASSOCIATIVE LIST
-//NO FUCKING EXCUSE FOR THE ATROCITY THAT WAS
-var/list/score=list(
-	"crewscore"      = 0, //This is the overall var/score for the whole round
-	"stuffshipped"   = 0, //How many useful items have cargo shipped out? Currently broken
-	"stuffharvested" = 0, //How many harvests have hydroponics done (per crop)?
-	"oremined"       = 0, //How many chunks of ore were smelted
-	"eventsendured"  = 0, //How many random events did the station endure?
-	"powerloss"      = 0, //How many APCs have alarms (under 30 %)?
-	"escapees"       = 0, //How many people got out alive?
-	"deadcrew"       = 0, //Humans who died during the round
-	"deadsilicon"	 = 0, //Silicons who died during the round
-	"mess"           = 0, //How much messes on the floor went uncleaned
-	"litter"		 = 0, //How much trash is laying on the station floor
-	"meals"          = 0, //How much food was actively cooked that day
-	"disease"        = 0, //How many disease vectors in the world (one disease on one person is one)
-
-	//These ones are mainly for the stat panel
-	"powerbonus"    = 0, //If all APCs on the station are running optimally, big bonus
-	"messbonus"     = 0, //If there are no messes on the station anywhere, huge bonus
-	"deadaipenalty" = 0, //AIs who died during the round
-	"foodeaten"     = 0, //How much food was consumed
-	"clownabuse"    = 0, //How many times a clown was punched, struck or otherwise maligned
-	"slips"			= 0, //How many people have slipped during this round
-	"richestname"   = null, //This is all stuff to show who was the richest alive on the shuttle
-	"richestjob"    = null,  //Kinda pointless if you dont have a money system i guess
-	"richestcash"   = 0,
-	"richestkey"    = null,
-	"dmgestname"    = null, //Who had the most damage on the shuttle (but was still alive)
-	"dmgestjob"     = null,
-	"dmgestdamage"  = 0,
-	"dmgestkey"     = null,
-	"explosions"	= 0, //How many explosions happened total
-
-	"arenafights"   = 0,
-	"arenabest"		= null,
-)
+var/list/isolated_antibodies = list(
+	ANTIGEN_O	= 0,
+	ANTIGEN_A	= 0,
+	ANTIGEN_B	= 0,
+	ANTIGEN_RH	= 0,
+	ANTIGEN_Q	= 0,
+	ANTIGEN_U	= 0,
+	ANTIGEN_V	= 0,
+	ANTIGEN_M	= 0,
+	ANTIGEN_N	= 0,
+	ANTIGEN_P	= 0,
+	ANTIGEN_X	= 0,
+	ANTIGEN_Y	= 0,
+	ANTIGEN_Z	= 0,
+	ANTIGEN_CULT = 0,
+	)
+var/list/extracted_gna = list()
 
 var/list/trash_items = list()
 var/list/decals = list()
-
-// Mostly used for ban systems.
-// Initialized on world/New()
-var/global/event/on_login
-var/global/event/on_ban
-var/global/event/on_unban
 
 // Space get this to return for things i guess?
 var/global/datum/gas_mixture/space_gas = new
 
 //Announcement intercom
 var/global/obj/item/device/radio/intercom/universe/announcement_intercom = new
-
-//used by jump-to-area etc. Updated by area/updateName()
-var/list/sortedAreas = list()
 
 var/global/bomberman_mode = 0
 var/global/bomberman_hurt = 0
@@ -279,18 +251,9 @@ var/global/list/volunteer_gladiators = list()
 var/global/list/ready_gladiators = list()
 var/global/list/never_gladiators = list()
 
-var/global/list/achievements = list()
-
-//icons that appear on the Round End pop-up browser
-var/global/list/end_icons = list()
-
 var/global/list/arena_leaderboard = list()
 var/arena_rounds = 0
 var/arena_top_score = 0
-
-var/endgame_info_logged = 0
-
-var/explosion_newmethod = 1	// 1 = explosions take walls and obstacles into account; 0 = explosions pass through walls and obstacles without any impediments;
 
 //PDA games vars
 //Snake II leaderboard
@@ -306,13 +269,17 @@ var/nanocoins_lastchange = 0
 
 var/minimapinit = 0
 
-var/bees_species = list()
+var/list/bees_species = list()
 
 var/datum/stat_collector/stat_collection = new
 
 //Hardcore mode
 //When enabled, starvation kills
 var/global/hardcore_mode = 0
+
+//Mass Buddha Mode
+//When enabled, all current mobs and all new carbon mobs will be in buddha mode (no crit/death)
+var/global/buddha_mode_everyone = 0
 
 //Global list of all unsimulated mineral turfs for xenoarch
 var/global/list/mineral_turfs = list()
@@ -326,58 +293,38 @@ var/adminblob_icon = null
 var/adminblob_size = 64
 var/adminblob_beat = 'sound/effects/blob_pulse.ogg'
 
-// ECONOMY
-// Account default values
-#define DEPARTMENT_START_FUNDS 5000
-#define DEPARTMENT_START_WAGE 500
-#define PLAYER_START_WAGE 50
-
 //HUD MINIMAPS
 var/list/holoMiniMaps = list()
 var/list/centcommMiniMaps = list()
 var/list/extraMiniMaps = list()
 
 var/list/holomap_markers = list()
+var/list/workplace_markers = list()
 
 var/holomaps_initialized = 0
 
-//Staff of change
-#define SOC_CHANGETYPE_COOLDOWN 2 MINUTES
-#define SOC_MONKEY "Primate"
-#define SOC_MARTIAN "Martian"
-#define SOC_CYBORG "Robot"
-#define SOC_MOMMI "MoMMI"
-#define SOC_SLIME "Slime"
-#define SOC_XENO "Xenomorph"
-#define SOC_HUMAN "Human"
-#define SOC_CATBEAST "Furry"
-#define SOC_FRANKENSTEIN "Frankenstein"
-
-var/list/available_staff_transforms = list(
-	SOC_MONKEY,SOC_MARTIAN,
-	SOC_CYBORG,
-	SOC_SLIME,
-	SOC_XENO,
-	SOC_HUMAN,
-	SOC_CATBEAST,
-	SOC_FRANKENSTEIN
-	)
-
 //Broken mob list
 var/list/blacklisted_mobs = list(
-		/mob/living/simple_animal/space_worm,							// Unfinished. Very buggy, they seem to just spawn additional space worms everywhere and eating your own tail results in new worms spawning.
-		/mob/living/simple_animal/hostile/humanoid,						// JUST DON'T DO IT, OK?
-		/mob/living/simple_animal/hostile/retaliate/cockatrice,			// I'm just copying this from transmog.
-		/mob/living/simple_animal/hostile/giant_spider/hunter/dead,		// They are dead.
-		/mob/living/simple_animal/hostile/asteroid/hivelordbrood,		// They aren't supposed to be playable.
-		/mob/living/simple_animal/hologram,								// Can't live outside the holodeck.
-		/mob/living/simple_animal/hostile/carp/holocarp,				// These can but they're just a retarded hologram carp reskin for the love of god.
-		/mob/living/slime_pile,											// They are dead.
-		/mob/living/adamantine_dust, 									// Ditto
-		/mob/living/simple_animal/hostile/viscerator,					// Nope.
-		/mob/living/simple_animal/hostile/mining_drone,					// This thing is super broken in the hands of a player and it was never meant to be summoned out of actual mining drone cubes.
-		/mob/living/simple_animal/bee,									// Aren't set up to be playable
-		/mob/living/simple_animal/hostile/asteroid/goliath/david/dave,	// Isn't supposed to be spawnable by xenobio
+		/mob/living/simple_animal/space_worm,								// Unfinished. Very buggy, they seem to just spawn additional space worms everywhere and eating your own tail results in new worms spawning.
+		/mob/living/simple_animal/hostile/humanoid,							// JUST DON'T DO IT, OK?
+		/mob/living/simple_animal/hostile/retaliate/cockatrice,				// I'm just copying this from transmog.
+		/mob/living/simple_animal/hostile/giant_spider/hunter/dead,			// They are dead.
+		/mob/living/simple_animal/hostile/asteroid/hivelordbrood,			// Your motherfucking life ends in 5 seconds.
+		/mob/living/simple_animal/hostile/asteroid/hivelordbrood/guardian,	// Ditto
+		/mob/living/simple_animal/hologram,									// Can't live outside the holodeck.
+		/mob/living/simple_animal/hostile/carp/holocarp,					// These can but they're just a retarded hologram carp reskin for the love of god.
+		/mob/living/slime_pile,												// They are dead.
+		/mob/living/adamantine_dust, 										// Ditto
+		/mob/living/simple_animal/hostile/viscerator,						// Nope.
+		/mob/living/simple_animal/hostile/mining_drone,						// This thing is super broken in the hands of a player and it was never meant to be summoned out of actual mining drone cubes.
+		/mob/living/simple_animal/bee,										// Aren't set up to be playable
+		/mob/living/simple_animal/hostile/asteroid/goliath/david/dave,		// Isn't supposed to be spawnable by xenobio
+		/mob/living/simple_animal/hostile/bunnybot,							// See viscerator
+		/mob/living/carbon/human/NPC,										// Unfinished, with its own AI that conflicts with player movements.
+		/mob/living/simple_animal/hostile/pulse_demon,						// Your motherfucking life ends in 0 seconds.
+		/mob/living/simple_animal/hostile/pulse_demon/maxedout,				// Admin testing mob, do not ever spawn otherwise.
+		/mob/living/simple_animal/hostile/slime,							// Instantly kills player and destroys the MC.
+		/mob/living/simple_animal/hostile/asteroid/goldgrub,				// High chance of running off and disappearing.
 		)
 
 //Boss monster list
@@ -388,50 +335,78 @@ var/list/boss_mobs = list(
 	/mob/living/simple_animal/hostile/mechahitler,					// Sieg heil!
 	/mob/living/simple_animal/hostile/alien/queen/large,			// The bigger and beefier version of queens.
 	/mob/living/simple_animal/hostile/asteroid/rockernaut/boss, 	// Angie
+	/mob/living/simple_animal/hostile/asteroid/hivelord/boss,	 	// Maria
 	/mob/living/simple_animal/hostile/humanoid/surgeon/boss, 		// First stage of Doctor Placeholder
 	/mob/living/simple_animal/hostile/humanoid/surgeon/skeleton,	// Second stage of Doctor Placeholder
+	/mob/living/simple_animal/hostile/roboduck,						// The bringer of the end times
+	/mob/living/simple_animal/hostile/bear/spare,					// Captain bear
+	/mob/living/simple_animal/hostile/ginger/gingerbroodmother,		// Gingerbominations...
+	/mob/living/simple_animal/hostile/old_vendotron,				// Why is a normal, harmless, vending machine on this list?
+	/mob/living/simple_animal/hostile/humanoid/greynurse,           // Turn your head and cough
+	/mob/living/simple_animal/hostile/humanoid/nurseunit,           // Nurse...?
+	/mob/living/simple_animal/hostile/humanoid/vox/spaceraider/leader,  // Very mean chikun man
+	/mob/living/simple_animal/hostile/humanoid/grey/leader,          // Evil, pompous, and alien
 	)
+//Mobs that are unlikely to cause trouble
+var/list/minor_mobs = list(/mob/living/simple_animal/parrot,
+	/mob/living/simple_animal/cockroach,
+	/mob/living/simple_animal/hostile/lizard,
+	/mob/living/simple_animal/mouse,
+	/mob/living/simple_animal/hostile/asteroid/pillow
+	)+ typesof(/mob/living/simple_animal/cat) + typesof(/mob/living/simple_animal/corgi)
+
+//Mobs that may cause a mess of the crew
+var/list/major_mobs = list(
+	/mob/living/simple_animal/hostile/carp,
+	/mob/living/simple_animal/hostile/giant_spider,
+	/mob/living/simple_animal/hostile/giant_spider/hunter,
+	/mob/living/simple_animal/hostile/giant_spider/nurse,
+	/mob/living/simple_animal/hostile/monster/skrite
+	) + typesof(/mob/living/simple_animal/hostile/bear)\
+	+ typesof(/mob/living/simple_animal/hostile/frog)\
+	+ subtypesof(/mob/living/simple_animal/hostile/asteroid)\
+	+ typesof(/mob/living/simple_animal/hostile/bigroach)
+
+//Supernatural mobs, preferably organic or unsettling
+var/list/corrupt_mobs = list(
+	/mob/living/simple_animal/hostile/creature,
+	/mob/living/simple_animal/hostile/mannequin/cult,
+	/mob/living/simple_animal/hostile/humanoid/supermatter)
 
 // Set by traitor item, affects cargo supplies
 var/station_does_not_tip = FALSE
 
-#define CARD_CAPTURE_SUCCESS 0 // Successful charge
-#define CARD_CAPTURE_FAILURE_GENERAL 1 // General error
-#define CARD_CAPTURE_FAILURE_NOT_ENOUGH_FUNDS 2 // Not enough funds in the account.
-#define CARD_CAPTURE_ACCOUNT_DISABLED 3 // Account locked.
-#define CARD_CAPTURE_ACCOUNT_DISABLED_MERCHANT 4 // Destination account disabled.
-#define CARD_CAPTURE_FAILURE_BAD_ACCOUNT_PIN_COMBO 5 // Bad account/pin combo
-#define CARD_CAPTURE_FAILURE_SECURITY_LEVEL 6 // Security level didn't allow current authorization or another exception occurred
-#define CARD_CAPTURE_FAILURE_USER_CANCELED 7 // The user canceled the transaction
-#define CARD_CAPTURE_FAILURE_NO_DESTINATION 8 // There was no linked account to send funds to.
-#define CARD_CAPTURE_FAILURE_NO_CONNECTION 9 // Account database not available.
+//Malf AI global variables
+var/malf_radio_blackout = FALSE
+var/malf_rcd_disable = FALSE
 
-#define BANK_SECURITY_EXPLANATION {"Choose your bank account security level.
-Vendors will try to subtract from your virtual wallet if possible.
-If you're too broke, they'll try to access your bank account directly.
-This setting decides how much info you have to enter to allow for that.
-Zero; Only your account number is required to deduct funds.
-One; Your account number and PIN are required.
-Two; Your ID card, account number and PIN are required.
-You can change this mid-game at an ATM."}
+//Cyborg killswitch time. If set at a time other than zero, cyborgs will self destruct at that time
+var/cyborg_detonation_time = 0
 
-proc/bank_security_num2text(var/num)
-	switch(num)
-		if(0)
-			return "Zero"
-		if(1)
-			return "One"
-		if(2)
-			return "Two"
-		else
-			return "OUT OF RANGE"
-
-var/list/bank_security_text2num_associative = list(
-	"Zero" = 0,
-	"One" = 1,
-	"Two" = 2
-) // Can't use a zero. Throws a fit about out of bounds indices if you do.
-// Also if you add more security levels, please also update the above BANK_SECURITY_EXPLANATION
 
 //Radial menus currently existing in the world.
-var/global/list/radial_menus = list()
+var/global/list/radial_menu_anchors = list()
+
+// Copying atoms is stupid and this is a stupid solution
+var/list/variables_not_to_be_copied = list(
+	"type","loc","locs","vars","parent","parent_type","verbs","ckey","key",
+	"group","registered_events",
+	"on_attackby",
+	"on_explode","on_projectile","in_chamber","power_supply","contents",
+	"x","y","z"
+)
+
+//Item lists
+var/global/list/ties = list(/obj/item/clothing/accessory/tie/blue,/obj/item/clothing/accessory/tie/red,/obj/item/clothing/accessory/tie/horrible,/obj/item/clothing/accessory/tie/bolo)
+
+//Observers
+var/global_poltergeist_cooldown = 300 //30s by default, badmins can var-edit this to reduce the poltergeist cooldown globally
+
+var/list/all_machines = list()
+var/list/machinery_rating_cache = list() // list of type path -> number
+
+var/runescape_pvp = FALSE
+var/runescape_skull_display = FALSE
+
+//Custom Harm Alarm lines
+var/global/harm_alarm_line = fexists("config/custom_lines.txt") ? pick(file2list("config/custom_lines.txt")) : "BZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZT"

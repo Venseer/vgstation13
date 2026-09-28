@@ -6,6 +6,8 @@
 	flags = FPRINT
 	density = 0
 	anchored = 1
+	sheet_type = /obj/item/stack/sheet/wood
+	sheet_amt = 2
 	var/notices = 0
 
 /obj/structure/noticeboard/initialize()
@@ -19,10 +21,10 @@
 
 //attaching papers!!
 /obj/structure/noticeboard/attackby(var/obj/item/weapon/O as obj, var/mob/user as mob)
-	if(iswrench(O))
+	if(O.is_wrench(user))
 		to_chat(user, "<span class='notice'>You disassemble \the [src].</span>")
-		playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
-		new /obj/item/stack/sheet/wood (src.loc,2)
+		O.playtoolsound(src, 100)
+		drop_stack(sheet_type,loc,sheet_amt,user)
 		qdel(src)
 	if(istype(O, /obj/item/weapon/paper))
 		if(notices < 5)

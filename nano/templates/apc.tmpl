@@ -57,15 +57,15 @@
 			Power Cell:
 		</div>
 		{{if data.powerCellStatus == null}}
-			<div class="itemContent bad">		
+			<div class="itemContent bad">
 				Power cell removed.
 			</div>
 		{{else}}
-			
-			{{:helper.displayBar(data.powerCellStatus, 0, 100, (data.powerCellStatus >= 50) ? 'good' : (data.powerCellStatus >= 25) ? 'average' : 'bad')}}
-			<div class="itemContent" style="width: 60px">		
+
+			{{:helper.displayBar(data.powerCellStatus, 0, 100, (data.powerCellStatus >= 50) ? 'good' : (data.powerCellStatus >= 25) ? 'average' : 'bad', data.powerCellCharge + '/' + data.powerCellMaxCharge)}}
+			<div class="itemContent" style="width: 60px">
 				{{:helper.round(data.powerCellStatus*10)/10}}%
-			</div>	
+			</div>
 		{{/if}}
 	</div>
 
@@ -80,7 +80,7 @@
 						<span class='good'>Auto</span>
 					{{else}}
 						<span class='bad'>Off</span>
-					{{/if}}				
+					{{/if}}
 				{{else}}
 					{{:helper.link('Auto', 'refresh', {'cmode' : 1}, data.chargeMode ? 'selected' : null)}}{{:helper.link('Off', 'close', {'cmode' : 1}, data.chargeMode ? null : 'selected')}}
 				{{/if}}
@@ -119,7 +119,7 @@
 						&nbsp;&nbsp;Auto
 					{{else}}
 						&nbsp;&nbsp;Manual
-					{{/if}}		
+					{{/if}}
 				{{/if}}
 			</div>
 			{{if !data.locked || data.siliconUser}}
@@ -164,26 +164,12 @@
 		<h3>System Overrides</h3>
 
 		<div class="item">
-			{{if data.malfStatus == 1}}
-				{{:helper.link('Override Programming', 'script', {'malfhack' : 1})}}
-			{{else data.malfStatus > 1}}
+			{{if data.malfStatus > 1}}
 				<div class='notice'>APC Hacked</div>
 				{{:helper.link('Shunt Core Processes', 'script', {'occupyapc' : 1})}}
 			{{/if}}
 			{{:helper.link('Overload Lighting Circuit', 'lightbulb', {'overload' : 1})}}
 		</div>
-		{{if data.malfStatus > 1}}
-			<div class='notice'>
-				<div class="itemContentSmall">
-					Exclusive Control:
-				</div>
-				<div class="itemContentFull">
-					{{:helper.link('Enabled', 'locked', {'malflock' : 1}, data.malfLocked ? 'selected' : null)}}{{:helper.link('Disabled', 'unlocked', {'malflock' : 1}, data.malfLocked ? null : 'selected')}}
-				</div>
-				<div class="clearBoth"></div>
-			</div>
-		{{/if}}
 	{{/if}}
 
 </div>
-		

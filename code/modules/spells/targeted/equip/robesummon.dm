@@ -8,21 +8,22 @@
 	desc = "A spell which will summon you a new set of robes."
 	abbreviation = "RS"
 	user_type = USER_TYPE_WIZARD
+	specialization = SSUTILITY
 
 	school = "evocation"
-	charge_max = 300
+	charge_cooldown_max = 30 SECONDS
 
-	level_max = list(Sp_TOTAL = 5, Sp_SPEED = 4, Sp_POWER = 1)
+	level_max = list(SP_TOTAL = 5, SP_SPEED = 4, SP_POWER = 1)
 	invocation = "I PUT ON MY ROBE AND WIZARD HAT!"
-	invocation_type = SpI_SHOUT
+	invocation_type = SP_INV_SHOUT
 	range = SELFCAST
 	spell_flags = INCLUDEUSER | Z2NOCAST //z2nocast to prevent wizards from summoning the spacesuit and getting a refund
 
 	delete_old = 0 //Players shouldn't lose their hardsuits because they decided to summon some robes.
 
-	cooldown_min = 50
+	cooldown_min = 5 SECONDS
 
-	compatible_mobs = list(/mob/living/carbon/human)
+	valid_targets = list(/mob/living/carbon/human)
 
 	hud_state = "wiz_robesummon"
 
@@ -34,7 +35,7 @@
 		delete_old = TRUE //No duping baller lich outfits
 		switch(pick(valid_outfits))
 			if(ROBES_SUIT)
-				equipped_summons = list("[slot_head]" = /obj/item/clothing/head/helmet/space/rig/wizard/lich_king,
+				equipped_summons = list(
 										"[slot_wear_suit]" = /obj/item/clothing/suit/space/rig/wizard/lich_king,
 										"[slot_shoes]" = /obj/item/clothing/shoes/lich_king,
 										"[slot_wear_mask]" = /obj/item/clothing/mask/breath,
@@ -63,13 +64,13 @@
 										"[slot_shoes]" = /obj/item/clothing/shoes/sandal/marisa)
 
 			if(ROBES_SUIT)
-				equipped_summons = list("[slot_head]" = /obj/item/clothing/head/helmet/space/rig/wizard,
+				equipped_summons = list(
 										"[slot_wear_suit]" = /obj/item/clothing/suit/space/rig/wizard,
 										"[slot_shoes]" = /obj/item/clothing/shoes/sandal,
 										"[slot_wear_mask]" = /obj/item/clothing/mask/breath,
 										"[slot_s_store]" = /obj/item/weapon/tank/oxygen/yellow)
 
-	usr.visible_message("<span class='danger'>[user] puts on \his robe and wizard hat!</span>", \
+	user.visible_message("<span class='danger'>[user] puts on \his robe and wizard hat!</span>", \
 						"<span class='danger'>You put on your robe and wizard hat!</span>")
 
 	..()
@@ -77,7 +78,7 @@
 /spell/targeted/equip_item/robesummon/empower_spell()
 	if(!valid_outfits.Find(ROBES_SUIT))
 		valid_outfits = list(ROBES_SUIT)
-		spell_levels[Sp_POWER]++
+		spell_levels[SP_POWER]++
 
 	name = "Summon Hardsuit"
 	desc = "A spell which will summon you a wizard hardsuit."
@@ -85,7 +86,9 @@
 
 
 /spell/targeted/equip_item/robesummon/get_upgrade_info(upgrade_type, level)
-	if(upgrade_type == Sp_POWER)
+	if(upgrade_type == SP_POWER)
+		if(spell_levels[SP_POWER] >= level_max[SP_POWER])
+			return "It already summons a gem-encrusted hardsuit and internals!"
 		return "Make the spell summon a gem-encrusted hardsuit and internals."
 	return ..()
 

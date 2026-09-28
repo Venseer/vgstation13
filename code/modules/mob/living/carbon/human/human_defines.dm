@@ -1,32 +1,26 @@
 /mob/living/carbon/human
-	//Hair colour and style
-	var/r_hair = 0
-	var/g_hair = 0
-	var/b_hair = 0
-	var/h_style = "Bald"
+	//Hair colour and style are in apperance.dm
 
-	//Facial hair colour and style
-	var/r_facial = 0
-	var/g_facial = 0
-	var/b_facial = 0
-	var/f_style = "Shaved"
-
-	//Eye colour
-	var/r_eyes = 0
-	var/g_eyes = 0
-	var/b_eyes = 0
-
-	var/s_tone = 0	//Skin tone
 	var/multicolor_skin_r = 0	//Only used when the human has a species datum with the MULTICOLOR anatomical flag
 	var/multicolor_skin_g = 0
 	var/multicolor_skin_b = 0
 
 	var/lip_style = null	//no lipstick by default- arguably misleading, as it could be used for general makeup
 	var/eye_style = null
+	var/face_style = null
 
 	mob_bump_flag = HUMAN
 	mob_push_flags = ALLMOBS
 	mob_swap_flags = ALLMOBS
+
+	flags = HEAR_ALWAYS | PROXMOVE
+
+	standard_dizzy_reduce = 4 //This should be 3 it was reworked a little and it keeps them behaving the same as before, set to 1 if you don't want that
+	standard_jitter_reduce = 4 //Likewise
+	rested_dizzy_reduce = 16 //This should be 15 it was reworked a little and it keeps them behaving the same as before, set to 1 if you don't want that
+	rested_jitter_reduce = 16 //Likewise
+
+	disperse_coeff = 1 //For ablatives
 
 	var/age = 30		//Player's age (pure fluff)
 	//var/b_type = "A+"	//Player's bloodtype //NOW HANDLED IN THEIR DNA
@@ -61,7 +55,6 @@
 	var/icon/lying_icon = null
 
 	var/special_voice = "" // For changing our voice. Used by a symptom.
-	var/said_last_words=0
 
 	var/failed_last_breath = 0 //This is used to determine if the mob failed a breath. If they did fail a brath, they will attempt to breathe each tick, otherwise just once per 4 ticks.
 
@@ -72,7 +65,6 @@
 	var/lastpuke = 0
 
 	var/mob/remoteview_target = null
-	var/hand_blood_color
 
 	var/meatleft = 3 //For chef item
 
@@ -80,9 +72,14 @@
 
 	var/last_shush = 0 // disarm intent shushing cooldown
 	var/lastFart = 0 // Toxic fart cooldown.
+	var/lastDeathgasp = 0	// Deathgasp cooldown (only for clown trombones atm)
+	var/lastDab = 0 //Dab cooldown.
+	var/lastAnemia = 0 //Anemia rest cooldown
 	var/last_emote_sound = 0 // Prevent scream spam in some situations
 
-	var/obj/item/organ/external/head/decapitated = null //to keep track of a decapitated head, for debug and soulstone purposes
+	/// To keep track of a decapitated head, for debug and soulstone purposes.
+	/// (obj/item/organ/external/head)
+	var/datum/weakref/decapitated
 
 	fire_dmi = 'icons/mob/OnFire.dmi'
 	fire_sprite = "Standing"
@@ -90,5 +87,11 @@
 
 	var/show_client_status_on_examine = TRUE //If false, don't display catatonic/braindead messages to non-admins
 
-	var/become_zombie_after_death = FALSE
-	var/times_cloned = 0 //How many times this person has been cloned
+	var/become_zombie = FALSE
+	var/calorie_burn_rate = HUNGER_FACTOR
+	var/time_last_speech = 0 //When was the last time we talked?
+	var/manual_emote_sound_override = 0 //If toggled on, allows humans to make audible emotes
+
+	// Weather effect tracking
+	var/weather_slowdown_applied = 0 // Stores the slowdown multiplier that was applied
+	var/weather_vision_reduction = 0 // Stores the vision reduction amount to be applied in handle_regular_hud_updates

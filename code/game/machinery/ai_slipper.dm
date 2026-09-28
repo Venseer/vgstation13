@@ -28,7 +28,7 @@
 	src.power_change()
 
 /obj/machinery/ai_slipper/attackby(obj/item/weapon/W, mob/user)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(istype(user, /mob/living/silicon) || isAdminGhost(user))
 		src.add_hiddenprint(user)
@@ -50,10 +50,11 @@
 	return
 
 /obj/machinery/ai_slipper/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	if(stat & (NOPOWER|BROKEN))
+	add_hiddenprint(user)
+	if(is_pulselocked(user))
 		return
-
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
+		return
 	user.set_machine(src)
 	var/area/this_area = get_area(src)
 	var/t = "<TT><B>Foam Dispenser</B> ([this_area.name])<HR>"
@@ -64,8 +65,37 @@
 		t += text("Dispenser [src.disabled ? "unactive":"active"] - <A href='?src=\ref[src];toggleOn=1'>[src.disabled?"Enable":"Disable"]?</a><br>\n")
 		t += text("Uses Left: [uses]. <A href='?src=\ref[src];toggleUse=1'>Activate the dispenser?</A><br>\n")
 
-	user << browse(t, "window=computer;size=575x450")
+	user << browse(HTML_SKELETON(t), "window=computer;size=575x450")
 	onclose(user, "computer")
+	return
+
+/obj/machinery/ai_slipper/AICtrlClick(mob/user as mob)
+	src.add_hiddenprint(user)
+	if(is_pulselocked(user))
+		return
+	src.disabled = !src.disabled
+	icon_state = src.disabled? "motion0":"motion3"
+	return
+
+/obj/machinery/ai_slipper/AIShiftClick(mob/user as mob)
+	src.add_hiddenprint(user)
+	if(is_pulselocked(user))
+		return
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
+		return
+	if(src.cooldown_on)
+		to_chat(user, "It's still on cooldown!")
+		return
+	if(src.disabled)
+		to_chat(user, "It's turned off!")
+		return
+
+	new /obj/effect/foam(src.loc)
+	src.uses--
+	cooldown_on = 1
+	cooldown_time = world.timeofday + 100
+	slip_process()
+	to_chat(user, "Uses left: [uses].")
 	return
 
 /obj/machinery/ai_slipper/Topic(href, href_list)
@@ -82,7 +112,7 @@
 		if(cooldown_on || disabled)
 			return
 		else
-			new /obj/effect/effect/foam(src.loc)
+			new /obj/effect/foam(src.loc)
 			src.uses--
 			cooldown_on = 1
 			cooldown_time = world.timeofday + 100

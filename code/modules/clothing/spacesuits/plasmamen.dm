@@ -9,7 +9,8 @@
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 100, rad = 0)
 	body_parts_covered = ARMS|LEGS|FULL_TORSO|FEET|HANDS
 	max_heat_protection_temperature = SPACE_SUIT_MAX_HEAT_PROTECTION_TEMPERATURE
-	species_restricted = list("Plasmaman")
+	species_restricted = list(PLASMAMAN_SHAPED)
+	species_fit = list(PLASMAMAN_SHAPED)
 	clothing_flags = PLASMAGUARD|CONTAINPLASMAMAN
 	pressure_resistance = 40 * ONE_ATMOSPHERE //we can't change, so some resistance is needed
 
@@ -19,15 +20,15 @@
 	var/next_extinguish=0
 	var/extinguish_cooldown=10 SECONDS
 
-/obj/item/clothing/suit/space/plasmaman/proc/Extinguish(var/mob/living/carbon/human/H)
+/obj/item/clothing/suit/space/plasmaman/Extinguish(var/mob/living/carbon/human/H)
 	if(next_extinguish > world.time)
 		return
 
 	next_extinguish = world.time + extinguish_cooldown
 	to_chat(H, "<span class='warning'>Your suit automatically extinguishes the fire.</span>")
-	H.ExtinguishMob()
+	H.extinguish()
 
-/obj/item/clothing/suit/space/plasmaman/proc/regulate_temp_of_wearer(var/mob/living/carbon/human/H)
+/obj/item/clothing/suit/space/plasmaman/regulate_temp_of_wearer(var/mob/living/carbon/human/H)
 	if(H.bodytemperature < T0C+37)
 		H.bodytemperature = min(H.bodytemperature+5,T0C+37)
 	else
@@ -38,9 +39,10 @@
 	desc = "A special containment helmet designed to protect a plasmaman's volatile body from outside exposure and quickly extinguish it in emergencies."
 	clothing_flags = PLASMAGUARD|CONTAINPLASMAMAN
 	pressure_resistance = 40 * ONE_ATMOSPHERE
-	species_restricted = list("Plasmaman")
+	species_restricted = list(PLASMAMAN_SHAPED)
+	species_fit = list(PLASMAMAN_SHAPED)
 	eyeprot = 0
-
+	hides_identity = HIDES_IDENTITY_NEVER
 	icon_state = "plasmaman_helmet0"
 	item_state = "plasmaman_helmet0"
 	var/base_state = "plasmaman_helmet"
@@ -48,6 +50,7 @@
 	var/on = 0
 	var/no_light=0 // Disable the light on the atmos suit
 	actions_types = list(/datum/action/item_action/toggle_light)
+	body_parts_visible_override = 0//I mean technically the eyes are visible on the sprite, but they're manually drawn, the helmet itself not having any transparency, so w/e
 
 /obj/item/clothing/head/helmet/space/plasmaman/attack_self(mob/user)
 	if(no_light)
@@ -74,9 +77,14 @@
 	name = "plasmaman atmospheric suit"
 	icon_state = "plasmamanAtmos_suit"
 	armor = list(melee = 20, bullet = 0, laser = 0,energy = 0, bomb = 25, bio = 100, rad = 0)
-	allowed = list(/obj/item/device/flashlight, /obj/item/weapon/tank, /obj/item/device/t_scanner, /obj/item/device/rcd, /obj/item/weapon/wrench/socket)
+	allowed = list(/obj/item/device/flashlight, /obj/item/weapon/tank, /obj/item/device/t_scanner, /obj/item/device/rcd, /obj/item/tool/wrench/socket)
 	max_heat_protection_temperature = FIRESUIT_MAX_HEAT_PROTECTION_TEMPERATURE
+	pressure_resistance = 400 * ONE_ATMOSPHERE
 	slowdown = HARDSUIT_SLOWDOWN_HIGH
+
+/obj/item/clothing/suit/space/plasmaman/atmostech/firefighter
+	name = "plasmaman firefighter suit"
+	icon_state = "plasmamanFirefighter_suit"
 
 /obj/item/clothing/head/helmet/space/plasmaman/atmostech
 	name = "plasmaman atmospheric helmet"
@@ -84,12 +92,22 @@
 	base_state = "plasmamanAtmos_helmet"
 	armor = list(melee = 20, bullet = 0, laser = 0,energy = 0, bomb = 25, bio = 100, rad = 0)
 	max_heat_protection_temperature = FIRE_HELMET_MAX_HEAT_PROTECTION_TEMPERATURE
+	pressure_resistance = 400 * ONE_ATMOSPHERE
+
+/obj/item/clothing/head/helmet/space/plasmaman/atmostech/New()
+	actions_types += /datum/action/item_action/toggle_helmet_mask
+	..()
+
+/obj/item/clothing/head/helmet/space/plasmaman/atmostech/firefighter
+	name = "plasmaman firefighter helmet"
+	icon_state = "plasmamanFirefighter_helmet0"
+	base_state = "plasmamanFirefighter_helmet"
 
 /obj/item/clothing/suit/space/plasmaman/engineer
 	name = "plasmaman engineer suit"
 	icon_state = "plasmamanEngineer_suit"
 	armor = list(melee = 40, bullet = 5, laser = 20,energy = 5, bomb = 35, bio = 100, rad = 80)
-	allowed = list(/obj/item/device/flashlight, /obj/item/weapon/tank, /obj/item/device/t_scanner, /obj/item/device/rcd, /obj/item/weapon/wrench/socket)
+	allowed = list(/obj/item/device/flashlight, /obj/item/weapon/tank, /obj/item/device/t_scanner, /obj/item/device/rcd, /obj/item/tool/wrench/socket)
 	pressure_resistance = 200 * ONE_ATMOSPHERE
 	slowdown = HARDSUIT_SLOWDOWN_HIGH
 
@@ -101,16 +119,22 @@
 	pressure_resistance = 200 * ONE_ATMOSPHERE
 	eyeprot = 1
 
+/obj/item/clothing/head/helmet/space/plasmaman/engineer/New()
+	actions_types += /datum/action/item_action/toggle_helmet_mask
+	..()
+
 /obj/item/clothing/suit/space/plasmaman/engineer/ce
 	name = "plasmaman chief engineer suit"
 	icon_state = "plasmaman_CE"
 	max_heat_protection_temperature = FIRESUIT_MAX_HEAT_PROTECTION_TEMPERATURE
+	pressure_resistance = 400 * ONE_ATMOSPHERE
 
 /obj/item/clothing/head/helmet/space/plasmaman/engineer/ce
 	name = "plasmaman chief engineer helmet"
 	icon_state = "plasmaman_CE_helmet0"
 	base_state = "plasmaman_CE_helmet"
 	max_heat_protection_temperature = FIRE_HELMET_MAX_HEAT_PROTECTION_TEMPERATURE
+	pressure_resistance = 400 * ONE_ATMOSPHERE
 
 
 //SERVICE
@@ -123,6 +147,15 @@
 	name = "plasmaman botanist helmet"
 	icon_state = "plasmamanBotanist_helmet0"
 	base_state = "plasmamanBotanist_helmet"
+
+/obj/item/clothing/suit/space/plasmaman/librarian
+	name = "plasmaman librarian suit"
+	icon_state = "plasmamanLibrarian_suit"
+
+/obj/item/clothing/head/helmet/space/plasmaman/librarian
+	name = "plasmaman librarian helmet"
+	icon_state = "plasmamanLibrarian_helmet0"
+	base_state = "plasmamanLibrarian_helmet"
 
 /obj/item/clothing/suit/space/plasmaman/chaplain
 	name = "plasmaman chaplain suit"
@@ -203,14 +236,14 @@
 	icon_state = "plasmamanMiner_suit"
 	armor = list(melee = 30, bullet = 5, laser = 15,energy = 5, bomb = 30, bio = 100, rad = 20)
 	slowdown = HARDSUIT_SLOWDOWN_LOW
-	clothing_flags = GOLIATHREINFORCE|CONTAINPLASMAMAN
+	clothing_flags = GOLIATH_REINFORCEABLE|HIVELORD_REINFORCEABLE|BASILISK_REINFORCEABLE|CONTAINPLASMAMAN
 
 /obj/item/clothing/head/helmet/space/plasmaman/miner
 	name = "plasmaman miner helmet"
 	icon_state = "plasmamanMiner_helmet0"
 	base_state = "plasmamanMiner_helmet"
 	armor = list(melee = 30, bullet = 5, laser = 15,energy = 5, bomb = 30, bio = 100, rad = 20)
-	clothing_flags = GOLIATHREINFORCE|CONTAINPLASMAMAN
+	clothing_flags = GOLIATH_REINFORCEABLE|HIVELORD_REINFORCEABLE|BASILISK_REINFORCEABLE|CONTAINPLASMAMAN
 
 
 // MEDSCI
@@ -227,7 +260,7 @@
 /obj/item/clothing/suit/space/plasmaman/medical/paramedic
 	name = "plasmaman paramedic suit"
 	icon_state = "plasmaman_Paramedic"
-	allowed = list(/obj/item/weapon/gun,/obj/item/ammo_storage,/obj/item/ammo_casing,/obj/item/weapon/melee/baton,/obj/item/weapon/melee/energy/sword,/obj/item/weapon/handcuffs,/obj/item/weapon/tank,/obj/item/roller)
+	allowed = list(/obj/item/weapon/gun,/obj/item/ammo_storage,/obj/item/ammo_casing,/obj/item/weapon/melee/baton,/obj/item/weapon/melee/energy/sword,/obj/item/weapon/handcuffs,/obj/item/weapon/tank,/obj/item/roller,/obj/item/device/pcmc)
 
 /obj/item/clothing/head/helmet/space/plasmaman/medical/paramedic
 	name = "plasmaman paramedic helmet"
@@ -356,7 +389,7 @@
 
 //NUKEOPS
 
-/obj/item/clothing/suit/space/plasmaman/nuclear
+/obj/item/clothing/suit/space/plasmaman/nuclear //should just replace this with a ref to the normal suit
 	name = "blood red plasmaman suit"
 	icon_state = "plasmaman_Nukeops"
 	armor = list(melee = 60, bullet = 50, laser = 30, energy = 15, bomb = 35, bio = 100, rad = 60)
@@ -387,19 +420,27 @@
 		to_chat(user, "<span class='info'>This helmet has a built-in camera. It's [camera ? "" : "in"]active.</span>")
 
 
-//CULT
+//Sith
 
-/obj/item/clothing/suit/space/plasmaman/cultist
-	name = "plasmaman cultist armor"
-	icon_state = "plasmaman_cult"
-	item_state = "plasmaman_cult"
-	desc = "A bulky suit of armour, menacing with red energy. It looks like it would fit a plasmaman."
-	slowdown = 1
-	armor = list(melee = 60, bullet = 50, laser = 30,energy = 15, bomb = 30, bio = 30, rad = 30)
+/obj/item/clothing/suit/space/plasmaman/sith
+	name = "plasmaman Sith suit"
+	icon_state = "plasmaman_sith_suit"
+	item_state = "plasmaman_sith_suit"
+	desc = "A menacing armored suit that protects the wearer from harm, fit for a plasmaman. It appears to permanently seal itself once worn."
+	armor = list(melee = 60, bullet = 50, laser = 50, energy = 50, bomb = 80, bio = 100, rad = 100)
+	canremove = 0
 
-/obj/item/clothing/head/helmet/space/plasmaman/cultist
-	name = "plasmaman cultist helmet"
-	icon_state = "plasmamanCult_helmet0"
-	base_state = "plasmamanCult_helmet"
-	desc = "A containment suit designed by the followers of Nar-Sie. It glows menacingly with unearthly flames."
-	armor = list(melee = 60, bullet = 50, laser = 30,energy = 15, bomb = 30, bio = 30, rad = 30)
+/obj/item/clothing/suit/space/plasmaman/sith/dissolvable()
+	return 0
+
+//Unlike the suit, the helmet can be taken off
+/obj/item/clothing/head/helmet/space/plasmaman/sith
+	name = "plasmaman Sith helmet"
+	icon_state = "plasmaman_sith_helmet0"
+	item_state = "plasmaman_sith_helmet0"
+	base_state = "plasmaman_sith_helmet"
+	desc = "A menacing helmet that protects the wearer from harm, fit for a plasmaman."
+	armor = list(melee = 60, bullet = 50, laser = 50, energy = 50, bomb = 80, bio = 100, rad = 100)
+
+/obj/item/clothing/head/helmet/space/plasmaman/sith/dissolvable()
+	return 0

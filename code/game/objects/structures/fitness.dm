@@ -39,6 +39,36 @@
 	icon_state = "fitnesslifter"
 	density = 1
 	anchored = 1
+	var/busy = 0
+
+/obj/structure/stacklifter/proc/can_disassemble()
+	return TRUE
+
+/obj/structure/stacklifter/attackby(obj/item/P as obj, mob/user as mob)
+	if(in_use)
+		to_chat(user, "<span class='notice'>It's already in use - wait a bit.</span>")
+		return
+	if(P.is_wrench(user))
+		P.playtoolsound(loc, 50)
+		anchored = !anchored
+		to_chat(user, "<span class='notice'>You [anchored ? "wrench" : "unwrench"] \the [src].</span>")
+	else if(iswelder(P) && can_disassemble())
+		var/obj/item/tool/weldingtool/WT = P
+		if(!WT.remove_fuel(1,user))
+			return
+		else
+			busy = TRUE
+			playsound(src, 'sound/items/Welder2.ogg', 50, 1)
+
+			user.visible_message("[user] dissassembles the weight machine.", "You start to dissassemble the weight machine.")
+			if (do_after(user, src, 40))
+				if (!src || !WT.isOn())
+					busy = FALSE
+					return
+				new /obj/item/stack/sheet/plasteel(loc, 2)
+				qdel(src)
+			busy = FALSE
+		return
 
 /obj/structure/stacklifter/attack_hand(mob/user, params, proximity)
 	if(!proximity)
@@ -78,6 +108,36 @@
 	icon_state = "fitnessweight"
 	density = 1
 	anchored = 1
+	var/busy = 0
+
+/obj/structure/weightlifter/proc/can_disassemble()
+	return TRUE
+
+/obj/structure/weightlifter/attackby(obj/item/P as obj, mob/user as mob)
+	if(in_use)
+		to_chat(user, "<span class='notice'>It's already in use - wait a bit.</span>")
+		return
+	if(P.is_wrench(user))
+		P.playtoolsound(loc, 50)
+		anchored = !anchored
+		to_chat(user, "<span class='notice'>You [anchored ? "wrench" : "unwrench"] \the [src].</span>")
+	else if(iswelder(P) && can_disassemble())
+		var/obj/item/tool/weldingtool/WT = P
+		if(!WT.remove_fuel(1,user))
+			return
+		else
+			busy = TRUE
+			playsound(src, 'sound/items/Welder2.ogg', 50, 1)
+
+			user.visible_message("[user] dissassembles the weight machine.", "You start to dissassemble the weight machine.")
+			if (do_after(user, src, 40))
+				if (!src || !WT.isOn())
+					busy = FALSE
+					return
+				new /obj/item/stack/sheet/plasteel(loc, 2)
+				qdel(src)
+			busy = FALSE
+		return
 
 /obj/structure/weightlifter/attack_hand(mob/user as mob, params, proximity)
 	if(!proximity)
@@ -94,8 +154,9 @@
 		var/image/W = image('icons/obj/fitness.dmi',"fitnessweight-w")
 		W.layer = MOB_LAYER + 0.1
 		overlays += W
-		var/bragmessage = pick("pushing it to the limit","going into overdrive","burning with determination","rising up to the challenge", "getting strong now","getting ripped")
-		user.visible_message("<B>[user] is [bragmessage]!</B>")
+		if(user.client)
+			var/bragmessage = pick("pushing it to the limit","going into overdrive","burning with determination","rising up to the challenge", "getting strong now","getting ripped")
+			user.visible_message("<B>[user] is [bragmessage]!</B>")
 		user.pixel_y = 5 * PIXEL_MULTIPLIER
 		for(var/reps = 1 to 6)
 			if (user.loc != loc)

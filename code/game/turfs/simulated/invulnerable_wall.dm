@@ -16,20 +16,12 @@
 	penetration_dampening = 40
 
 /turf/simulated/wall/invulnerable/attackby(obj/item/W as obj, mob/user as mob)
-
 	if (!user.dexterity_check())
 		to_chat(user, "<span class='warning'>You don't have the dexterity to do this!</span>")
 		return
 
-	if(istype(W,/obj/item/weapon/solder) && bullet_marks)
-		var/obj/item/weapon/solder/S = W
-		if(!S.remove_fuel(bullet_marks*2,user))
-			return
-		playsound(loc, 'sound/items/Welder.ogg', 100, 1)
-		to_chat(user, "<span class='notice'>You remove the bullet marks with \the [W].</span>")
-		bullet_marks = 0
-		icon = initial(icon)
-		return
+	if(issolder(W) && bullet_marks)
+		remove_holes(W,user)
 
 /turf/simulated/wall/invulnerable/attack_construct(mob/user as mob)
 	return 0
@@ -41,10 +33,10 @@
 
 /turf/simulated/wall/invulnerable/dismantle_wall(devastated = 0, explode = 0)
 	if(!devastated)
-		getFromPool(/obj/item/stack/sheet/plasteel, src)//Reinforced girder has deconstruction steps too. If no girder, drop ONE plasteel sheet AND rods
+		new /obj/item/stack/sheet/plasteel(src)//Reinforced girder has deconstruction steps too. If no girder, drop ONE plasteel sheet AND rod)
 	else
-		getFromPool(/obj/item/stack/rods, src, 2)
-		getFromPool(/obj/item/stack/sheet/plasteel, src)
+		new /obj/item/stack/rods(src, 2)
+		new /obj/item/stack/sheet/plasteel(src)
 
 	for(var/obj/O in src.contents) //Eject contents!
 		if(istype(O,/obj/structure/sign/poster))
@@ -70,3 +62,10 @@
 	desc = "A huge chunk of reinforced metal and anchored rods used to seperate rooms and keep all but the most equipped crewmen out."
 	icon_state = "r_wall"
 	walltype = "rwall"
+
+/turf/simulated/wall/invulnerable/gold
+	name = "invulnerable gold wall"
+	desc = "A wall with gold plating. Swag! Powerful magic prevents its destruction."
+	icon_state = "gold0"
+	walltype = "gold"
+	mineral = "gold"

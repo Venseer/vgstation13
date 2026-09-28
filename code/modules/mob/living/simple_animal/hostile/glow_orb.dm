@@ -14,8 +14,8 @@ If hit by lightning, overpowers and explodes like a flashbang, blinding everyone
 	icon = 'icons/obj/wizard.dmi'
 	icon_state = "glow_stone_active"
 	icon_living = "glow_stone_active"
-	plane = LIGHTING_PLANE
-	layer = LIGHTBULB_LAYER
+	plane = ABOVE_LIGHTING_PLANE
+	layer = ABOVE_LIGHTING_LAYER
 	health = 5
 	maxHealth = 5
 	density = 0 //people can pass over it
@@ -44,10 +44,13 @@ If hit by lightning, overpowers and explodes like a flashbang, blinding everyone
 	var/last_scan = 0
 	var/unstable = 0
 
+	blooded = FALSE
+
 
 /mob/living/simple_animal/hostile/glow_orb/New()
 	..()
 	set_light(4,1,"#0068B2")
+	filters += filter(type="bloom", name="orb_glow", threshold=rgb(221,221,221), size=2, offset=2, alpha=255)
 
 /mob/living/simple_animal/hostile/glow_orb/Life()
 	..()
@@ -114,7 +117,7 @@ If hit by lightning, overpowers and explodes like a flashbang, blinding everyone
 			detonate()
 		return
 
-	..()
+	return ..()
 
 /mob/living/simple_animal/hostile/glow_orb/DestroySurroundings()
 	if(!melee_damage_lower)

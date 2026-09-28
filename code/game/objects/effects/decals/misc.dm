@@ -3,6 +3,7 @@
 	//var/global/list/decals = list()
 	layer = DECAL_LAYER
 	plane = ABOVE_TURF_PLANE
+	mouse_opacity = 1 //So we can actually click these
 
 /obj/effect/decal/New()
 	..()
@@ -16,7 +17,7 @@
 	name = "arrow"
 	icon = 'icons/mob/screen1.dmi'
 	icon_state = "arrow"
-	plane = LIGHTING_PLANE
+	plane = EFFECTS_PLANE
 	layer = POINTER_LAYER
 	anchored = 1
 	mouse_opacity = 0
@@ -24,6 +25,14 @@
 	var/mob/pointer
 	var/atom/target
 
+/obj/effect/decal/point/cargo_load
+	icon_state = "load_this"
+
+/obj/effect/decal/point/cargo_unload
+	icon_state = "unload_here"
+
+/obj/effect/decal/point/go_here
+	icon_state = "goto_cross"
 /obj/effect/decal/snow
 	name = "snow"
 	density = 0

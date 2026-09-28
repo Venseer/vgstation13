@@ -3,20 +3,21 @@
 	desc = "Switch bodies with somebody adjacent to you. Both you and your target regain your mind and knowledge of spells."
 	abbreviation = "MT"
 	user_type = USER_TYPE_WIZARD
+	specialization = SSUTILITY
 
 	school = "transmutation"
-	charge_max = 600
+	charge_cooldown_max = 60 SECONDS
 	spell_flags = 0
 	invocation = "GIN'YU CAPAN"
-	invocation_type = SpI_WHISPER
+	invocation_type = SP_INV_WHISPER
 	max_targets = 1
 	mind_affecting = 1
 	range = 1
-	cooldown_min = 200 //100 deciseconds reduction per rank
-	compatible_mobs = list(/mob/living/carbon/human,/mob/living/carbon/monkey) //which types of mobs are affected by the spell. NOTE: change at your own risk
+	cooldown_min = 20 SECONDS //10 seconds reduction per rank
+	valid_targets = list(/mob/living/carbon/human,/mob/living/carbon/monkey) //which types of mobs are affected by the spell. NOTE: change at your own risk
 
 	var/list/protected_roles = list("Wizard","Changeling","Cultist") //which roles are immune to the spell
-	var/msg_wait = 500 //how long in deciseconds it waits before telling that body doesn't feel right or mind swap robbed of a spell
+	var/msg_wait = 50 SECONDS //how long in seconds it waits before telling that body doesn't feel right or mind swap robbed of a spell
 	amt_paralysis = 20 //how much the victim is paralysed for after the spell
 
 	hud_state = "wiz_mindswap"
@@ -26,15 +27,16 @@
 
 	for(var/mob/living/target in targets)
 		if(target.stat == DEAD)
-			to_chat(user, "You didn't study necromancy back at the Space Wizard Federation academy.")
+			to_chat(user, "<span class='notice>You didn't study necromancy back at the Space Wizard Federation academy.<span class='notice>")
 			continue
-
 		else if(!target.key || !target.mind)
-			to_chat(user, "They appear to be catatonic. Not even magic can affect their vacant mind.")
+			to_chat(user, "<span class='notice>They appear to be catatonic. Not even magic can affect their vacant mind.<span class='notice>")
 			continue
-
 		else if(target.mind.special_role in protected_roles)
 			to_chat(user, "Their mind is resisting your spell.")
+			continue
+		else if(iscluwnebanned(target))
+			to_chat(user, "<span class='notice>A powerful curse is anchoring their soul to their body.<span class='notice>")
 			continue
 		else
 			var/mob/living/victim = target//The target of the spell whos body will be transferred to.

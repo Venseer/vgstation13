@@ -1,20 +1,21 @@
-mob/proc/flash_pain()
+/mob/proc/flash_pain()
 	flick("pain",pain)
 
-mob/var/list/pain_stored = list()
-mob/var/last_pain_message = ""
-mob/var/next_pain_time = 0
+/mob/var/list/pain_stored = list()
+/mob/var/last_pain_message = ""
+/mob/var/next_pain_time = 0
 
 // partname is the name of a body part
 // amount is a num from 1 to 100
-mob/living/carbon/proc/pain(var/partname, var/amount, var/force, var/burning = 0)
+/mob/living/carbon/proc/pain(var/partname, var/amount, var/force, var/burning = 0)
 	if(stat >= 2 || sleeping)
 		return
 	if(!feels_pain() || has_painkillers())
 		return
 	if(world.time < next_pain_time && !force)
 		return
-	if(amount > 50 && prob(amount / 5))
+	if(amount > 50 && prob(amount / 5) && get_active_hand())
+		to_chat(src, "<span class='danger'>The pain in your [partname] causes you to wince and drop [get_active_hand()]!</span>")
 		src.drop_item()
 	var/msg
 	if(burning)
@@ -45,7 +46,7 @@ mob/living/carbon/proc/pain(var/partname, var/amount, var/force, var/burning = 0
 
 // message is the custom message to be displayed
 // flash_strength is 0 for weak pain flash, 1 for strong pain flash
-mob/living/carbon/human/proc/custom_pain(var/message, var/flash_strength)
+/mob/living/carbon/human/proc/custom_pain(var/message, var/flash_strength, var/scream = FALSE)
 	if(stat >= 1)
 		return
 
@@ -59,10 +60,12 @@ mob/living/carbon/human/proc/custom_pain(var/message, var/flash_strength)
 	// Anti message spam checks
 	if(msg && ((msg != last_pain_message) || (world.time >= next_pain_time)))
 		last_pain_message = msg
+		if(scream)
+			audible_scream()
 		to_chat(src, msg)
 	next_pain_time = world.time + 100
 
-mob/living/carbon/human/proc/handle_pain()
+/mob/living/carbon/human/proc/handle_pain()
 	if(sleeping || stat == DEAD)
 		return
 	if(!feels_pain() || has_painkillers())
@@ -71,7 +74,11 @@ mob/living/carbon/human/proc/handle_pain()
 	var/maxdam = 0
 	var/datum/organ/external/damaged_organ = null
 	for(var/datum/organ/external/E in organs)
-		if(E.status & ORGAN_DEAD || E.status & ORGAN_PEG)
+		//dead limbs don't cause or feel pain
+		if(E.status & ORGAN_DEAD)
+			continue
+		//peg limbs and metal limbs don't cause pain
+		if(!E.is_organic())
 			continue
 		// CLEANLY amputated limbs don't cause pain
 		else if(E.amputated)

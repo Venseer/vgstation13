@@ -9,14 +9,14 @@
 	var/result=null
 
 /datum/biogen_recipe/proc/Render(var/context)
-	var/html = "<li><a href='?src=\ref[context];action=create;item=[id];num=1'>[amount_per_unit==1?"":"[amount_per_unit] "][name]</a> <FONT COLOR=blue>([cost])</FONT>"
+	var/html = "<li><a href='?src=\ref[context];action=create;item=[id];num=1'>[name][(amount_per_unit > 1) ? " [amount_per_unit] units" : ""]</a> <FONT COLOR=blue>([cost])</FONT>"
 	if(other_amounts.len)
 		var/first=1
 		html += " ("
 		for(var/amount in other_amounts)
 			if(!first)
 				html +=" "
-			html +="<A href='?src=\ref[context];action=create;item=[id];num=[amount]'>x[amount*amount_per_unit]</A>"
+			html +="<A href='?src=\ref[context];action=create;item=[id];num=[amount]'>[(amount_per_unit > 1) ? "[amount*amount_per_unit] units" : "x[amount*amount_per_unit]"]</A>"
 			first=0
 		html += ")"
 	html += "</li>"
@@ -32,6 +32,20 @@
 	cost=20
 	amount_per_unit=10
 	other_amounts=list(5)
+
+/datum/biogen_recipe/food/cheese
+	id="cheese"
+	name="Cheese Wheel"
+	cost=100 //Making milk and reacting it with enzyme costs 80, so this is 25% more expensive
+	other_amounts=list(5)
+	result=/obj/item/weapon/reagent_containers/food/snacks/sliceable/cheesewheel
+
+/datum/biogen_recipe/food/butter
+	id="butter"
+	name="Butter"
+	cost=150 //The 40u milk for 20u cream costs 80, so this is about 87% more expensive
+	other_amounts=list(5)
+	result=/obj/item/weapon/reagent_containers/food/snacks/butter
 
 /datum/biogen_recipe/food/meat
 	id="meat"
@@ -84,6 +98,12 @@
 /datum/biogen_recipe/leather
 	category="Leather"
 
+/datum/biogen_recipe/leather/bee_net
+	cost = 100
+	id="bee_net"
+	name = "Bee Net"
+	result=/obj/item/weapon/bee_net
+
 /datum/biogen_recipe/leather/wallet
 	cost=100
 	id="wallet"
@@ -96,17 +116,17 @@
 	name="Botanical Gloves"
 	result=/obj/item/clothing/gloves/botanic_leather
 
-/datum/biogen_recipe/leather/belt
-	cost=300
-	id="belt"
-	name="Utility Belt"
-	result=/obj/item/weapon/storage/belt/utility
+/datum/biogen_recipe/leather/knifeholster
+	cost=250
+	id="knifeholster"
+	name="Boot Knife Holster"
+	result=/obj/item/clothing/accessory/holster/knife/boot
 
-/datum/biogen_recipe/leather/belt/slim
-	cost=300
-	id="slim-belt"
-	name="Slim Belt"
-	result=/obj/item/weapon/storage/belt/slim
+/datum/biogen_recipe/leather/ammo_pouch
+	cost = 250
+	id="ammopouch"
+	name = "Ammo Pouch"
+	result=/obj/item/weapon/storage/bag/ammo_pouch
 
 /datum/biogen_recipe/leather/moneybag
 	cost=300
@@ -114,17 +134,35 @@
 	name="Money Bag"
 	result=/obj/item/weapon/storage/bag/money
 
-/datum/biogen_recipe/leather/plants
-	cost=350
-	id="plants"
-	name="Plant Bag"
-	result=/obj/item/weapon/storage/bag/plants
+/datum/biogen_recipe/leather/belt/slim
+	cost=300
+	id="slim-belt"
+	name="Slim Belt"
+	result=/obj/item/weapon/storage/belt/slim
 
-/datum/biogen_recipe/leather/gadget
+/datum/biogen_recipe/leather/belt
+	cost=300
+	id="belt"
+	name="Tool-belt"
+	result=/obj/item/weapon/storage/belt/utility
+
+/datum/biogen_recipe/leather/bandolier
+	cost = 300
+	id="bandolier"
+	name = "Bandolier"
+	result=/obj/item/clothing/accessory/storage/bandolier
+
+/datum/biogen_recipe/leather/handgunholster
 	cost=350
-	id="gadget"
-	name="Gadget Bag"
-	result=/obj/item/weapon/storage/bag/gadgets
+	id="handgunholster"
+	name="Handgun Holster"
+	result=/obj/item/clothing/accessory/holster/handgun/biogenerator
+
+/datum/biogen_recipe/leather/fannypack
+	cost=100
+	id="fannypack"
+	name="Fanny Pack"
+	result=/obj/item/clothing/accessory/storage/fannypack
 
 /datum/biogen_recipe/leather/ore
 	cost=350
@@ -132,11 +170,53 @@
 	name="Mining Satchel"
 	result=/obj/item/weapon/storage/bag/ore
 
-/datum/biogen_recipe/leather/satchel
+/datum/biogen_recipe/leather/gadget
+	cost=350
+	id="gadget"
+	name="Gadget Bag"
+	result=/obj/item/weapon/storage/bag/gadgets
+
+/datum/biogen_recipe/leather/slime
+	cost=350
+	id="slime"
+	name="Slime Bag"
+	result=/obj/item/weapon/storage/bag/xenobio
+
+/datum/biogen_recipe/leather/plants
+	cost=350
+	id="plants"
+	name="Plant Bag"
+	result=/obj/item/weapon/storage/bag/plants
+
+/datum/biogen_recipe/leather/materials
+	cost=500
+	id="materials"
+	name="Materials Bag"
+	result=/obj/item/weapon/storage/bag/materials
+
+/datum/biogen_recipe/leather/secbelt
 	cost=400
-	id="satchel"
-	name="Leather Satchel"
-	result=/obj/item/weapon/storage/backpack/satchel
+	id="secbelt"
+	name="Security Belt"
+	result=/obj/item/weapon/storage/belt/security
+
+/datum/biogen_recipe/leather/minebelt
+	cost=350
+	id="minebelt"
+	name="Mining Gear Belt"
+	result=/obj/item/weapon/storage/belt/mining
+
+/datum/biogen_recipe/leather/janibelt
+	cost=350
+	id="janibelt"
+	name="Janibelt"
+	result=/obj/item/weapon/storage/belt/janitor
+
+/datum/biogen_recipe/leather/hydrobelt
+	cost=350
+	id="hydrobelt"
+	name="Botany Gear Belt"
+	result=/obj/item/weapon/storage/belt/botanist
 
 /datum/biogen_recipe/leather/briefcase
 	cost=400
@@ -144,17 +224,11 @@
 	name="Leather Briefcase"
 	result=/obj/item/weapon/storage/briefcase/biogen
 
-/datum/biogen_recipe/leather/knifeholster
-	cost=250
-	id="knifeholster"
-	name="Boot Knife Holster"
-	result=/obj/item/clothing/accessory/holster/knife/boot
-
-/datum/biogen_recipe/leather/handgunholster
-	cost=350
-	id="handgunholster"
-	name="Handgun Holster"
-	result=/obj/item/clothing/accessory/holster/handgun/biogenerator
+/datum/biogen_recipe/leather/satchel
+	cost=400
+	id="satchel"
+	name="Leather Satchel"
+	result=/obj/item/weapon/storage/backpack/satchel
 
 /datum/biogen_recipe/paper
 	category="Paper"
@@ -165,12 +239,6 @@
 	name="Paper Sheet"
 	other_amounts=list(5,10)
 	result=/obj/item/weapon/paper
-
-/datum/biogen_recipe/paper/clipboard
-	cost=75
-	id="clipboard"
-	name="Clipboard"
-	result=/obj/item/weapon/storage/bag/clipboard
 
 /datum/biogen_recipe/paper/cardboard
 	cost=25
@@ -193,6 +261,12 @@
 	amount_per_unit = 24
 	result=/obj/item/stack/package_wrap
 
+/datum/biogen_recipe/paper/clipboard
+	cost=75
+	id="clipboard"
+	name="Clipboard"
+	result=/obj/item/weapon/storage/bag/clipboard
+
 /datum/biogen_recipe/paper/paperbin
 	cost=475 //25 from the cardboard, 30*15=450 from the paper
 	id="paperbin"
@@ -202,12 +276,27 @@
 /datum/biogen_recipe/misc
 	category="Misc."
 
-/datum/biogen_recipe/misc/pest
-	cost=40
-	id="pest"
-	name="Pest Spray"
+/datum/biogen_recipe/misc/bucket
+	cost=75
+	id="bucket"
+	name="Plastic Bucket"
+	result=/obj/item/weapon/reagent_containers/glass/bucket
+
+/datum/biogen_recipe/misc/insecticide
+	id = "insecticide"
+	name = "Insecticide"
+	cost=35
+	reagent=INSECTICIDE
+	amount_per_unit=10
 	other_amounts=list(5)
-	result=/obj/item/weapon/plantspray/pests
+
+/datum/biogen_recipe/misc/plantbgone
+	id="plantbgone"
+	name="Plant-B-Gone"
+	reagent=PLANTBGONE
+	cost=35
+	amount_per_unit=10
+	other_amounts=list(5)
 
 /datum/biogen_recipe/misc/candle
 	cost=50
@@ -241,6 +330,24 @@
 	cost = 300
 	result = /obj/item/clothing/head/rice_hat
 
+/datum/biogen_recipe/misc/roningasa
+	name = "Wickerwork Hat"
+	id = "wickerwork_hat"
+	cost = 300
+	result = /obj/item/clothing/head/rice_hat/ronin
+
+/datum/biogen_recipe/misc/mino
+	name = "Grass Coat"
+	id = "grass_coat"
+	cost = 500
+	result = /obj/item/clothing/suit/mino
+
+/datum/biogen_recipe/misc/rvest
+	name = "Reticulated Vest"
+	id = "rvest"
+	cost = 500
+	result = /obj/item/clothing/suit/reticulatedvest
+
 /datum/biogen_recipe/flooring
 	category="Flooring"
 
@@ -265,7 +372,7 @@
 	icon_state = "biogen-stand"
 	density = 1
 	anchored = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 40
 	var/speed_coefficient = 15
 	var/biomass_coefficient = 9
@@ -279,21 +386,33 @@
 	machine_flags = SCREWTOGGLE | CROWDESTROY | WRENCHMOVE | FIXED2WORK | EJECTNOTDEL
 
 	light_color = LIGHT_COLOR_CYAN
-	light_range_on = 3
+	light_range_on = 2
 	light_power_on = 2
 	use_auto_lights = 1
 
 /obj/machinery/biogenerator/on_reagent_change()			//When the reagents change, change the icon as well.
 	update_icon()
 
+/obj/machinery/biogenerator/power_change()
+	..()
+	update_icon()
+
 /obj/machinery/biogenerator/update_icon()
-	if(!src.beaker)
+	if(stat & (FORCEDISABLE|NOPOWER))
+		kill_moody_light()
+		if(beaker)
+			icon_state = "biogen-off"
+		else
+			icon_state = "biogen-offempty"
+	else if(!beaker)
 		icon_state = "biogen-empty"
-	else if(!src.processing)
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_biogen_empty")
+	else if(!processing)
 		icon_state = "biogen-stand"
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_biogen")
 	else
 		icon_state = "biogen-work"
-	return
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_biogen_work")
 
 /obj/machinery/biogenerator/New()
 	. = ..()
@@ -325,6 +444,7 @@
 			recipe_categories[recipe.category]=list()
 		recipe_categories[recipe.category] += recipe.id
 		recipes[recipe.id]=recipe
+	update_icon()
 
 /obj/machinery/biogenerator/RefreshParts()
 	var/manipcount = 0
@@ -348,6 +468,44 @@
 		activate() //This proc already internally checks if the machine is in use, broken, out of power
 		return
 	return ..()
+
+/obj/machinery/biogenerator/conveyor_act(var/atom/movable/AM, var/obj/machinery/conveyor/CB)
+	if(istype(AM, /obj/item/weapon/reagent_containers/glass))
+		var/obj/item/weapon/reagent_containers/glass/G = AM
+		if(beaker|| panel_open || G.w_class > W_CLASS_SMALL)
+			return FALSE
+		else
+			G.forceMove(src)
+			beaker = G
+			updateUsrDialog()
+	else if(processing)
+		return FALSE
+	else if(istype(AM, /obj/item/weapon/storage/bag/plants))
+		var/i = 0
+		for(var/obj/item/weapon/reagent_containers/food/snacks/grown/G in contents)
+			i++
+		if(i >= 20)
+			return FALSE
+		else
+			var/obj/item/weapon/storage/bag/B = AM
+			for(var/obj/item/weapon/reagent_containers/food/snacks/grown/G in AM.contents)
+				B.remove_from_storage(G,src)
+				i++
+				if(i >= 20)
+					break
+
+	else if(istype(AM, /obj/item/weapon/reagent_containers/food/snacks/grown))
+		var/i = 0
+		for(var/obj/item/weapon/reagent_containers/food/snacks/grown/G in contents)
+			i++
+		if(i >= 20)
+			return FALSE
+		else
+			AM.forceMove(src)
+	else
+		return FALSE
+	update_icon()
+	return TRUE
 
 /obj/machinery/biogenerator/attackby(var/obj/item/O as obj, var/mob/user as mob)
 	if(..())
@@ -396,10 +554,10 @@
 	update_icon()
 	return
 
-/obj/machinery/biogenerator/crowbarDestroy(mob/user)
+/obj/machinery/biogenerator/crowbarDestroy(mob/user, obj/item/tool/crowbar/I)
 	if(beaker)
 		to_chat(user, "<span class='warning'>A beaker is loaded, you cannot deconstruct \the [src].</span>")
-		return
+		return FALSE
 	return ..()
 
 /obj/machinery/biogenerator/togglePanelOpen(var/obj/toggleitem, mob/user)
@@ -456,7 +614,7 @@
 
 				dat += {"<FONT COLOR=red>Error: No growns inside.</FONT><BR>Please, put growns into reactor.<BR>
 					<A href='?src=\ref[src];action=menu'>Return to menu</A>"}
-	user << browse(dat, "window=biogenerator")
+	user << browse(HTML_SKELETON(dat), "window=biogenerator")
 	onclose(user, "biogenerator")
 	return
 

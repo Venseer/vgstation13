@@ -10,9 +10,7 @@
 	icon = 'icons/obj/bureaucracy.dmi'
 	icon_state = "nano_paper"
 
-	autoignition_temperature = AUTOIGNITION_PAPER
 
-	fire_fuel = 1
 
 /obj/item/weapon/paper/nano/New()
 	..()
@@ -51,6 +49,8 @@
 		\[u\] - \[/u\] : Makes the text <u>underlined</u>.<br>
 		\[large\] - \[/large\] : Increases the <span style=\"font-size:25px\">size</span> of the text.<br>
 		\[sign\] : Inserts a signature of your name in a foolproof way.<br>
+		\[stationname\] : Inserts the name of the station.<br>
+		\[logo\] : Inserts a medium-size Nanotrasen logo.<br>
 		\[field\] : Inserts an invisible field which lets you start type from there. Useful for forms.<br>
 		\[small\] - \[/small\] : Decreases the <span style=\"font-size:15px\">size</span> of the text.<br>
 		\[tiny\] - \[/tiny\] : Sharply decreases the <span style=\"font-size:10px\">size</span> of the text.<br>
@@ -58,7 +58,7 @@
 		\[*\] : A dot used for lists.<br>
 		\[hr\] : Adds a horizontal rule. <br>
 		\[img\]http://url\[/img\] : add an image <br>
-		\[video\]http://url.wmv\[/video\] : add a video with simple controls, MUST BE IN WMV FORMAT!!<br>
+		\[video\]http://url\[/video\] : add a video with simple controls<br>
 		\[youtube\]Any youtube url\[/youtube\] : embed a youtube url into the nanopaper, should function with any youtube url format!<br>
 		<br>
 		<center>Fonts</center><br>

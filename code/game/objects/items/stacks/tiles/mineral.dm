@@ -13,6 +13,8 @@
 	max_amount = 60
 
 	material = "plasma"
+	starting_materials = list(MAT_PLASMA = CC_PER_SHEET_PLASMA / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
 
 /obj/item/stack/tile/mineral/uranium
 	name = "uranium tile"
@@ -27,6 +29,8 @@
 	max_amount = 60
 
 	material = "uranium"
+	starting_materials = list(MAT_URANIUM = CC_PER_SHEET_URANIUM / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
 
 /obj/item/stack/tile/mineral/uranium/safe
 	name = "isolated uranium tile"
@@ -35,6 +39,11 @@
 	icon_state = "tile_uraniumsafe"
 
 	material = "uranium_safe"
+	starting_materials = list(// Recipe requires 1 uranium sheet per 4 tiles, and 1 reinforced glass sheet per tile
+		MAT_URANIUM = CC_PER_SHEET_URANIUM / 4,
+		MAT_GLASS = CC_PER_SHEET_GLASS,
+		MAT_METAL = CC_PER_SHEET_METAL / 2)
+	w_type = RECYK_METAL
 
 /obj/item/stack/tile/mineral/uranium/safe/attackby(obj/item/W as obj, mob/user as mob)
 	if(iscrowbar(W))
@@ -67,6 +76,16 @@
 	max_amount = 60
 
 	material = "gold"
+	starting_materials = list(MAT_GOLD = CC_PER_SHEET_GOLD / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
+
+/obj/item/stack/tile/mineral/gold/gold_old
+	icon_state = "tile_gold_old"
+	sheettype = "gold"
+
+/obj/item/stack/tile/mineral/gold/gold_old/examine(var/mob/user)
+	..()
+	to_chat(user,"<span class = 'notice'>This alternate tile can reinforce girders to create matching walls.</span>")
 
 /obj/item/stack/tile/mineral/silver
 	name = "silver tile"
@@ -81,6 +100,16 @@
 	max_amount = 60
 
 	material = "silver"
+	starting_materials = list(MAT_SILVER = CC_PER_SHEET_SILVER / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
+
+/obj/item/stack/tile/mineral/silver/silver_old
+	icon_state = "tile_silver_old"
+	sheettype = "silver"
+
+/obj/item/stack/tile/mineral/silver/silver_old/examine(var/mob/user)
+	..()
+	to_chat(user,"<span class = 'notice'>This alternate tile can reinforce girders to create matching walls.</span>")
 
 /obj/item/stack/tile/mineral/diamond
 	name = "diamond tile"
@@ -95,6 +124,8 @@
 	max_amount = 60
 
 	material = "diamond"
+	starting_materials = list(MAT_DIAMOND = CC_PER_SHEET_DIAMOND / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
 
 /obj/item/stack/tile/mineral/clown
 	name = "bananium tile"
@@ -109,6 +140,8 @@
 	max_amount = 60
 
 	material = "bananium"
+	starting_materials = list(MAT_CLOWN = CC_PER_SHEET_CLOWN / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
 	var/spam_flag = 0
 
 /obj/item/stack/tile/mineral/plastic
@@ -122,6 +155,9 @@
 	throw_speed = 3
 	throw_range = 7
 	max_amount = 60
+	starting_materials = list(MAT_PLASTIC = CC_PER_SHEET_PLASTIC / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_PLASTIC
+	autoignition_temperature = AUTOIGNITION_PLASTIC
 
 	material = "plastic"
 
@@ -138,6 +174,78 @@
 	origin_tech = Tc_MATERIALS + "=9"
 
 	material = "phazon"
+	starting_materials = list(MAT_PHAZON = CC_PER_SHEET_PHAZON / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
 
 /obj/item/stack/tile/mineral/phazon/adjust_slowdown(mob/living/L, current_slowdown)
-	return current_slowdown * 0.75
+	current_slowdown *= 0.75
+	return ..()
+
+/obj/item/stack/tile/mineral/brass
+	name = "brass tile"
+	singular_name = "brass floor tile"
+	desc = "A floor tile made out of brass. Shiny."
+	icon_state = "tile_brass"
+	w_class = W_CLASS_MEDIUM
+	force = 1.0
+	throwforce = 1.0
+	throw_speed = 3
+	throw_range = 7
+	max_amount = 60
+
+	material = "brass"
+	starting_materials = list(MAT_BRASS = CC_PER_SHEET_BRASS / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
+
+/obj/item/stack/tile/mineral/gingerbread
+	name = "gingerbread tile"
+	singular_name ="gingerbread floor tile"
+	desc = "Gingerbread architecture is more complicated than just baking some cookies and sticking them together. There are other processes involved."
+	icon_state = "tile-gingerbread"
+	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_BIOLOGICAL
+	flammable = TRUE
+	force = 1.0
+	throwforce = 1.0
+	throw_speed = 3
+	throw_range = 7
+	max_amount = 60
+
+	material  = "gingerbread"
+
+/obj/item/stack/tile/mineral/lead
+	name = "lead tile"
+	singular_name = "lead floor tile"
+	desc = "A tile made out of lead."
+	icon_state = "tile_lead"
+	w_class = W_CLASS_MEDIUM
+	force = 1.0
+	throwforce = 1.0
+	throw_speed = 3
+	throw_range = 7
+	max_amount = 60
+	w_type = RECYK_METAL
+	sheet_type = /obj/item/stack/sheet/mineral/lead
+	material="lead"
+
+/obj/item/stack/tile/mineral/reticulite
+	name = "reticulite tile"
+	singular_name = "reticulite floor tile"
+	desc = "A hexagonally shaped tile made out of reticulite."
+	icon_state = "tile_reticulite"
+	w_class = W_CLASS_MEDIUM
+	force = 1.0
+	throwforce = 1.0
+	throw_speed = 3
+	throw_range = 7
+	max_amount = 60
+
+	material = "alien_tile1"
+	starting_materials = list(MAT_RETICULITE = CC_PER_SHEET_RETICULITE / 4) // Recipe requires 1 sheet for 4 tiles
+	w_type = RECYK_METAL
+
+/obj/item/stack/tile/mineral/reticulite/fancy
+	name = "ornate reticulite tile"
+	icon_state = "tile_fancyreticulite"
+	desc = "A refined, chiseled and normal shaped tile made out of reticulite."
+	material = "alien_tile_fancy"

@@ -8,15 +8,14 @@
 /datum/surgery_step/fix_vein
 	priority = 2
 	allowed_tools = list(
-		/obj/item/weapon/FixOVein = 100,
+		/obj/item/tool/FixOVein = 100,
 		/obj/item/stack/cable_coil = 75,
 		)
 
 	can_infect = 1
 	blood_level = 1
 
-	min_duration = 70
-	max_duration = 90
+	duration = 7 SECONDS
 
 /datum/surgery_step/fix_vein/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	if(!hasorgans(target))
@@ -35,7 +34,7 @@
 	var/datum/organ/external/affected = target.get_organ(target_zone)
 	user.visible_message("[user] starts patching the damaged vein in [target]'s [affected.display_name] with \the [tool]." , \
 	"You start patching the damaged vein in [target]'s [affected.display_name] with \the [tool].")
-	target.custom_pain("The pain in [affected.display_name] is unbearable!",1)
+	target.custom_pain("The pain in [affected.display_name] is unbearable!",1, scream=TRUE)
 	..()
 
 /datum/surgery_step/fix_vein/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
@@ -47,7 +46,7 @@
 		affected.wounds -= W
 		affected.update_damages()
 	if (ishuman(user) && prob(40))
-		user:bloody_hands(target, 0)
+		user:bloody_hands(target, 2)
 
 /datum/surgery_step/fix_vein/fail_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	var/datum/organ/external/affected = target.get_organ(target_zone)
@@ -58,7 +57,7 @@
 
 
 //////FIX DEAD TISSUE/////
-/datum/surgery_step/fix_dead_tissue/tool_quality(obj/item/tool)
+/datum/surgery_step/fix_dead_tissue/tool_quality(obj/item/tool, mob/living/user)
 	. = ..()
 	if(!tool.is_sharp())
 		return 0
@@ -66,16 +65,18 @@
 /datum/surgery_step/fix_dead_tissue		//Debridement
 	priority = 2
 	allowed_tools = list(
-		/obj/item/weapon/scalpel = 100,
+		/obj/item/tool/scalpel = 100,
+		/obj/item/weapon/melee/blood_dagger = 90,
 		/obj/item/weapon/kitchen/utensil/knife/large = 75,
 		/obj/item/weapon/shard = 50,
+		/obj/item/soulstone/gem = 0,
+		/obj/item/soulstone = 50,
 		)
 
 	can_infect = 1
 	blood_level = 1
 
-	min_duration = 110
-	max_duration = 160
+	duration = 11 SECONDS
 
 /datum/surgery_step/fix_dead_tissue/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	if(!hasorgans(target))
@@ -92,7 +93,7 @@
 	var/datum/organ/external/affected = target.get_organ(target_zone)
 	user.visible_message("[user] starts cutting away necrotic tissue in [target]'s [affected.display_name] with \the [tool]." , \
 	"You start cutting away necrotic tissue in [target]'s [affected.display_name] with \the [tool].")
-	target.custom_pain("The pain in [affected.display_name] is unbearable!",1)
+	target.custom_pain("The pain in [affected.display_name] is unbearable!",1, scream=TRUE)
 	..()
 
 /datum/surgery_step/fix_dead_tissue/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
@@ -123,8 +124,7 @@
 	can_infect = 0
 	blood_level = 0
 
-	min_duration = 50
-	max_duration = 60
+	duration = 5 SECONDS
 
 /datum/surgery_step/treat_necrosis/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	if (!istype(tool, /obj/item/weapon/reagent_containers))
@@ -147,7 +147,7 @@
 	var/datum/organ/external/affected = target.get_organ(target_zone)
 	user.visible_message("[user] starts applying medication to the affected tissue in [target]'s [affected.display_name] with \the [tool]." , \
 	"You start applying medication to the affected tissue in [target]'s [affected.display_name] with \the [tool].")
-	target.custom_pain("Something in your [affected.display_name] is causing you a lot of pain!",1)
+	target.custom_pain("Something in your [affected.display_name] is causing you a lot of pain!",1, scream=TRUE)
 	..()
 
 /datum/surgery_step/treat_necrosis/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
@@ -160,7 +160,8 @@
 
 	var/trans = container.reagents.trans_to(target, container.amount_per_transfer_from_this)
 	if (trans > 0)
-		container.reagents.reaction(target, INGEST)	//technically it's contact, but the reagents are being applied to internal tissue
+		//technically it's contact, but the reagents are being applied to internal tissue
+		container.reagents.reaction(target, INGEST, amount_override = min(container.reagents.total_volume,container.amount_per_transfer_from_this)/(container.reagents.reagent_list.len))
 
 		if(container.reagents.has_reagent(PERIDAXON))
 			affected.status &= ~ORGAN_DEAD
@@ -177,7 +178,8 @@
 	var/obj/item/weapon/reagent_containers/container = tool
 
 	var/trans = container.reagents.trans_to(target, container.amount_per_transfer_from_this)
-	container.reagents.reaction(target, INGEST)	//technically it's contact, but the reagents are being applied to internal tissue
+	//technically it's contact, but the reagents are being applied to internal tissue
+	container.reagents.reaction(target, INGEST, amount_override = min(container.reagents.total_volume,container.amount_per_transfer_from_this)/(container.reagents.reagent_list.len))
 
 	user.visible_message("<span class='warning'>[user]'s hand slips, applying [trans] units of the solution to the wrong place in [target]'s [affected.display_name] with the [tool]!</span>" , \
 	"<span class='warning'>Your hand slips, applying [trans] units of the solution to the wrong place in [target]'s [affected.display_name] with the [tool]!</span>")

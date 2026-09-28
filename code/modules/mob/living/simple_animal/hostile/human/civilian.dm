@@ -75,7 +75,7 @@
 	say(pick("Time to take out the trash!","Hope you wiped your feet before you came in.","It's time to take you to the cleaners."))
 
 /mob/living/simple_animal/hostile/humanoid/janitor/Shoot(var/atom/target, var/atom/start, var/mob/user)
-	if(prob(30) && CS.reagents.has_reagent(LUBE))
+	if(prob(30) && CS.reagents.has_any_reagents(LUBES))
 		visible_message("<span class = 'warning'>\The [src] lets loose a blast of lubricant from their chemical sprayer!</span>")
 		playsound(src, 'sound/effects/spray2.ogg', 50, 1, -6)
 		CS.make_puff(target, user)
@@ -95,7 +95,7 @@
 	icon_state = "pilot"
 
 	corpse = /obj/effect/landmark/corpse/pilot
-	items_to_drop = list(/obj/item/weapon/gun/projectile)
+	items_to_drop = list(/obj/item/weapon/gun/projectile/revolver)
 
 	faction = "syndicate"
 

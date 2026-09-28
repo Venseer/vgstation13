@@ -4,8 +4,9 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	var/recipient = "Unspecified" //name of the person
 	var/sender = "Unspecified" //name of the sender
 	var/message = "Blank" //transferred message
+	var/icon/img_sent = null //transferred image, if any
 
-/datum/data_pda_msg/New(var/param_rec = "",var/param_sender = "",var/param_message = "")
+/datum/data_pda_msg/New(var/param_rec = "",var/param_sender = "",var/param_message = "", var/icon/param_image = null)
 
 	if(param_rec)
 		recipient = param_rec
@@ -13,6 +14,8 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 		sender = param_sender
 	if(param_message)
 		message = param_message
+	if(param_image)
+		img_sent = param_image
 
 /datum/data_rc_msg
 	var/rec_dpt = "Unspecified" //name of the person
@@ -50,7 +53,7 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	name = "Messaging Server"
 	density = 1
 	anchored = 1.0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 10
 	active_power_usage = 100
 	ghost_read=0
@@ -59,6 +62,7 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	var/list/datum/data_pda_msg/pda_msgs = list()
 	var/list/datum/data_rc_msg/rc_msgs = list()
 	var/disabled = FALSE
+	var/automatic_landlines = TRUE
 	var/decryptkey = "password"
 
 /obj/machinery/message_server/New()
@@ -83,10 +87,13 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	return newKey
 
 /obj/machinery/message_server/proc/is_functioning()
-	return !disabled && !(stat & (BROKEN|NOPOWER))
+	return !disabled && !(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 
-/obj/machinery/message_server/proc/send_pda_message(var/recipient = "",var/sender = "",var/message = "")
-	pda_msgs += new/datum/data_pda_msg(recipient,sender,message)
+/obj/machinery/message_server/proc/landlines_functioning()
+	return automatic_landlines && !(stat & (BROKEN|NOPOWER|FORCEDISABLE))
+
+/obj/machinery/message_server/proc/send_pda_message(var/recipient = "",var/sender = "",var/message = "", var/icon/img_sent = null)
+	pda_msgs += new/datum/data_pda_msg(recipient,sender,message,img_sent)
 
 /obj/machinery/message_server/proc/send_rc_message(var/recipient = "",var/sender = "",var/message = "",var/stamp = "", var/id_auth = "", var/priority = 1)
 	rc_msgs += new/datum/data_rc_msg(recipient,sender,message,stamp,id_auth)
@@ -106,14 +113,15 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	update_icon()
 
 /obj/machinery/message_server/update_icon()
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		icon_state = "pda_server-nopower"
+		kill_moody_light()
 	else if (disabled)
 		icon_state = "pda_server-off"
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_pda_server")
 	else
 		icon_state = "pda_server-on"
-
-	return
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_pda_server")
 
 /obj/machinery/blackbox_recorder
 	icon = 'icons/obj/machines/telecomms.dmi'
@@ -121,7 +129,7 @@ var/global/list/obj/machinery/message_server/message_servers = list()
 	name = "Blackbox Recorder"
 	density = 1
 	anchored = 1.0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 10
 	active_power_usage = 100
 

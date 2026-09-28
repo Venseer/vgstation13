@@ -7,6 +7,7 @@
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/musician.dmi', "right_hand" = 'icons/mob/in-hand/right/musician.dmi')
 	icon = 'icons/obj/musician.dmi'
 	force = 10
+	var/requires_mouth = FALSE
 
 /obj/item/device/instrument/New()
 	..()
@@ -14,24 +15,28 @@
 	song.instrumentExt = instrumentExt
 
 /obj/item/device/instrument/Destroy()
-	qdel(song)
-	song = null
+	QDEL_NULL(song)
 	..()
 
 /obj/item/device/instrument/initialize()
 	song.tempo = song.sanitize_tempo(song.tempo) // tick_lag isn't set when the map is loaded
 	..()
 
-/obj/item/device/instrument/attack_self(mob/user as mob)
+/obj/item/device/instrument/attack_self(mob/user)
 	if(!user.dexterity_check())
 		to_chat(user, "<span class='warning'>You don't have the dexterity to do this!</span>")
 		return 1
-	interact(user)
+	if(requires_mouth)
+		var/mob/living/carbon/C = user
+		if(istype(C) && !C.hasmouth())
+			to_chat(user, "<span class='warning'>You need a mouth to play this instrument!</span>")
+			return 1
+	ui_interact(user)
 
 /obj/item/device/instrument/drum/drum_makeshift/bongos/attack_self(mob/user as mob)
-	interact(user)
+	ui_interact(user)
 
-/obj/item/device/instrument/interact(mob/user as mob)
+/obj/item/device/instrument/ui_interact(mob/user, ui_key="main", datum/nanoui/ui=null, var/force_open=NANOUI_FOCUS)
 	if(!user)
 		return
 
@@ -39,9 +44,12 @@
 		return
 
 	user.set_machine(src)
-	song.interact(user)
+	song.ui_interact(user,ui_key,ui,force_open)
 
-/obj/item/device/instrument/suicide_act(mob/user)
+/obj/item/device/instrument/proc/OnPlayed(mob/user,mob/M)
+	return
+
+/obj/item/device/instrument/suicide_act(var/mob/living/user)
 	user.visible_message("<span class='danger'>[user] begins trying to play Faerie's Aire and Death Waltz with \the [src]! It looks like \he's trying to commit suicide.</span>")
 	playsound(loc, 'sound/effects/applause.ogg', 50, 1, -1)
 	return SUICIDE_ACT_BRUTELOSS
@@ -54,6 +62,7 @@
 	attack_verb = list("smashed")
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/items_lefthand.dmi', "right_hand" = 'icons/mob/in-hand/right/items_righthand.dmi')
 	instrumentId = "violin"
+	w_type = RECYK_WOOD
 
 /obj/item/device/instrument/guitar
 	name = "guitar"
@@ -99,6 +108,7 @@
 	icon_state = "saxophone"
 	item_state = "saxophone"
 	instrumentId = "saxophone"
+	requires_mouth = TRUE
 
 /obj/item/device/instrument/trombone
 	name = "trombone"
@@ -106,6 +116,7 @@
 	icon_state = "trombone"
 	item_state = "trombone"
 	instrumentId = "trombone"
+	requires_mouth = TRUE
 
 /obj/item/device/instrument/recorder
 	name = "recorder"
@@ -113,6 +124,7 @@
 	icon_state = "recorder"
 	item_state = "recorder"
 	instrumentId = "recorder"
+	requires_mouth = TRUE
 
 /obj/item/device/instrument/harmonica
 	name = "harmonica"
@@ -124,6 +136,7 @@
 	force = 5
 	w_class = W_CLASS_SMALL
 	actions_types = list(/datum/action/item_action/instrument)
+	requires_mouth = TRUE
 
 /obj/item/device/instrument/bikehorn
 	name = "gilded bike horn"
@@ -154,7 +167,7 @@
 
 /obj/item/device/instrument/drum/drum_makeshift
 	name = "makeshift drum"
-	desc = "A crudely built drum that is, in essence, a wooden bowl with a leather sheet stretched taut over its surface. Despite its primitive design, you can extract a rather wide range of pitches and notes from this pile of trash"
+	desc = "A crudely built drum that is, in essence, a wooden bowl with a leather sheet stretched taut over its surface. Despite its primitive design, you can extract a rather wide range of pitches and notes from this pile of trash."
 	icon_state = "drum_makeshift"
 	item_state = "drum_makeshift"
 	w_class = W_CLASS_TINY
@@ -175,8 +188,8 @@
 	decondrop = 2 //determines how many parts to drop if deconstructed
 
 /obj/item/device/instrument/drum/drum_makeshift/attackby(obj/item/I,mob/user,params)
-	if(iswirecutter(I)) //wirecutters disassembles drums and bongos and gives you proper drops based on [decondrop] defined above
-		playsound(loc, 'sound/items/Wirecutter.ogg', 50, 1)
+	if(I.is_wirecutter(user)) //wirecutters disassembles drums and bongos and gives you proper drops based on [decondrop] defined above
+		I.playtoolsound(loc, 50)
 		visible_message("<span class='notice'>[user] cuts the leather face off \the [src] with \the [I]. </span>")
 		for (var/i = 1 to decondrop)
 			new /obj/item/trash/bowl(get_turf(src))

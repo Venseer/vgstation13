@@ -2,6 +2,7 @@
 	name = "AI System Integrity Restorer"
 	icon = 'icons/obj/computer.dmi'
 	icon_state = "ai-fixer"
+	circuit = "/obj/item/weapon/circuitboard/aifixer"
 	req_access = list(access_captain, access_robotics, access_heads)
 	var/mob/living/silicon/ai/occupant = null
 	var/active = 0
@@ -14,16 +15,13 @@
 
 /obj/machinery/computer/aifixer/attackby(I as obj, user as mob)
 	if(istype(I, /obj/item/device/aicard))
-		if(stat & (NOPOWER|BROKEN))
+		if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 			to_chat(user, "This terminal isn't functioning right now, get it working!")
 			return
-		I:transfer_ai("AIFIXER","AICARD",src,user)
+		var/obj/item/card = I
+		card.transfer_ai("AIFIXER","AICARD",src,user)
 		return
 	return ..()
-
-/obj/machinery/computer/aifixer/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return attack_hand(user)
 
 /obj/machinery/computer/aifixer/attack_paw(var/mob/user as mob)
 	return attack_hand(user)
@@ -69,7 +67,7 @@
 
 	user.set_machine(src)
 
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 	onclose(user, "computer")
 	return
 
@@ -111,8 +109,10 @@
 	..()
 	overlays = 0
 	// Broken / Unpowered
-	if(stat & (BROKEN | NOPOWER))
+	if(stat & (BROKEN | NOPOWER | FORCEDISABLE))
 		return
+
+	update_moody_light('icons/lighting/moody_lights.dmi', moody_state)
 
 	if (occupant)
 		switch (occupant.stat)

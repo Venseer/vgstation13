@@ -36,8 +36,11 @@
 	max_n2 = 0
 	minbodytemp = 0
 
+	supernatural = TRUE
 	faction = "forest"
 	held_items = list()
+
+	blooded = FALSE
 
 /mob/living/simple_animal/hostile/tree/FindTarget()
 	. = ..()
@@ -50,7 +53,8 @@
 	if(istype(L))
 		if(prob(15))
 			L.Knockdown(3)
-			L.visible_message("<span class='danger'>\the [src] knocks down \the [L]!</span>")
+			L.Stun(3)
+			L.visible_message("<span class='danger'>\The [src] knocks down \the [L]!</span>")
 
 /mob/living/simple_animal/hostile/tree/death(var/gibbed = FALSE)
 	..(gibbed)
@@ -64,7 +68,7 @@
 
 /mob/living/simple_animal/hostile/tree/festivus
 	name = "festivus pole"
-	desc = "serenity now... SERENITY NOW!"
+	desc = "Serenity now... SERENITY NOW!"
 	icon_state = "festivus_pole"
 	icon_living = "festivus_pole"
 	icon_dead = "festivus_pole"

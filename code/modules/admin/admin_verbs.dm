@@ -1,17 +1,23 @@
 //admin verb groups - They can overlap if you so wish. Only one of each verb will exist in the verbs list regardless
 var/list/admin_verbs_default = list(
-	/datum/admins/proc/show_player_panel,	/*shows an interface for individual players, with various links (links require additional flags*/
+
+// Everyone has +ADMIN so we don't actually need anything in here.
+// Downside: The observers no longer have msay if we lack defaults.
 	/client/proc/deadmin_self,			/*destroys our own admin datum so we can play as a regular player*/
+
+	)
+var/list/admin_verbs_admin = list(
+
+	/datum/admins/proc/show_player_panel,	/*shows an interface for individual players, with various links (links require additional flags*/
 	/client/proc/hide_verbs,			/*hides all our adminverbs*/
 	/client/proc/hide_most_verbs,		/*hides all our hideable adminverbs*/
 	/client/proc/debug_variables,		/*allows us to -see- the variables of any instance in the game. +VAREDIT needed to modify*/
 	/client/proc/check_antagonists,		/*shows all antags*/
 	/client/proc/advwho,				/*in addition to listing connected ckeys, shows character name and living/dead/antag status for each*/
 	/datum/admins/proc/checkCID,
-	/datum/admins/proc/checkCKEY
-//	/client/proc/deadchat				/*toggles deadchat on/off*/
-	)
-var/list/admin_verbs_admin = list(
+	/datum/admins/proc/checkCKEY,
+	//	/client/proc/deadchat				/*toggles deadchat on/off*/
+
 	/client/proc/set_base_turf,
 	/datum/admins/proc/delay,
 	/client/proc/SendCentcommFax,		/*sends a fax to all fax machines*/
@@ -23,7 +29,6 @@ var/list/admin_verbs_admin = list(
 	/datum/admins/proc/toggleguests,	/*toggles whether guests can join the current game*/
 	/datum/admins/proc/announce,		/*priority announce something to all clients.*/
 	/client/proc/colorooc,				/*allows us to set a custom colour for everythign we say in ooc*/
-	/client/proc/admin_ghost,			/*allows us to ghost/reenter body at will*/
 	/client/proc/toggle_view_range,		/*changes how far we can see*/
 	/datum/admins/proc/view_txt_log,	/*shows the server log (diary) for today*/
 	/datum/admins/proc/view_atk_log,	/*shows the server combat-log, doesn't do anything presently*/
@@ -77,7 +82,19 @@ var/list/admin_verbs_admin = list(
 	/client/proc/allow_character_respawn,    /* Allows a ghost to respawn */
 	/client/proc/watchdog_force_restart,	/*forces restart using watchdog feature*/
 	/client/proc/manage_religions,
-	/client/proc/set_veil_thickness
+	/client/proc/credits_panel,			/*allows you to customize the roundend credits before they happen*/
+	/client/proc/persistence_panel,			/*lets you check out the kind of shit that will persist to the next round and say "holy fuck no"*/
+	/client/proc/diseases_panel,
+	/client/proc/artifacts_panel,
+	/client/proc/body_archive_panel,
+	/client/proc/climate_panel,
+	/client/proc/admin_arena_panel,
+	/client/proc/level_manager,
+	/datum/admins/proc/ashInvokedEmotions,	/*Ashes all paper from the invoke emotion spell. An emergency purge.*/
+	/client/proc/toggle_admin_examine,
+	/client/proc/beasts_panel,	/* Lists all forgotten beasts generated, along with their characteristics */
+	/client/proc/show_heatmaps,
+	/datum/admins/proc/procedural_generation_panel
 )
 var/list/admin_verbs_ban = list(
 	/client/proc/unban_panel,
@@ -113,9 +130,15 @@ var/list/admin_verbs_fun = list(
 	/client/proc/gib_money, // /vg/
 	/client/proc/smissmas,
 	/client/proc/achievement,
-	/client/proc/mommi_static,
 	/client/proc/makepAI,
 	/client/proc/set_blob_looks,
+	/client/proc/set_teleport_pref,
+	/client/proc/deadchat_singularity,
+	/client/proc/view_all_rods,
+	/client/proc/add_centcomm_order,
+	/client/proc/apes,
+	/client/proc/force_next_map,
+	/client/proc/rig_crew_score,
 	)
 var/list/admin_verbs_spawn = list(
 	/datum/admins/proc/spawn_atom, // Allows us to spawn instances
@@ -128,7 +151,6 @@ var/list/admin_verbs_spawn = list(
 	)
 var/list/admin_verbs_server = list(
 	/client/proc/Set_Holiday,
-	/client/proc/ToRban,
 	/datum/admins/proc/startnow,
 	/datum/admins/proc/restart,
 	/datum/admins/proc/toggleaban,
@@ -145,11 +167,12 @@ var/list/admin_verbs_server = list(
 	/client/proc/toggle_random_events,
 	/client/proc/check_customitem_activity,
 	/client/proc/dump_chemreactions,
-	/client/proc/save_coordinates
+	/client/proc/save_coordinates,
+	/datum/admins/proc/mass_delete_in_zone,
+	/client/proc/hub_panel,
 	)
 var/list/admin_verbs_debug = list(
 	/client/proc/gc_dump_hdl,
-	/client/proc/debug_pooling,
 	/client/proc/cmd_admin_list_open_jobs,
 	/proc/getbrokeninhands,
 	/client/proc/Debug2,
@@ -163,26 +186,28 @@ var/list/admin_verbs_debug = list(
 	/client/proc/restart_controller,
 	/client/proc/enable_debug_verbs,
 	/client/proc/callproc,
-	/client/proc/cmd_admin_dump_instances, // /vg/
 	/client/proc/cmd_admin_dump_machine_type_list, // /vg/
 	/client/proc/disable_bloodvirii,       // /vg
-	/client/proc/handle_paperwork, //this is completely experimental
 	/client/proc/reload_style_sheet,
 	/client/proc/reset_style_sheet,
 	/client/proc/test_movable_UI,
 	/client/proc/test_snap_UI,
 	/client/proc/configFood,
+	///client/proc/configThermDiss,
+	/client/proc/configHat,
 	/client/proc/cmd_dectalk,
 	/client/proc/debug_reagents,
 	/client/proc/create_awaymission,
 	/client/proc/make_invulnerable,
+	/client/proc/send_to_heck,
 	/client/proc/cmd_admin_dump_delprofile,
 	/client/proc/mob_list,
 	/client/proc/cure_disease,
 	/client/proc/check_bomb,
-	/client/proc/set_teleport_pref,
 	/client/proc/check_convertables,
+	/client/proc/toggle_convertibles,
 	/client/proc/check_spiral,
+	/client/proc/check_multi_z_spiral,
 	/client/proc/check_striketeams,
 	/client/proc/cmd_admin_find_bad_blood_tracks,
 	/client/proc/debugNatureMapGenerator,
@@ -190,13 +215,21 @@ var/list/admin_verbs_debug = list(
 	/client/proc/view_runtimes,
 	/client/proc/cmd_mass_modify_object_variables,
 	/client/proc/emergency_shuttle_panel,
+	/client/proc/bee_count,
+	/client/proc/set_procizine_call,
+	/client/proc/set_procizine_properties,
+	/client/proc/check_for_unconnected_atmos,
+
 #if UNIT_TESTS_ENABLED
 	/client/proc/unit_test_panel,
 #endif
+	/client/proc/update_all_open_spaces,
+	/client/proc/update_all_area_portals,
+	/client/proc/spam_blend_calls,
+	/client/proc/edit_motd,
 	)
 var/list/admin_verbs_possess = list(
-	/proc/possess,
-	/proc/release
+	/client/proc/possess
 	)
 var/list/admin_verbs_permissions = list(
 	/client/proc/edit_admin_permissions
@@ -216,7 +249,6 @@ var/list/admin_verbs_hideable = list(
 	/datum/admins/proc/toggleguests,
 	/datum/admins/proc/announce,
 	/client/proc/colorooc,
-	/client/proc/admin_ghost,
 	/client/proc/toggle_view_range,
 	/datum/admins/proc/view_txt_log,
 	/datum/admins/proc/view_atk_log,
@@ -241,7 +273,6 @@ var/list/admin_verbs_hideable = list(
 	/client/proc/toggle_random_events,
 	/client/proc/cmd_admin_add_random_ai_law,
 	/client/proc/Set_Holiday,
-	/client/proc/ToRban,
 	/datum/admins/proc/startnow,
 	/datum/admins/proc/restart,
 	/datum/admins/proc/delay,
@@ -269,10 +300,8 @@ var/list/admin_verbs_hideable = list(
 	/client/proc/cmd_debug_tog_aliens,
 	/client/proc/enable_debug_verbs,
 	/client/proc/mob_list,
-	/proc/possess,
-	/proc/release,
+	/client/proc/possess,
 	/client/proc/gc_dump_hdl,
-	/client/proc/debug_pooling,
 	/client/proc/create_map_element
 	)
 var/list/admin_verbs_mod = list(
@@ -280,7 +309,6 @@ var/list/admin_verbs_mod = list(
 	/client/proc/cmd_admin_pm_panel,	/*admin-pm list*/
 	/client/proc/debug_variables,		/*allows us to -see- the variables of any instance in the game.*/
 	/datum/admins/proc/PlayerNotes,
-	/client/proc/admin_ghost,			/*allows us to ghost/reenter body at will*/
 	/client/proc/cmd_mod_say,
 	/client/proc/cmd_mod_window,
 	/datum/admins/proc/show_player_info,
@@ -311,7 +339,7 @@ var/list/admin_verbs_mod = list(
 			verbs += admin_verbs_polling
 		if(holder.rights & R_STEALTH)
 			verbs += /client/proc/stealth
-		if(holder.rights & R_REJUVINATE)
+		if(holder.rights & R_REJUVENATE)
 			verbs += admin_verbs_rejuv
 		if(holder.rights & R_SOUNDS)
 			verbs += admin_verbs_sounds
@@ -321,6 +349,8 @@ var/list/admin_verbs_mod = list(
 			verbs += admin_verbs_mod
 		if(holder.rights & R_ADMINBUS)
 			verbs += /client/proc/secrets
+	if (isobserver(mob))
+		mob.verbs |= /mob/dead/observer/verb/toggle_antagHUD
 
 /client/proc/remove_admin_verbs()
 	verbs.Remove(
@@ -333,6 +363,7 @@ var/list/admin_verbs_mod = list(
 		admin_verbs_debug,
 		admin_verbs_possess,
 		admin_verbs_permissions,
+		admin_verbs_polling,
 		/client/proc/stealth,
 		admin_verbs_rejuv,
 		admin_verbs_sounds,
@@ -341,7 +372,6 @@ var/list/admin_verbs_mod = list(
 		/*Debug verbs added by "show debug verbs"*/
 		/client/proc/Cell,
 		/client/proc/pdiff,
-		/client/proc/do_not_use_these,
 		/client/proc/camera_view,
 		/client/proc/sec_camera_report,
 		/client/proc/intercom_view,
@@ -355,13 +385,37 @@ var/list/admin_verbs_mod = list(
 		/client/proc/setup_atmos,
 		/client/proc/ticklag,
 		/client/proc/cmd_admin_grantfullaccess,
-		/client/proc/kaboom,
 		/client/proc/splash,
 		/client/proc/cmd_admin_areatest,
 		/client/proc/readmin,
-		/proc/generateMiniMaps,
-		/client/proc/maprender
+		///proc/generateMiniMaps,
+		/client/proc/maprender,
+		/client/proc/cmd_admin_rejuvenate,
+		/datum/admins/proc/show_role_panel,
+		/client/proc/print_jobban_old,
+		/client/proc/print_jobban_old_filter,
+		/client/proc/forceEvent,
+		///client/proc/break_all_air_groups,
+		///client/proc/regroup_all_air_groups,
+		///client/proc/kill_pipe_processing,
+		///client/proc/kill_air_processing,
+		///client/proc/disable_communication,
+		///client/proc/disable_movement,
+		/client/proc/Zone_Info,
+		/client/proc/Test_ZAS_Connection,
+		/client/proc/SDQL2_query,
+		/client/proc/check_sim_unsim,
+		/client/proc/start_line_profiling,
+		/client/proc/stop_line_profiling,
+		/client/proc/show_line_profiling,
+		/client/proc/check_wires,
+		#if UNIT_TESTS_ENABLED
+		/client/proc/unit_test_panel,
+		#endif
+		/client/proc/check_pipes
 		)
+	if (isobserver(mob))
+		mob.verbs -= /mob/dead/observer/verb/toggle_antagHUD
 
 /client/proc/hide_most_verbs()//Allows you to keep some functionality while hiding some verbs
 	set name = "Adminverbs - Hide Most"
@@ -390,30 +444,6 @@ var/list/admin_verbs_mod = list(
 	add_admin_verbs()
 	to_chat(src, "<span class='interface'>All of your adminverbs are now visible.</span>")
 	feedback_add_details("admin_verb","TAVVS") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-
-/client/proc/admin_ghost()
-	set category = "Admin"
-	set name = "Aghost"
-	if(!holder)
-		return
-	if(istype(mob,/mob/dead/observer))
-		//re-enter
-		var/mob/dead/observer/ghost = mob
-		ghost.can_reenter_corpse = 1			//just in-case.
-		ghost.reenter_corpse()
-		feedback_add_details("admin_verb","P") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-	else if(istype(mob,/mob/new_player))
-		to_chat(src, "<font color='red'>Error: Aghost: Can't admin-ghost whilst in the lobby. Join or Observe first.</font>")
-	else
-		//ghostize
-		var/mob/body = mob
-		if(body.mind)
-			body.mind.isScrying = 1
-		body.ghostize(1)
-
-		if(body && !body.key)
-			body.key = "@[key]"	//Haaaaaaaack. But the people have spoken. If it breaks; blame adminbus
-		feedback_add_details("admin_verb","O") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 
 /client/proc/invisimin()
@@ -504,7 +534,8 @@ var/list/admin_verbs_mod = list(
 		return
 	var/new_ooccolor = input(src, "Please select your OOC colour.", "OOC colour") as color|null
 	if(new_ooccolor)
-		prefs.ooccolor = new_ooccolor
+		var/datum/preference_setting/ooc_color = prefs.get_pref_datum(/datum/preference_setting/string/ooc_color)
+		ooc_color.setting = new_ooccolor
 		prefs.save_preferences_sqlite(src, ckey)
 	feedback_add_details("admin_verb","OC") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 	return
@@ -546,18 +577,20 @@ var/list/admin_verbs_mod = list(
 		D = preferences_datums[warned_ckey]
 
 	if(!D)
-		to_chat(src, "<font color='red'>Error: warn(): No such ckey found.</font>")
+		to_chat(src, "<span class='red'>Error: warn(): No such ckey found.</span>")
 		return
 
 	var/warn_reason = input("Reason for warning?", "Admin abuuuuuuuse") as null|text
 	if(!warn_reason)
 		return
-	notes_add(warned_ckey,warn_reason,src.mob)
-	if(++D.warns >= MAX_WARNS)					//uh ohhhh...you'reee iiiiin trouuuubble O:)
+	holder.notes_add(warned_ckey, warn_reason)
+	var/datum/preference_setting/warns = D.get_pref_datum(/datum/preference_setting/numerical/warns)
+	if(++warns.setting >= MAX_WARNS)					//uh ohhhh...you'reee iiiiin trouuuubble O:)
 		var/bantime = AUTOBANTIME//= (++D.warnbans * AUTOBANTIME)
-		D.warns = 0
-		++D.warnbans
-		for(var/i = 1; i < D.warnbans; i++)
+		warns.setting = 0
+		var/datum/preference_setting/warnbans = D.get_pref_datum(/datum/preference_setting/numerical/warnbans)
+		++warnbans.setting
+		for(var/i = 1; i < warnbans.setting; i++)
 			bantime *= 2
 		ban_unban_log_save("[ckey] warned [warned_ckey] - [warn_reason], resulting in a [bantime] minute autoban.")
 		if(C)
@@ -571,12 +604,19 @@ var/list/admin_verbs_mod = list(
 		D.save_preferences_sqlite(C, C.ckey)
 		del(C)
 	else
+		var/warnbans = D.get_pref(/datum/preference_setting/numerical/warnbans)
 		if(C)
 			to_chat(C, "<span class='danger'><BIG>You have been formally warned by an administrator - Reason: [warn_reason].</span></BIG><br>Further warnings will result in an autoban.</font>")
-			message_admins("[key_name_admin(src)] has warned [key_name_admin(C)] - [warn_reason]. They have [MAX_WARNS-D.warns] strikes remaining. And have been warn banned [D.warnbans] [D.warnbans == 1 ? "time" : "times"]")
+			message_admins("[key_name_admin(src)] has warned [key_name_admin(C)] - [warn_reason]. They have [MAX_WARNS-warnbans] strikes remaining. And have been warn banned [warnbans] [warnbans == 1 ? "time" : "times"]")
 		else
-			message_admins("[key_name_admin(src)] has warned [warned_ckey] (DC) - [warn_reason]. They have [MAX_WARNS-D.warns] strikes remaining. And have been warn banned [D.warnbans] [D.warnbans == 1 ? "time" : "times"]")
-		D.save_preferences_sqlite(C, C.ckey)
+			message_admins("[key_name_admin(src)] has warned [warned_ckey] (DC) - [warn_reason]. They have [MAX_WARNS-warnbans] strikes remaining. And have been warn banned [warnbans] [warnbans == 1 ? "time" : "times"]")
+			var/datum/preference_setting/show_warning_next_time = D.get_pref_datum(/datum/preference_setting/toggle/show_warning_next_time)
+			show_warning_next_time.setting = 1
+			var/datum/preference_setting/last_warned_message = D.get_pref_datum(/datum/preference_setting/string/last_warned_message)
+			last_warned_message.setting = warn_reason
+			var/datum/preference_setting/warning_admin = D.get_pref_datum(/datum/preference_setting/string/last_warned_message)
+			warning_admin.setting = ckey
+		D.save_preferences_sqlite(C, warned_ckey)
 	feedback_add_details("admin_verb","WARN") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/unwarn(warned_ckey)
@@ -586,7 +626,7 @@ var/list/admin_verbs_mod = list(
 	if(!warned_ckey || !istext(warned_ckey))
 		return
 	/*if(warned_ckey in admin_datums)
-		to_chat(usr, "<font color='red'>Error: warn(): You can't warn admins.</font>")
+		to_chat(usr, "<span class='red'>Error: warn(): You can't warn admins.</span>")
 		return*/
 
 	var/datum/preferences/D
@@ -597,20 +637,21 @@ var/list/admin_verbs_mod = list(
 		D = preferences_datums[warned_ckey]
 
 	if(!D)
-		to_chat(src, "<font color='red'>Error: unwarn(): No such ckey found.</font>")
+		to_chat(src, "<span class='red'>Error: unwarn(): No such ckey found.</span>")
 		return
 
-	if(D.warns == 0)
-		to_chat(src, "<font color='red'>Error: unwarn(): You can't unwarn someone with 0 warnings, you big dummy.</font>")
+	if(D.get_pref(/datum/preference_setting/numerical/warns) == 0)
+		to_chat(src, "<span class='red'>Error: unwarn(): You can't unwarn someone with 0 warnings, you big dummy.</span>")
 		return
 
-	D.warns-=1
-	var/strikesleft = MAX_WARNS-D.warns
+	var/datum/preference_setting/warns = D.get_pref_datum(/datum/preference_setting/numerical/warns)
+	warns.setting-=1
+	var/strikesleft = MAX_WARNS-warns.setting
 	if(C)
-		to_chat(C, "<font color='red'><BIG><B>One of your warnings has been removed.</B></BIG><br>You currently have [strikesleft] strike\s left</font>")
-		message_admins("[key_name_admin(src)] has unwarned [key_name_admin(C)]. They have [strikesleft] strike(s) remaining, and have been warn banned [D.warnbans] [D.warnbans == 1 ? "time" : "times"]")
+		to_chat(C, "<span class='red'><BIG><B>One of your warnings has been removed.</B></BIG><br>You currently have [strikesleft] strike\s left</span>")
+		message_admins("[key_name_admin(src)] has unwarned [key_name_admin(C)]. They have [strikesleft] strike(s) remaining, and have been warn banned [D.get_pref(/datum/preference_setting/numerical/warnbans)] [D.get_pref(/datum/preference_setting/numerical/warnbans) == 1 ? "time" : "times"]")
 	else
-		message_admins("[key_name_admin(src)] has unwarned [warned_ckey] (DC). They have [strikesleft] strike(s) remaining, and have been warn banned [D.warnbans] [D.warnbans == 1 ? "time" : "times"]")
+		message_admins("[key_name_admin(src)] has unwarned [warned_ckey] (DC). They have [strikesleft] strike(s) remaining, and have been warn banned [D.get_pref(/datum/preference_setting/numerical/warnbans)] [D.get_pref(/datum/preference_setting/numerical/warnbans) == 1 ? "time" : "times"]")
 	D.save_preferences_sqlite(C, C.ckey)
 	feedback_add_details("admin_verb","UNWARN") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
@@ -623,23 +664,33 @@ var/list/admin_verbs_mod = list(
 	set desc = "Cause an explosion of varying strength at your location."
 
 	var/turf/epicenter = mob.loc
-	var/list/choices = list("Small Bomb (1,2,3)", "Medium Bomb (2,3,4)", "Big Bomb (3,5,7)", "Custom Bomb")
-	var/choice = input("What size explosion would you like to produce?") in choices | null
+	var/list/choices = list("Small Bomb (1,3,4)", "Medium Bomb (3,7,14)", "Big Bomb (7,14,28)", "Custom Bomb")
+	var/choice = input("What size explosion would you like to produce?") as null|anything in choices
 	switch(choice)
 		if(null)
 			return 0
-		if("Small Bomb (1,2,3)")
-			explosion(epicenter, 1, 2, 3, 3)
-		if("Medium Bomb (2,3,4)")
-			explosion(epicenter, 2, 3, 4, 4)
-		if("Big Bomb (3,5,7)")
-			explosion(epicenter, 3, 5, 7, 5)
+		if("Small Bomb (1,3,4)")
+			explosion(epicenter, 1, 3, 4, 4, whodunnit = usr)
+		if("Medium Bomb (3,7,14)")
+			explosion(epicenter, 3, 7, 14, 14, whodunnit = usr)
+		if("Big Bomb (7,14,28)")
+			explosion(epicenter, 7, 14, 28, 28, whodunnit = usr)
 		if("Custom Bomb")
 			var/devastation_range = input("Devastation range (in tiles):") as num
 			var/heavy_impact_range = input("Heavy impact range (in tiles):") as num
 			var/light_impact_range = input("Light impact range (in tiles):") as num
 			var/flash_range = input("Flash range (in tiles):") as num
-			explosion(epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range)
+			if(devastation_range > 299 || heavy_impact_range > 299 || light_impact_range > 299)
+				if(alert(usr, "THIS EXPLOSION MAY CRASH THE SERVER, ARE YOU REALLY SURE?", "DANGER ZONE", "Yes", "No") == "No")
+					return 0;
+				log_admin("[key_name_admin(src)] decided to set off a potentially server-crashing bomb despite the warning.")
+				message_admins("<span class='warning'>[key_name_admin(src)] decided to set off a potentially server-crashing bomb despite the warning.</span>")
+			else if (devastation_range > 149 || heavy_impact_range > 149 || light_impact_range > 149)
+				if(alert(usr, "This explosion is likely to cause significant server lag, continue anyway?", "Lag Warning", "Yes", "No") == "No")
+					return 0;
+				log_admin("[key_name_admin(src)] decided to set off a potentially server-lagging bomb despite the warning.")
+				message_admins("<span class='warning'>[key_name_admin(src)] decided to set off a potentially server-lagging bomb despite the warning.</span>")
+			explosion(epicenter, devastation_range, heavy_impact_range, light_impact_range, flash_range, whodunnit = usr)
 
 	log_admin("[key_name(usr)] creating an admin explosion at [epicenter.loc] ([epicenter.x],[epicenter.y],[epicenter.z]).")
 	message_admins("<span class='notice'>[key_name_admin(src)] creating an admin explosion at [epicenter.loc] ([epicenter.x],[epicenter.y],[epicenter.z]) (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[epicenter.x];Y=[epicenter.y];Z=[epicenter.z]'>JMP</A>).</span>")
@@ -652,7 +703,7 @@ var/list/admin_verbs_mod = list(
 
 	var/turf/epicenter = mob.loc
 	var/list/choices = list("Small EMP (1,2)", "Medium EMP (2,4)", "Big EMP (4,8)", "Custom EMP")
-	var/choice = input("What size EMP would you like to produce?") in choices | null
+	var/choice = input("What size EMP would you like to produce?") as null|anything in choices
 	switch(choice)
 		if(null)
 			return 0
@@ -683,6 +734,26 @@ var/list/admin_verbs_mod = list(
 	feedback_add_details("admin_verb","GS") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 	log_admin("[key_name(usr)] gave [key_name(T)] the spell [S].")
 	message_admins("<span class='notice'>[key_name_admin(usr)] gave [key_name(T)] the spell [S].</span>", 1)
+
+
+/client/proc/toggle_invisible(mob/T as mob in mob_list)
+	set category = "Fun"
+	set name = "Toggle invisiblity"
+	set desc = "Make a mob completely invisible."
+
+	if (T.alphas["admin_invis"] == 0)
+		T.forced_density = 0
+		T.alphas -= "admin_invis"
+	else
+		T.alphas["admin_invis"] = 0
+		T.density = 0
+		T.forced_density = 1
+
+	to_chat(T, "<span class='notice'>Admin [key_name_admin(usr)] toggled your invisiblity.</span>")
+
+	feedback_add_details("admin_verb","MI") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	log_admin("[key_name(usr)] toggled [key_name(T)] invisibility.")
+	message_admins("<span class='notice'>[key_name_admin(usr)] toggled [key_name(T)] invisibility.</span>", 1)
 
 /client/proc/give_disease(mob/T as mob in mob_list) // -- Giacom
 	set category = "Fun"
@@ -732,7 +803,17 @@ var/list/admin_verbs_mod = list(
 			return
 		log_admin("[src] deadminned themself.")
 		message_admins("[src] deadminned themself.")
+		if (ticker && ticker.current_state == GAME_STATE_PLAYING) //Only report this stuff if we are currently playing.
+			var/admins_number = admins.len
+			var/admin_number_afk = get_afk_admins()
+
+			var/available_admins = admins_number - admin_number_afk
+
+			if(available_admins == 0) // Apparently the admin logging out is no longer an admin at this point, so we have to check this towards 0 and not towards 1. Awell.
+				send2adminirc("[key_name(src, showantag = FALSE)] deadminned themself - no more non-AFK admins online. - [admin_number_afk] AFK.")
+				send2admindiscord("[key_name(src, showantag = FALSE)] deadminned themself. **No more non-AFK admins online.** - **[admin_number_afk]** AFK", TRUE)
 		deadmin()
+		winset(src, null, list("browser-options"="-devtools"))
 		verbs += /client/proc/readmin
 		deadmins += ckey
 		to_chat(src, "<span class='interface'>You are now a normal player.</span>")
@@ -750,6 +831,14 @@ var/list/admin_verbs_mod = list(
 		else
 			config.log_hrefs = 1
 			to_chat(src, "<b>Started logging hrefs</b>")
+
+/client/proc/hub_panel()
+	set name = "Hub Panel"
+	set category = "Server"
+	if(holder)
+		holder.HubPanel()
+	feedback_add_details("admin_verb","HP") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
 
 /client/proc/check_ai_laws()
 	set name = "Check AI Laws"
@@ -771,49 +860,8 @@ var/list/admin_verbs_mod = list(
 	switch(alert("Are you sure you wish to edit this mob's appearance? Skrell, Unathi, Vox and Tajaran can result in unintended consequences.",,"Yes","No"))
 		if("No")
 			return
-	var/new_facial = input("Please select facial hair color.", "Character Generation") as color
-	if(new_facial)
-		M.r_facial = hex2num(copytext(new_facial, 2, 4))
-		M.g_facial = hex2num(copytext(new_facial, 4, 6))
-		M.b_facial = hex2num(copytext(new_facial, 6, 8))
-
-	var/new_hair = input("Please select hair color.", "Character Generation") as color
-	if(new_facial)
-		M.r_hair = hex2num(copytext(new_hair, 2, 4))
-		M.g_hair = hex2num(copytext(new_hair, 4, 6))
-		M.b_hair = hex2num(copytext(new_hair, 6, 8))
-
-	var/new_eyes = input("Please select eye color.", "Character Generation") as color
-	if(new_eyes)
-		M.r_eyes = hex2num(copytext(new_eyes, 2, 4))
-		M.g_eyes = hex2num(copytext(new_eyes, 4, 6))
-		M.b_eyes = hex2num(copytext(new_eyes, 6, 8))
-
-	var/new_tone = input("Please select skin tone level: 1-220 (1=albino, 35=caucasian, 150=black, 220='very' black)", "Character Generation")  as text
-
-	if (new_tone)
-		M.s_tone = max(min(round(text2num(new_tone)), 220), 1)
-		M.s_tone =  -M.s_tone + 35
-
-	// hair
-	var/new_hstyle = input(usr, "Select a hair style", "Grooming")  as null|anything in hair_styles_list
-	if(new_hstyle)
-		M.h_style = new_hstyle
-
-	// facial hair
-	var/new_fstyle = input(usr, "Select a facial hair style", "Grooming")  as null|anything in facial_hair_styles_list
-	if(new_fstyle)
-		M.f_style = new_fstyle
-
-	var/new_gender = alert(usr, "Please select gender.", "Character Generation", "Male", "Female")
-	if (new_gender)
-		if(new_gender == "Male")
-			M.setGender(MALE)
-		else
-			M.setGender(FEMALE)
-	M.update_hair()
-	M.update_body()
-	M.check_dna(M)
+	M.pick_gender(usr)
+	M.pick_appearance(usr)
 
 /client/proc/playernotes()
 	set name = "Show Player Notes"
@@ -828,14 +876,14 @@ var/list/admin_verbs_mod = list(
 	if(holder)
 		var/list/jobs = list()
 		for (var/datum/job/J in job_master.occupations)
-			if (J.current_positions >= J.total_positions && J.total_positions != -1)
+			if (J.current_positions >= J.get_total_positions())
 				jobs += J.title
 		if (!jobs.len)
 			to_chat(usr, "There are no fully staffed jobs.")
 			return
 		var/job = input("Please select job slot to free", "Free job slot")  as null|anything in jobs
 		if (job)
-			job_master.FreeRole(job)
+			job_master.FreeRole(job, usr)
 	return
 
 /client/proc/commandname()
@@ -863,10 +911,34 @@ var/list/admin_verbs_mod = list(
 	set desc = "Regain your admin powers."
 	var/datum/admins/D = admin_datums[ckey]
 	if(config.admin_legacy_system)
-		to_chat(src, "<span class='notice'>Legacy admins is not supported yet</span>")
-		return
+		var/list/lines = file2list("config/admins.txt")
+		for(var/line in lines)
+			// if the line doesn't begin with our ckey we don't care
+			if(findtext(ckey(line), ckey) != 1)
+				continue
+			//Split the line at every "-"
+			var/list/List = splittext(line, "-")
+			if(!List.len)
+				continue
+
+			//rank follows the first "-"
+			var/rank = ""
+			if(List.len >= 2)
+				rank = ckeyEx(List[2])
+
+			//load permissions associated with this rank
+			var/rights = admin_ranks[rank]
+
+			//create the admin datum and store it for later use
+			D = new /datum/admins(rank, rights, ckey)
+
+			//associate them with the new admin datum
+			D.associate(src)
+
+			if(D.rights & (R_DEBUG|R_SERVER)) // Grant profile/reboot access
+				world.SetConfig("APP/admin", ckey, "role=admin")
 	else
-		if(!dbcon.IsConnected())
+		if(!SSdbcore.IsConnected())
 			message_admins("Warning, mysql database is not connected.")
 			to_chat(src, "Warning, mysql database is not connected.")
 			return
@@ -874,9 +946,11 @@ var/list/admin_verbs_mod = list(
 			to_chat(src, "You are already an admin.")
 			verbs -= /client/proc/readmin
 			return
-		var/sql_ckey = sanitizeSQL(ckey(ckey))
-		var/DBQuery/query = dbcon.NewQuery("SELECT ckey, rank, level, flags FROM erro_admin WHERE ckey = '[sql_ckey]'")
-		query.Execute()
+		var/datum/DBQuery/query = SSdbcore.NewQuery("SELECT `ckey`, `rank`, `level`, `flags` FROM erro_admin WHERE `ckey` = :ckey", list("ckey" = ckey))
+		if(!query.Execute())
+			log_sql("Error: [query.ErrorMsg()]")
+			qdel(query)
+			return
 		while(query.NextRow())
 			var/dckey = query.item[1]
 			var/rank = query.item[2]
@@ -894,6 +968,7 @@ var/list/admin_verbs_mod = list(
 			log_admin("[src] re-adminned themselves.")
 			feedback_add_details("admin_verb","RAS")
 			verbs -= /client/proc/readmin
+			qdel(query)
 			return
 
 /client/proc/achievement()
@@ -909,9 +984,15 @@ var/list/admin_verbs_mod = list(
 		to_chat(usr, "player list is empty!")
 		return
 
-	var/mob/winner = input("Who's a winner?", "Achievement Winner", null) as null|anything in player_list
-	if(!winner)
+	var/list/winners = list()
+	for (var/mob/M in player_list)
+		winners["[M.real_name] ([M.key])"] = M
+
+	var/choice = input("Who's a winner?", "Achievement Winner", null) as null|anything in winners
+	if(!choice)
 		return
+
+	var/mob/winner = winners[choice]
 
 	var/name = input("What will you call your achievement?", "Achievement Winner", "New Achievement", null) as null|text
 	if(!name)
@@ -922,53 +1003,54 @@ var/list/admin_verbs_mod = list(
 		return
 
 	if(istype(winner, /mob/living))
-		achoice = alert("Give our winner his own trophy?","Achievement Trophy", "Confirm", "Cancel")
+		achoice = alert("Are you sure you want to give them an award?","Achievement award", "Confirm", "Cancel")
 		if(achoice == "Cancel")
 			return
 
-	var/glob = alert("Announce the achievement globally? (Beware! Ruins immersion!)", "Last Question", "No!","Yes!")
+	var/glob = alert("Announce the achievement globally? (Beware! Ruins immersion!)", "Announce To All Players", "No!","Yes!")
 
-	if(achoice == "Confirm")
-		var/obj/item/weapon/reagent_containers/food/drinks/golden_cup/C = new(get_turf(winner))
-		C.name = name
-		C.desc = desc
-		if(iscarbon(winner) && (winner.stat == CONSCIOUS))
-			winner.put_in_hands(C)
-	else
-		to_chat(winner, "<span class='danger'>You win [name]! [desc]</span>")
+	var/obj/item/award
+	achoice = alert("What award should they be given?","Award choice","Gold medal","Gold cup","Dunce cap")
+	if(achoice == "Gold cup")
+		award = /obj/item/weapon/reagent_containers/food/drinks/golden_cup
+	if(achoice == "Gold medal")
+		award = /obj/item/clothing/accessory/medal/gold
+	if(achoice == "Dunce cap")
+		award = /obj/item/clothing/head/dunce_cap
 
-	var/icon/cup = icon('icons/obj/drinks.dmi', "golden_cup")
-
-	if(glob == "No!")
-		winner.client << sound('sound/misc/achievement.ogg')
-		for(var/mob/dead/observer/O in player_list)
-			to_chat(O, "<span class='danger'>[bicon(cup)] <b>[winner.name]</b> wins \"<b>[name]</b>\"!</span>")
-	else
-		world << sound('sound/misc/achievement.ogg')
-		to_chat(world, "<span class='danger'>[bicon(cup)] <b>[winner.name]</b> wins \"<b>[name]</b>\"!</span>")
-
-	to_chat(winner, "<span class='danger'>Congratulations!</span>")
-
-	achievements += "<b>[winner.key]</b> as <b>[winner.name]</b> won \"<b>[name]</b>\"! \"[desc]\""
-
+	give_award(winner, award, name, desc, glob == "No!" ? FALSE : TRUE)
 	message_admins("[key_name_admin(usr)] has awarded <b>[winner.key]</b>([winner.name]) with the achievement \"<b>[name]</b>\"! \"[desc]\".", 1)
 
-/client/proc/mommi_static()
-	set name = "Toggle MoMMI Static"
-	set desc = "Toggle whether MoMMIs can see mobs or if the mobs are cloaked in static"
-	set category = "Fun"
-
-	if(!holder || !config)
+// winner can be a mob or a ckey
+/proc/give_award(mob_or_ckey, award_path, name, desc, announce = TRUE)
+	ASSERT(!isnull(mob_or_ckey))
+	var/mob/living/carbon/winner = istext(mob_or_ckey) ? get_mob_by_key(mob_or_ckey) : mob_or_ckey
+	if(!winner)
+		log_debug("Something tried to give an award to a non existing player!")
 		return
+	var/obj/award
+	if(!award_path)
+		award = new /obj/item/weapon/reagent_containers/food/drinks/golden_cup()
+	else
+		award = new award_path()
+	award.name = name
+	award.desc = desc
 
-	config.mommi_static = !config.mommi_static
-	log_admin("[key_name(src)] turned MoMMI static [config.mommi_static ? "on" : "off"].")
-	message_admins("[key_name(src)] turned MoMMI static [config.mommi_static ? "on" : "off"].")
-	for(var/mob/living/silicon/robot/mommi/M in player_list)
-		if(M.can_see_static())
-			M.add_static_overlays()
-		else
-			M.remove_static_overlays()
+	if(iscarbon(winner) && (winner.stat == CONSCIOUS))
+		winner.put_in_hands(award)
+
+	if(!announce)
+		winner.client << sound('sound/misc/achievement.ogg', volume=35)
+		for(var/mob/dead/observer/O in player_list)
+			to_chat(O, "<span class='danger'>[bicon(award)] Attention all ghosts, <b>[winner.name]</b> wins \"<b>[name]</b>\"!</span>")
+	else
+		world << sound('sound/misc/achievement.ogg', volume=35)
+		to_chat(world, "<span class='danger'>[bicon(award)] <b>[winner.name]</b> wins \"<b>[name]</b>\"!</span>")
+
+	to_chat(winner, "<span class='danger'>[bicon(award)] Congratulations to you, <b>[winner.name]</b>! You have won \"<b>[name]</b>\"!</span>")
+
+	var/datum/achievement = new /datum/achievement(award, winner.key, winner.name, name, desc)
+	ticker.achievements.Add(achievement)
 
 /client/proc/shuttle_magic()
 	set name = "Shuttle Magic"
@@ -1015,8 +1097,8 @@ var/list/admin_verbs_mod = list(
 	message_admins("<span class='notice'>[key_name_admin(src)] set all blobs to use the \"[chosen]\" look.</span>")
 
 /datum/admins/proc/media_stop_all()
-	set name = "Stop All Media"
-	set desc = "Stops all music and video."
+	set name = "Stop all Media"
+	set desc = "Stops all music, video and admin sounds."
 	set category = "Fun"
 
 	if(!check_rights(R_FUN))
@@ -1026,12 +1108,35 @@ var/list/admin_verbs_mod = list(
 
 	stop_all_media()
 
+var/list/fax_presets = list(
+	"Centcomm" = {"<!DOCTYPE html>
+<html>
+<body style="background-color:darkblue;">
+
+<h1><center><font color="white">NANOTRASEN CENTRAL COMMAND</font></center></h1>
+<center><img src="http://ss13.moe/wiki/images/1/17/NanoTrasen_Logo.png"></center>
+<p><center><font color="white">\[MESSAGE BODY GOES HERE\]</center></font></p>
+<p><center><font color="white">\[MESSAGE BODY GOES HERE\]</center></font></p>
+
+</body>
+</html>"},
+	"Internal Affairs" = {"<html><style>body {color: #000000; background: #ccffff;}
+h1 {color: #000000; font-size:30px;}
+fieldset {width:140px;}
+</style><body><center><img src="http://ss13.moe/wiki/images/1/17/NanoTrasen_Logo.png"> <h1>ATTN: Internal Affairs</h1></center><BR>
+\[MESSAGE BODY GOES HERE\]
+<BR><BR><I>Central Command</I>
+</body></html>"},
+	"Blank" = ""
+)
+
 /client/proc/SendCentcommFax()
 	set	category = "Fun"
 	set name = "Send Fax"
 	set desc = "Sends a fax to all fax machines."
 
-	var/sent = input(src, "Please enter a message send via secure connection. NOTE: BBCode does not work, but HTML tags do! Use <br> for line breaks.", "Outgoing message from Centcomm", "") as message|null
+	var/preset = input(src,"Which preset to use?","Preset formatting") as null|anything in fax_presets
+	var/sent = input(src, "Please enter a message send via secure connection. NOTE: BBCode does not work, but HTML tags do! Use <br> for line breaks.", "Outgoing message from Centcomm", fax_presets[preset]) as message|null
 	if(!sent)
 		return
 
@@ -1054,7 +1159,8 @@ var/list/admin_verbs_mod = list(
 	var/mission_to_load = alert(usr, "How do you want to select the map element?", "Map element loading", "Choose a /datum/map_element object", "Load external .dmm file", "Cancel")
 	switch(mission_to_load)
 		if("Choose a /datum/map_element object")
-			var/new_map_element = input(usr, "Please select the map element object.", "Map element loading") as null|anything in typesof(/datum/map_element) - /datum/map_element
+			var/element_type = input("Specify a map element type. Periods exclude subtypes.", "Map element type") as text
+			var/new_map_element = filter_typelist_input("Please select the map element object.", "Map element loading", get_matching_types(element_type,/datum/map_element))
 			if(!new_map_element)
 				return
 
@@ -1080,12 +1186,14 @@ var/list/admin_verbs_mod = list(
 
 	#define ML_CURRENT_LOC  "Use my current location"
 	#define ML_INPUT_COORDS "Input coordinates"
-	#define ML_LOAD_TO_Z2   "Find a suitable location at Z-level 2 (done automatically)"
+	#define ML_LOAD_TO_NEWV "Create a new Virtual Z-level"
 	var/static/list/choices = list(
 	ML_CURRENT_LOC,
 	ML_INPUT_COORDS,
-	ML_LOAD_TO_Z2
+	ML_LOAD_TO_NEWV
 	)
+	var/dungeoning = FALSE
+	var/using_vz = FALSE
 
 	switch(input(usr, "Select a location for the new map element", "Map element loading") as null|anything in choices)
 		if(ML_CURRENT_LOC)
@@ -1110,25 +1218,57 @@ var/list/admin_verbs_mod = list(
 			if(z_coord == null)
 				return
 
-			x_coord = Clamp(x_coord, 1, world.maxx)
-			y_coord = Clamp(y_coord, 1, world.maxy)
+			x_coord = clamp(x_coord, 1, world.maxx)
+			y_coord = clamp(y_coord, 1, world.maxy)
 
-		if(ML_LOAD_TO_Z2)
-			if(!dungeon_area)
-				to_chat(src, "<span class='warning'>Dungeon area not defined! This map is missing the /obj/effect/landmark/dungeon_area object.</span>")
+		if(ML_LOAD_TO_NEWV)
+			dungeoning = TRUE
+
+	var/rotate = input(usr, "Set the rotation offset: (0, 90, 180 or 270) ", "Map element loading", "0") as null|num
+	if(rotate == null)
+		return
+	var/overwrite = FALSE
+	if(!dungeoning)
+		overwrite = alert("Overwrite original objects in area?","Map element loading","Yes","No") == "Yes"
+	var/clipmin_x = 0
+	var/clipmax_x = INFINITY
+	var/clipmin_y = 0
+	var/clipmax_y = INFINITY
+	var/clipmin_z = 0
+	var/clipmax_z = INFINITY
+	var/rotatetext = rotate ? " rotated by [rotate] degrees" : ""
+	if(!using_vz)
+		if(alert("Clip map to bounds?","Map element loading","Yes","No") == "Yes")
+			clipmin_x = input(usr, "Minimum X to clip at", "Map element loading", "1") as null|num
+			if(clipmin_x == null)
+				return
+			clipmax_x = input(usr, "Maximum X to clip at", "Map element loading", "[world.maxx]") as null|num
+			if(clipmax_x == null)
+				return
+			clipmin_y = input(usr, "Minimum Y to clip at", "Map element loading", "1") as null|num
+			if(clipmin_y == null)
+				return
+			clipmax_y = input(usr, "Maximum Y to clip at", "Map element loading", "[world.maxy]") as null|num
+			if(clipmax_y == null)
+				return
+			clipmin_z = input(usr, "Minimum Z to clip at", "Map element loading", "1") as null|num
+			if(clipmin_z == null)
+				return
+			clipmax_z = input(usr, "Maximum Z to clip at", "Map element loading", "[world.maxz]") as null|num
+			if(clipmax_z == null)
 				return
 
-			log_admin("[key_name(src)] is loading [ME.file_path] at z-level 2 (location chosen automatically).")
-			message_admins("[key_name_admin(src)] is loading [ME.file_path] at z-level 2 (location chosen automatically)")
-			load_dungeon(ME)
-			message_admins("[ME.file_path] loaded at [ME.location ? formatJumpTo(ME.location) : "[x_coord], [y_coord], [z_coord]"]")
-			return
-
-
-	log_admin("[key_name(src)] is loading [ME.file_path] at [x_coord], [y_coord], [z_coord]")
-	message_admins("[key_name_admin(src)] is loading [ME.file_path] at [x_coord], [y_coord], [z_coord]")
-	ME.load(x_coord - 1, y_coord - 1, z_coord) //Reduce X and Y by 1 because these arguments are actually offsets, and they're added to 1;1 in the map loader. Without this, spawning something at 1;1 would result in it getting spawned at 2;2
-	message_admins("[ME.file_path] loaded at [ME.location ? formatJumpTo(ME.location) : "[x_coord], [y_coord], [z_coord]"]")
+		log_admin("[key_name(src)] is loading [ME.file_path] at [x_coord], [y_coord], [z_coord][rotatetext].")
+		message_admins("[key_name_admin(src)] is loading [ME.file_path] at [x_coord], [y_coord], [z_coord][rotatetext].")
+		if(dungeoning)
+			load_dungeon(ME, rotate)
+		else
+			//Reduce X and Y by 1 because these arguments are actually offsets, and they're added to 1;1 in the map loader. Without this, spawning something at 1;1 would result in it getting spawned at 2;2
+			ME.load(x_coord - 1, y_coord - 1, z_coord, rotate, overwrite, TRUE, clipmin_x, clipmax_x, clipmin_y, clipmax_y, clipmin_z, clipmax_z)
+		message_admins("[ME.file_path] loaded at [ME.location ? formatJumpTo(ME.location) : "[x_coord], [y_coord], [z_coord]"][rotatetext].")
+	else
+		var/datum/virtual_z/vz = map.addMapElementVLevel(ME, buffer_size = 0)
+		message_admins("[ME.file_path] loaded at [ME.location ? formatJumpTo(ME.location) : "virtual z-level [vz.id], "][rotatetext].")
 
 /client/proc/create_awaymission()
 	set category = "Admin"
@@ -1174,8 +1314,59 @@ var/list/admin_verbs_mod = list(
 			override = 1
 
 	to_chat(src, "Attempting to load [AM.name] ([AM.file_path])...")
-	createRandomZlevel(override, AM, usr)
-	to_chat(src, "The away mission has been generated on z-level [world.maxz] [AM.location ? "([formatJumpTo(AM.location)])" : ""]")
+	var/datum/virtual_z/vz = createRandomZlevel(override, AM, usr)
+	to_chat(src, "The away mission has been generated on v-level [vz.id] [AM.location ? "([formatJumpTo(AM.location)])" : ""]")
+
+/client/proc/send_to_heck(var/mob/dead/observer/O in dead_mob_list)
+	set name = "Send to hell"
+	set desc = "Eternally damn this ghost for their sins."
+	set category = "Fun"
+
+	if(alert(usr, "Are you sure you want to do this?", "Confirm judgement", "Yes", "No") != "Yes")
+		return
+
+	var/mob/newmob = send_to_hedoublehockeysticks(O)
+	if(newmob)
+		log_admin("[ckey(key)]/([mob]) has damned [newmob] to HELL")
+		message_admins("[ckey(key)]/([mob]) has damned [newmob] [formatJumpTo(newmob,"(JMP)")] to HELL")
+
+/proc/send_to_hedoublehockeysticks(mob/O)
+	if(!O || !O.key)
+		return
+	if(!(/datum/map_element/dungeon/hell in existing_dungeons))
+		load_dungeon(/datum/map_element/dungeon/hell, 0, TRUE)
+	var/datum/map_element/dungeon/hell/H = locate(/datum/map_element/dungeon/hell) in existing_dungeons
+	var/list/turf/turfs = list()
+	for(var/turf/T in H.spawned_atoms)
+		if(!T.density)
+			turfs += T
+	if(!turfs.len)
+		warning("No hell turfs to send a mob to!")
+		return
+	for(var/datum/body_archive/archive in body_archives)
+		if(archive.key == O.key)
+			var/mob/living/tempM = new archive.mob_type
+			if(!istype(tempM))
+				warning("Body archive to send to hell was not a living mob!")
+				break
+			var/mob/living/M = tempM.actually_reset_body(archive = archive, our_mind = get_mind_by_key(O.key))
+			if(!istype(M))
+				warning("Body archive to send to hell was not a living mob!")
+				break
+			M.status_flags ^= BUDDHAMODE
+			M.forceMove(pick(turfs))
+			qdel(tempM)
+			qdel(O)
+			return M
+
+	var/datum/mind/mind = get_mind_by_key(O.key)
+	if (mind)
+		var/mob/living/carbon/human/prefM = new(pick(turfs))
+		prefM.status_flags ^= BUDDHAMODE
+		prefM.quick_copy_prefs()
+		mind.transfer_to(prefM)
+		qdel(O)
+		return prefM
 
 /client/proc/cmd_dectalk()
 	set name = "Dectalk"
@@ -1210,3 +1401,56 @@ var/list/admin_verbs_mod = list(
 	else
 		alert(src, "An external server error has occurred. Please report this.")
 		return 0
+
+/client/proc/credits_panel()
+	set name = "Credits Panel"
+	set category = "Admin"
+	if(holder)
+		holder.CreditsPanel()
+	feedback_add_details("admin_verb","CP") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
+
+/client/proc/persistence_panel()
+	set name = "Persistence Panel"
+	set category = "Admin"
+	if(holder)
+		holder.PersistencePanel()
+	feedback_add_details("admin_verb","PEP") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
+
+/client/proc/view_all_rods()
+	set name = "VIEW-ALL-RODS"
+	set category = "Fun"
+	if(holder)
+		holder.ViewAllRods()
+	feedback_add_details("admin_verb","V-ROD") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
+
+/client/proc/toggle_admin_examine()
+	set name = "Toggle Admin-only Descriptions"
+	set category = "Admin"
+	set desc = "See admin-only text for certain objects."
+	if(holder)
+		holder.admin_examine = !(holder.admin_examine)
+		to_chat(usr, "<span class='notice'>You toggle [holder.admin_examine ? "on" : "off"] admin examining.")
+	feedback_add_details("admin_verb","admin_examine")
+	return
+
+/client/proc/beasts_panel()
+	set name = "Megabeast Panel"
+	set category = "Admin"
+	if(holder)
+		holder.beasts_panel()
+		log_admin("[key_name(usr)] checked the Megabeast Panel.")
+	feedback_add_details("admin_verb","BST")
+
+/client/proc/show_heatmaps()
+	set name = "Show station heatmaps"
+	set category = "Admin"
+	var/dat = ""
+	for(var/zrender in 1 to world.maxz)
+		dat += string_heatmap(zrender)
+	var/datum/browser/B = new /datum/browser/clean(usr, "heatmap", "Station heatmaps")
+	B.set_content(dat)
+	B.open()
+	feedback_add_details("admin_verb","HMP")

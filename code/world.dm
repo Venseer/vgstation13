@@ -1,5 +1,16 @@
 #define WORLD_ICON_SIZE 32
 #define PIXEL_MULTIPLIER WORLD_ICON_SIZE/32
+
+var/world_startup_time
+var/date_string
+var/force_restart
+
+#ifndef SPACEMAN_DMM //bandaid until SDMM is updated for 516
+#define MIN_COMPILER_VERSION 515
+#if DM_VERSION < MIN_COMPILER_VERSION
+#error You need at least version 516 to compile.
+#endif
+#endif
 /world
 	mob = /mob/new_player
 	turf = /turf/space
@@ -7,82 +18,70 @@
 	cache_lifespan = 0	//stops player uploaded stuff from being kept in the rsc past the current session
 	//loop_checks = 0
 	icon_size = WORLD_ICON_SIZE
-#define RECOMMENDED_VERSION 512
-
+	sleep_offline = FALSE
+	movement_mode = PIXEL_MOVEMENT_MODE
 
 var/savefile/panicfile
+
+#if AUXTOOLS_DEBUGGER
+var/auxtools_path
+
+/proc/enable_debugging(mode, port) //Hooked by auxtools
+	CRASH("auxtools not loaded")
+
+/proc/auxtools_stack_trace(msg)
+	CRASH(msg)
+
+/proc/auxtools_expr_stub()
+	CRASH("auxtools not loaded")
+#endif
+
+/world/proc/_() // Statics in procs are initialized before globals
+	var/static/_ = world.early_init()
+
+/world/proc/early_init()
+	#if TRACY_ENABLED
+	global.tracy = new
+	#if TRACY_RUN_ON_STARTUP
+	global.tracy.enable()
+	#endif
+	#endif
+
+	#if AUXTOOLS_DEBUGGER
+	auxtools_path = world.GetConfig("env", "AUXTOOLS_DEBUG_DLL")
+	if(fexists(auxtools_path))
+		call_ext(auxtools_path, "auxtools_init")()
+		enable_debugging()
+	else
+		// warn on missing library
+		warning("There is no auxtools library for this system included with SpacemanDMM. Debugging will not work. Pester them to add one.")
+	#endif
+	world.Profile(PROFILE_START)
+
 /world/New()
-	// Honk honk, fuck you science
-	for(var/i=1, i<=map.zLevels.len, i++)
-		WORLD_X_OFFSET += rand(-50,50)
-		WORLD_Y_OFFSET += rand(-50,50)
+	world_startup_time = world.timeofday
 
-	// Initialize world events as early as possible.
-	on_login = new ()
-	on_ban   = new ()
-	on_unban = new ()
-
-
-	/*Runtimes, not sure if i need it still so commenting out for now
-	starticon = rotate_icon('icons/obj/lightning.dmi', "lightningstart")
-	midicon = rotate_icon('icons/obj/lightning.dmi', "lightning")
-	endicon = rotate_icon('icons/obj/lightning.dmi', "lightningend")
-	*/
+	src.InitTgs()
 
 	// logs
-	var/date_string = time2text(world.realtime, "YYYY/MM-Month/DD-Day")
 
-	investigations[I_HREFS] = new /datum/log_controller(I_HREFS, filename="data/logs/[date_string] hrefs.htm", persist=TRUE)
-	investigations[I_ATMOS] = new /datum/log_controller(I_ATMOS, filename="data/logs/[date_string] atmos.htm", persist=TRUE)
-	investigations[I_CHEMS] = new /datum/log_controller(I_CHEMS, filename="data/logs/[date_string] chemistry.htm", persist=TRUE)
-	investigations[I_WIRES] = new /datum/log_controller(I_WIRES, filename="data/logs/[date_string] wires.htm", persist=TRUE)
-	investigations[I_GHOST] = new /datum/log_controller(I_GHOST, filename="data/logs/[date_string] poltergeist.htm", persist=TRUE)
-	investigations[I_ARTIFACT] = new /datum/log_controller(I_ARTIFACT, filename="data/logs/[date_string] artifact.htm", persist=TRUE)
-
-	diary = file("data/logs/[date_string].log")
-	panicfile = new/savefile("data/logs/profiling/proclogs/[date_string].sav")
-	diaryofmeanpeople = file("data/logs/[date_string] Attack.log")
-	admin_diary = file("data/logs/[date_string] admin only.log")
-
-	var/log_start = "---------------------\n\[[time_stamp()]\]WORLD: starting up..."
-
-	diary << log_start
-	diaryofmeanpeople << log_start
-	admin_diary << log_start
-	var/ourround = time_stamp()
-	panicfile.cd = ourround
-
-
+	InitializeLogs()
 	changelog_hash = md5('html/changelog.html')					//used for telling if the changelog has changed recently
-/*
- * IF YOU HAVE BYOND VERSION BELOW 507.1248 OR ARE ABLE TO WALK THROUGH WINDOORS/BORDER WINDOWS COMMENT OUT
- * #define BORDER_USE_TURF_EXIT
- * FOR MORE INFORMATION SEE: http://www.byond.com/forum/?post=1666940
- */
-#ifdef BORDER_USE_TURF_EXIT
-	if(byond_version < RECOMMENDED_VERSION)
-		warning("Your server's byond version does not meet the recommended requirements for this code. Please update BYOND to atleast 512.1426")
-#endif
-	make_datum_references_lists()	//initialises global lists for referencing frequently used datums (so that we only ever do it once)
 
 	load_configuration()
+	SSdbcore.Initialize(world.timeofday) // Get a database running, first thing
+
 	load_mode()
 	load_motd()
 	load_admins()
 	load_mods()
 	LoadBansjob()
-	if(config.usewhitelist)
-		load_whitelist()
-	if(config.usealienwhitelist)
-		load_alienwhitelist()
 	jobban_loadbanfile()
 	oocban_loadbanfile()
+	paxban_loadbanfile()
 	jobban_updatelegacybans()
 	appearance_loadbanfile()
 	LoadBans()
-	SetupHooks() // /vg/
-
-	library_catalog.initialize()
 
 	spawn() copy_logs() // Just copy the logs.
 	if(config && config.log_runtimes)
@@ -91,84 +90,45 @@ var/savefile/panicfile
 		// dumb and hardcoded but I don't care~
 		config.server_name += " #[(world.port % 1000) / 100]"
 
-	Get_Holiday()	//~Carn, needs to be here when the station is named so :P
-
-	src.update_status()
-
-	paperwork_setup()
-
-	initialize_cultwords()
-
-	for(var/x in typesof(/datum/bee_species))
-		var/datum/bee_species/species = new x
-		bees_species[species.common_name] = species
-
-	//sun = new /datum/sun()
-	radio_controller = new /datum/controller/radio()
-	data_core = new /obj/effect/datacore()
-	paiController = new /datum/paiController()
-
-	if(!setup_database_connection())
-		world.log << "Your server failed to establish a connection with the feedback database."
-	else
-		world.log << "Feedback database connection established."
-	migration_controller_mysql = new
-	migration_controller_sqlite = new ("players2.sqlite", "players2_empty.sqlite")
-
-	if(!setup_old_database_connection())
-		world.log << "Your server failed to establish a connection with the tgstation database."
-	else
-		world.log << "Tgstation database connection established."
-
-	plmaster = new /obj/effect/overlay()
-	plmaster.icon = 'icons/effects/tile_effects.dmi'
-	plmaster.icon_state = "plasma"
-	plmaster.layer = FLY_LAYER
-	plmaster.plane = EFFECTS_PLANE
-	plmaster.mouse_opacity = 0
-
-	slmaster = new /obj/effect/overlay()
-	slmaster.icon = 'icons/effects/tile_effects.dmi'
-	slmaster.icon_state = "sleeping_agent"
-	slmaster.layer = FLY_LAYER
-	slmaster.plane = EFFECTS_PLANE
-	slmaster.mouse_opacity = 0
-
-	src.update_status()
-
-	sleep_offline = 0
-
 	send2mainirc("Server starting up on [config.server? "byond://[config.server]" : "byond://[world.address]:[world.port]"]")
 	send2maindiscord("**Server starting up** on `[config.server? "byond://[config.server]" : "byond://[world.address]:[world.port]"]`. Map is **[map.nameLong]**")
 
 	Master.Setup()
 
-	process_teleport_locs()				//Sets up the wizard teleport locations
-	process_ghost_teleport_locs()		//Sets up ghost teleport locations.
-	process_adminbus_teleport_locs()	//Sets up adminbus teleport locations.
-	SortAreas()							//Build the list of all existing areas and sort it alphabetically
+	TgsInitializationComplete()
 
-	spawn(2000)		//so we aren't adding to the round-start lag
-		if(config.ToRban)
-			ToRban_autoupdate()
-		/*if(config.kick_inactive)
-			KickInactiveClients()*/
-
-#undef RECOMMENDED_VERSION
 	return ..()
 
-//world/Topic(href, href_list[])
-//		to_chat(world, "Received a Topic() call!")
-//		to_chat(world, "[href]")
-//		for(var/a in href_list)
-//			to_chat(world, "[a]")
-//		if(href_list["hello"])
-//			to_chat(world, "Hello world!")
-//			return "Hello world!"
-//		to_chat(world, "End of Topic() call.")
-//		..()
+/world/proc/InitTgs()
+	TgsNew(new /datum/tgs_event_handler, TGS_SECURITY_TRUSTED)
+
+/world/proc/InitializeLogs()
+	date_string = time2text(world.realtime, "YYYY/MM-Month/DD-Day")
+	investigations[I_HREFS] = new /datum/log_controller(I_HREFS, TRUE, "data/logs/[date_string] hrefs.htm")
+	investigations[I_ATMOS] = new /datum/log_controller(I_ATMOS, TRUE, "data/logs/[date_string] atmos.htm")
+	investigations[I_CHEMS] = new /datum/log_controller(I_CHEMS, TRUE, "data/logs/[date_string] chemistry.htm")
+	investigations[I_WIRES] = new /datum/log_controller(I_WIRES, TRUE, "data/logs/[date_string] wires.htm")
+	investigations[I_GHOST] = new /datum/log_controller(I_GHOST, TRUE, "data/logs/[date_string] poltergeist.htm")
+	investigations[I_ARTIFACT] = new /datum/log_controller(I_ARTIFACT, TRUE, "data/logs/[date_string] artifact.htm")
+	investigations[I_RCD] = new /datum/log_controller(I_RCD, TRUE, "data/logs/[date_string] rcd.htm")
+
+	diary = file("data/logs/[date_string].log")
+	panicfile = new/savefile("data/logs/profiling/proclogs/[date_string].sav")
+	diaryofmeanpeople = file("data/logs/[date_string] Attack.log")
+	admin_diary = file("data/logs/[date_string] admin only.log")
+
+	var/now = time_stamp()
+	var/log_start = "---------------------\n\[[now]\]WORLD: starting up..."
+
+	diary << log_start
+	diaryofmeanpeople << log_start
+	admin_diary << log_start
+	panicfile.cd = now
+
 
 /world/Topic(T, addr, master, key)
+	TGS_TOPIC
+
 	diary << "TOPIC: \"[T]\", from:[addr], master:[master], key:[key]"
 
 	if (T == "ping")
@@ -190,11 +150,11 @@ var/savefile/panicfile
 		s["mode"] = master_mode
 		s["respawn"] = config ? abandon_allowed : 0
 		s["enter"] = enter_allowed
-		s["vote"] = config.allow_vote_mode
 		s["ai"] = config.allow_ai
 		s["host"] = host ? host : null
 		s["players"] = list()
 		s["map_name"] = map.nameLong
+		s["station_time"] = worldtime2text()
 		s["gamestate"] = 1
 		if(ticker)
 			s["gamestate"] = ticker.current_state
@@ -202,19 +162,21 @@ var/savefile/panicfile
 		s["revision"] = return_revision()
 		var/n = 0
 		var/admins = 0
+		var/afk_admins = 0
 
 		for(var/client/C in clients)
 			if(C.holder)
 				if(C.holder.fakekey)
 					continue	//so stealthmins aren't revealed by the hub
+				if(C.is_afk())
+					afk_admins++
 				admins++
 			s["player[n]"] = C.key
 			n++
 		s["players"] = n
 
-		if(revdata)
-			s["revision"] = revdata.revision
-		s["admins"] = admins
+		s["admins"] = admins - afk_admins
+		s["afk_admins"] = afk_admins
 
 		return list2params(s)
 	else if (findtext(T,"notes:"))
@@ -223,7 +185,8 @@ var/savefile/panicfile
 
 		var/notekey = copytext(T, 7)
 		return list2params(exportnotes(notekey))
-
+	else if(T == "force_restart")
+		return force_restart
 
 /world/Reboot(reason)
 	if(reason == REBOOT_HOST)
@@ -238,57 +201,50 @@ var/savefile/panicfile
 			// To prevent the server shutting down before logs get to the admins or some nonsense.
 			sleep(1)
 
-		to_chat(world, "<span class='danger big'>Rebooting World immediately due to host request!</span>")
-		..()
+		to_chat(world, "<span class='danger big'>Sending kill signal due to host request!</span>")
+		force_restart = 1
+
+		//..()
 		return
 
+	if((vote.winner || vote.forced_map) && vote.map_paths)
+		//get filename
+		var/filename = "vgstation13.dmb"
+		var/map_to_choose = vote.forced_map ? vote.forced_map : vote.winner
+		var/map_path = "maps/voting/" + vote.map_paths[map_to_choose] + "/" + filename
+		if(fexists(map_path))
+			//copy file to main folder
+			if(!fcopy(map_path, filename))
+				fdel(filename)
+				fcopy(map_path, filename)
+
+	pre_shutdown()
+
+	TgsReboot()
+	force_restart = 1
+	//..()
+
+/world/proc/pre_shutdown()
+	var/procWatch = start_watch()
+	log_startup_progress("\[[time2text(world.realtime)]\]: Preshutdown begin")
+	var/watch = start_watch()
+	stop_all_media()
+	log_startup_progress("\[[time2text(world.realtime)]\]: stop_all_media finished in [stop_watch(watch)]s")
+	log_startup_progress("\[[time2text(world.realtime)]\]: beginning html_interfaces shutdown")
+	watch = start_watch()
 	for(var/datum/html_interface/D in html_interfaces)
 		D.closeAll()
-	if(config.map_voting)
-		//testing("we have done a map vote")
-		if(fexists(vote.chosen_map))
-			//testing("[vote.chosen_map] exists")
-			var/start = 1
-			var/pos = findtext(vote.chosen_map, "/", start)
-			var/lastpos = pos
-			//testing("First slash [lastpos]")
-			while(pos > 0)
-				lastpos = pos
-				pos = findtext(vote.chosen_map, "/", start)
-				start = pos + 1
-				//testing("Next slash [pos]")
-			var/filename = copytext(vote.chosen_map, lastpos + 1, 0)
-			//testing("Found [filename]")
-
-			if(!fcopy(vote.chosen_map, filename))
-				//testing("Fcopy failed, deleting and copying")
-				fdel(filename)
-				fcopy(vote.chosen_map, filename)
-			sleep(60)
-
+	log_startup_progress("\[[time2text(world.realtime)]\]: html_interfaces finished in [stop_watch(watch)]s")
+	log_startup_progress("\[[time2text(world.realtime)]\]: beginning master controller shutdown")
+	watch = start_watch()
 	Master.Shutdown()
-	paperwork_stop()
-
-	spawn()
-		world << sound(pick(
-			'sound/AI/newroundsexy.ogg',
-			'sound/misc/RoundEndSounds/apcdestroyed.ogg',
-			'sound/misc/RoundEndSounds/bangindonk.ogg',
-			'sound/misc/RoundEndSounds/slugmissioncomplete.ogg',
-			'sound/misc/RoundEndSounds/bayojingle.ogg',
-			'sound/misc/RoundEndSounds/gameoveryeah.ogg',
-			'sound/misc/RoundEndSounds/rayman.ogg',
-			'sound/misc/RoundEndSounds/marioworld.ogg',
-			'sound/misc/RoundEndSounds/soniclevelcomplete.ogg',
-			'sound/misc/RoundEndSounds/calamitytrigger.ogg',
-			'sound/misc/RoundEndSounds/duckgame.ogg',
-			'sound/misc/RoundEndSounds/FTLvictory.ogg',
-			'sound/misc/RoundEndSounds/tfvictory.ogg',
-			'sound/misc/RoundEndSounds/megamanX.ogg',
-			'sound/misc/RoundEndSounds/castlevania.ogg',
-			)) // random end sounds!! - LastyBatsy
-
-	sleep(5)//should fix the issue of players not hearing the restart sound.
+	log_startup_progress("\[[time2text(world.realtime)]\]: master controller finished in [stop_watch(watch)]s")
+	log_startup_progress("\[[time2text(world.realtime)]\]: beginning end_credits")
+	watch = start_watch()
+	end_credits.on_world_reboot_start()
+	sleep(max(10, end_credits.audio_post_delay))
+	end_credits.on_world_reboot_end()
+	log_startup_progress("\[[time2text(world.realtime)]\]: end_credits finished in [stop_watch(watch)]s")
 
 	for(var/client/C in clients)
 		if(config.server)	//if you set a server location in config.txt, it sends you there instead of trying to reconnect to the same world address. -- NeoFite
@@ -297,12 +253,13 @@ var/savefile/panicfile
 		else
 			C << link("byond://[world.address]:[world.port]")
 
-
-	..()
-
-
+	#if AUXTOOLS_DEBUGGER
+	call_ext(auxtools_path, "auxtools_shutdown")()
+	#endif
+	log_startup_progress("\[[time2text(world.realtime)]\]: preshutdown finished in [stop_watch(procWatch)]s")
 #define INACTIVITY_KICK	6000	//10 minutes in ticks (approx.)
 /world/proc/KickInactiveClients()
+	usr = null
 	spawn(-1)
 		//set background = 1
 		while(1)
@@ -359,146 +316,3 @@ var/savefile/panicfile
 				var/datum/admins/D = new /datum/admins("Moderator", rights, ckey)
 				D.associate(directory[ckey])
 
-/world/proc/update_status()
-	var/s = ""
-
-	if (config && config.server_name)
-		s += "<b>[config.server_name]</b> &#8212; "
-
-
-	s += {"<b>[station_name()]</b>"
-		(
-		<a href=\"http://\">" //Change this to wherever you want the hub to link to
-		Default"  //Replace this with something else. Or ever better, delete it and uncomment the game version
-		</a>
-		)"}
-	var/list/features = list()
-
-	if(ticker)
-		if(master_mode)
-			features += master_mode
-	else
-		features += "<b>STARTING</b>"
-
-	if (!enter_allowed)
-		features += "closed"
-
-	features += abandon_allowed ? "respawn" : "no respawn"
-
-	if (config && config.allow_vote_mode)
-		features += "vote"
-
-	if (config && config.allow_ai)
-		features += "AI allowed"
-
-	var/n = 0
-	for (var/mob/M in player_list)
-		if (M.client)
-			n++
-
-	if (n > 1)
-		features += "~[n] players"
-	else if (n > 0)
-		features += "~[n] player"
-
-	/*
-	is there a reason for this? the byond site shows 'hosted by X' when there is a proper host already.
-	if (host)
-		features += "hosted by <b>[host]</b>"
-	*/
-
-	if (!host && config && config.hostedby)
-		features += "hosted by <b>[config.hostedby]</b>"
-
-	if (features)
-		s += ": [jointext(features, ", ")]"
-
-	/* does this help? I do not know */
-	if (src.status != s)
-		src.status = s
-
-#define FAILED_DB_CONNECTION_CUTOFF 5
-var/failed_db_connections = 0
-var/failed_old_db_connections = 0
-
-proc/setup_database_connection()
-
-
-	if(failed_db_connections > FAILED_DB_CONNECTION_CUTOFF)	//If it failed to establish a connection more than 5 times in a row, don't bother attempting to conenct anymore.
-		return 0
-
-	if(!dbcon)
-		dbcon = new()
-
-	var/user = sqlfdbklogin
-	var/pass = sqlfdbkpass
-	var/db = sqlfdbkdb
-	var/address = sqladdress
-	var/port = sqlport
-
-	dbcon.Connect("dbi:mysql:[db]:[address]:[port]","[user]","[pass]")
-	. = dbcon.IsConnected()
-	if ( . )
-		failed_db_connections = 0	//If this connection succeeded, reset the failed connections counter.
-	else
-		world.log << "Database Error: [dbcon.ErrorMsg()]"
-		failed_db_connections++		//If it failed, increase the failed connections counter.
-
-	return .
-
-//This proc ensures that the connection to the feedback database (global variable dbcon) is established
-proc/establish_db_connection()
-	if(failed_db_connections > FAILED_DB_CONNECTION_CUTOFF)
-		return 0
-
-	var/DBQuery/q
-	if(dbcon)
-		q = dbcon.NewQuery("show global variables like 'wait_timeout'")
-		q.Execute()
-		if(q && q.ErrorMsg())
-			dbcon.Disconnect()
-	if(!dbcon || !dbcon.IsConnected())
-		return setup_database_connection()
-	else
-		return 1
-
-
-
-
-//These two procs are for the old database, while it's being phased out. See the tgstation.sql file in the SQL folder for more information.
-proc/setup_old_database_connection()
-
-
-	if(failed_old_db_connections > FAILED_DB_CONNECTION_CUTOFF)	//If it failed to establish a connection more than 5 times in a row, don't bother attempting to conenct anymore.
-		return 0
-
-	if(!dbcon_old)
-		dbcon_old = new()
-
-	var/user = sqllogin
-	var/pass = sqlpass
-	var/db = sqldb
-	var/address = sqladdress
-	var/port = sqlport
-
-	dbcon_old.Connect("dbi:mysql:[db]:[address]:[port]","[user]","[pass]")
-	. = dbcon_old.IsConnected()
-	if ( . )
-		failed_old_db_connections = 0	//If this connection succeeded, reset the failed connections counter.
-	else
-		failed_old_db_connections++		//If it failed, increase the failed connections counter.
-		world.log << dbcon_old.ErrorMsg()
-
-	return .
-
-//This proc ensures that the connection to the feedback database (global variable dbcon) is established
-proc/establish_old_db_connection()
-	if(failed_old_db_connections > FAILED_DB_CONNECTION_CUTOFF)
-		return 0
-
-	if(!dbcon_old || !dbcon_old.IsConnected())
-		return setup_old_database_connection()
-	else
-		return 1
-
-#undef FAILED_DB_CONNECTION_CUTOFF

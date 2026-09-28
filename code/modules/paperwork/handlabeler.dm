@@ -10,6 +10,12 @@
 	var/chars_left = 250 //Like in an actual label maker, uses an amount per character rather than per label.
 	var/mode = 0	//off or on.
 
+/obj/item/weapon/hand_labeler/preattack(atom/target, mob/user, proximity_flag, click_parameters)
+	if(mode) //There's very few cases where you'd want to label something and also follow normal attack behavior
+		afterattack(target, user, proximity_flag, click_parameters)
+		return 1
+	..()
+
 /obj/item/weapon/hand_labeler/afterattack(atom/target, mob/user, proximity_flag, click_parameters)
 	if (!proximity_flag)
 		return
@@ -89,13 +95,12 @@
 			LR.left = holder
 			to_chat(user, "<span class='notice'>You switch the label rolls.</span>")
 		else
-			qdel(LR)
-			LR = null
+			QDEL_NULL(LR)
 			to_chat(user, "<span class='notice'>You replace the label roll.</span>")
 			icon_state = "labeler0"
 
 /obj/item/weapon/hand_labeler/attack_hand(mob/user) //Shamelessly stolen from stack.dm.
-	if (!mode && user.get_inactive_hand() == src)
+	if (!mode && user.get_inactive_hand() == src && chars_left > 0)
 		var/obj/item/device/label_roll/LR = new(user, amount=chars_left)
 		user.put_in_hands(LR)
 		to_chat(user, "<span class='notice'>You remove the label roll.</span>")
@@ -164,12 +169,12 @@
 
 // Not really sure where to put this. This is a verb that lets you add a tiny label to the item without consuming label rolls or anything.
 // Used for pen-labeling pill bottles, beakers and whatnot.
-/atom/proc/set_tiny_label(var/mob/user, var/start_text = " (", var/end_text = ")")
+/atom/proc/set_tiny_label(var/mob/user, var/start_text = " (", var/end_text = ")", var/maxlength=16)
 	var/tmp_label = sanitize(input(user, "Enter a label for \the [src]","Label",copytext(labeled, length(start_text)+1, length(labeled)-length(end_text)+1)) as text|null)
 	if (!Adjacent(user) || user.incapacitated() || !tmp_label || !length(tmp_label))
 		return FALSE
-	if(length(tmp_label) > 16)
-		to_chat(user, "<span class='warning'>The label can be at most 16 characters long.</span>")
+	if(length(tmp_label) > maxlength)
+		to_chat(user, "<span class='warning'>The label can be at most [maxlength] characters long.</span>")
 		return FALSE
 	to_chat(user, "<span class='notice'>You set the label to \"[tmp_label]\".</span>")
 	set_labeled(tmp_label, start_text, end_text)

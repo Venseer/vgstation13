@@ -7,6 +7,7 @@
 
 /obj/structure/bed/chair/vehicle/gigadrill
 	name = "gigadrill"
+	desc = "If there's a wall in our way then we smash it down! If there isn't a path, then we carve one ourselves!"
 	icon_state = "gigadrill"
 	keytype = /obj/item/key/gigadrill
 	wreckage_type = /obj/effect/decal/mecha_wreckage/vehicle/gigadrill
@@ -14,6 +15,7 @@
 	var/obj/structure/ore_box/OB //The orebox contained within
 
 /obj/structure/bed/chair/vehicle/gigadrill/Destroy()
+	new /datum/artifact_postmortem_data(src)
 	if(OB)
 		OB.forceMove(get_turf(src))
 		OB = null
@@ -62,23 +64,24 @@
 
 	if(istype(target, /turf/unsimulated/mineral))
 		var/turf/unsimulated/mineral/M = target
-		if(M.finds && M.finds.len) //Shameless copypaste. TODO: Make an actual proc for this then apply it to mechs as well.
+		if(M.mining_difficulty > MINE_DIFFICULTY_TOUGH)
+			return
+		if(M.finddatum?.finds?.len) //Shameless copypaste. TODO: Make an actual proc for this then apply it to mechs as well.
 			if(prob(5))
-				M.excavate_find(5, M.finds[1])
+				M.finddatum.excavate_find(5, M.finddatum.finds[1])
 			else if(prob(50))
-				M.finds.Remove(M.finds[1])
+				M.finddatum.finds.Remove(M.finddatum.finds[1])
 				if(prob(50))
-					M.artifact_debris()
+					M.finddatum.artifact_debris()
 		M.GetDrilled()
 		if(OB)
 			var/count = 0
-			for(var/obj/item/weapon/ore/ore in range(src,1))
-				if(get_dir(src,ore)&dir && ore.material)
-					OB.materials.addAmount(ore.material,1)
-					returnToPool(ore)
-					count++
+			for(var/obj/item/stack/ore/ore in range(src,1))
+				if(get_dir(src,ore)&dir && OB.try_add_ore(ore))
+					qdel(ore)
+					count += ore.amount
 			if(count)
-				to_chat(occupant,"<font color='blue'>[count] ore successfully loaded into cargo compartment.</font>")
+				to_chat(occupant,"<span class='notice'>[count] ore successfully loaded into cargo compartment.</span>")
 
 /obj/structure/bed/chair/vehicle/gigadrill/MouseDropTo(atom/movable/O as mob|obj, mob/user as mob)
 	..()

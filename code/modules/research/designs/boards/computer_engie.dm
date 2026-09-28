@@ -2,7 +2,7 @@
 
 /datum/design/atmosalerts
 	name = "Circuit Design (Atmosphere Alert)"
-	desc = "Allows for the construction of circuit boards used to build an atmosphere alert console.."
+	desc = "Allows for the construction of circuit boards used to build an atmosphere alert console."
 	id = "atmosalerts"
 	req_tech = list(Tc_PROGRAMMING = 2)
 	build_type = IMPRINTER
@@ -22,7 +22,7 @@
 
 /datum/design/atmos_automation
 	name = "Circuit Design (Atmospherics Automation Console)"
-	desc = "Allows for the construction of circuit boards used to build an Atmospherics Automation Console"
+	desc = "Allows for the construction of circuit boards used to build an Atmospherics Automation Console."
 	id = "atmos_automation"
 	req_tech = list(Tc_PROGRAMMING = 3)
 	build_type = IMPRINTER
@@ -53,7 +53,7 @@
 
 /datum/design/powermonitor
 	name = "Circuit Design (Power Monitor)"
-	desc = "Allows for the construction of circuit boards used to build a new power monitor"
+	desc = "Allows for the construction of circuit boards used to build a new power monitor."
 	id = "powermonitor"
 	req_tech = list(Tc_PROGRAMMING = 2)
 	build_type = IMPRINTER
@@ -63,7 +63,7 @@
 
 /datum/design/solarcontrol
 	name = "Circuit Design (Solar Control)"
-	desc = "Allows for the construction of circuit boards used to build a solar control console"
+	desc = "Allows for the construction of circuit boards used to build a solar control console."
 	id = "solarcontrol"
 	req_tech = list(Tc_PROGRAMMING = 2, Tc_POWERSTORAGE = 2)
 	build_type = IMPRINTER
@@ -157,10 +157,60 @@
 
 /datum/design/supermattermonitor
 	name = "Circuit Design (Supermatter Monitor)"
-	desc = "Allows for the construction of circuit boards used to build a supermatter monitoring computer"
+	desc = "Allows for the construction of circuit boards used to build a supermatter monitoring computer."
 	id = "supermattermonitor"
 	req_tech = list(Tc_ENGINEERING = 5)
 	build_type = IMPRINTER
 	materials = list(MAT_GLASS = 2000, SACID = 20)
 	category = "Misc"
 	build_path = /obj/item/weapon/circuitboard/supermatter
+
+/datum/design/atmoscontrol
+	name = "Circuit Design (Central Atmosherics Computer)"
+	desc = "Allows for the construction of circuit boards used to build an Atmos Control Console."
+	id = "atmoscontrol"
+	req_tech = list(Tc_PROGRAMMING = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Console Boards"
+	build_path = /obj/item/weapon/circuitboard/atmoscontrol
+
+/datum/design/engcamera
+	name = "Circuit Design (Engineering Cameras)"
+	desc = "Allows for the construction of circuit boards used to build engineering camera computers."
+	id = "engcamera"
+	req_tech = list(Tc_PROGRAMMING = 2)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Console Boards"
+	build_path = /obj/item/weapon/circuitboard/security/engineering
+
+/datum/design/fission_reactor_controller
+	name = "Circuit Design (Fission Reactor Controller)"
+	desc = "Allows for the construction of circuit boards used to safely control a fission reactor."
+	id = "fission_control"
+	req_tech = list(Tc_PROGRAMMING = 4, Tc_ENGINEERING = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Misc"
+	build_path = /obj/item/weapon/circuitboard/fission_reactor
+
+/datum/design/fission_fuel_maker
+	name = "Circuit Design (Isotopic Separational Combiner)"
+	desc = "Allows for the construction of circuit boards used to separate and combine different isotopes of materials.\nRemember that the gas port will face south once constructed."
+	id = "fission_control"
+	req_tech = list(Tc_PROGRAMMING = 4, Tc_ENGINEERING = 4)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Misc"
+	build_path = /obj/item/weapon/circuitboard/fission_fuelmaker
+
+/datum/design/gas_extraction
+	name = "Circuit Design (Gas Extraction Console)"
+	desc = "Allows for the construction of circuit boards used to build gas extraction consoles to monitor gas extractors and their receivers."
+	id = "gas_extraction"
+	req_tech = list(Tc_PROGRAMMING = 4, Tc_EXPLORATION = 1)
+	build_type = IMPRINTER
+	materials = list(MAT_GLASS = 2000, SACID = 20)
+	category = "Console Boards"
+	build_path = /obj/item/weapon/circuitboard/gas_extraction

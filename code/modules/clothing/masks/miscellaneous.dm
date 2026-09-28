@@ -3,12 +3,14 @@
 	desc = "To stop that awful noise."
 	icon_state = "muzzle"
 	item_state = "muzzle"
+	clothing_flags = MASKINTERNALS
 	flags = FPRINT
 	w_class = W_CLASS_SMALL
 	gas_transfer_coefficient = 0.90
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED, GREY_SHAPED)
 	origin_tech = Tc_BIOTECH + "=2"
 	body_parts_covered = MOUTH
+	is_muzzle = MUZZLE_HARD
 
 //Monkeys can not take the muzzle off of themself! Call PETA!
 /obj/item/clothing/mask/muzzle/attack_paw(mob/user as mob)
@@ -29,7 +31,22 @@
 	gas_transfer_coefficient = 0.90
 	permeability_coefficient = 0.01
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 25, rad = 0)
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 100
+	clothing_flags = BLOCK_GAS_SMOKE_EFFECT
+	can_flip = 1
+
+/obj/item/clothing/mask/surgical/black
+	name = "black face mask"
+	desc = "A sober mask designed to help prevent the spread of diseases."
+	icon_state = "sterile_black"
+	item_state = "sterile_black"
+
+/obj/item/clothing/mask/surgical/colorful
+	name = "colorful face mask"
+	desc = "A clowny mask designed to help prevent the spread of diseases."
+	icon_state = "sterile_colorful"
+	item_state = "sterile_colorful"
 
 /obj/item/clothing/mask/fakemoustache
 	name = "fake moustache"
@@ -38,6 +55,7 @@
 	flags = FPRINT
 	body_parts_covered = BEARD
 	hides_identity = HIDES_IDENTITY_ALWAYS
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 //scarves (fit in in mask slot)
 /obj/item/clothing/mask/scarf
@@ -53,6 +71,7 @@
 	desc = "A blue neck scarf."
 	icon_state = "blue_scarf"
 	item_state = "blue_scarf"
+	species_fit = list(INSECT_SHAPED, GREY_SHAPED)
 
 
 /obj/item/clothing/mask/scarf/red
@@ -60,6 +79,7 @@
 	desc = "A red neck scarf."
 	icon_state = "red_scarf"
 	item_state = "red_scarf"
+	species_fit = list(INSECT_SHAPED, GREY_SHAPED)
 
 
 /obj/item/clothing/mask/scarf/green
@@ -67,16 +87,36 @@
 	desc = "A green and red line patterned scarf."
 	icon_state = "green_scarf"
 	item_state = "green_scarf"
+	species_fit = list(INSECT_SHAPED, GREY_SHAPED)
+
+/obj/item/clothing/mask/scarf/linen
+	name = "scarf"
+	desc = "A warm scarf to endure the snow."
+	icon_state = "scarf"
+	item_state = "scarf"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/linencrafts.dmi', "right_hand" = 'icons/mob/in-hand/right/linencrafts.dmi')
+
+	color = COLOR_LINEN
+	clothing_flags = COLORS_OVERLAY
+	dyeable_parts = list("pattern","tip")
+	dye_base_iconstate_override = "scarf"
+
+/obj/item/clothing/mask/scarf/linen/update_icon()
+	if(is_flipped == 1)
+		dye_base_iconstate_override = "scarf"
+	else
+		dye_base_iconstate_override = "scarf_up"
+	..()
 
 /obj/item/clothing/mask/balaclava
 	name = "balaclava"
-	desc = "LOADSAMONEY"
+	desc = "LOADSAMONEY!"
 	icon_state = "balaclava"
 	item_state = "balaclava"
 	flags = FPRINT
-	body_parts_covered = HEAD|MOUTH|EARS
+	body_parts_covered = HIDEHAIR | MOUTH
 	w_class = W_CLASS_SMALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
 	hides_identity = HIDES_IDENTITY_ALWAYS
 
 /obj/item/clothing/mask/balaclava/skimask
@@ -84,11 +124,22 @@
 	name = "ski mask"
 	desc = "This NT-brand skimask is sure to keep you warm."
 
+/obj/item/clothing/mask/balaclava/skimask/linen
+	name = "ski mask"
+	desc = "A warm skimask."
+	icon_state = "skimask"
+	item_state = "skimask"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/linencrafts.dmi', "right_hand" = 'icons/mob/in-hand/right/linencrafts.dmi')
+
+	color = COLOR_LINEN
+	clothing_flags = COLORS_OVERLAY
+
 /obj/item/clothing/mask/neorussian
 	name = "neo-Russian mask"
 	desc = "Somehow, it makes you act and look way more polite than usual."
 	icon_state = "nr_mask"
 	item_state = "nr_mask"
+	species_fit = list(INSECT_SHAPED, GREY_SHAPED)
 	body_parts_covered = FACE
 	heat_conductivity = INS_MASK_HEAT_CONDUCTIVITY
 
@@ -97,6 +148,7 @@
 	desc = "A rubber pig mask."
 	icon_state = "pig"
 	item_state = "pig"
+	species_fit = list(INSECT_SHAPED)
 	flags = FPRINT
 	body_parts_covered = FACE
 	w_class = W_CLASS_SMALL
@@ -107,13 +159,14 @@
 	desc = "A mask made of soft vinyl and latex, representing the head of a horse."
 	icon_state = "horsehead"
 	item_state = "horsehead"
+	species_fit = list(INSECT_SHAPED)
 	flags = FPRINT
 	body_parts_covered = FACE
 	w_class = W_CLASS_SMALL
 	var/voicechange = 0
 	siemens_coefficient = 0.9
 
-/obj/item/clothing/mask/horsehead/treat_mask_speech(var/datum/speech/speech)
+/obj/item/clothing/mask/horsehead/affect_speech(var/datum/speech/speech, var/mob/living/L)
 	if(src.voicechange)
 		speech.message = pick("NEEIIGGGHHHH!", "NEEEIIIIGHH!", "NEIIIGGHH!", "HAAWWWWW!", "HAAAWWW!")
 
@@ -140,6 +193,7 @@
 	desc = "A plain porcelain mask that covers the entire face. Standard attire for particularly unspeakable religions. The eyes are wide shut."
 	icon_state = "chapmask"
 	item_state = "chapmask"
+	species_fit = list(INSECT_SHAPED)
 	flags = FPRINT
 	body_parts_covered = FACE
 	w_class = W_CLASS_SMALL
@@ -152,20 +206,23 @@
 	w_class = W_CLASS_TINY
 	can_flip = 1
 
-obj/item/clothing/mask/bandana/red
+/obj/item/clothing/mask/bandana/red
 	name = "red bandana"
 	icon_state = "bandred"
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED, GREY_SHAPED)
 
-obj/item/clothing/mask/joy
+/obj/item/clothing/mask/joy
 	name = "joy mask"
 	desc = "Express your happiness or hide your sorrows with this laughing face with crying tears of joy cutout."
 	icon_state = "joy"
+	species_fit = list(INSECT_SHAPED)
 
 /obj/item/clothing/mask/vamp_fangs
 	name = "false fangs"
 	desc = "For when you want people to think you're a vampire. Glows in the dark!"
 	icon_state = "fangs"
 	item_state = "fangs"
+	body_parts_covered = NONE
 	var/light_absorbed = 0
 	var/glowy_fangs
 	var/image/glow_fangs
@@ -173,7 +230,7 @@ obj/item/clothing/mask/joy
 /obj/item/clothing/mask/vamp_fangs/New()
 	..()
 	glow_fangs = image("icon" = 'icons/mob/mask.dmi',"icon_state" = "fangs_glow", "layer" = ABOVE_LIGHTING_LAYER)
-	glow_fangs.plane = LIGHTING_PLANE
+	glow_fangs.plane = ABOVE_LIGHTING_PLANE
 
 /obj/item/clothing/mask/vamp_fangs/equipped(mob/M, var/slot)
 	..()
@@ -214,6 +271,8 @@ obj/item/clothing/mask/joy
 	desc = "Previously used in strange pantomimes, after one of the actors went mad on stage these masks have avoided use. You swear its face contorts when you're not looking."
 	icon_state = "goldenmask"
 	item_state = "goldenmask"
+	species_fit = list(INSECT_SHAPED)
+	flammable = FALSE
 
 /obj/item/clothing/mask/goldface/equipped()
 	..()
@@ -225,3 +284,49 @@ obj/item/clothing/mask/joy
 
 /obj/item/clothing/mask/goldface/update_icon()
 	icon_state = pick("goldenmask","goldenmask_anger","goldenmask_joy","goldenmask_despair")
+
+
+/obj/item/clothing/mask/holopipe
+	name = "holo pipe"
+	desc = "It is not a pipe."
+	icon_state = "holopipe_off"
+	item_state = "holopipe_off"
+	var/activated = 0
+	species_fit = list(VOX_SHAPED)
+
+
+/obj/item/clothing/mask/holopipe/proc/activate(var/mob/user as mob)
+	if(!user.incapacitated())
+		src.activated = !src.activated
+		if(src.activated)
+			icon_state = "holopipe_on"
+			item_state = "holopipe_on"
+			to_chat(user, "You activate the holo pipe.")
+			user.update_inv_wear_mask()
+		else
+			icon_state = "holopipe_off"
+			item_state = "holopipe_off"
+			to_chat(user, "You deactivate the holo pipe.")
+			user.update_inv_wear_mask()
+
+/obj/item/clothing/mask/holopipe/attack_self(var/mob/user)
+	activate(user)
+
+/obj/item/clothing/mask/holopipe/verb/activate_pipe()
+	set category = "Object"
+	set name = "Toggle pipe"
+	set src in usr
+	if(!usr.incapacitated())
+		activate(usr)
+
+/obj/item/clothing/mask/gentling
+	name = "gentling mask"
+	desc = "In wool paper and acrylic the pain of experience is smoothed away into the aspect of a child. Neuronal clamps peek out from the concave interior surface. The mask is fastened by a brass chain, adorned by beads of glass, and branded on the forehead with the Holy Rhombus, a sign of the price of innocence."
+	icon_state = "gentlingmask"
+	item_state = "gentlingmask"
+	gentling = TRUE
+	canremove = FALSE
+	cant_remove_msg = " is clamped on!"
+	clothing_flags = MASKINTERNALS
+	origin_tech = Tc_BIOTECH + "=5"
+

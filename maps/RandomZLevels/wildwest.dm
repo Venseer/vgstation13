@@ -11,11 +11,11 @@
 	name = "Wish Granter"
 	desc = "You're not so sure about this, anymore..."
 	icon = 'icons/obj/device.dmi'
-	icon_state = "syndbeacon"
+	icon_state = "wishgranter"
 
 	anchored = 1
 	density = 1
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 
 	var/chargesa = 1
 	var/insistinga = 0
@@ -126,7 +126,7 @@
 
 	if(istype(M, /mob/living/carbon/human) || istype(M, /mob/living/carbon/monkey))
 		for(var/mob/O in viewers(world.view, src.loc))
-			to_chat(O, "<font color='red'>[M] triggered the [bicon(src)] [src]</font>")
+			to_chat(O, "<span class='red'>[M] triggered the [bicon(src)] [src]</span>")
 		triggered = 1
 		call(src,triggerproc)(M)
 

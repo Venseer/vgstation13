@@ -6,7 +6,7 @@ var/list/obj/machinery/flasher/flashers = list()
 	desc = "A wall-mounted flashbulb device."
 	icon = 'icons/obj/stationobjs.dmi'
 	icon_state = "mflash1"
-	var/id_tag = null
+
 	var/range = 2 //this is roughly the size of brig cell
 	var/disable = 0
 	var/last_flash = 0 //Don't want it getting spammed like regular flashes
@@ -37,12 +37,8 @@ var/list/obj/machinery/flasher/flashers = list()
 	base_state = "pflash"
 	density = 1
 	min_harm_label = 35 //A lot. Has to wrap around the bulb, after all.
+	on_armory_manifest = TRUE
 
-/*
-/obj/machinery/flasher/New()
-	sleep(4)					//<--- What the fuck are you doing? D=
-	src.sd_SetLuminosity(2)
-*/
 /obj/machinery/flasher/power_change()
 	if ( powered() )
 		stat &= ~NOPOWER
@@ -55,7 +51,7 @@ var/list/obj/machinery/flasher/flashers = list()
 
 //Don't want to render prison breaks impossible
 /obj/machinery/flasher/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if (iswirecutter(W))
+	if (W.is_wirecutter(user))
 		add_fingerprint(user)
 		src.disable = !src.disable
 		if (src.disable)
@@ -64,7 +60,7 @@ var/list/obj/machinery/flasher/flashers = list()
 			user.visible_message("<span class='warning'>[user] has connected the [src]'s flashbulb!</span>", "<span class='warning'>You connect the [src]'s flashbulb!</span>")
 
 //Let the AI trigger them directly.
-/obj/machinery/flasher/attack_ai()
+/obj/machinery/flasher/attack_ai(var/mob/user)
 	if (src.anchored)
 		return src.flash()
 	else
@@ -74,7 +70,7 @@ var/list/obj/machinery/flasher/flashers = list()
 	if (!(powered()))
 		return
 
-	if ((src.disable) || (src.last_flash && world.time < src.last_flash + 150))
+	if ((src.disable) || (src.last_flash && world.time < src.last_flash + 15 SECONDS))
 		return
 
 	playsound(src, 'sound/weapons/flash.ogg', 100, 1)
@@ -91,8 +87,14 @@ var/list/obj/machinery/flasher/flashers = list()
 			continue
 		if(O.blinded)
 			continue
-		if (istype(O, /mob/living/carbon/alien))//So aliens don't get flashed (they have no external eyes)/N
+		if(istype(O, /mob/living/carbon/alien))//So aliens don't get flashed (they have no external eyes)/N
 			continue
+		if(isrobot(O)) //SOMEDAY WE WILL GIVE MOBS A FLASH_ACT OR EVEN FIX THE DAMN EYE/EAR CHECK MADNESS, BUT THAT DAY IS NOT TODAY
+			var/mob/living/silicon/robot/R = O
+			if(HAS_MODULE_QUIRK(R, MODULE_IS_FLASHPROOF))
+				continue
+			if(HAS_MODULE_QUIRK(R, MODULE_HAS_FLASH_RES))
+				strength = strength/2
 		if(istype(O, /mob/living))
 			var/mob/living/L = O
 			L.flash_eyes(affect_silicon = 1)
@@ -100,12 +102,14 @@ var/list/obj/machinery/flasher/flashers = list()
 			var/mob/living/carbon/C = O
 			if(C.eyecheck() <= 0) // Identical to handheld flash safety check
 				C.Knockdown(strength)
+				C.Stun(strength)
 		else
 			O.Knockdown(strength)
+			O.Stun(strength)
 
 
 /obj/machinery/flasher/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 	if(prob(75/severity))
@@ -113,16 +117,16 @@ var/list/obj/machinery/flasher/flashers = list()
 	..(severity)
 
 /obj/machinery/flasher/portable/HasProximity(atom/movable/AM as mob|obj)
-	if ((src.disable) || (src.last_flash && world.time < src.last_flash + 150))
+	if ((src.disable) || (src.last_flash && world.time < src.last_flash + 15 SECONDS))
 		return
 
 	if(istype(AM, /mob/living/carbon))
 		var/mob/living/carbon/M = AM
-		if ((M.m_intent != "walk") && (src.anchored))
+		if ((M.glide_size > GLIDE_SIZE_OF_A_WALKING_HUMAN) && (src.anchored))
 			src.flash()
 
 /obj/machinery/flasher/portable/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if (iswrench(W))
+	if (W.is_wrench(user))
 		add_fingerprint(user)
 		src.anchored = !src.anchored
 
@@ -134,9 +138,6 @@ var/list/obj/machinery/flasher/flashers = list()
 			user.show_message(text("<span class='warning'>[src] is now secured.</span>"))
 			src.overlays += image(icon = icon, icon_state = "[base_state]-s")
 
-/obj/machinery/flasher_button/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/flasher_button/attack_paw(mob/user as mob)
 	return src.attack_hand(user)
@@ -145,8 +146,8 @@ var/list/obj/machinery/flasher/flashers = list()
 	return src.attack_hand(user)
 
 /obj/machinery/flasher_button/attack_hand(mob/user as mob)
-
-	if(stat & (NOPOWER|BROKEN))
+	playsound(src,'sound/misc/click.ogg',30,0,-1)
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(active)
 		return

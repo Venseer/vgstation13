@@ -2,12 +2,13 @@
 	name = "Become Snakes"
 	desc = "This spell transforms your body into a den of snakes."
 	user_type = USER_TYPE_WIZARD
+	specialization = SSDEFENSIVE
 
 	summon_type = list(/mob/living/simple_animal/cat/snek/wizard)
 
-	price = Sp_BASE_PRICE / 2
+	price = SP_BASE_PRICE / 2
 	range = 3
-	charge_max = 300
+	charge_cooldown_max = 30 SECONDS
 	invocation = "WI'L OV SHNISSUGAH"
 	hud_state = "wiz_snakes"
 
@@ -18,7 +19,7 @@
 	delete_snakes()
 	if(!..())
 		user.visible_message("<span class='warning'>\The [user]'s body splits into a mass of snakes!</span>","<span class='notice'>Your body splits into a mass of snakes.</span>")
-		user.transmogrify(/mob/living/simple_animal/cat/snek/wizard, TRUE)
+		user.transmogrify(/mob/living/simple_animal/cat/snek/wizard, TRUE, FALSE)
 
 /spell/aoe_turf/conjure/snakes/summon_object(var/type, var/location)
 	return new type(location, holder)

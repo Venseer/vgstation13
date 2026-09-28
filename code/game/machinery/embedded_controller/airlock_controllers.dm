@@ -2,24 +2,24 @@
 /obj/machinery/embedded_controller/radio/advanced_airlock_controller
 	name = "Advanced Airlock Controller"
 
-	multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
-		return {"
-		<ul>
-		<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
-		<li>[format_tag("ID Tag","id_tag")]</li>
-		<li>[format_tag("Pump ID","tag_airpump")]</li>
-		</ul>
-		<b>Doors:</b>
-		<ul>
-		<li>[format_tag("Exterior","tag_exterior_door")]</li>
-		<li>[format_tag("Interior","tag_interior_door")]</li>
-		</ul>
-		<b>Sensors:</b>
-		<ul>
-		<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
-		<li>[format_tag("Interior","tag_interior_sensor")]</li>
-		<li>[format_tag("Exterior","tag_exterior_sensor")]</li>
-		</ul>"}
+/obj/machinery/embedded_controller/radio/advanced_airlock_controller/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return {"
+	<ul>
+	<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
+	<li>[format_tag("ID Tag","id_tag")]</li>
+	<li>[format_tag("Pump ID","tag_airpump")]</li>
+	</ul>
+	<b>Doors:</b>
+	<ul>
+	<li>[format_tag("Exterior","tag_exterior_door")]</li>
+	<li>[format_tag("Interior","tag_interior_door")]</li>
+	</ul>
+	<b>Sensors:</b>
+	<ul>
+	<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
+	<li>[format_tag("Interior","tag_interior_sensor")]</li>
+	<li>[format_tag("Exterior","tag_exterior_sensor")]</li>
+	</ul>"}
 
 /obj/machinery/embedded_controller/radio/advanced_airlock_controller/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open=NANOUI_FOCUS)
 	if(!program)//we need to initialize the controller to get a program
@@ -192,22 +192,22 @@
 	name = "Airlock Controller"
 	tag_secure = 1
 
-	multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
-		return {"
-		<ul>
-		<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
-		<li>[format_tag("ID Tag","id_tag")]</li>
-		<li>[format_tag("Pump ID","tag_airpump")]</li>
-		</ul>
-		<b>Doors:</b>
-		<ul>
-		<li>[format_tag("Exterior","tag_exterior_door")]</li>
-		<li>[format_tag("Interior","tag_interior_door")]</li>
-		</ul>
-		<b>Sensors:</b>
-		<ul>
-		<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
-		</ul>"}
+/obj/machinery/embedded_controller/radio/airlock_controller/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return {"
+	<ul>
+	<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
+	<li>[format_tag("ID Tag","id_tag")]</li>
+	<li>[format_tag("Pump ID","tag_airpump")]</li>
+	</ul>
+	<b>Doors:</b>
+	<ul>
+	<li>[format_tag("Exterior","tag_exterior_door")]</li>
+	<li>[format_tag("Interior","tag_interior_door")]</li>
+	</ul>
+	<b>Sensors:</b>
+	<ul>
+	<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
+	</ul>"}
 
 /obj/machinery/embedded_controller/radio/airlock_controller/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open=NANOUI_FOCUS)
 	if(!program)//we need to initialize the controller to get a program
@@ -244,6 +244,8 @@
 		if("force_ext")
 			clean = 1
 		if("force_int")
+			clean = 1
+		if("secure")
 			clean = 1
 		if("abort")
 			clean = 1
@@ -355,27 +357,30 @@
 	name = "Access Controller"
 	tag_secure = 1
 
-	multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
-		return {"
-		<ul>
-		<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
-		<li>[format_tag("ID Tag","id_tag")]</li>
-		</ul>
-		<b>Doors:</b>
-		<ul>
-		<li>[format_tag("Exterior","tag_exterior_door")]</a></li>
-		<li>[format_tag("Interior","tag_interior_door")]</a></li>
-		</ul>"}
+/obj/machinery/embedded_controller/radio/access_controller/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return {"
+	<ul>
+	<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
+	<li>[format_tag("ID Tag","id_tag")]</li>
+	</ul>
+	<b>Doors:</b>
+	<ul>
+	<li>[format_tag("Exterior","tag_exterior_door")]</a></li>
+	<li>[format_tag("Interior","tag_interior_door")]</a></li>
+	</ul>"}
 
 
 /obj/machinery/embedded_controller/radio/access_controller/update_icon()
 	if(on && program)
 		if(program.memory["processing"])
 			icon_state = "access_control_process"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_control_process")
 		else
 			icon_state = "access_control_standby"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_control_standby")
 	else
 		icon_state = "access_control_off"
+		kill_moody_light()
 
 /obj/machinery/embedded_controller/radio/access_controller/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open=NANOUI_FOCUS)
 	if(!program)//we need to initialize the controller to get a program
@@ -476,17 +481,17 @@
 	name = "Pressure Regulator"
 	tag_secure = 1
 
-	multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
-		return {"
-		<ul>
-		<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
-		<li>[format_tag("ID Tag","id_tag")]</li>
-		<li>[format_tag("Pump ID","tag_airpump")]</li>
-		</ul>
-		<b>Sensors:</b>
-		<ul>
-		<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
-		</ul>"}
+/obj/machinery/embedded_controller/radio/pressure_regulator/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
+	return {"
+	<ul>
+	<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[1449]">Reset</a>)</li>
+	<li>[format_tag("ID Tag","id_tag")]</li>
+	<li>[format_tag("Pump ID","tag_airpump")]</li>
+	</ul>
+	<b>Sensors:</b>
+	<ul>
+	<li>[format_tag("Chamber","tag_chamber_sensor")]</li>
+	</ul>"}
 
 /obj/machinery/embedded_controller/radio/pressure_regulator/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open=NANOUI_FOCUS)
 	if(!program)//we need to initialize the controller to get a program

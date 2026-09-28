@@ -32,6 +32,7 @@
 	desc = "A tank of oxygen, this one is red."
 	icon_state = "oxygen_fr"
 
+
 /*
  * Anesthetic
  */
@@ -98,6 +99,26 @@
 	slot_flags = SLOT_BACK
 	distribute_pressure = ONE_ATMOSPHERE*O2STANDARD
 
+/obj/item/weapon/tank/emergency_plasma
+	name = "emergency plasma tank"
+	desc = "Used for emergencies. Contains very little plasma, so try to conserve it until you actually need it."
+	icon_state = "emergencyp"
+	flags = FPRINT
+	slot_flags = SLOT_BELT
+	w_class = W_CLASS_SMALL
+	force = 4.0
+	distribute_pressure = ONE_ATMOSPHERE*O2STANDARD
+	volume = 2
+
+/obj/item/weapon/tank/emergency_plasma/New()
+	. = ..()
+	air_contents.adjust_gas(GAS_PLASMA, (3 * ONE_ATMOSPHERE) * volume / (R_IDEAL_GAS_EQUATION * T20C))
+
+/obj/item/weapon/tank/emergency_plasma/engi
+	name = "extended-capacity emergency plasma tank"
+	icon_state = "emergency_engip"
+	volume = 6
+
 /*
  * Emergency Oxygen
  */
@@ -126,6 +147,11 @@
 	icon_state = "emergency_double"
 	volume = 10
 
+/obj/item/weapon/tank/emergency_oxygen/double/wizard
+	name = "gem-encrusted double emergency oxygen tank"
+	icon_state = "oxygen_wiz"
+	desc = "A gem-encrusted tank of oxygen. This one is purple and arcane."
+
 /obj/item/weapon/tank/emergency_nitrogen
 	name = "emergency nitrogen tank"
 	desc = "Used for emergencies. Not useful unless you only breathe nitrogen."
@@ -139,6 +165,11 @@
 	. = ..()
 	air_contents.adjust_gas(GAS_NITROGEN, (3 * ONE_ATMOSPHERE) * volume / (R_IDEAL_GAS_EQUATION * T20C))
 
+/obj/item/weapon/tank/emergency_nitrogen/engi
+	name = "extended-capacity emergency nitrogen tank"
+	icon_state = "emergency_engi"
+	volume = 6
+
 /*
  * Nitrogen
  */
@@ -151,3 +182,23 @@
 /obj/item/weapon/tank/nitrogen/New()
 	. = ..()
 	air_contents.adjust_gas(GAS_NITROGEN, (3 * ONE_ATMOSPHERE) * 70 / (R_IDEAL_GAS_EQUATION * T20C))
+
+
+/obj/item/weapon/tank/cryotheum
+	name = "cryotheum tank"
+	desc = "A tank containing the rare gas, cryotheum."
+	icon_state = "cryotheum"
+	flags = FPRINT
+	slot_flags = SLOT_BELT
+	w_class = W_CLASS_SMALL
+	distribute_pressure = ONE_ATMOSPHERE*O2STANDARD
+	volume = 40
+
+/obj/item/weapon/tank/cryotheum/New()
+	. = ..()
+	air_contents.adjust_gas(GAS_CRYOTHEUM, (8 * ONE_ATMOSPHERE) * volume / (R_IDEAL_GAS_EQUATION * 253.15))
+	air_contents.temperature = 253.15
+
+/obj/item/weapon/tank/cryotheum/empty/New()
+	..()
+	air_contents.multiply(0)

@@ -1,6 +1,10 @@
 /obj/effect/decal/remains/cultify()
 	return
 
+/obj/effect/decal/remains
+	layer = MACHINERY_LAYER
+	plane = OBJ_PLANE
+
 /obj/effect/decal/remains/human
 	name = "remains"
 	desc = "They look like human remains. They have a strange aura about them."
@@ -10,7 +14,7 @@
 
 /obj/effect/decal/remains/human/attack_hand(mob/user)
 	if(icon_state == "remains")
-		user.put_in_hands(new /obj/item/weapon/skull(user))
+		user.put_in_hands(new /obj/item/weapon/skull(loc))
 		icon_state = "remains_noskull"
 
 /obj/effect/decal/remains/human/noskull
@@ -26,6 +30,13 @@
 	w_class = W_CLASS_TINY
 	force = 5
 	throwforce = 10
+
+/obj/item/weapon/skull/attackby(obj/item/weapon/W, mob/user)
+	..()
+	if(istype(W))
+		var/obj/item/weapon/bikehorn/HONKER = W
+		if(HONKER.can_honk_baton)
+			user.create_in_hands(src, /obj/item/weapon/bikehorn/skullhorn, W, msg = "You somehow manage to jam \the [W] inside \the [src].")
 
 /obj/effect/decal/remains/xeno
 	name = "remains"

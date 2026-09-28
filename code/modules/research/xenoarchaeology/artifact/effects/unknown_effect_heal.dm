@@ -1,8 +1,9 @@
 
 /datum/artifact_effect/heal
 	effecttype = "heal"
+	valid_artifact_styles = list(ARTIFACT_STYLE_ANOMALY, ARTIFACT_STYLE_UNKNOWN)
 	effect = list(ARTIFACT_EFFECT_TOUCH, ARTIFACT_EFFECT_AURA, ARTIFACT_EFFECT_PULSE)
-	effect_type = 5
+	effect_hint = EFFECT_HINT_ORGANICALLY_REACTIVE_EXOTIC_PARTICLES
 
 /datum/artifact_effect/heal/DoEffectTouch(var/mob/toucher)
 	//todo: check over this properly
@@ -24,8 +25,6 @@
 				H.adjustBrainLoss(-25 * weakness)
 				H.radiation -= min(H.radiation, 25 * weakness)
 				H.bodytemperature = initial(H.bodytemperature)
-				spawn(1)
-					H.fixblood()
 			//
 			C.adjustOxyLoss(-25 * weakness)
 			C.adjustToxLoss(-25 * weakness)
@@ -38,7 +37,7 @@
 /datum/artifact_effect/heal/DoEffectAura()
 	//todo: check over this properly
 	if(holder)
-		for (var/mob/living/carbon/C in range(src.effectrange,holder))
+		for (var/mob/living/carbon/C in range(src.effectrange,get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(C)
 			if(prob(weakness * 100))
 				if(prob(10))
@@ -53,7 +52,7 @@
 /datum/artifact_effect/heal/DoEffectPulse()
 	//todo: check over this properly
 	if(holder)
-		for (var/mob/living/carbon/C in range(src.effectrange,holder))
+		for (var/mob/living/carbon/C in range(src.effectrange,get_turf(holder)))
 			var/weakness = GetAnomalySusceptibility(C)
 			if(prob(weakness * 100))
 				to_chat(C, "<span class='notice'>A wave of energy invigorates you.</span>")

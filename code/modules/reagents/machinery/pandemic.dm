@@ -1,10 +1,12 @@
+
+/*
 /obj/machinery/computer/pandemic
 	name = "PanD.E.M.I.C 2200"
 	density = 1
 	anchored = 1
 	icon = 'icons/obj/chemical.dmi'
 	icon_state = "mixer"
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 20
 	var/temphtml = ""
 	var/wait = null
@@ -256,7 +258,7 @@
 
 		dat += {"<BR><A href='?src=\ref[src];eject=1'>Eject beaker</A>[((R.total_volume&&R.reagent_list.len) ? "-- <A href='?src=\ref[src];empty_beaker=1'>Empty beaker</A>":"")]<BR>
 			<A href='?src=\ref[user];mach_close=pandemic'>Close</A>"}
-	user << browse("<TITLE>[src.name]</TITLE><BR>[dat]", "window=pandemic;size=575x400")
+	user << browse(HTML_SKELETON_TITLE(name, dat), "window=pandemic;size=575x400")
 	onclose(user, "pandemic")
 	return
 
@@ -273,8 +275,7 @@
 		if(I.w_class > W_CLASS_SMALL)
 			to_chat(user, "<span class='warning'>\The [I] is too big to fit.</span>")
 			return
-		if(!user.drop_item(I, src))
-			to_chat(user, "<span class='warning'>You can't let go of \the [I]!</span>")
+		if(!user.drop_item(I, src, failmsg = TRUE))
 			return
 
 		src.beaker =  I
@@ -286,3 +287,4 @@
 	else
 		..()
 	return
+*/

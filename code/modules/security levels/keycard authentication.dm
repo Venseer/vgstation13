@@ -17,8 +17,9 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	var/ert_reason
 	//1 = select event
 	//2 = authenticate
+	req_one_access = list(access_keycard_auth)
 	anchored = 1.0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 2
 	active_power_usage = 6
 	power_channel = ENVIRON
@@ -28,26 +29,40 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	authenticators += src
 
 /obj/machinery/keycard_auth/attack_ai(mob/user as mob)
-	to_chat(user, "The station AI is not to interact with these devices.")
-	return
+	if(ismalf(user))
+		..()
+	else
+		to_chat(user, "<span class='notice'>The station AI is not to interact with these devices.</span>")
 
 /obj/machinery/keycard_auth/attack_paw(mob/user as mob)
-	to_chat(user, "You are too primitive to use this device.")
+	to_chat(user, "<span class='notice'>You are too primitive to use this device.</span>")
 	return
 
 /obj/machinery/keycard_auth/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(stat & (NOPOWER|BROKEN))
-		to_chat(user, "This device is not powered.")
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
+		to_chat(user, "<span class='notice'>This device is not powered.</span>")
 		return
-	if(istype(W,/obj/item/weapon/card/id))
-		var/obj/item/weapon/card/id/ID = W
-		if(access_keycard_auth in ID.access)
+	if(isID(W) || isPDA(W))
+		if(check_access(W))
 			if(active == 1)
 				//This is not the device that made the initial request. It is the device confirming the request.
 				if(event_source)
-					event_source.confirmed = 1
-					event_source.event_confirmed_by = usr
+					confirmed = 1
+
+					// All the useful information is in the source device, so copy it over. There's probably a better way to do this.
+					event_triggered_by = event_source.event_triggered_by
+					event_confirmed_by = usr
+					event = event_source.event
+					ert_reason = event_source.ert_reason
+
+					playsound(src, get_sfx("card_swipe"), 60, 1, -5)
+					to_chat(user, "<span class='notice'>You swipe your ID card to confirm the [event].</span>")
+
+					trigger_event(event)
 			else if(screen == 2)
+				playsound(src, get_sfx("card_swipe"), 60, 1, -5)
+				to_chat(user, "<span class='notice'>You swipe your ID card to request the [event].</span>")
+
 				event_triggered_by = usr
 				broadcast_request() //This is the device making the initial event request. It needs to broadcast to other devices
 
@@ -63,11 +78,11 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	authenticators -= src
 
 /obj/machinery/keycard_auth/attack_hand(mob/user as mob)
-	if(user.stat || stat & (NOPOWER|BROKEN))
-		to_chat(user, "This device is not powered.")
+	if(user.stat || stat & (NOPOWER|BROKEN|FORCEDISABLE))
+		to_chat(user, "<span class='notice'>This device is not powered.</span>")
 		return
 	if(busy)
-		to_chat(user, "This device is busy.")
+		to_chat(user, "<span class='notice'>This device is busy.</span>")
 		return
 
 	user.set_machine(src)
@@ -80,6 +95,7 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	if(screen == 1)
 
 		dat += {"Select an event to trigger:<ul>
+			<li><A href='?src=\ref[src];triggerevent=Rainbow alert'>Rainbow alert</A></li>
 			<li><A href='?src=\ref[src];triggerevent=Red alert'>Red alert</A></li>"}
 		if((get_security_level() in list("red", "delta")))
 			dat += "<li><A href='?src=\ref[src];triggerevent=Emergency Response Team'>Emergency Response Team</A></li>"
@@ -88,7 +104,7 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 		dat += {"<li><A href='?src=\ref[src];triggerevent=Grant Emergency Maintenance Access'>Grant Emergency Maintenance Access</A></li>
 			<li><A href='?src=\ref[src];triggerevent=Revoke Emergency Maintenance Access'>Revoke Emergency Maintenance Access</A></li>
 			</ul>"}
-		user << browse(dat, "window=keycard_auth;size=500x300")
+		user << browse(HTML_SKELETON(dat), "window=keycard_auth;size=500x300")
 	if(screen == 2)
 
 		dat += "Please swipe your card to authorize the following event: <b>[event]</b>"
@@ -96,7 +112,7 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 			dat += "<p>Given reason for ERT request: '[ert_reason]'"
 
 		dat += "<p><A href='?src=\ref[src];reset=1'>Back</A>"
-		user << browse(dat, "window=keycard_auth;size=500x300")
+		user << browse(HTML_SKELETON(dat), "window=keycard_auth;size=500x300")
 	return
 
 
@@ -104,10 +120,10 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	if(..())
 		return 1
 	if(busy)
-		to_chat(usr, "This device is busy.")
+		to_chat(usr, "<span class='notice'>This device is busy.</span>")
 		return
-	if(usr.stat || stat & (BROKEN|NOPOWER))
-		to_chat(usr, "This device is without power.")
+	if(usr.stat || stat & (BROKEN|NOPOWER|FORCEDISABLE))
+		to_chat(usr, "<span class='notice'>This device is without power.</span>")
 		return
 	if(href_list["triggerevent"])
 		if(href_list["triggerevent"] == "Emergency Response Team")
@@ -131,6 +147,7 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	event = ""
 	screen = 1
 	confirmed = 0
+	busy = 0
 	event_source = null
 	icon_state = "auth_off"
 	event_triggered_by = null
@@ -141,63 +158,63 @@ var/global/list/obj/machinery/keycard_auth/authenticators = list()
 	for(var/obj/machinery/keycard_auth/KA in authenticators)
 		if(KA == src)
 			continue
-		KA.reset()
-		spawn()
-			KA.receive_request(src)
-
-	sleep(confirm_delay)
-	if(confirmed)
-		confirmed = 0
-		trigger_event(event)
-		log_game("[key_name(event_triggered_by)] triggered and [key_name(event_confirmed_by)] confirmed event [event][event=="Emergency Response Team"?". ERT reason given was '[ert_reason]'":""]")
-		message_admins("[key_name(event_triggered_by)] triggered and [key_name(event_confirmed_by)] confirmed event [event][event=="Emergency Response Team"?". ERT reason given was '[ert_reason]'":""]", 1)
-	reset()
+		KA.receive_request(src)
 
 /obj/machinery/keycard_auth/proc/receive_request(var/obj/machinery/keycard_auth/source)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		return
 	event_source = source
 	busy = 1
 	active = 1
 	icon_state = "auth_on"
 
-	sleep(confirm_delay)
-
-	event_source = null
-	icon_state = "auth_off"
-	active = 0
-	busy = 0
+	spawn(confirm_delay)
+		if(active)
+			for(var/obj/machinery/keycard_auth/KA in authenticators)
+				KA.reset()
 
 /obj/machinery/keycard_auth/proc/trigger_event()
 	switch(event)
+		if("Rainbow alert")
+			set_security_level(SEC_LEVEL_RAINBOW)
+			feedback_inc("alert_keycard_auth_rainbow",1)
 		if("Red alert")
 			set_security_level(SEC_LEVEL_RED)
 			feedback_inc("alert_keycard_auth_red",1)
 		if("Grant Emergency Maintenance Access")
-			make_maint_all_access()
+			make_doors_all_access(list(access_maint_tunnels))
 			feedback_inc("alert_keycard_auth_maintGrant",1)
 		if("Revoke Emergency Maintenance Access")
-			revoke_maint_all_access()
+			revoke_doors_all_access(list(access_maint_tunnels))
 			feedback_inc("alert_keycard_auth_maintRevoke",1)
 		if("Emergency Response Team")
 			var/datum/striketeam/ert/response_team = new()
 			response_team.mission = ert_reason
-			response_team.trigger_strike()
+			response_team.trigger_strike() // This will show up as *null* in logs, adding requester gives them power to approve an ERT.
 			feedback_inc("alert_keycard_auth_ert",1)
+			event_source.visible_message("<span class='notice'>An ERT has been requested, please await a response.</span>")
+			playsound(event_source, 'sound/machines/notify.ogg', 60, 0)
 
-var/global/maint_all_access = 0
+	log_game("[key_name(event_triggered_by)] triggered and [key_name(event_confirmed_by)] confirmed event [event][event=="Emergency Response Team"?". ERT reason given was '[ert_reason]'":""]")
+	message_admins("[key_name(event_triggered_by)] triggered and [key_name(event_confirmed_by)] confirmed event [event][event=="Emergency Response Team"?". ERT reason given was '[ert_reason]'":""]")
+	for(var/obj/machinery/keycard_auth/KA in authenticators)
+		KA.reset()
 
-/proc/make_maint_all_access()
-	maint_all_access = 1
-	to_chat(world, "<font size=4 color='red'>Attention!</font>")
-	to_chat(world, "<font color='red'>The maintenance access requirement has been revoked on all airlocks.</font>")
+var/global/list/all_access_list = list()
 
-/proc/revoke_maint_all_access()
-	maint_all_access = 0
-	to_chat(world, "<font size=4 color='red'>Attention!</font>")
-	to_chat(world, "<font color='red'>The maintenance access requirement has been readded on all maintenance airlocks.</font>")
+/proc/make_doors_all_access(var/list/accesses, var/announce = TRUE)
+	all_access_list.Add(accesses)
+	if(announce)
+		to_chat(world, "<font size=4 color='red'>Attention!</font>")
+		to_chat(world, "<span class='red'>The [get_access_desc_list(accesses)] access requirement has been revoked on all airlocks.</span>")
 
-/obj/machinery/door/airlock/allowed(mob/M)
-	if(maint_all_access && src.check_access_list(list(access_maint_tunnels)))
+/proc/revoke_doors_all_access(var/list/accesses, var/announce = TRUE)
+	all_access_list.Remove(accesses)
+	if(announce)
+		to_chat(world, "<font size=4 color='red'>Attention!</font>")
+		to_chat(world, "<span class='red'>The [get_access_desc_list(accesses)] access requirement has been readded on all airlocks.</span>")
+
+/obj/machinery/door/airlock/allowed(atom/A)
+	if(check_access_list(all_access_list))
 		return 1
-	return ..(M)
+	return ..(A)

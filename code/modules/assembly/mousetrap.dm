@@ -7,6 +7,7 @@
 	origin_tech = Tc_COMBAT + "=1"
 	var/armed = 0
 	wires = WIRE_PULSE
+	surgerysound = 'sound/items/fixovein.ogg'
 
 /obj/item/device/assembly/mousetrap/examine(mob/user)
 	..()
@@ -32,6 +33,7 @@
 				if(!H.shoes)
 					affecting = H.get_organ(pick(LIMB_LEFT_LEG, LIMB_RIGHT_LEG))
 					H.Knockdown(3)
+					H.Stun(3)
 			if(LIMB_LEFT_HAND, LIMB_RIGHT_HAND)
 				if(!H.gloves)
 					affecting = H.get_organ(type)
@@ -54,7 +56,7 @@
 	if(!armed)
 		to_chat(user, "<span class='notice'>You arm [src].</span>")
 	else
-		if(((user.getBrainLoss() >= 60 || clumsy_check(user)) && prob(50)))
+		if(((user.getBrainLoss(COORDINATION_L) >= 60 || clumsy_check(user)) && prob(50)))
 
 			var/datum/organ/external/OE = user.get_active_hand_organ()
 
@@ -70,7 +72,7 @@
 
 /obj/item/device/assembly/mousetrap/attack_hand(mob/living/user as mob)
 	if(armed)
-		if(((user.getBrainLoss() >= 60 || M_CLUMSY in user.mutations)) && prob(50))
+		if(((user.getBrainLoss(COORDINATION_L) >= 60 || (M_CLUMSY in user.mutations))) && prob(50))
 			var/datum/organ/external/OE = user.get_active_hand_organ()
 			triggered(user, OE.name)
 			user.visible_message("<span class='warning'>[user] accidentally sets off [src], breaking their fingers.</span>", \
@@ -80,6 +82,8 @@
 
 
 /obj/item/device/assembly/mousetrap/Crossed(AM as mob|obj)
+	if(..())
+		return 1
 	if(armed)
 		if(ishuman(AM))
 			var/mob/living/carbon/H = AM
@@ -89,7 +93,6 @@
 								  "<span class='warning'>You accidentally step on [src]</span>")
 		if(ismouse(AM))
 			triggered(AM)
-	..()
 
 
 /obj/item/device/assembly/mousetrap/on_found(mob/wearer, mob/finder as mob)

@@ -3,6 +3,7 @@
 /datum/map_element/vault/sokoban
 	name = "Sokoban"
 	file_path = "maps/randomvaults/sokoban_entrance.dmm"
+	spawn_cost = 3
 
 	var/list/available_levels = list(
 	"maps/randomvaults/dungeons/sokoban/A.dmm",
@@ -49,7 +50,7 @@
 		SL.file_path = pick_n_take(src.available_levels) //No duplicate levels
 		SL.parent = src
 
-		load_dungeon(SL)
+		load_dungeon(SL,rotation, TRUE)
 		loaded_levels.Add(SL)
 
 	//Load ending
@@ -59,10 +60,10 @@
 	END.file_path = pick(src.available_endings)
 	END.parent = src
 
-	load_dungeon(END)
+	load_dungeon(END, 0, TRUE)
 	loaded_levels.Add(END)
 
-/datum/map_element/vault/sokoban/proc/on_cheat()
+/datum/map_element/vault/sokoban/proc/on_cheat(atom/movable/mover)
 	for(var/datum/map_element/dungeon/sokoban_level/L in loaded_levels)
 		if(L.reward)
 			var/turf/current_loc = get_turf(L.reward)
@@ -74,8 +75,7 @@
 			cheater_trophy.name = "cheater's trophy"
 			cheater_trophy.desc = "No prize for you!"
 
-			qdel(L.reward)
-			L.reward = null
+			QDEL_NULL(L.reward)
 
 	if(!cheated)
 		if(usr)
@@ -84,7 +84,7 @@
 		cheated = TRUE
 		winner_name = "[usr] ([usr.key])"
 
-/datum/map_element/vault/sokoban/proc/mark_winner()
+/datum/map_element/vault/sokoban/proc/mark_winner(atom/movable/mover)
 	//Check if the 'winner' bypassed any teleporters. If they did, they're a cheater
 	for(var/obj/structure/sokoban_teleporter/T in teleporters)
 		if(T.active || !isturf(T.loc))
@@ -99,6 +99,7 @@
 ///////===========SOKOBAN LEVELS============
 
 /datum/map_element/dungeon/sokoban_level
+	name = "Sokoban Level"
 	var/datum/map_element/vault/sokoban/parent
 
 	var/depth = 0
@@ -114,14 +115,12 @@
 
 	for(var/obj/structure/closet/crate/sokoban/crate in objects)
 		//check_cheat performs some additional checks first, and only then marks the user as a cheater
-		crate.on_destroyed.Add(crate, "check_cheat")
-		crate.on_moved.Add(crate, "check_cheat")
+		crate.register_event(/event/moved, crate, /obj/structure/closet/crate/sokoban/proc/check_cheat)
 		crate.parent = src.parent
 
 	for(var/obj/structure/sokoban_teleporter/teleporter in objects)
 		//Teleporters are supposed to be unmovable, so if they're moved or deleted - it's guaranteed cheating
-		teleporter.on_destroyed.Add(parent, "on_cheat")
-		teleporter.on_moved.Add(parent, "on_cheat")
+		teleporter.register_event(/event/moved, parent, /datum/map_element/vault/sokoban/proc/on_cheat)
 
 		if(parent)
 			parent.teleporters.Add(teleporter)
@@ -139,7 +138,7 @@
 	reward = track_atom(locate(/obj/item/clothing/suit/armor/laserproof/advanced) in objects)
 	if(reward)
 		reward_turf = get_turf(reward)
-		reward.on_moved.Add(parent, "mark_winner")
+		reward.register_event(/event/moved, parent, /datum/map_element/vault/sokoban/proc/mark_winner)
 
 /*
 This ladder stuff looks confusing, so here's an illustration!!!
@@ -188,7 +187,11 @@ This ladder stuff looks confusing, so here's an illustration!!!
 
 	var/datum/map_element/vault/sokoban/parent
 
-/obj/structure/closet/crate/sokoban/proc/check_cheat()
+/obj/structure/closet/crate/sokoban/Destroy()
+	check_cheat()
+	..()
+
+/obj/structure/closet/crate/sokoban/proc/check_cheat(atom/movable/mover)
 	if(shipped)
 		return //Teleported crates can be destroyed safely
 
@@ -262,7 +265,7 @@ This ladder stuff looks confusing, so here's an illustration!!!
 	name = "paper- 'The Puzzle'"
 	info = {" This is some sort of a cruel joke. They know they can't fire me, so they're trying to make me quit on my own. The quartermaster built some sort of a puzzle for me to solve. I fucking hate puzzles.
  <br><br>
- Apparently I have to put all the crates on the teleporters. Sounds easy enough, right? Well, he took away my forklift for 'maintenance', and coated every crate with lube, making them impossible to pull. The only way to move them is to push them from behind. If one of them gets stuck in a corner? Tough luck.
+ Apparently I have to put a crate on each of the twelve teleporters. Sounds easy enough, right? Well, he took away my forklift for 'maintenance', and coated every crate with lube, making them impossible to pull. The only way to move them is to push them from behind. If one of them gets stuck in a corner? Tough luck.
  <br>
  He also forbade using wrapping paper or any method of crate moving other than pushing. This is embarrassing and I feel utterly humiliated.
  <br><br>

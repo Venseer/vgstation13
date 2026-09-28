@@ -5,8 +5,11 @@
 	density = 1
 	anchored = 0
 
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	idle_power_usage = 100 //Watts, I hope.  Just enough to do the computer and display things.
+
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
 
 	var/thermal_efficiency = 0.65
 
@@ -15,12 +18,9 @@
 
 	var/tmp/last_gen    = 0
 	var/tmp/lastgenlev  = 0 // Used in update_icon()
-	var/const/max_power = 500000 // Amount of W produced at which point the meter caps.
+	var/const/max_power = 3000000 // Amount of W produced at which point the meter caps.
 
 	machine_flags = WRENCHMOVE | FIXED2WORK
-
-	var/tmp/datum/html_interface/nanotrasen/interface
-	var/tmp/on_pipenet_tick_key
 
 /obj/machinery/power/generator/New()
 	..()
@@ -28,30 +28,7 @@
 	spawn(1)
 		reconnect()
 
-	var/const/head = {"
-		<link rel="stylesheet" type="text/css" href="shared.css"/>
-		<script>
-			//Behold my trash javascript.
-			function setDisabled()
-			{
-				document.getElementById("operatable").style.display = "none";
-				document.getElementById("n_operatable").style.display = "block";
-			}
-
-			function setEnabled()
-			{
-				document.getElementById("operatable").style.display = "block";
-				document.getElementById("n_operatable").style.display = "none";
-			}
-		</script>
-	"}
-
-	interface = new(src, name, 450, 410, head)
-
-	html_machines += src
-	on_pipenet_tick_key = global.on_pipenet_tick.Add(src, "pipenet_process")
-
-	init_ui()
+	global.pipenet_processing_objects += src
 
 /obj/machinery/power/generator/Destroy()
 	. = ..()
@@ -63,135 +40,7 @@
 		circ2.linked_generator = null
 		circ2 = null
 
-	qdel(interface)
-	interface = null
-
-	html_machines -= src
-	global.on_pipenet_tick.Remove(on_pipenet_tick_key)
-
-/obj/machinery/power/generator/proc/init_ui()
-	interface.updateLayout({"
-	<div class="item">
-		<div class="itemLabel">
-			Total output:
-		</div>
-		<div class="itemContent" id="total_out">
-			X
-		</div>
-	</div>
-	<div id="operatable">
-	<table style="width: 100%; font-size: 12px;">
-		<tr>
-			<td>
-				<div class="statusDisplay">
-					<h1 id="circ1">
-						Primary Circulator (right)
-					</h1>
-					<div class="item">
-						<div class="itemLabel">
-							Flow Capacity:
-						</div>
-						<div class="itemContent" id="circ1_flow_cap">
-							X
-						</div>
-					</div>
-					<br>
-					<br>
-					<div class="item">
-						<div class="itemLabel">
-							Inlet Pressure:
-						</div>
-						<div class="itemContent" id="circ1_in_pressure">
-							X
-						</div>
-					</div>
-					<div class="item">
-						<div class="itemLabel">
-							Inlet Temperature:
-						</div>
-						<div class="itemContent" id="circ1_in_temp">
-							X
-						</div>
-					</div>
-					<br>
-					<br>
-					<div class="item">
-						<div class="itemLabel">
-							Outlet Pressure:
-						</div>
-						<div class="itemContent" id="circ1_out_pressure">
-							X
-						</div>
-					</div>
-					<div class="item">
-						<div class="itemLabel">
-							Outlet Temperature:
-						</div>
-						<div class="itemContent" id="circ1_out_temp">
-							X
-						</div>
-					</div><br><br>
-				</div>
-			</td>
-			<td>
-				<div class="statusDisplay">
-					<h1 id="circ2">
-						Secondary Circulator (left)
-					</h1>
-					<div class="item">
-						<div class="itemLabel">
-							Flow Capacity:
-						</div>
-						<div class="itemContent" id="circ2_flow_cap">
-							X
-						</div>
-					</div>
-					<br>
-					<br>
-					<div class="item">
-						<div class="itemLabel">
-							Inlet Pressure:
-						</div>
-						<div class="itemContent" id="circ2_in_pressure">
-							X
-						</div>
-					</div>
-					<div class="item">
-						<div class="itemLabel">
-							Inlet Temperature:
-						</div>
-						<div class="itemContent" id="circ2_in_temp">
-							X
-						</div>
-					</div>
-					<br>
-					<br>
-					<div class="item">
-						<div class="itemLabel">
-							Outlet Pressure:
-						</div>
-						<div class="itemContent" id="circ2_out_pressure">
-							X
-						</div>
-					</div>
-					<div class="item">
-						<div class="itemLabel">
-							Outlet Temperature:
-						</div>
-						<div class="itemContent" id="circ2_out_temp">
-							X
-						</div>
-					</div><br><br>
-				</div>
-			</td>
-		</tr>
-	</table>
-	</div>
-	<div id="n_operatable" class="notice" style="display: none;">
-		Unable to connect to circulators. <br>
-		Ensure both are in position and wrenched into place.
-	</div>
-	"})
+	global.pipenet_processing_objects -= src
 
 /obj/item/weapon/paper/generator
 	name = "paper - 'generator instructions'"
@@ -243,16 +92,15 @@
 		circ2.linked_generator = src
 
 	update_icon()
-	updateUsrDialog()
 
-/obj/machinery/power/generator/wrenchAnchor()
+/obj/machinery/power/generator/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
 	reconnect()
 
 /obj/machinery/power/generator/proc/operable()
-	return circ1 && circ2 && anchored && !(stat & (BROKEN|NOPOWER))
+	return circ1 && circ2 && anchored && !(stat & (FORCEDISABLE|BROKEN|NOPOWER))
 
 /obj/machinery/power/generator/update_icon()
 	overlays = 0
@@ -266,7 +114,7 @@
 		overlays += image(icon = icon, icon_state = "teg-op[lastgenlev]")
 
 // We actually tick power gen on the pipenet process to make sure we're synced with pipenet updates.
-/obj/machinery/power/generator/proc/pipenet_process(var/list/event_args, var/datum/controller/process/pipenet/owner)
+/obj/machinery/power/generator/pipenet_process()
 	if(!operable())
 		return
 
@@ -281,13 +129,13 @@
 		if(delta_temperature > 0 && air1_heat_capacity > 0 && air2_heat_capacity > 0)
 			var/energy_transfer = delta_temperature * air2_heat_capacity * air1_heat_capacity / (air2_heat_capacity + air1_heat_capacity)
 			var/heat = energy_transfer * (1 - thermal_efficiency)
-			last_gen = energy_transfer * thermal_efficiency * 0.05
+			last_gen = energy_transfer * thermal_efficiency * 0.3
 
 			//If our circulators are lubed get extra power
 			if(circ1.reagents.get_reagent_amount(LUBE)>=1)
-				last_gen *= 1 + (circ1.volume_capacity_used/16.5) //Up to x3 if flow capacity is 33%
+				last_gen *= 1 + ((circ1.volume_capacity_used * 100) / 16.5) //Up to x3 if flow capacity is 33%
 			if(circ2.reagents.get_reagent_amount(LUBE)>=1)
-				last_gen *= 1 + (circ2.volume_capacity_used/16.5)
+				last_gen *= 1 + ((circ2.volume_capacity_used * 100) / 16.5)
 
 			if(air2.temperature > air1.temperature)
 				air2.temperature = air2.temperature - energy_transfer/air2_heat_capacity
@@ -308,7 +156,7 @@
 		circ2.network2.update = TRUE
 
 	//Update icon overlays and power usage only if displayed level has changed.
-	var/genlev = Clamp(round(11 * last_gen / max_power), 0, 11)
+	var/genlev = clamp(round(11 * last_gen / max_power), 0, 11)
 
 	if(last_gen > 100 && genlev == 0)
 		genlev = 1
@@ -317,84 +165,47 @@
 		lastgenlev = genlev
 		update_icon()
 
-	updateUsrDialog()
-
 /obj/machinery/power/generator/process()
 	if (operable())
 		add_avail(last_gen)
 
-/obj/machinery/power/generator/attack_ai(mob/user)
-	return attack_hand(user)
 
 /obj/machinery/power/generator/attack_hand(mob/user)
 	. = ..()
 	if(.)
 		return
 
-	interface.show(user)
-	updateUsrDialog()
+	tgui_interact(user)
 
-/obj/machinery/power/generator/updateUsrDialog()
-	if(operable())
-		interface.executeJavaScript("setEnabled()")
-	else
-		interface.executeJavaScript("setDisabled()")
+/obj/machinery/power/generator/tgui_interact(mob/user, datum/tgui/ui)
+	ui = SStgui.try_update_ui(user, src, ui)
+	if(!ui)
+		ui = new(user, src, "TEG")
+		ui.set_autoupdate(TRUE)
+		ui.open()
 
-	var/vertical = 0
-	if(dir & (NORTH | SOUTH))
-		vertical = 1
+/obj/machinery/power/generator/ui_data()
+	var/list/data = list()
 
-	interface.updateContent("circ1", "Primary circulator ([vertical ? "top"		: "left"])")
-	interface.updateContent("circ2", "Primary circulator ([vertical ? "bottom"	: "right"])")
+	data["vertical"] = dir & (NORTH | SOUTH)
+	data["output"] = format_watts(last_gen)
 
-	interface.updateContent("total_out", format_watts(last_gen))
+	if(circ1)
+		data["first_flow_cap"] = round(circ1.volume_capacity_used * 100)
+		data["first_in_pressure"] = round(circ1.air1.return_pressure(), 1)
+		data["first_in_temp"] = round(circ1.air1.temperature, 1)
+		data["first_out_pressure"] = round(circ1.air2.return_pressure(), 1)
+		data["first_out_temp"] = round(circ1.air2.temperature, 1)
 
-	if(!circ1 || !circ2)	//From this point on it's circulator data.
-		return
+	if(circ2)
+		data["second_flow_cap"] = round(circ2.volume_capacity_used * 100)
+		data["second_in_pressure"] = round(circ2.air1.return_pressure(), 1)
+		data["second_in_temp"] = round(circ2.air1.temperature, 1)
+		data["second_out_pressure"] = round(circ2.air2.return_pressure(), 1)
+		data["second_out_temp"] = round(circ2.air2.temperature, 1)
 
-	// CIRCULATOR 1
-	interface.updateContent("circ1_flow_cap",		"[round(circ1.volume_capacity_used * 100)] %")
-
-	interface.updateContent("circ1_in_pressure",	"[round(circ1.air1.return_pressure(),	0.1)] kPa")
-	interface.updateContent("circ1_in_temp",		"[round(circ1.air1.temperature,		0.1)] K")
-
-	interface.updateContent("circ1_out_pressure",	"[round(circ1.air2.return_pressure(),	0.1)] kPa")
-	interface.updateContent("circ1_out_temp",		"[round(circ1.air2.temperature,		0.1)] K")
-
-
-	// CIRCULATOR 2
-	interface.updateContent("circ2_flow_cap",		"[round(circ2.volume_capacity_used * 100)] %")
-
-	interface.updateContent("circ2_in_pressure",	"[round(circ2.air1.return_pressure(),	0.1)] kPa")
-	interface.updateContent("circ2_in_temp",		"[round(circ2.air1.temperature,		0.1)] K")
-
-	interface.updateContent("circ2_out_pressure",	"[round(circ2.air2.return_pressure(),	0.1)] kPa")
-	interface.updateContent("circ2_out_temp",		"[round(circ2.air2.temperature,		0.1)] K")
-
-//Needs to be overriden because else it will use the shitty set_machine().
-/obj/machinery/power/generator/hiIsValidClient(datum/html_interface_client/hclient, datum/html_interface/hi)
-	return hclient.client.mob.html_mob_check(src.type)
+	return data
 
 /obj/machinery/power/generator/power_change()
 	..()
 	update_icon()
-
-/obj/machinery/power/generator/verb/rotate_clock()
-	set category = "Object"
-	set name = "Rotate Generator (Clockwise)"
-	set src in view(1)
-
-	if (usr.isUnconscious() || usr.restrained()  || anchored)
-		return
-
-	src.dir = turn(src.dir, 90)
-
-/obj/machinery/power/generator/verb/rotate_anticlock()
-	set category = "Object"
-	set name = "Rotate Generator (Counterclockwise)"
-	set src in view(1)
-
-	if (usr.isUnconscious() || usr.restrained()  || anchored)
-		return
-
-	src.dir = turn(src.dir, -90)

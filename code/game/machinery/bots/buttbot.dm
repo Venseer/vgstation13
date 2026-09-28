@@ -17,10 +17,12 @@ Here it is: Buttbot.
 	anchored = 0
 	//weight = 1.0E7
 	health = 25
-	maxhealth = 25
+	maxHealth = 25
 	var/buttchance = 80 //Like an 80% chance of it working. It's just a butt with an arm in it.
 	var/sincelastfart = 0
 	flags = HEAR
+
+	var/obj/item/clothing/head/butt/stored_ass
 
 /obj/machinery/bot/buttbot/attack_hand(mob/living/user as mob)
 	. = ..()
@@ -51,31 +53,16 @@ Here it is: Buttbot.
 	var/language = speech.language
 	if(prob(buttchance) && !findtext(message,"butt"))
 		sleep(rand(1,3))
-		var/list/split_phrase = splittext(message," ") // Split it up into words.
-
-		var/list/prepared_words = split_phrase.Copy()
-		var/i = rand(1,3)
-		for(,i > 0,i--) //Pick a few words to change.
-
-			if (!prepared_words.len)
-				break
-			var/word = pick(prepared_words)
-			prepared_words -= word //Remove from unstuttered words so we don't stutter it again.
-			var/index = split_phrase.Find(word) //Find the word in the split phrase so we can replace it.
-
-			split_phrase[index] = "butt"
-
-		say(jointext(split_phrase," "), language) // No longer need to sanitize, speech is automatically html_encoded at render-time.
+		say(buttbottify(message), language)
 		fart()
-
-
+		score.buttbotfarts++
 
 /obj/machinery/bot/buttbot/explode()
 	src.on = 0
 	src.visible_message("<span class='danger'>[src] blows apart!</span>", 1)
 	playsound(src, 'sound/effects/superfart.ogg', 50, 1) //A fitting end
 	var/turf/Tsec = get_turf(src)
-	new /obj/item/clothing/head/butt(Tsec)
+	stored_ass.forceMove(Tsec)
 
 	if (prob(50))
 		new /obj/item/robot_parts/l_arm(Tsec)
@@ -94,9 +81,9 @@ Here it is: Buttbot.
 		var/obj/machinery/bot/buttbot/A = new /obj/machinery/bot/buttbot(T)
 		A.name = src.created_name
 		to_chat(user, "<span class='notice'>You roughly shove the robot arm into the ass! Butt Butt!</span>")//I don't even.
-
 		user.drop_from_inventory(src)
-		qdel(src)
+		A.stored_ass = src
+		src.forceMove(A)
 	else if (istype(W, /obj/item/weapon/pen))
 		var/t = stripped_input(user, "Enter new robot name", src.name, src.created_name)
 

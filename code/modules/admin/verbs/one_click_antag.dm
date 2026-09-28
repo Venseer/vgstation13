@@ -1,4 +1,4 @@
-client/proc/one_click_antag()
+/client/proc/one_click_antag()
 	set name = "Create Antagonist"
 	set desc = "Auto-create an antagonist of your choice"
 	set category = "Admin"
@@ -17,12 +17,11 @@ client/proc/one_click_antag()
 		<a href='?src=\ref[src];makeAntag=4'>Make Cult</a><br>
 		<a href='?src=\ref[src];makeAntag=5'>Make Malf AI</a><br>
 		<a href='?src=\ref[src];makeAntag=6'>Make Wizard (Requires Ghosts)</a><br>
-		<a href='?src=\ref[src];makeAntag=7'>Make Nuke Team (Requires Ghosts)</a><br>
-		<a href='?src=\ref[src];makeAntag=8'>Make Vampires</a><br>
-		<a href='?src=\ref[src];makeAntag=9'>Make Aliens (Requires Ghosts)</a><br>
+		<a href='?src=\ref[src];makeAntag=7'>Make Vampires</a><br>
+		<a href='?src=\ref[src];makeAntag=8'>Make Aliens (Requires Ghosts)</a><br>
 		"}
 
-	usr << browse(dat, "window=oneclickantag;size=400x400")
+	usr << browse(HTML_SKELETON(dat), "window=oneclickantag;size=400x400")
 	return
 
 
@@ -52,15 +51,15 @@ client/proc/one_click_antag()
 	var/role_req
 	var/role_name
 	if(F)
-		role_req = initial(F.required_pref)
-		role_name = initial(F.name)
+		var/datum/role/Rtype = initial(F.roletype)
+		role_req = initial(Rtype.required_pref)
+		role_name = initial(Rtype.name)
 	else if(R)
 		role_req = initial(R.required_pref)
 		role_name = initial(R.name)
 	var/list/candidates = get_candidates(role_req, recruitment_source, role_name)
 	var/recruit_count = 0
 	if(!candidates.len)
-		to_chat(usr, "No candidates")
 		return 0
 
 	candidates = shuffle(candidates)
@@ -78,8 +77,10 @@ client/proc/one_click_antag()
 			var/datum/mind/M = H.mind
 			if(FF.HandleNewMind(M))
 				var/datum/role/RR = FF.get_member_by_mind(M)
-				RR.ForgeObjectives()
-				log_admin("[key_name(H)] has been recruited as leader of [F.name] via create antagonist verb.")
+				FF.HandleRecruitedRole(RR)
+				RR.OnPostSetup()
+				RR.Greet(GREET_LATEJOIN)
+				message_admins("[key_name(H)] has been recruited as leader of [FF.name] via create antagonist verb.")
 				recruit_count++
 				count--
 
@@ -87,15 +88,20 @@ client/proc/one_click_antag()
 			count--
 			var/mob/living/carbon/human/H = pick(candidates)
 			candidates.Remove(H)
+			if (initial(F.initial_role) in H.mind.antag_roles) // Ex: a head rev being made a revolutionary.
+				continue
 			if(isobserver(H))
 				H = makeBody(H)
 			var/datum/mind/M = H.mind
 			if(FF.HandleRecruitedMind(M))
 				var/datum/role/RR = FF.get_member_by_mind(M)
-				RR.ForgeObjectives()
-				log_admin("[key_name(H)] has been recruited as recruit of [F.name] via create antagonist verb.")
+				FF.HandleRecruitedRole(RR)
+				RR.OnPostSetup()
+				RR.Greet(GREET_LATEJOIN)
+				message_admins("[key_name(H)] has been recruited as recruit of [FF.name] via create antagonist verb.")
 				recruit_count++
 
+		FF.forgeObjectives()
 		FF.OnPostSetup()
 
 		return recruit_count
@@ -108,9 +114,10 @@ client/proc/one_click_antag()
 			if(isobserver(H))
 				H = makeBody(H)
 			var/datum/mind/M = H.mind
-
+			if(M.GetRole(initial(R.id)))
+				continue
 			var/datum/role/newRole = new R
-
+			message_admins("polling if [key_name(H)] wants to become a [newRole.name]")
 			if(!newRole)
 				continue
 
@@ -119,7 +126,8 @@ client/proc/one_click_antag()
 				continue
 			newRole.OnPostSetup()
 			newRole.ForgeObjectives()
-			log_admin("[key_name(H)] has been made into a [newRole.name] via create antagonist verb.")
+			newRole.Greet(GREET_LATEJOIN)
+			message_admins("[key_name(H)] has been made into a [newRole.name] via create antagonist verb.")
 			recruit_count++
 
 	return recruit_count
@@ -137,10 +145,11 @@ client/proc/one_click_antag()
 					continue
 				candidates.Add(H)
 	for(var/mob/M in candidates)
-		if(jobban_isbanned(M, "Syndicate"))
+		if(isantagbanned(M))
 			candidates.Remove(M)
 		if(!M.client.desires_role(role) || jobban_isbanned(M, role))
 			candidates.Remove(M)
+	message_admins("[candidates.len] potential candidates.")
 	return candidates
 
 
@@ -158,8 +167,8 @@ client/proc/one_click_antag()
 	var/syndicate_leader_selected = 0 //when the leader is chosen. The last person spawned.
 
 	//Generates a list of commandos from active ghosts. Then the user picks which characters to respawn as the commandos.
-	for(var/mob/dead/observer/G in get_active_candidates(ROLE_COMMANDO, poll="Do you wish to be considered for an elite syndicate strike team being sent in?"))
-		if(!jobban_isbanned(G, "operative") && !jobban_isbanned(G, "Syndicate"))
+	for(var/mob/dead/observer/G in get_active_candidates(ROLE_STRIKE, poll="Do you wish to be considered for an elite syndicate strike team being sent in?"))
+		if(!jobban_isbanned(G, "operative") && !isantagbanned(G))
 			candidates += G
 
 	for(var/mob/dead/observer/G in candidates)
@@ -187,8 +196,7 @@ client/proc/one_click_antag()
 					break
 
 				new_syndicate_commando.key = theghost.key
-				new_syndicate_commando.internal = new_syndicate_commando.s_store
-				new_syndicate_commando.internals.icon_state = "internal1"
+				new_syndicate_commando.equip_internals(new_syndicate_commando.s_store)
 
 				//So they don't forget their code or mission.
 
@@ -215,8 +223,7 @@ client/proc/one_click_antag()
 
 	new_character.gender = pick(MALE,FEMALE)
 
-	var/datum/preferences/A = new()
-	A.randomize_appearance_for(new_character)
+	new_character.randomise_appearance_for(new_character.gender)
 	new_character.generate_name()
 	new_character.age = rand(17,45)
 
@@ -233,8 +240,7 @@ client/proc/one_click_antag()
 
 	new_syndicate_commando.gender = pick(MALE, FEMALE)
 
-	var/datum/preferences/A = new()//Randomize appearance for the commando.
-	A.randomize_appearance_for(new_syndicate_commando)
+	new_syndicate_commando.randomise_appearance_for(new_syndicate_commando.gender)
 
 	new_syndicate_commando.real_name = "[!syndicate_leader_selected ? syndicate_commando_rank : syndicate_commando_leader_rank] [syndicate_commando_name]"
 	new_syndicate_commando.name = new_syndicate_commando.real_name
@@ -247,19 +253,21 @@ client/proc/one_click_antag()
 	new_syndicate_commando.mind.assigned_role = "MODE"
 	new_syndicate_commando.mind.special_role = "Syndicate Commando"
 
-	new_syndicate_commando.equip_syndicate_commando(syndicate_leader_selected)
+	var/datum/outfit/striketeam/syndie_deathsquad/syndie_outfit = new
+	syndie_outfit.equip(new_syndicate_commando)
 
 	return new_syndicate_commando
 
 /datum/admins/proc/makeVoxRaiders()
 
 
+// To fix...
 
 /datum/admins/proc/create_vox_raider(obj/spawn_location, leader_chosen = 0)
 	var/mob/living/carbon/human/new_vox = new(spawn_location.loc)
 
 	new_vox.setGender(pick(MALE, FEMALE))
-	new_vox.h_style = "Short Vox Quills"
+	new_vox.my_appearance.h_style = "Short Vox Quills"
 	new_vox.regenerate_icons()
 
 	new_vox.age = rand(12,20)
@@ -274,6 +282,15 @@ client/proc/one_click_antag()
 	new_vox.mind.special_role = "Vox Raider"
 	new_vox.mutations |= M_NOCLONE //Stops the station crew from messing around with their DNA.
 
-	new_vox.equip_vox_raider()
+	var/datum/outfit/striketeam/voxraider/v = new
+	v.equip(new_vox)
+
+	/*
+	spawn()
+		var/chosen_loadout = input(new_vox, "The raid is about to begin. What kind of operations would you like to specialize into?") in list("Raider", "Engineer", "Saboteur", "Medic")
+		v.chosen_spec = chosen_loadout
+		v.equip_special_items(new_vox)
+	*/
+	v.post_equip(new_vox)
 
 	return new_vox

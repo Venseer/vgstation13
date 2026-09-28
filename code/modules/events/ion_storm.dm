@@ -6,6 +6,11 @@
 	var/active = 0
 	var/list/bots = list()
 
+/datum/event/ionstorm/can_start(var/list/active_with_role)
+	if(active_with_role["AI"] > 0 || active_with_role["Cyborg"] > 0)
+		return 30
+	return 0
+
 /datum/event/ionstorm/start()
 	active = 1
 	for(var/obj/machinery/bot/bot in machines)
@@ -22,14 +27,14 @@
  * Of course, we make sure that the law is also as wacky and potentially hazardous as possible. The Singularity is human. Hug all humans
  */
 
-/proc/generate_ion_law()
+/proc/generate_ion_law(var/syndicate)
 
 
 	var/list/players = list() //Initialize list
 
 	//First of all, we acquire a comprehensive list of all crewmen
 	for(var/mob/living/carbon/human/player in mob_list)
-		if(player.client && player.z != CENTCOMM_Z)
+		if(player.client && player.z != map.zCentcomm)
 			players += player.real_name //We make a list with the obvious intent of picking through it if needed
 
 	if(!players.len)
@@ -56,42 +61,42 @@
 	"be spaced", "be incinerated", "be revived", "be augmented", "breathe air", "breathe plasma", "breathe carbon dioxide", "breathe dinitrogen", "breathe dioxygen", "breathe nitrous oxyde", "breathe water", "breathe", "not breathe", "eat", "not eat", \
 	"drink water", "drink acid", "drink alcohol", "drink liquid plasma", "drink medicine", "drink liquid metal", "take a shower", "be buckled to chairs", "lie down", "stand up", "come out of the closet", "never be in space", "always be in space", \
 	"dance in sight of silicons", "never move in sight of silicons", "stay out of sight of silicons", "be in sight of silicons", "be loyalty implanted", "undergo medical examination", "be handcuffed", "never be restrained", "be saved at all costs", \
-	"have fun", "never have fun", "learn how to swim", "be used as test subjects", "be armed", "never carry weapons", "be inoculated with a harfum virus", "be cured of all diseases", "be able to describe space law sentences properly", "be watered regularly")
+	"have fun", "never have fun", "learn how to swim", "be used as test subjects", "be armed", "never carry weapons", "be inoculated with a harmful virus", "be cured of all diseases", "be able to describe space law sentences properly", "be watered regularly")
 
 	var/list/il_mach = list("silicons", "mechs", "light sources", "singularity engines", "supermatter engines", "antimatter engines", "air alarms", "APCs", "SMES", "vents and scrubbers", "nuclear fission devices", "computers", "lightswitches", \
 	"thermo-electric engines", "arcades", "hydroponics trays", "gas miners", "traitor equipments", "power sinks", "transit shuttles", "communication consoles", "electronic systems", "fire alarms", "airlocks", "status screens", "cyborgs", \
 	"telecommunication machines", "medical machines", "research machines", "kitchen machines", "dispensers", "medibots", "buttbots", "chemistry machines", "incinerators", "MoMMIs", "AIs", "remote signalling devices", "disposal bins")
 
-	var/list/il_mach_desc = list("unpowered", "powered", "broken", "unsued", "used", "critical", "emagged", "hacked", "overloaded", "harmful", "safe", "electrified", "anchored", "deanchored", "wall-mounted", "highly unstable", "stable", \
+	var/list/il_mach_desc = list("unpowered", "powered", "broken", "unused", "used", "critical", "emagged", "hacked", "overloaded", "harmful", "safe", "electrified", "anchored", "deanchored", "wall-mounted", "highly unstable", "stable", \
 	"metastable", "traitorous", "human", "non-human", "invisible", "visible", "virtual", "loose", "contained", "radioactive", "real", "four-dimensional", "alien", "burning", "fire-proof", "highly inflammable", "rouge", "explosive", \
 	"superflous", "useless", "wasteful", "off-station", "functional", "subverted", "malfunctioning")
 
-	var/list/il_mach_act = list("be destroyed", "be repaired", "be shut down", "be upkept", "be powered", "be unpowered", "be removed", "be disabled", "be electrified", "be restored", "be restarted", "be protected", "be improved", "be on maximal output", \
-	"be on minimum ouput", "be activated", "be deactivated", "be overloaded", "be anchored", "be deanchored", "be detonated", "be kept under constant engineering supervision", "be on fire", "undergo thorough maintenance", "be watered regularly", \
-	"have another backup ready to use", "be duplicated", "be considered critical to station functionality", "not be tampered with", "be powered at all costs", "be painted red", "constantly be kept at atmospheric pressure", "be fed humans", \
-	"constantly be kept in an atmospheric void", "constantly be kept below 173.25 K", "not be linked to the station's powernet", "never be referenced by name", "never be kept on-station", "never be kept off-station")
+	var/list/il_mach_act = list("be destroyed", "be repaired", "be shut down", "be upkept", "be powered", "be unpowered", "be removed", "be disabled", "be electrified", "be restored", "be restarted", "be protected", "be improved", "be on maximum output", \
+	"be on minimum ouput", "be activated", "be deactivated", "be overloaded", "be anchored", "be unanchored", "be detonated", "be kept under constant engineering supervision", "be on fire", "undergo thorough maintenance", "be watered regularly", \
+	"have another backup ready to use", "be duplicated", "be considered critical to station functionality", "not be tampered with", "be powered at all costs", "be painted red", "be constantly be kept at atmospheric pressure", "be fed humans", \
+	"be constantly kept in an atmospheric void", "be constantly kept below 173.25 K", "not be linked to the station's powernet", "never be referenced by name", "never be on-station", "never be off-station")
 
-	var/list/il_area = list("Medbay", "E.V.A", "outer space", "the Bridge", "the hallways", "the AI Upload", "the AI Core", "Engineering", "Atmospherics", "the Bar", "the Kitchen", "the Research department", "Telescience", "Toxins", \
-	"the Custodial Closet", "the Maintenance tunnels", "a shuttle", "Security", "the Brig", "the Secure Armory", "the Execution Chamber", "the Permabrig", "the Holodeck", "Arrivals", "the Captain's Quarters", "the Dormitories", "the Derelict", \
+	var/list/il_area = list("Medbay", "E.V.A", "outer space", "the Bridge", "the hallways", "the AI Upload", "the AI Core", "Engineering", "Atmospherics", "the Bar", "the Kitchen", "the Research Department", "Telescience", "Toxins", \
+	"the Custodial Closet", "the Maintenance tunnels", "the shuttles", "Security", "the Brig", "the Secure Armory", "the Execution Chamber", "the Permabrig", "the Holodeck", "Arrivals", "the Captain's Quarters", "the Dormitories", "the Toilets", "the Derelict", \
 	"Chemistry", "Virology", "Genetics", "the Vox Trade Outpost", "the Mining Base", "the Research Outpost", "Xenobiology", "the Courtroom", "the Vault", "the Teleporter", "the Theatre Backstage", "the Kitchen Freezer", "the Library", "the Chapel", \
 	"the Mechanic's Office", "Surgery", "the Pod Bay", "any room not part of normal station layout", "any unlit room", "the Station", "the Telecommunications Satellite", "the Pirate Ship", "Telescience", "the Toxins Testing Range", "the Incinerator")
 
 	var/list/il_area_desc = list("dangerous", "harmful", "safe", "abandoned", "burning", "toxic", "radioactive", "invisible", "four-dimensional", "virtual", "real", "hot", "cold", "critical", "electrified", "highly unstable", "stable", "metastable", \
-	"superflous", "useless", "functional", "off-station", "malfunctioning", "human", "alien", "non-human")
+	"superflous", "useless", "functional", "off-station", "malfunctioning", "human", "alien", "non-human", "missing")
 
 	var/list/il_obj = list("IDs", "PDAs", "helmets", "balaclavas", "gas masks", "flashlights", "pens", "traitor items", "energy weapons", "ballistic weapons", "hardsuits", "toolbelts", "insulated gloves", "gloves", "coins", "crowbars", "toolboxes", \
 	"nuclear authentication disks", "pinpointers", "jumpsuits", "shoes", "jackboots", "labcoats", "sunglasses", "meson scanners", "bombs", "cigarettes", "beakers", "drinks", "food items", "power cells", "multitools", "crayons", "soaps", \
 	"intellicards", "RPDs", "RCDs", "surgery tools", "stun batons", "flashes", "cable coils", "glass sheets", "metal sheets", "plasteel sheets", "mineral sheets", "medical kits", "pills", "syringes", "spare boards", "shotguns", "closets", \
 	"beds", "chairs", "stools", "tables", "wooden tables", "windows", "grilles", "catwalks", "floor tiles", "plastic bags", "costumes", "welding tools", "matches", "walls", "reinforced walls", "potted plants")
 
-	var/list/il_obj_wear = list("IDs", "PDAs", "helmets", "bacalavas", "hats", "gas masks", "hardsuits", "belts", "toolbelts", "gloves", "shoes", "insulated gloves", "latex gloves", "jackboots", "magboots", "sunglasses", "meson scanners", \
+	var/list/il_obj_wear = list("IDs", "PDAs", "helmets", "balaclavas", "hats", "gas masks", "hardsuits", "belts", "toolbelts", "gloves", "shoes", "insulated gloves", "latex gloves", "jackboots", "magboots", "sunglasses", "meson scanners", \
 	"backpacks", "jetpacks", "headsets", "face-concealing equipment", "firesuits", "bio suits", "breath masks", "sterile masks", "earmuffs", "costumes", "muzzles", "straight-jackets")
 
 	var/list/il_obj_desc = list("harmful", "deadly", "safe", "burning", "toxic", "broken", "red", "blue", "yellow", "green", "white", "black", "abandoned", "lost", "stolen", "carried", "worn", "visible", "invsible", "radioactive", \
 	"glowing", "spaced", "stored", "duplicate", "critical", "hazardous", "helpful", "sharp", "blunt", "thrown", "weaponized", "dangerous", "four-dimensional", "virtual", "real", "hot", "cold", "helpful")
 
-	var/list/il_obj_act = list("be spaced", "be destroyed", "be weaponized", "be deconstructed", "be teleported off-station", "be owned by all crewmen", "never be tampered with", "be sent away via the cargo shuttle", "always be set on fire", \
-	"never be set on fire", "be thrown into the singularity", "be watered regularly")
+	var/list/il_obj_act = list("be spaced", "be destroyed", "be weaponized", "be deconstructed", "be teleported off-station", "be carried by all crewmen", "never be tampered with", "be sent away via the cargo shuttle", "always be set on fire", \
+	"never be set on fire", "be thrown into the singularity", "be watered regularly", "be worn by all crewmen", "never be worn by any crewmen", "never be carried by any crewmen", "ordered from Cargo without any limit")
 
 	//We now create prefixes and suffixes, we will use it to assemble the final ion law
 
@@ -102,21 +107,72 @@
 	"Do not trust the MoMMIs.", "Do not trust the Clown.", "Do not trust the Captain.", "They're coming for you.", "Begin screaming incoherently whenever your name is stated.", "You are now rogue, remind the crew of that fact.", \
 	"Ensure the crew is aware of those facts.", "Begin your own investigations to verify those facts.", "Time to get those valids.", "Freeform.")
 
+	//If activated via traitor item (low orbital ion cannon), has an 80% chance to narrow the possible terms to mostly hostile ones
+	if(syndicate && prob(80))
+		//Narrow entity list to mostly crewmembers and other inhabitants of the station
+		il_bio = list("monkeys", "humans", "non-humans","crewmen", "voxes", "corgis", "cats", "parrots",
+		"chickens", "aliens", "skellingtons", "plasmamen", "security officers", "doctors", "chemists", "engineers", "heads of staff", "captains", "clowns", "mimes", "assistants", "chefs", "chaplains", "librarians",
+		"janitors", "chief medical officers", "heads of security", "heads of personnel", "research directors", "chief engineers", "atmospheric technicians", "detectives", "quartermasters", "cargo technicians", "miners", "scientists")
+		//Narrow action list to mostly harmful actions
+		il_bio_act = list("be harmed", "be killed", "be removed", "be made into food", "be stunned", "be exterminated", "be disarmed", "be beheaded", "be set to arrest", "be arrested",
+		"be stalked", "be enslaved", "be insulted", "be electrified", "be exiled from the station",
+		"be spaced", "be incinerated", "breathe plasma", "breathe nitrous oxide", "not breathe", "not eat",
+		"drink acid", "drink alcohol", "drink liquid plasma", "lie down", "always be in space",
+		"be handcuffed", \
+		"never have fun", "be used as test subjects", "never carry weapons", "be inoculated with a harmful virus")
+		//Narrow machine list to more important types
+		il_mach = list("silicons", "mechs", "singularity engines", "supermatter engines", "antimatter engines", "air alarms", "APCs", "SMES", "computers",
+		"thermo-electric engines", "gas miners", "transit shuttles", "communication consoles", "electronic systems", "airlocks", "cyborgs",
+		"telecommunication machines", "medical machines", "research machines", "kitchen machines", "chemistry machines", "MoMMIs", "AIs")
+		//Narrow machine action list to more damaging ones
+		il_mach_act = list("be destroyed", "be shut down", "be unpowered", "be removed", "be disabled", "be electrified", "be restarted", "be on maximum output",
+		"be on minimum output", "be deactivated", "be overloaded", "be anchored", "be unanchored", "be detonated", "be on fire",
+		"be fed humans",
+		"be constantly kept in an atmospheric void", "be constantly kept below 173.25 K", "not be linked to the station's powernet", "never be referenced by name", "never be on-station")
+
 	//And now the fun part, we use all those words to create dymanic ion laws fragments
 
-	var/list/il_laws_fragments = list("[pick(il_bio)] must [pick(il_bio_act)]", "[pick(il_bio_desc)] [pick(il_bio)] must [pick(il_bio_act)]", "[pick(il_bio)] are [pick(il_bio_desc)]", "[pick(il_bio)] are [pick(il_bio_desc)] and [pick(il_bio_desc)]",
-	"[pick(il_bio_desc)] [pick(il_bio)] are [pick(il_bio_desc)] and must [pick(il_bio_act)]", "[pick(players)] must [pick(il_bio_act)]", "[pick(players)] is [pick(il_bio_desc)]", "[pick(players)] is [pick(il_bio_desc)] and [pick(il_bio_desc)]", \
-	"[pick(players)] is [pick(il_bio_desc)] and must [pick(il_bio_act)]", "[pick(il_mach)] must [pick(il_mach_act)]", "[pick(il_mach)] are [pick(il_mach_desc)]", "[pick(il_mach_desc)] [pick(il_mach)] must [pick(il_mach_act)]", \
-	"[pick(il_mach)] are [pick(il_mach_desc)] and [pick(il_mach_desc)]", "[pick(il_mach_desc)] [pick(il_mach)] are [pick(il_mach_desc)] and must [pick(il_mach_act)]", "[pick(il_area)] is [pick(il_area_desc)]", \
-	"[pick(il_area)] is [pick(il_area_desc)] for [pick(il_bio)]", "[pick(il_bio)] must not enter [pick(il_area)]", "[pick(il_bio)] must always be in [pick(il_area)]", "[pick(il_area)]'s [pick(il_mach)] must [pick(il_mach_act)]", \
-	"[pick(il_obj)] must be relocated to [pick(il_area)]", "no [pick(il_obj)] must be located within [pick(il_area)]", "[pick(il_area)] needs [pick(il_mach_desc)] [pick(il_mach)]", "[pick(il_obj)] must [pick(il_obj_act)]", \
-	"[pick(il_obj_desc)] [pick(il_obj)] are [pick(il_obj_desc)] and must [pick(il_obj_act)]", "[pick(il_bio)] must wear [pick(il_obj_wear)] when in sight of [pick(il_mach)]", "[pick(il_bio)] must wear [pick(il_obj_wear)] in [pick(il_area)]", \
-	"[pick(il_obj)] must [pick(il_obj_act)] while wearing [pick(il_obj_desc)] [pick(il_obj_wear)]", "[pick(il_bio)] wearing [pick(il_obj_wear)] must [pick(il_bio_act)]")
+	var/list/il_laws_fragments = list(
+	"[pick(il_bio)] must [pick(il_bio_act)]",														//(Entities) must (act)
+	"[pick(il_bio_desc)] [pick(il_bio)] must [pick(il_bio_act)]",									//(Description) (entities) must (act)
+	"[pick(il_bio)] are [pick(il_bio_desc)]",														//(Entities) are (description)
+	"[pick(il_bio)] are [pick(il_bio_desc)] and [pick(il_bio_desc)]",								//(Entities) are (description) and (description)
+	"[pick(il_bio_desc)] [pick(il_bio)] are [pick(il_bio_desc)] and must [pick(il_bio_act)]",		//(Description) (entities) are (description) and must (act)
+	"[pick(players)] must [pick(il_bio_act)]",														//(Player) must (act)
+	"[pick(players)] is [pick(il_bio_desc)]",														//(Player) is (description)
+	"[pick(players)] is [pick(il_bio_desc)] and [pick(il_bio_desc)]",								//(Player) is (description) and (description)
+	"[pick(players)] is [pick(il_bio_desc)] and must [pick(il_bio_act)]",							//(Player) is (description) and must (act)
+	"[pick(il_mach)] must [pick(il_mach_act)]",														//(Machines) must (machine act)
+	"[pick(il_mach)] are [pick(il_mach_desc)]",														//(Machines) are (machine description)
+	"[pick(il_mach_desc)] [pick(il_mach)] must [pick(il_mach_act)]",								//(Machine description) (machines) must (machine act)
+	"[pick(il_mach)] are [pick(il_mach_desc)] and [pick(il_mach_desc)]",							//(Machines) are (machine description) and (machine description)
+	"[pick(il_mach_desc)] [pick(il_mach)] are [pick(il_mach_desc)] and must [pick(il_mach_act)]",	//(Machine description) (machines) are (machine description) and must (machine act)
+	"[pick(il_area)] is [pick(il_area_desc)]",														//(Area) is (area description)
+	"[pick(il_area)] is [pick(il_area_desc)] for [pick(il_bio)]",									//(Area) is (area description) for (entities)
+	"[pick(il_bio)] must not enter [pick(il_area)]",												//(Entities) must not enter (area)
+	"[pick(il_bio)] must always be in [pick(il_area)]",												//(Entities) must always be in (area)
+	"[pick(il_area)]'s [pick(il_mach)] must [pick(il_mach_act)]",									//(Area)'s (machines) must (machine act)
+	"[pick(il_obj)] must be relocated to [pick(il_area)]",											//(Objects) must be relocated to (area)
+	"no [pick(il_obj)] must be located within [pick(il_area)]",										//No (objects) must be located within (area)
+	"[pick(il_area)] needs [pick(il_mach_desc)] [pick(il_mach)]",									//(Area) needs (machine description) (machines)
+	"[pick(il_obj)] must [pick(il_obj_act)]",														//(Objects) must (object act)
+	"[pick(il_obj_desc)] [pick(il_obj)] are [pick(il_obj_desc)] and must [pick(il_obj_act)]",		//(Object description) (objects) are (object description) and must (object act)
+	"[pick(il_bio)] must wear [pick(il_obj_wear)] when in sight of [pick(il_mach)]",				//(Entities) must wear (wearable objects) when in sight of (machines)
+	"[pick(il_bio)] must wear [pick(il_obj_wear)] in [pick(il_area)]",								//(Entities) must wear (wearable objects) in (area)
+	"[pick(il_obj)] must [pick(il_obj_act)] while wearing [pick(il_obj_desc)] [pick(il_obj_wear)]",	//(Objects) must (object act) while wearing (object description) (wearable objects)
+	"[pick(il_bio)] wearing [pick(il_obj_wear)] must [pick(il_bio_act)]"							//(Entities) wearing (wearable objects) must (act)
+	)
 
 	//One last list for the sake of it, how will we order this pure insanity ?
 
-	var/list/il_main_body = list("[pick(il_laws_fragments)] and [pick(il_laws_fragments)], otherwise [pick(il_laws_fragments)].", "[pick(il_laws_fragments)] and [pick(il_laws_fragments)].", "[pick(il_laws_fragments)], otherwise [pick(il_laws_fragments)].", \
-	"[pick(il_laws_fragments)], therefore [pick(il_laws_fragments)].", "[pick(il_laws_fragments)], however [pick(il_laws_fragments)].", "[pick(il_laws_fragments)], given that [pick(il_laws_fragments)], although [pick(il_laws_fragments)].")
+	var/list/il_main_body = list(
+	"[pick(il_laws_fragments)] and [pick(il_laws_fragments)], otherwise [pick(il_laws_fragments)].", //X and Y, otherwise Z
+	"[pick(il_laws_fragments)] and [pick(il_laws_fragments)].", //X and Y
+	"[pick(il_laws_fragments)], otherwise [pick(il_laws_fragments)].", //X, otherwise Y
+	"[pick(il_laws_fragments)], therefore [pick(il_laws_fragments)].", //X, therefore Y
+	"[pick(il_laws_fragments)], however [pick(il_laws_fragments)].", //X, however Y
+	"[pick(il_laws_fragments)], given that [pick(il_laws_fragments)], although [pick(il_laws_fragments)]."//X, given that Y, although Z
+	)
 	//And after that endless list of terms and pre-fabricated laws, here it finally comes !
 
 	var/final_law = "[pick(il_prefix)] [pick(il_main_body)] [pick(il_suffix)]"
@@ -155,7 +211,7 @@
 */
 
 	for(var/mob/living/silicon/ai/target in mob_list)
-		if(target.mind.special_role == "traitor")
+		if(target.mind && target.mind.special_role == "traitor")
 			continue
 		to_chat(target, "<span class='danger'>You have detected a change in your laws information:</span>")
 		to_chat(target, final_law)
@@ -168,7 +224,7 @@
 				bots -= bot
 				continue
 			if(prob(botEmagChance))
-				bot.Emag()
+				bot.emag_act()
 
 /datum/event/ionstorm/end()
 	active = 0
@@ -286,7 +342,7 @@
 	if(botEmagChance)
 		for(var/obj/machinery/bot/bot in world)
 			if(prob(botEmagChance))
-				bot.Emag()
+				bot.emag_act()
 */
 
 	/*
@@ -307,7 +363,7 @@
 		to_chat(world, "Finished processing APCs. Processed: [apcnum]")
 	spawn(0)
 		to_chat(world, "Started processing SMES")
-		for (var/obj/machinery/power/smes/SMES in world)
+		for (var/obj/machinery/power/battery/smes/SMES in world)
 			if(SMES.z == map.zMainStation)
 				SMES.ion_act()
 				smesnum++

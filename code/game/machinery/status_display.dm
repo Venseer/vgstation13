@@ -25,7 +25,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 	name = "status display"
 	anchored = 1
 	density = 0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 10
 	var/mode = 1	// 0 = Blank
 					// 1 = Shuttle timer
@@ -50,14 +50,22 @@ var/global/list/status_displays = list() //This list contains both normal status
 	maptext_width = WORLD_ICON_SIZE
 	layer = ABOVE_WINDOW_LAYER
 
+/obj/machinery/status_display/supply
+	supply_display = 1
+
 // new display
 // register for radio system
 /obj/machinery/status_display/New()
 	..()
 	status_displays |= src
-	spawn(5)	// must wait for map loading to finish
-		if(radio_controller)
-			radio_controller.add_object(src, frequency)
+
+	if (ticker && ticker.current_state == GAME_STATE_PLAYING)
+		initialize()
+
+/obj/machinery/status_display/initialize()
+	..()
+	if(radio_controller)
+		radio_controller.add_object(src, frequency)
 
 /obj/machinery/status_display/Destroy()
 	.=..()
@@ -65,7 +73,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 
 // timed process
 /obj/machinery/status_display/process()
-	if(stat & NOPOWER)
+	if(stat & (FORCEDISABLE|NOPOWER))
 		remove_display()
 		return
 	if(spookymode)
@@ -85,7 +93,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 		if(user.stat)
 			to_chat(user, "<span class='warning'>Unable to connect to [src] (error #408)</span>")
 			return
-		if(stat & (BROKEN|NOPOWER))
+		if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 			to_chat(user, "<span class='warning'>Unable to connect to [src] (error #[(stat & BROKEN) ? "120" : "408"])</span>")
 			return
 
@@ -99,8 +107,8 @@ var/global/list/status_displays = list() //This list contains both normal status
 			if("Emergency shuttle timer")
 				mode = MODE_SHUTTLE_TIMER
 			if("Text message")
-				var/msg1 = input(A, "Write the first line: ", "Status display", message1) //First line
-				var/msg2 = input(A, "Write the second line: ", "Status display", message2) //Second line
+				var/msg1 = sanitize(input(A, "Write the first line: ", "Status display", message1)) //First line
+				var/msg2 = sanitize(input(A, "Write the second line: ", "Status display", message2)) //Second line
 				mode = MODE_MESSAGE
 
 				set_message(msg1, msg2)
@@ -114,7 +122,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 				mode = MODE_CARGO_TIMER
 
 /obj/machinery/status_display/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 	set_picture("ai_bsod")
@@ -133,7 +141,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 		if(MODE_SHUTTLE_TIMER)				//emergency shuttle timer
 			if(emergency_shuttle.online)
 				var/line1
-				var/line2 = get_shuttle_timer()
+				var/line2 = emergency_shuttle.get_shuttle_timer()
 				if(emergency_shuttle.location == 1)
 					line1 = "-ETD-"
 				else
@@ -192,7 +200,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 				ETwut = "-ETD-"
 			else
 				ETwut = "-ETA-"
-			to_chat(user, "<span class='info'>The display says:<br>\t<xmp>[ETwut]</xmp><br>\t<xmp>[get_shuttle_timer()]</xmp></span>")
+			to_chat(user, "<span class='info'>The display says:<br>\t<xmp>[ETwut]</xmp><br>\t<xmp>[emergency_shuttle.get_shuttle_timer()]</xmp></span>")
 		if(MODE_MESSAGE)
 			to_chat(user, "<span class='info'>The display says:<br>\t<xmp>[message1]</xmp><br>\t<xmp>[message2]</xmp></span>")
 
@@ -216,17 +224,13 @@ var/global/list/status_displays = list() //This list contains both normal status
 	picture_state = state
 	remove_display()
 	overlays += image('icons/obj/status_display.dmi', icon_state=picture_state)
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_statusdisplay")
 
 /obj/machinery/status_display/proc/update_display(line1, line2)
 	var/new_text = {"<div style="font-size:[FONT_SIZE];color:[FONT_COLOR];font:'[FONT_STYLE]';text-align:center;" valign="top">[line1]<br>[line2]</div>"}
 	if(maptext != new_text)
 		maptext = new_text
-
-/obj/machinery/status_display/proc/get_shuttle_timer()
-	var/timeleft = emergency_shuttle.timeleft()
-	if(timeleft)
-		return "[add_zero(num2text((timeleft / 60) % 60),2)]:[add_zero(num2text(timeleft % 60), 2)]"
-	return ""
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_statusdisplay")
 
 /obj/machinery/status_display/proc/get_supply_shuttle_timer()
 	if(SSsupply_shuttle.moving)
@@ -241,6 +245,7 @@ var/global/list/status_displays = list() //This list contains both normal status
 		overlays.len = 0
 	if(maptext)
 		maptext = ""
+	kill_moody_light()
 
 /obj/machinery/status_display/receive_signal(datum/signal/signal)
 	switch(signal.data["command"])
@@ -338,6 +343,7 @@ var/global/list/status_display_images = list(
 	name = "AI display"
 	anchored = 1
 	density = 0
+	layer = ABOVE_WINDOW_LAYER
 
 	var/spookymode=0 // Ghosts
 
@@ -365,12 +371,11 @@ var/global/list/status_display_images = list(
 
 	if(isAI(user)) //This allows AIs to load any image into the status displays
 		var/mob/living/silicon/ai/A = user
-
 		//Some fluff
 		if(user.stat)
 			to_chat(user, "<span class='warning'>Unable to connect to [src] (error #408)</span>")
 			return
-		if(stat & (BROKEN|NOPOWER))
+		if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 			to_chat(user, "<span class='warning'>Unable to connect to [src] (error #[(stat & BROKEN) ? "120" : "408"])</span>")
 			return
 
@@ -382,7 +387,7 @@ var/global/list/status_display_images = list(
 			src.set_picture(status_display_images[new_icon])
 
 /obj/machinery/ai_status_display/process()
-	if(stat & NOPOWER)
+	if(stat & (NOPOWER|FORCEDISABLE))
 		overlays.len = 0
 		return
 	if(spookymode)
@@ -393,7 +398,7 @@ var/global/list/status_display_images = list(
 	update()
 
 /obj/machinery/ai_status_display/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 	set_picture("ai_bsod")

@@ -14,6 +14,7 @@
 	var/obj/item/device/assembly/a_left = null
 	var/obj/item/device/assembly/a_right = null
 	var/obj/special_assembly = null
+	toolsounds = list('sound/items/Screwdriver.ogg')
 
 /obj/item/device/assembly_holder/proc/attach(var/obj/item/device/D, var/obj/item/device/D2, var/mob/user)
 	return
@@ -87,11 +88,19 @@
 	if(a_left)
 		overlays += image(icon = icon, icon_state = "[a_left.icon_state]_left")
 		for(var/O in a_left.attached_overlays)
-			overlays += image(icon = icon, icon_state = "[O]_l")
+			var/image/I = a_left.attached_overlays[O]
+			var/image/J = image(icon = I.icon, icon_state = "[I.icon_state]_r", dir = I.dir)
+			J.layer = I.layer
+			J.plane = I.plane
+			overlays += J
 	if(a_right)
 		src.overlays += image(icon = icon, icon_state = "[a_right.icon_state]_right")
 		for(var/O in a_right.attached_overlays)
-			overlays += image(icon = icon, icon_state = "[O]_r")
+			var/image/I = a_right.attached_overlays[O]
+			var/image/J = image(icon = I.icon, icon_state = "[I.icon_state]_r", dir = I.dir)
+			J.layer = I.layer
+			J.plane = I.plane
+			overlays += J
 	if(master)
 		master.update_icon()
 
@@ -159,7 +168,7 @@
 
 
 /obj/item/device/assembly_holder/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(isscrewdriver(W))
+	if(W.is_screwdriver(user))
 		if(!a_left || !a_right)
 			to_chat(user, "<span class='warning'>BUG:Assembly part missing, please report this!</span>")
 			return
@@ -181,7 +190,7 @@
 		if(!isigniter(a_left) && !isigniter(a_right))
 			to_chat(user, "<span class='warning'>You can't make an igniter without an igniting component!</span>")
 			return
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		to_chat(user, "<span class='notice'>You begin to weld \the [src] to the floor...</span>")
 		if (WT.do_weld(user, src, 40, 0))
 			var/obj/machinery/igniter/igniter=new(src.loc)
@@ -228,6 +237,9 @@
 
 
 /obj/item/device/assembly_holder/process_activation(var/obj/D, var/normal = 1, var/special = 1)
+	if (QDELETED(src))
+		// if this assembly was in a grenade that exploded and was thus qdel'd by the time we get here
+		return
 	if(!D)
 		return 0
 	if(!secured)
@@ -257,15 +269,14 @@
 	ign.secured = 1
 	ign.holder = src
 	var/obj/item/device/assembly/timer/tmr = new(src)
-	tmr.time=5
+	tmr.time=10
 	tmr.secured = 1
 	tmr.holder = src
-	processing_objects.Add(tmr)
 	a_left = tmr
 	a_right = ign
 	secured = 1
 	update_icon()
-	name = initial(name) + " ([tmr.time] secs)"
+	name = initial(name)
 
 	loc.verbs += /obj/item/device/assembly_holder/timer_igniter/verb/configure
 
@@ -276,7 +287,6 @@
 /obj/item/device/assembly_holder/timer_igniter/verb/configure()
 	set name = "Set Timer"
 	set category = "Object"
-	set src in usr
 
 	if ( !(usr.isUnconscious() || usr.restrained()) )
 		var/obj/item/device/assembly_holder/holder

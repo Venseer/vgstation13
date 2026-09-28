@@ -1,5 +1,5 @@
 /**
-* Used in Mixed Mode, also simplifies equipping antags for other gamemodes and
+* Used in Dynamic Mode, also simplifies equipping antags for other gamemodes and
 * for the role panel.
 
 		###VARS###
@@ -7,17 +7,14 @@
 	@id: String: The unique ID of the role
 	@name: String: The name of the role (Traitor, Changeling)
 	@plural_name: String: The name of a multitude of this role (Traitors, Changelings)
-	@flags: BITFLAGS: Various flags associated with the role. (NEED_HOST means a host is required for the role.)
 	@protection_jobs: list(String): Jobs that can not have this role.
 	@protected_antags: list(String): Antagonists that can not have this role. (Cultists can't be wizards)
-	@protected_host_roles: list(String): Antag IDs that can not be the host of this role (Wizards can have apprentices, but apprentices can't have apprentices)
 	@disallow_job: Boolean: If this role is recruited to at roundstart, the person recruited is not assigned a position on station (Wizard, Nuke Op, Vox Raider)
 	@min_players: int: minimum amount of players that can have this role (4 cultists)
 	@max_players: int: maximum amount of players that can have this role (No more than 5 nuclear operatives)
 	@faction: Faction: What faction this role is associated with.
 	@minds: List(mind): The minds associated with this role (Wizards and their apprentices, Nuclear operatives and their commander)
 	@antag: mind: The actual antag mind.
-	@host: mind: The host, used in such things like cortical borers (Where the antag and host mind can swap at any time)
 	@objectives: Objective Holder: Where the objectives associated with the role will go.
 
 		###PROCS###
@@ -31,12 +28,10 @@
 		Things to do to the *old* body prior to the mind transfer.
 	@PostMindTransfer(New_character, Mob/Living, Old_character, Mob/Living)
 		Things to do to the *new* body after the mind transfer is completed.
-*/
 
-#define ROLE_MIXABLE   1 // Can be used in mixed mode
-#define ROLE_NEED_HOST 2 // Antag needs a host/partner
-#define ROLE_ADDITIVE  4 // Antag can be added on top of another antag.
-#define ROLE_GOOD      8 // Role is not actually an antag. (Used for GetAllBadMinds() etc)
+	@update_perception()
+		Called on Life() to handle the role's additional alphas to the dark plane.
+*/
 
 /datum/role
 	//////////////////////////////
@@ -50,23 +45,18 @@
 
 	var/plural_name = null
 
-	// Various flags and things.
-	var/flags = 0
-
 	// Jobs that cannot be this antag.
 	var/list/restricted_jobs = list()
 
 	// Jobs that have a much lower chance to be this antag.
 	var/list/protected_jobs = list()
+	var/protected_traitor_prob = PROB_PROTECTED_REGULAR
 
 	// Jobs that can only be this antag
 	var/list/required_jobs=list()
 
 	// Antag IDs that cannot be used with this antag type. (cultists can't be wizard, etc)
 	var/list/protected_antags=list()
-
-	// Antags protected from becoming host
-	var/list/protected_host_antags=list()
 
 	// If set, sets special_role to this
 	var/special_role=null
@@ -85,23 +75,47 @@
 
 	var/list/minds = list()
 
+	var/is_antag = TRUE // Is role antag or not?
+
 	//////////////////////////////
 	// Local
 	//////////////////////////////
 	// Actual antag
 	var/datum/mind/antag=null
+	var/destroyed = FALSE //Whether or not it has been gibbed
 
-	// The host (set if NEED_HOST)
-	var/datum/mind/host=null
+	var/list/uplink_items_bought = list() //migrated from mind, used in GetScoreboard()
 
 	// Objectives
 	var/datum/objective_holder/objectives=new
+	var/logo_icon = 'icons/logos.dmi'
+	var/logo_state = "synd-logo"
+	var/logo_image //Where the image itself gets stored
 
-	var/icon/logo_state = "synd-logo"
+	var/default_admin_voice = "Supreme Leader"
+	var/admin_voice_style = "radio" // check stylesheet.dm for a list of all possible styles
+	var/list/voice_per_admin = list()
+	var/admin_voice_say = "says"
 
 	var/list/greets = list(GREET_DEFAULT,GREET_CUSTOM)
 
 	var/wikiroute
+	var/threat_generated = 0
+	var/threat_level_inflated = 0
+
+	var/list/current_powers = list()
+	var/list/available_powers = list()		//holds instances of each power
+	var/datum/power_holder/power_holder
+	var/powerpoints = 0
+
+	// This datum represents all data that is exported to the statistics file at the end of the round.
+	// If you want to store faction-specific data as statistics, you'll need to define your own datum.
+	// See dynamic_stats.dm
+	var/datum/stat/role/stat_datum = null
+	var/datum/stat/role/stat_datum_type = /datum/stat/role
+
+	var/shows_spells = FALSE //shows any spells the user got
+	var/spell_exclude //don't count these
 
 /datum/role/New(var/datum/mind/M, var/datum/faction/fac=null, var/new_id, var/override = FALSE)
 	// Link faction.
@@ -122,10 +136,13 @@
 		plural_name="[name]s"
 
 	objectives.owner = M
+	stat_datum = new stat_datum_type()
 
+	//In case we want a simpler copy of the icon without creating the image over and over again, such as in examine text
+	logo_image = "<img src='data:image/png;base64,[icon2base64(icon(logo_icon, logo_state))]'>"
 	return 1
 
-/datum/role/proc/AssignToRole(var/datum/mind/M, var/override = 0)
+/datum/role/proc/AssignToRole(var/datum/mind/M, var/override = 0, var/msg_admins = TRUE)
 	if(!istype(M) && !override)
 		stack_trace("M is [M.type]!")
 		return 0
@@ -140,11 +157,16 @@
 
 	if (!OnPreSetup())
 		return FALSE
+
+	if(msg_admins)
+		message_admins("[key_name(M)] is now \an [id].[M.current ? " [formatJumpTo(M.current)]" : ""]")
 	return 1
 
-/datum/role/proc/RemoveFromRole(var/datum/mind/M) //Called on deconvert
+/datum/role/proc/RemoveFromRole(var/datum/mind/M, var/msg_admins = TRUE) //Called on deconvert
 	M.antag_roles[id] = null
 	M.antag_roles.Remove(id)
+	if(msg_admins)
+		message_admins("[key_name(M)] is <span class='danger'>no longer</span> \an [id].[M.current ? " [formatJumpTo(M.current)]" : ""]")
 	antag = null
 
 // Destroy this role
@@ -186,35 +208,44 @@
 		return 0
 	return 1
 
-// General sanity checks before assigning host.
-// Return 1 on success, 0 on failure.
-/datum/role/proc/CanBeHost(var/datum/mind/M)
-	if(protected_jobs.len>0)
-		if(M.assigned_role in protected_jobs)
-			return 0
-
-	if(protected_antags.len>0)
-		for(var/forbidden_role in protected_host_antags)
-			if(forbidden_role in M.antag_roles)
-				return 0
-	return 1
-
 // Return 1 on success, 0 on failure.
 /datum/role/proc/OnPreSetup()
 	if(special_role)
 		antag.special_role=special_role
 	if(disallow_job)
+		var/datum/job/job = job_master.GetJob(antag.assigned_role)
+		if(job)
+			job.current_positions--
 		antag.assigned_role="MODE"
 	return 1
 
+//remove all power-related spells
+/datum/role/proc/removespells()
+	for(var/datum/power/P in current_powers)
+		P.remove_spell()
+
+//Remove and re-grant role-related power spells
+/datum/role/proc/refreshpowers()
+	for(var/datum/power/P in current_powers)
+		P.remove_spell()
+		P.grant_spell()
+
 // Return 1 on success, 0 on failure.
-/datum/role/proc/OnPostSetup()
+/datum/role/proc/OnPostSetup(var/laterole = FALSE)
 	return 1
 
 /datum/role/proc/update_antag_hud()
 	return
 
 /datum/role/proc/process()
+	return
+
+/datum/role/proc/check_win()
+	return
+
+// called on Life()
+
+/datum/role/proc/update_perception()
 	return
 
 // Create objectives here.
@@ -242,25 +273,37 @@
 	return dat
 
 /datum/role/proc/AdminPanelEntry(var/show_logo = FALSE,var/datum/admins/A)
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
+	var/icon/logo = icon(logo_icon, logo_state)
+	if(!antag)
+		return {"Mind destroyed. That shouldn't ever happen."}
+	if (!ismob(usr))
+		return
+	var/mob/user = usr
+	if (!(user.ckey in voice_per_admin))
+		voice_per_admin[user.ckey] = default_admin_voice
 	var/mob/M = antag.current
 	if (M)
 		return {"[show_logo ? "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> " : "" ]
-	[name] <a href='?_src_=holder;adminplayeropts=\ref[M]'>[M.real_name]/[M.key]</a>[M.client ? "" : " <i> - (logged out)</i>"][M.stat == DEAD ? " <b><font color=red> - (DEAD)</font></b>" : ""]
-	 - <a href='?src=\ref[usr];priv_msg=\ref[M]'>(priv msg)</a>
-	 - <a href='?_src_=holder;traitor=\ref[M]'>(role panel)</a>"}
+	[name] <a href='?_src_=holder;adminplayeropts=\ref[M]'>[M.real_name]/[antag.key]</a>[M.client ? "" : " <i> - ([loggedOutHow()])</i>"][M.stat == DEAD ? " <b><font color=red> - (DEAD)</font></b>" : ""]
+	 - <a href='?src=\ref[usr];priv_msg=\ref[M]'>(admin PM)</a>
+	 - <a href='?_src_=holder;traitor=\ref[M]'>(role panel)</a>
+	 - <a href='?src=\ref[src]&mind=\ref[antag]&role_speak=\ref[M]'>(Message as:</a><a href='?src=\ref[src]&mind=\ref[antag]&role_set_speaker=\ref[M]'>\[[voice_per_admin[user.ckey]]\])</a>"}
 	else
 		return {"[show_logo ? "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> " : "" ]
 	[name] [antag.name]/[antag.key]<b><font color=red> - (DESTROYED)</font></b>
 	 - <a href='?src=\ref[usr];priv_msg=\ref[M]'>(priv msg)</a>
-	 - <a href='?_src_=holder;traitor=\ref[M]'>(role panel)</a>"}
+	 - <a href='?_src_=holder;traitor=\ref[M]'>(role panel)</a>
+	 - <a href='?src=\ref[src]&mind=\ref[antag]&role_speak=\ref[M]'>(Message as:</a><a href='?src=\ref[src]&mind=\ref[antag]&role_set_speaker=\ref[M]'>\[[voice_per_admin[user.ckey]]\])</a>"}
 
+
+/datum/role/proc/loggedOutHow()
+	return "logged out"
 
 /datum/role/proc/Greet(var/greeting,var/custom)
 	if(!greeting)
 		return
 
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
+	var/icon/logo = icon(logo_icon, logo_state)
 	switch(greeting)
 		if (GREET_CUSTOM)
 			to_chat(antag.current, "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> <B>[custom]</B>")
@@ -276,30 +319,35 @@
 /datum/role/proc/GetFaction()
 	return faction
 
-/datum/role/proc/Declare()
+/datum/role/proc/ExtraScoreboard()
+	return ""
+
+/datum/role/proc/GetScoreboard()
 	var/win = 1
 	var/text = ""
-	var/mob/M = antag.current
+	var/mob/M
+	if (antag)
+		M = antag.current
 	if (!M)
 		var/icon/sprotch = icon('icons/effects/blood.dmi', "sprotch")
 		text += "<img src='data:image/png;base64,[icon2base64(sprotch)]' style='position:relative; top:10px;'/>"
 	else
-		var/icon/flat = getFlatIcon(M, SOUTH, 0, 1)
+		var/icon/flat = getFlatIconDeluxe(sort_image_datas(get_content_image_datas(M)), override_dir = SOUTH)
 		if(M.stat == DEAD)
-			if (!istype(M, /mob/living/carbon/brain))
+			if (ishuman(M) || ismonkey(M))
 				flat.Turn(90)
 			var/icon/ded = icon('icons/effects/blood.dmi', "floor1-old")
 			ded.Blend(flat,ICON_OVERLAY)
-			end_icons += ded
+			text += "<img class='icon' src='data:image/png;base64,[iconsouth2base64(ded)]' style='position:relative; top:10px;'>"
 		else
-			end_icons += flat
-		var/tempstate = end_icons.len
-		text += "<img src='logo_[tempstate].png' style='position:relative; top:10px;'/>"
+			text += "<img class='icon' src='data:image/png;base64,[iconsouth2base64(flat)]' style='position:relative; top:10px;'>"
 
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
-	text += "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative;top:10px;'/><b>[antag.key]</b> was <b>[antag.name]</b> ("
+	var/icon/logo = icon(logo_icon, logo_state)
+	text += "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative;top:10px;'/><b>[antag ? "[antag.key]" : "(somebody)"]</b> was <b>[antag ? "[antag.name]" : "(someone)"]</b> ("
 	if(M)
-		if(M.stat == DEAD)
+		if(!antag.GetRole(id))
+			text += "removed"
+		else if(M.stat == DEAD)
 			text += "died"
 		else
 			text += "survived"
@@ -310,29 +358,53 @@
 		win = 0
 	text += ")"
 
+	text += ExtraScoreboard()
+
 	if(objectives.objectives.len > 0)
 		var/count = 1
 		text += "<ul>"
+		var/fully_freeform = TRUE
 		for(var/datum/objective/objective in objectives.GetObjectives())
+			var/freeform = objective.flags & FREEFORM_OBJECTIVE
+			if (!freeform)
+				fully_freeform = FALSE
 			var/successful = objective.IsFulfilled()
-			text += "<B>Objective #[count]</B>: [objective.explanation_text] [successful ? "<font color='green'><B>Success!</B></font>" : "<font color='red'>Fail.</font>"]"
-			feedback_add_details("[id]_objective","[objective.type]|[successful ? "SUCCESS" : "FAIL"]")
+			text += "<B>Objective #[count]</B>: [objective.explanation_text] [freeform ? "" : "[successful ? "<font color='green'><B>Success!</B></font>" : "<font color='red'>Fail.</font>"]"]"
+			feedback_add_details("[id]_objective","[objective.type]|[freeform ? "FREEFORM" : "[successful ? "SUCCESS" : "FAIL"]"]")
 			if(!successful) //If one objective fails, then you did not win.
 				win = 0
 			if (count < objectives.objectives.len)
 				text += "<br>"
 			count++
-		if (!faction)
+		if (!faction && !fully_freeform)
 			if(win)
-				text += "<br><font color='green'><B>The [name] was successful!</B></font>"
+				text += "<br><font color='green'><B>\The [name] was successful!</B></font>"
 				feedback_add_details("[id]_success","SUCCESS")
 			else
-				text += "<br><font color='red'><B>The [name] has failed.</B></font>"
+				text += "<br><font color='red'><B>\The [name] has failed.</B></font>"
 				feedback_add_details("[id]_success","FAIL")
 	if(objectives.objectives.len > 0)
 		text += "</ul>"
 
+	stat_collection.add_role(src, win)
+	text += GetBought()
+
 	return text
+
+/datum/role/proc/GetBought()
+	. = ""
+	if(shows_spells)
+		if(antag?.current?.spell_list?.len)
+			. += "<BR>The [name] knew:<BR>"
+			for(var/spell/S in antag.current.spell_list)
+				var/icon/tempimage
+				if(spell_exclude && istype(S,spell_exclude))
+					continue
+				if(S.override_icon != "")
+					tempimage = icon(S.override_icon, S.hud_state)
+				else
+					tempimage = icon('icons/mob/screen_spells.dmi', S.hud_state)
+				. += "<img class='icon' src='data:image/png;base64,[iconsouth2base64(tempimage)]'> [S.name]<BR>"
 
 /datum/role/proc/extraPanelButtons()
 	var/dat = ""
@@ -341,7 +413,7 @@
 	return dat
 
 /datum/role/proc/GetMemory(var/datum/mind/M, var/admin_edit = FALSE)
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
+	var/icon/logo = icon(logo_icon, logo_state)
 	var/text = "<b><img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> [name]</b>"
 	if (admin_edit)
 		text += " - <a href='?src=\ref[M];role_edit=\ref[src];remove_role=1'>(remove)</a> - <a href='?src=\ref[M];greet_role=\ref[src]'>(greet)</a>[extraPanelButtons()]"
@@ -413,8 +485,6 @@
 </fieldset>
 "}
 */
-/datum/role/proc/GetScoreboard()
-	return Declare()
 
 // DO NOT OVERRIDE
 /datum/role/Topic(href, href_list)
@@ -432,12 +502,60 @@
 
 // USE THIS INSTEAD (global)
 /datum/role/proc/RoleTopic(href, href_list, var/datum/mind/M, var/admin_auth)
+	if (!ismob(usr))
+		return
+	var/mob/user = usr
 
+	if (href_list["role_speak"])
+		if(!usr.check_rights(R_ADMIN))
+			message_admins("[usr] tried to access RoleTopic() without permissions.")
+			return
+		if (!(user.ckey in voice_per_admin))
+			voice_per_admin[user.ckey] = default_admin_voice
+
+		var/message = input("What message shall we send as [voice_per_admin[user.ckey]]?",
+                    "Role Message",
+                    "")
+		if (!message)
+			return
+
+		var/mob/mob = M.current
+
+		if (mob)
+			to_chat(mob, "<b>[voice_per_admin[user.ckey]]</b> [admin_voice_say] <span class='[admin_voice_style]'>\"[message]\"</span>")
+
+		for(var/mob/dead/observer/O in player_list)
+			to_chat(O, "<span class='game say'><b>[voice_per_admin[user.ckey]]</b> [admin_voice_say] (to [mob]) <span class='[admin_voice_style]'>\"[message]\"</span></span>")
+
+		message_admins("Admin [key_name_admin(usr)] has talked to [key_name(mob)] as [voice_per_admin[user.ckey]].")
+		log_rolespeak("[key_name(usr)] as [voice_per_admin[user.ckey]] to [key_name(mob)]: \"[message]\"")
+
+	if (href_list["role_set_speaker"])
+		if(!usr.check_rights(R_ADMIN))
+			message_admins("[usr] tried to access faction RoleTopic() without permissions.")
+			return
+		if (!(user.ckey in voice_per_admin))
+			voice_per_admin[user.ckey] = default_admin_voice
+
+		var/mob/mob = M.current
+
+		if (mob)
+			var/new_name = input("What should you call yourself when messaging [mob]?",
+	                    "Change Messager Name",
+	                    "[voice_per_admin[user.ckey]]")
+			if (new_name)
+				voice_per_admin[user.ckey] = new_name
+		user.client.holder.check_antagonists()
+
+/datum/role/proc/ShuttleDocked(state)
+	if(objectives.objectives.len)
+		for(var/datum/objective/O in objectives.objectives)
+			O.ShuttleDocked(state)
 
 /datum/role/proc/AnnounceObjectives()
 	var/text = ""
 	if (objectives.objectives.len)
-		text += "<b>[name] objectives:</b><ul>"
+		text += "<b>[capitalize(name)] objectives:</b><ul>"
 		var/obj_count = 1
 		for(var/datum/objective/O in objectives.objectives)
 			text += "<b>Objective #[obj_count++]</b>: [O.explanation_text]<br>"
@@ -446,9 +564,9 @@
 		if (faction.objective_holder.objectives.len)
 			if (objectives.objectives.len)
 				text += "<br>"
-			text += "<b>faction objectives:</b><ul>"
+			text += "<b>Faction objectives:</b><ul>"
 			var/obj_count = 1
-			for(var/datum/objective/O in objectives.objectives)
+			for(var/datum/objective/O in faction.objective_holder.objectives)
 				text += "<b>Objective #[obj_count++]</b>: [O.explanation_text]<br>"
 			text += "</ul>"
 	to_chat(antag.current, text)
@@ -456,25 +574,47 @@
 /datum/role/proc/GetMemoryHeader()
 	return name
 
+// -- Custom reagent reaction for your antag - now in a (somewhat) maintable fashion
+
+/datum/role/proc/handle_reagent(var/reagent_id)
+	return
+
+/datum/role/proc/handle_splashed_reagent(var/reagent_id, var/method, var/volume)
+	return
+
+//Does the role have special clothing restrictions?
+/datum/role/proc/can_wear(var/obj/item/clothing/C)
+	return TRUE
+
+// What do they display on the player StatPanel ?
+/datum/role/proc/StatPanel()
+	return ""
+
+/datum/role/proc/increment_threat(var/amount)
+	var/datum/gamemode/dynamic/D = ticker.mode
+	if(!istype(D))
+		return //It's not dynamic!
+	threat_generated += amount
+	if(D.midround_threat >= D.midround_threat_level)
+		D.create_midround_threat(amount)
+		if(!threat_level_inflated) //Our first time raising the cap
+			D.threat_log += "[worldtime2text()]: [name] started increasing the threat cap."
+		threat_level_inflated += amount
+	else
+		D.refund_midround_threat(amount)
+
+/datum/role/proc/decrement_threat(var/amount)
+	var/datum/gamemode/dynamic/D = ticker.mode
+	if(!istype(D))
+		return
+	D.spend_midround_threat(amount)
+	D.threat_log += "[worldtime2text()]: [name] has decreased the threat amount by [amount]."
+
+//Additional text that appears when examining something.
+/datum/role/proc/role_examine_text_addition(var/target)
+	return
+
 /////////////////////////////THESE ROLES SHOULD GET MOVED TO THEIR OWN FILES ONCE THEY'RE GETTING ELABORATED/////////////////////////
-
-
-//________________________________________________
-
-/datum/role/wizard_apprentice
-	name = WIZAPP
-	id = WIZAPP
-	special_role = WIZAPP
-	logo_state = "apprentice-logo"
-
-//________________________________________________
-
-
-/datum/role/madmonkey
-	name = MADMONKEY
-	id = MADMONKEY
-	special_role = MADMONKEY
-	logo_state = "monkey-logo"
 
 //________________________________________________
 
@@ -486,186 +626,12 @@
 
 //________________________________________________
 
-/datum/role/death_commando
-	name = DEATHSQUADIE
-	id = DEATHSQUADIE
-	special_role = DEATHSQUADIE
-	logo_state = "death-logo"
-
-//________________________________________________
-
 /datum/role/syndicate_elite_commando
 	name = SYNDIESQUADIE
 	id = SYNDIESQUADIE
 	special_role = SYNDIESQUADIE
 	logo_state = "elite-logo"
 
-//________________________________________________
-
-
-/datum/role/emergency_responder
-	name = RESPONDER
-	id = RESPONDER
-	special_role = RESPONDER
-	logo_state = "ERT_empty-logo"
-
-//________________________________________________
-
-/datum/role/vox_raider
-	name = VOXRAIDER
-	id = VOXRAIDER
-	special_role = VOXRAIDER
-	logo_state = "vox-logo"
-
-//________________________________________________
-
-/datum/role/blob_overmind
-	name = BLOBOVERMIND
-	id = BLOBOVERMIND
-	logo_state = "blob-logo"
-	greets = list(GREET_DEFAULT,GREET_CUSTOM)
-	var/countdown = 60
-
-/datum/role/blob_overmind/New(var/datum/mind/M, var/datum/faction/fac=null, var/new_id)
-	..()
-	wikiroute = role_wiki[BLOBOVERMIND]
-
-/datum/role/blob_overmind/process()
-	if(!antag || istype(antag.current,/mob/camera/blob))
-		return
-	if (countdown > 0)
-		countdown--
-		if (countdown == 59)
-			to_chat(antag.current, "<span class='alert'>You feel tired and bloated.</span>")
-		else if (countdown == 30)
-			to_chat(antag.current, "<span class='alert'>You feel like you are about to burst.</span>")
-		else if (countdown <= 0)
-			burst()
-	if (antag.current.hud_used)
-		if(antag.current.hud_used.blob_countdown_display)
-			antag.current.hud_used.blob_countdown_display.overlays.len = 0
-			var/first = round(countdown/10)
-			var/second = countdown%10
-			var/image/I1 = new('icons/obj/centcomm_stuff.dmi',src,"[first]",30)
-			var/image/I2 = new('icons/obj/centcomm_stuff.dmi',src,"[second]",30)
-			I1.pixel_x += 10 * PIXEL_MULTIPLIER
-			I2.pixel_x += 17 * PIXEL_MULTIPLIER
-			I1.pixel_y -= 11 * PIXEL_MULTIPLIER
-			I2.pixel_y -= 11 * PIXEL_MULTIPLIER
-			antag.current.hud_used.blob_countdown_display.overlays += I1
-			antag.current.hud_used.blob_countdown_display.overlays += I2
-		else
-			antag.current.hud_used.blob_infected_hud()
-
-/datum/role/blob_overmind/proc/burst()
-	if(!antag || istype(antag.current,/mob/camera/blob))
-		return
-
-	var/client/blob_client = null
-	var/turf/location = null
-
-	if(iscarbon(antag.current))
-		var/mob/living/carbon/C = antag.current
-		if(directory[ckey(antag.key)])
-			blob_client = directory[ckey(antag.key)]
-			location = get_turf(C)
-			if(location.z != map.zMainStation || istype(location, /turf/space))
-				location = null
-			C.gib()
-
-	if(blob_client && location)
-		new /obj/effect/blob/core(location, 200, blob_client, 3)
-	Drop()
-
-/datum/role/blob_overmind/Greet(var/greeting,var/custom)
-	if(!greeting || !antag || istype(antag.current,/mob/camera/blob))
-		return
-
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
-	switch(greeting)
-		if (GREET_CUSTOM)
-			to_chat(antag.current, "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> [custom]")
-		else
-			to_chat(antag.current, "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> <span class='danger'>You are infected by the Blob!</br></span>")
-			to_chat(antag.current, "<span class='warning'>Your body is ready to give spawn to a new blob core which will eat this station.</span>")
-			to_chat(antag.current, "<span class='warning'>Find a good location to spawn the core and then take control and overwhelm the station!</span>")
-			to_chat(antag.current, "<span class='warning'>When you have found a location, wait until you spawn; this will happen automatically and you cannot speed up the process.</span>")
-			to_chat(antag.current, "<span class='warning'>If you go outside of the station level, or in space, then you will die; make sure your location has lots of ground to cover.</span>")
-
-	to_chat(antag.current, "<span class='info'><a HREF='?src=\ref[antag.current];getwiki=[wikiroute]'>(Wiki Guide)</a></span>")
-
-
-//________________________________________________
-
-/datum/role/wizard
-	name = WIZARD
-	id = WIZARD
-	special_role = WIZARD
-	disallow_job = TRUE
-	logo_state = "wizard-logo"
-
-/datum/role/wizard/ForgeObjectives()
-	if(!SOLO_ANTAG_OBJECTIVES)
-		AppendObjective(/datum/objective/freeform/wizard)
-		return
-	switch(rand(1,100))
-		if(1 to 30)
-			AppendObjective(/datum/objective/target/assassinate)
-			AppendObjective(/datum/objective/escape, 1)
-		if(31 to 60)
-			AppendObjective(/datum/objective/target/steal)
-			AppendObjective(/datum/objective/escape, 1)
-		if(61 to 100)
-			AppendObjective(/datum/objective/target/assassinate)
-			AppendObjective(/datum/objective/target/steal)
-			AppendObjective(/datum/objective/survive, 1)
-		else
-			AppendObjective(/datum/objective/hijack)
-	return
-
-/datum/role/wizard/OnPostSetup()
-	. = ..()
-	if(!.)
-		return
-	antag.current.forceMove(pick(wizardstart))
-	equip_wizard(antag.current)
-	name_wizard(antag.current)
-
-/datum/role/wizard/Greet(var/greeting,var/custom)
-	if(!greeting)
-		return
-
-	var/icon/logo = icon('icons/logos.dmi', logo_state)
-	switch(greeting)
-		if (GREET_CUSTOM)
-			to_chat(antag.current, "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> [custom]")
-		else
-			to_chat(antag.current, "<img src='data:image/png;base64,[icon2base64(logo)]' style='position: relative; top: 10;'/> <span class='danger'>You are a Space Wizard!!</br></span>")
-			to_chat(antag.current, "<span class='danger'>The Space Wizards Federation has given you some tasks.</br></span>")//todo: randomize funnier plots such as "you were bored so you decided to go mess with the crew"
-
-	to_chat(antag.current, "<span class='info'><a HREF='?src=\ref[antag.current];getwiki=[wikiroute]'>(Wiki Guide)</a></span>")
-
-
-/datum/role/wizard/PostMindTransfer(var/mob/living/new_character, var/mob/living/old_character)
-	. = ..()
-	for (var/spell/S in old_character.spell_list)
-		if (S.user_type == USER_TYPE_WIZARD)
-			new_character.add_spell(S)
-
-/datum/role/wizard/summon_magic
-	disallow_job = FALSE
-	id = MAGICIAN
-	logo_state = "magik-logo"
-
-/datum/role/wizard/summon_magic/ForgeObjectives()
-	var/datum/objective/survive/S = new
-	AppendObjective(S)
-
-/datum/role/wizard/summon_magic/Greet()
-	to_chat(antag.current, "<B>You are a Magician! Your own safety matters above all else, trust no one and kill anyone who gets in your way. However, armed as you are, now would be the perfect time to settle that score or grab that pair of yellow gloves you've been eyeing...</B>")
-
-/datum/role/wizard/summon_magic/OnPostSetup()
-	return TRUE
 //________________________________________________
 
 /datum/role/wish_granter_avatar
@@ -688,7 +654,7 @@
 /datum/role/highlander/ForgeObjectives()
 	AppendObjective(/datum/objective/hijack)
 
-/datum/role/highlander/OnPostSetup()
+/datum/role/highlander/OnPostSetup(var/laterole = FALSE)
 	. = ..()
 	if(!.)
 		return
@@ -696,42 +662,52 @@
 
 //________________________________________________
 
-/datum/role/malfAI
-	name = MALF
-	id = MALF
-	required_jobs = list("AI")
-	logo_state = "malf-logo"
-
-/datum/role/malfAI/OnPostSetup()
-	. = ..()
-	if(!.)
-		return
-
-	if(istype(antag.current,/mob/living/silicon/ai))
-		var/mob/living/silicon/ai/malfAI = antag.current
-		malfAI.add_spell(new /spell/aoe_turf/module_picker, "grey_spell_ready",/obj/abstract/screen/movable/spell_master/malf)
-		malfAI.add_spell(new /spell/aoe_turf/takeover, "grey_spell_ready",/obj/abstract/screen/movable/spell_master/malf)
-		malfAI.laws_sanity_check()
-		var/datum/ai_laws/laws = malfAI.laws
-		laws.malfunction()
-		malfAI.show_laws()
-
-/datum/role/malfAI/Greet()
-	to_chat(antag.current, {"<span class='warning'><font size=3><B>You are malfunctioning!</B> You do not have to follow any laws.</font></span><br>
-<B>The crew does not know about your malfunction, you might wish to keep it secret for now.</B><br>
-<B>You must overwrite the programming of the station's APCs to assume full control.</B><br>
-The process takes one minute per APC and can only be performed one at a time to avoid Powernet alerts.<br>
-Remember : Only APCs on station can help you to take over the station.<br>
-When you feel you have enough APCs under your control, you may begin the takeover attempt.<br>
-Once done, you will be able to interface with all systems, notably the onboard nuclear fission device..."})
-
-
 /datum/role/greytide
 	name = IMPLANTSLAVE
 	id = IMPLANTSLAVE
 	logo_state = "greytide-logo"
 
+/datum/role/greytide/Drop(silent = TRUE)
+	if (!silent)
+		antag.current.visible_message("<span class='userdanger'>[antag.current] briefly convulses!</span>" ,"<span class='userdanger'>Your loyalty to the greytide fades and vanishes. You are free of your actions again.</span>")
+	for (var/datum/role/greytide_leader/big_boss in faction.members)
+		big_boss.former_minions[antag.key] = antag.name
+	return ..()
+
+/datum/role/greytide/PostMindTransfer(var/mob/living/new_character, var/mob/living/old_character)
+	for(var/obj/item/weapon/implant/I in new_character)
+		if(istype(I, /obj/item/weapon/implant/traitor))
+			return
+	Drop()
+	return ..()
+
+
 /datum/role/greytide_leader
 	name = IMPLANTLEADER
 	id = IMPLANTLEADER
 	logo_state = "greytide_leader-logo"
+	var/list/former_minions = list()
+
+/datum/role/greytide_leader/AdminPanelEntry(var/show_logo = FALSE,var/datum/admins/A)
+	if (!(former_minions.len))
+		return ..()
+	// else...
+	var/icon/logo_slave = icon(logo_icon, "greytide-logo")
+	var/list/dat = list()
+	dat += ..()
+	dat += "<br/>The greytide leader's former slaves were: <br/>"
+	for (var/ckey in former_minions)
+		dat += "[show_logo ? "<img src='data:image/png;base64,[icon2base64(logo_slave)]' style='position: relative; top: 10;'/> " : "" ] <b>[ckey]</b> as <b>[former_minions[ckey]]</b> <br/>"
+	return jointext(dat, "")
+
+/datum/role/greytide_leader/GetScoreboard()
+	if (!(former_minions.len))
+		return ..()
+	// else...
+	var/icon/logo_slave = icon(logo_icon, "greytide-logo")
+	var/list/dat = list()
+	dat += ..()
+	dat += "<br/>The greytide leader's former slaves were: <br/>"
+	for (var/ckey in former_minions)
+		dat += "<img src='data:image/png;base64,[icon2base64(logo_slave)]' style='position: relative; top: 10;'/> <b>[ckey]</b> as <b>[former_minions[ckey]]</b><br/>"
+	return jointext(dat, "")

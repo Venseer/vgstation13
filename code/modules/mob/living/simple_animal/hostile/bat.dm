@@ -77,14 +77,14 @@
 	if(istype(L))
 		if(prob(15))
 			L.Stun(1)
-			L.visible_message("<span class='danger'>\the [src] scares \the [L]!</span>")
+			L.visible_message("<span class='danger'>\The [src] scares \the [L]!</span>")
 
 /mob/living/simple_animal/hostile/scarybat/cult
 	faction = "cult"
 	var/shuttletarget = null
 	var/enroute = 0
 
-	supernatural = 1
+	supernatural = TRUE
 
 
 /mob/living/simple_animal/hostile/scarybat/cult/Found(var/atom/the_target)
@@ -136,7 +136,7 @@
 			var/obj/machinery/door/D = A
 			if(D.density)
 				D.open()
-		else if(istype(A,/obj/structure/cult_legacy/pylon))
+		else if(istype(A,/obj/structure/cult/pylon))
 			A.attack_animal(src)
 		else if(istype(A, /obj/structure/window) || istype(A, /obj/structure/closet) || istype(A, /obj/structure/table) || istype(A, /obj/structure/grille) || istype(A, /obj/structure/rack))
 			A.attack_animal(src)
@@ -166,6 +166,7 @@
 	speed = 5
 	maxHealth = 15
 	health = 15
+	supernatural = TRUE
 	var/book_cover
 
 	harm_intent_damage = 8
@@ -176,7 +177,7 @@
 
 	holder_type = /obj/item/weapon/holder/animal //CAN pick up a single book!
 
-mob/living/simple_animal/hostile/scarybat/book/New()
+/mob/living/simple_animal/hostile/scarybat/book/New()
 	..()
 	if(!book_cover)
 		book_cover = pick( list("red","purple","blue","green") )

@@ -1,44 +1,35 @@
-//Handles how much the temperature changes on power use. (Joules/Kelvin)
-//Equates to as much heat energy per kelvin as a quarter tile of air.
-#define XENOARCH_HEAT_CAPACITY 5000
-
-//Handles heat transfer to the air. (In watts)
-//Can heat a single tile 2 degrees per tick.
-#define XENOARCH_MAX_ENERGY_TRANSFER 4000
-
-//How many joules of electrical energy produce how many joules of heat energy?
-#define XENOARCH_HEAT_COEFFICIENT 3
-
-#define XENOARCH_SAFETY_TEMP 350
-#define XENOARCH_MAX_TEMP 400
-// I literally don't even know why this one is different from XENOARCH_MAX_TEMP.
-#define XENOARCH_MAX_HEAT_INCREASE_TEMP 450
-
 /obj/machinery/anomaly
 	name = "Analysis machine"
 	desc = "A specialised, complex analysis machine."
 	anchored = 1
 	density = 1
 	icon = 'icons/obj/virology.dmi'
-	icon_state = "analyser"
+	icon_state = "analyser_old"
 
-	idle_power_usage = 20 //watts
-	active_power_usage = 300 //Because  I need to make up numbers~
+	idle_power_usage = 10
+	active_power_usage = 1000
 
 	machine_flags = SCREWTOGGLE | CROWDESTROY | WRENCHMOVE | FIXED2WORK
 
 	var/obj/item/weapon/reagent_containers/glass/held_container
+	var/datum/geosample/scanned_sample
 	var/target_scan_ticks = 30
 	var/report_num = 0
 	// How far into a scan we are.
 	// If it's zero we're not scanning.
 	var/scan_process = 0
+	var/icon/map_icon
+	var/x_offset = 1
+	var/y_offset = 1
 
-	//measured in kelvin, if this exceeds 1200, the machine is damaged and requires repairs
-	//if this exceeds 600 and safety is enabled it will shutdown
-	//temp greater than 600 also requires a safety prompt to initiate scanning
-	var/temperature = T0C
+/obj/machinery/anomaly/splashable()
+	return FALSE
 
+/obj/machinery/anomaly/Destroy()
+	if (held_container)
+		held_container.forceMove(loc)
+		held_container = null
+	..()
 
 /obj/machinery/anomaly/RefreshParts()
 	var/scancount = 0
@@ -49,76 +40,44 @@
 
 /obj/machinery/anomaly/power_change()
 	..()
-	if (stat & NOPOWER && scan_process)
+	if (stat & (FORCEDISABLE|NOPOWER) && scan_process)
 		stop()
-
 	else
 		update_icon()
 
 /obj/machinery/anomaly/process()
-	//not sure if everything needs to heat up, or just the GLPC
-	var/datum/gas_mixture/env = loc.return_air()
-	var/environmental_temp = env.temperature
+	//First we deal with the machine's task
 	if(scan_process)
-		// Shouldn't be reachable, still can't hurt.
-		if(stat & NOPOWER)
+		if (stat & (NOPOWER|BROKEN|FORCEDISABLE))
 			stop()
-
-		if(scan_process++ > target_scan_ticks)
-			FinishScan()
-		else if(temperature > XENOARCH_MAX_TEMP)
-			visible_message("<span class='notice'>[bicon(src)] shuts down from the heat!</span>")
-			scan_process = 0
-		else if(temperature > XENOARCH_SAFETY_TEMP && prob(10))
-			visible_message("<span class='notice'>[bicon(src)] bleets plaintively.</span>")
-
-		//show we're busy
-		if(prob(5))
-			visible_message("<span class='notice'>[bicon(src)] [pick("whirrs","chuffs","clicks")][pick(" quietly"," softly"," sadly"," excitedly"," energetically"," angrily"," plaintively")].</span>")
-
-		use_power = 2
-
-	else
-		use_power = 1
-
-	//Add 3000 joules when active.  This is about 0.6 degrees per tick.
-	//May need adjustment
-	if(use_power == 1)
-		var/heat_added = active_power_usage * XENOARCH_HEAT_COEFFICIENT
-
-		if(temperature < XENOARCH_MAX_HEAT_INCREASE_TEMP)
-			temperature += heat_added / XENOARCH_HEAT_CAPACITY
-
-		var/temperature_difference = abs(environmental_temp - temperature)
-		var/datum/gas_mixture/removed = env.remove_volume(0.25 * CELL_VOLUME)
-		var/heat_capacity = removed.heat_capacity()
-
-		heat_added = min(temperature_difference * heat_capacity, XENOARCH_MAX_ENERGY_TRANSFER)
-
-		if(temperature > environmental_temp)
-			//cool down to match the air
-			temperature = max(TCMB, temperature - heat_added / XENOARCH_HEAT_CAPACITY)
-			removed.temperature = max(TCMB, removed.temperature + heat_added / heat_capacity)
-
-			if(temperature_difference > 10 && prob(5))
-				visible_message("<span class='notice'>[bicon(src)] hisses softly.</span>", "You hear a soft hiss.")
-
 		else
-			//heat up to match the air
-			temperature = max(TCMB, temperature + heat_added / XENOARCH_HEAT_CAPACITY)
-			removed.temperature = max(TCMB, removed.temperature - heat_added / heat_capacity)
+			use_power = MACHINE_POWER_USE_ACTIVE
+			if(scan_process++ > target_scan_ticks)
+				FinishScan()
 
-			if(temperature_difference > 10 && prob(5))
-				visible_message("<span class='notice'>[bicon(src)] plinks quietly.</span>", "You hear a quiet plink.")
-
-		env.merge(removed)
+			//show we're busy if we're still going
+			if(scan_process && prob(5))
+				visible_message("<span class='notice'>[bicon(src)] [pick("whirrs","chuffs","clicks")][pick(" quietly"," softly"," sadly"," excitedly"," energetically"," angrily"," plaintively")].</span>")
+	else
+		use_power = MACHINE_POWER_USE_IDLE
 
 	nanomanager.update_uis(src)
+
+/obj/machinery/anomaly/conveyor_act(var/atom/movable/AM, var/obj/machinery/conveyor/CB)
+	if(istype(AM, /obj/item/weapon/reagent_containers/glass))
+		if(held_container)
+			return FALSE
+		playsound(loc, 'sound/machines/click.ogg', 50, 1)
+		AM.forceMove(src)
+		held_container = AM
+		nanomanager.update_uis(src)
+		return TRUE
+	return FALSE
 
 /obj/machinery/anomaly/attack_hand(var/mob/user)
 	ui_interact(user)
 
-obj/machinery/anomaly/attackby(obj/item/weapon/W, mob/living/user)
+/obj/machinery/anomaly/attackby(obj/item/weapon/W, mob/living/user)
 	if(istype(W, /obj/item/weapon/reagent_containers/glass))
 		if(held_container)
 			to_chat(user, "<span class='warning'>You must remove \the [held_container] first.</span>")
@@ -126,7 +85,7 @@ obj/machinery/anomaly/attackby(obj/item/weapon/W, mob/living/user)
 
 		if(user.drop_item(W, src))
 			to_chat(user, "<span class='notice'>You put \the [W] into the [src].</span>")
-
+			playsound(loc, 'sound/machines/click.ogg', 50, 1)
 			held_container = W
 			nanomanager.update_uis(src)
 
@@ -143,22 +102,23 @@ obj/machinery/anomaly/attackby(obj/item/weapon/W, mob/living/user)
 
 	//determine the results and print a report
 	if(held_container)
+		alert_noise("ping")
 		src.visible_message("<span class='notice'>[bicon(src)] makes an insistent chime.</span>", "You hear an insistent chime.")
 		var/obj/item/weapon/paper/P = new(loc)
 		P.name = "[src] report #[++report_num]"
-		P.info = "<b>[src] analysis report #[report_num]</b><br><br>" + ScanResults()
+		P.info = "<b>[src] analysis report #[report_num]</b><br><br>" + ScanResults() + "<br><b>Location data:</b><br><br>" + generate_map()
 		P.stamped = list(/obj/item/weapon/stamp)
 		P.overlays += "paper_stamp-qm"
 	else
 		visible_message("<span class='notice'>[bicon(src)] makes a low buzzing noise.</span>", "You hear a low buzz.")
 
-obj/machinery/anomaly/Topic(href, href_list)
+/obj/machinery/anomaly/Topic(href, href_list)
 	. = ..()
 	if (.)
 		return
 
 	if (href_list["eject"] && held_container && !scan_process)
-		eject()
+		eject(usr)
 		. = 1
 
 	if (href_list["begin"] && !scan_process && held_container)
@@ -169,73 +129,93 @@ obj/machinery/anomaly/Topic(href, href_list)
 		stop()
 		. = 1
 
-/obj/machinery/anomaly/proc/eject()
+	if (href_list["change_x"])
+		x_offset = clamp(input(usr,"Set X offset","X offset",x_offset),1,world.maxx)
+		. = 1
+
+	if (href_list["change_y"])
+		y_offset = clamp(input(usr,"Set Y offset","Y offset",y_offset),1,world.maxy)
+		. = 1
+
+/obj/machinery/anomaly/proc/eject(var/mob/user)
 	held_container.forceMove(loc)
+	playsound(loc, 'sound/machines/click.ogg', 50, 1)
+	if (user && Adjacent(user))
+		user.put_in_hands(held_container)
 	held_container = null
 	nanomanager.update_uis(src)
 
 /obj/machinery/anomaly/proc/start(var/mob/user)
-	if (temperature >= XENOARCH_SAFETY_TEMP)
-		var/proceed = input("Unsafe internal temperature detected, enter YES below to continue.","Warning")
-		if (proceed != "YES" || user.incapacitated() || !user.Adjacent(src))
-			return FALSE
-
 	scan_process = 1
+	use_power = MACHINE_POWER_USE_ACTIVE
 	update_icon()
 	nanomanager.update_uis(src)
 
 /obj/machinery/anomaly/proc/stop()
 	scan_process = 0
+	use_power = MACHINE_POWER_USE_IDLE
 	update_icon()
 	nanomanager.update_uis(src)
 
 /obj/machinery/anomaly/update_icon()
 	if (scan_process)
-		icon_state = "analyser_processing"
+		icon_state = "analyser_old_processing"
 
 	else
-		icon_state = "analyser"
+		icon_state = "analyser_old"
 
 
 /obj/machinery/anomaly/AltClick(var/mob/user)
-	if (user.incapacitated() || !user.Adjacent(src) || scan_process || !held_container || stat & NOPOWER)
+	if (user.incapacitated() || !user.Adjacent(src) || scan_process || !held_container || stat & (NOPOWER|FORCEDISABLE))
 		return
 
-	eject()
+	eject(user)
 
 /obj/machinery/anomaly/CtrlClick(var/mob/user)
 	if (!anchored)
 		return ..()
 
-	if (user.incapacitated() || !user.Adjacent(src) || scan_process || !held_container || stat & NOPOWER)
+	if (user.incapacitated() || !user.Adjacent(src) || scan_process || !held_container || stat & (NOPOWER|FORCEDISABLE))
 		return
 
 	start(user)
 
-//whether the carrier sample matches the possible finds
-//results greater than a threshold of 0.6 means a positive result
-/obj/machinery/anomaly/proc/GetResultSpecifity(var/datum/geosample/scanned_sample, var/carrier_name)
-	var/specifity = 0
-	if(scanned_sample && carrier_name)
+/obj/machinery/anomaly/proc/generate_map()
+	set background=1
+	map_icon = icon('icons/480x480.dmi', "blank")
+	var/lowest_x = world.maxx
+	var/lowest_y = world.maxy
+	var/highest_x = 0
+	var/highest_y = 0
+	for(var/i = 1 to ((2 * world.view + 1)*WORLD_ICON_SIZE))
+		for(var/r = 1 to ((2 * world.view + 1)*WORLD_ICON_SIZE))
+			var/turf/tile = locate(i, r, map.zAsteroid)
+			var/area/A = get_area(tile)
+			if((A && A.holomap_draw_override == HOLOMAP_DRAW_FULL) || (tile && istype(tile,/turf/unsimulated/mineral)))
+				lowest_x = min(lowest_x,i)
+				lowest_y = min(lowest_y,r)
+				highest_x = max(highest_x,i)
+				highest_y = max(highest_y,r)
+				draw_on_map(i,r)
+	map_icon.Crop(lowest_x,lowest_y,highest_x,highest_y)
+	return "<br><img src='data:image/png;base64,[icon2base64(map_icon)]'/><br>"
 
-		if(scanned_sample.find_presence.Find(carrier_name))
-			specifity = 0.75 * (scanned_sample.find_presence[carrier_name] / scanned_sample.total_spread) + 0.25
-		else
-			specifity = rand(0, 0.5)
-
-	return specifity
+//override this
+/obj/machinery/anomaly/proc/draw_on_map(x,y)
+	if(map_icon)
+		map_icon.DrawBox("#000", x, y)
 
 /obj/machinery/anomaly/ui_interact(mob/user, ui_key = "main", var/datum/nanoui/ui = null, var/force_open = NANOUI_FOCUS)
-	if (stat & NOPOWER)
+	if (stat & (FORCEDISABLE|NOPOWER))
 		return
 
 	var/list/data[0]
-	data["max_temperature"] = XENOARCH_MAX_TEMP
-	data["safety_temperature"] = XENOARCH_SAFETY_TEMP
-	data["temperature"] = temperature
 
 	data["target_ticks"] = target_scan_ticks
 	data["scan_process"] = scan_process
+
+	data["x_offset"] = x_offset
+	data["y_offset"] = y_offset
 
 	data["beaker"] = !!held_container
 	if (held_container)

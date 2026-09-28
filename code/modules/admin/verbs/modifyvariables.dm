@@ -1,9 +1,12 @@
 var/list/forbidden_varedit_object_types = list(
 										/datum/admins,						//Admins editing their own admin-power object? Yup, sounds like a good idea.
-										/datum/blackbox,	//Prevents people messing with feedback gathering
+										/datum/blackbox,					//Prevents people messing with feedback gathering
 										/datum/feedback_variable,			//Prevents people messing with feedback gathering
-										/datum/configuration,	//prevents people from fucking with logging.
+										/datum/subsystem/dbcore/,			// No messing with the database.
 									)
+
+/datum/proc/can_edit_var(var/edited_variable)
+	return TRUE
 
 //Interface for editing a variable. It returns its new value. If edited_datum, it automatically changes the edited datum's value
 //If called with just [user] argument, it allows you to create a value such as a string, a number, an empty list, a nearby object, etc...
@@ -21,7 +24,10 @@ var/list/forbidden_varedit_object_types = list(
 	if(!C || !C.holder)
 		return
 
-	if(!C.can_edit_var(edited_variable))
+	if(!C.can_edit_var(edited_variable, edited_datum?.type))
+		return
+
+	if(istype(edited_datum, /datum) && !edited_datum.can_edit_var(edited_variable))
 		return
 
 	//Special case for "appearance", because appearance values can't be stored anywhere.
@@ -146,7 +152,7 @@ var/list/forbidden_varedit_object_types = list(
 
 		if(!new_variable_type)
 			new_variable_type = input("What kind of variable?","Variable Type") as null|anything in choices
-		var/selected_type = choices[new_variable_type]
+		var/selected_type = !new_variable_type ? V_CANCEL : choices[new_variable_type]
 		var/window_title = "Varedit [edited_datum]"
 
 		switch(selected_type)
@@ -160,10 +166,10 @@ var/list/forbidden_varedit_object_types = list(
 				new_value = input("Enter new number:", window_title, old_value) as num
 
 			if(V_TYPE)
-				var/partial_type = input("Enter type, or leave blank to see all types", window_title, "[old_value]") as text|null
-
-				var/list/matches = get_matching_types(partial_type, /datum)
-				new_value = input("Select type", window_title) as null|anything in matches
+				var/partial_type = input("Enter type, partial type, or leave blank to set null", window_title, "[old_value]") as text|null
+				if(isnull(partial_type) || partial_type == "")
+					return
+				new_value = filter_typelist_input("Select type", window_title, get_matching_types(partial_type, /datum))
 
 			if(V_LIST_EMPTY)
 				if (acceptsLists)
@@ -208,12 +214,6 @@ var/list/forbidden_varedit_object_types = list(
 
 			else
 				to_chat(user, "Unknown type: [selected_type]")
-
-	switch(edited_variable)
-		if("bound_width", "bound_height", "bound_x", "bound_y")
-			if(new_value % world.icon_size) //bound_width/height must be a multiple of 32, otherwise movement breaks - BYOND issue
-				to_chat(usr, "[edited_variable] can only be a multiple of [world.icon_size]!")
-				return
 
 	if(edited_datum && edited_variable)
 		if(isdatum(edited_datum) && edited_datum.variable_edited(edited_variable, old_value, new_value))
@@ -288,7 +288,7 @@ var/list/forbidden_varedit_object_types = list(
 		mod_list_add(L)
 		return L
 	else
-		L.Remove(variable)
+		L[variable] = variable_set(src, L)
 
 	return L
 
@@ -339,12 +339,17 @@ var/list/forbidden_varedit_object_types = list(
 
 	return M
 
-/client/proc/can_edit_var(var/tocheck)
-	if(tocheck in nevervars)
+/client/proc/can_edit_var(var/tocheck, var/type_to_check)
+	if (is_type_in_list(type_to_check, forbidden_varedit_object_types))
 		to_chat(usr, "Editing this variable is forbidden.")
 		return FALSE
+
 	if(tocheck == "bounds")
 		to_chat(usr, "Editing this variable is forbidden. Edit bound_width or bound_height instead.")
+		return FALSE
+
+	if(tocheck == "library_table") // prevent SQL injections
+		to_chat(usr, "No.")
 		return FALSE
 
 	if(tocheck in lockedvars)

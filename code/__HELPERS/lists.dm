@@ -1,3 +1,4 @@
+
 /*
  * Holds procs to help with list operations
  * Contains groups:
@@ -8,6 +9,15 @@
 /*
  * Misc
  */
+
+///Initialize the lazylist
+#define LAZYINITLIST(L) if (!L) { L = list(); }
+///If the provided list is empty, set it to null
+#define UNSETEMPTY(L) if (L && !length(L)) L = null
+///Remove an item from the list, set the list to null if empty
+#define LAZYREMOVE(L, I) if(L) { L -= I; if(!length(L)) { L = null; } }
+///Add an item to the list, if the list is null it will initialize it
+#define LAZYADD(L, I) if(!L) { L = list(); } L += I;
 
 //Returns a list in plain english as a string
 /proc/english_list(var/list/input, nothing_text = "nothing", and_text = " and ", comma_text = ", ", final_comma_text = "" )
@@ -30,6 +40,35 @@
 
 		return "[output][and_text][input[index]]"
 
+//Returns a counted list of atom names in plain english as a string
+/proc/counted_english_list(var/list/input, nothing_text = "nothing", and_text = " and ", comma_text = ", ", final_comma_text = "" )
+	var/list/names = uniquenamelist(input) // First, get the items to list
+	var/uniquetotal = names.len // And the amount
+	var/namecount = 0 // Variable for how often an item occurs
+	var/currentName = "" // Current name worked with in loop
+
+	if (!uniquetotal) // If the list of names is empty
+		return "[nothing_text]" // Return "nothing"
+	else if (uniquetotal == 1) // If there is only one item
+		namecount = count_by_name(input, names[1]) // Count how many of this item occurs
+		currentName = namecount == 1 ? "\a [names[1]]" : "[names[1]]\s" // Make it say "an item" or "x items" if singular or plural
+		return "[namecount == 1 ? "" : namecount] [currentName]" // Return this
+	else // If more than one item
+		var/output = "" // Output string to work on
+		var/index = 1 // Loop index
+		while (index < uniquetotal) // While in loop
+			if (index == uniquetotal - 1) // If second to last element
+				comma_text = final_comma_text // Remove the comma
+
+			namecount = count_by_name(input, names[index]) // Count as before
+			currentName = namecount == 1 ? "\a [names[index]]" : "[names[index]]\s" // And make grammatically correct
+			output += "[namecount == 1 ? "" : namecount] [currentName][comma_text]" // And put together as before, with comma this time
+			index++ // Iterate
+
+		namecount = count_by_name(input, names[index]) // Count again on last one
+		currentName = namecount == 1 ? "\a [names[index]]" : "[names[index]]\s" // Singular or plural
+		return "[output][and_text][namecount == 1 ? "" : namecount] [currentName]" // Put "and" before very last item in list
+
 //Returns list element or null. Should prevent "index out of bounds" error.
 /proc/listgetindex(list/L, index)
 	if(istype(L))
@@ -39,11 +78,6 @@
 		else if(index in L)
 			return L[index]
 	return
-
-/proc/islist(list/L)
-	if(istype(L))
-		return 1
-	return 0
 
 //Return either pick(list) or null if list is not of type /list or is empty
 /proc/safepick(list/L)
@@ -80,6 +114,18 @@
 		for(var/T in typesof(type)) //Gather all possible typepaths into an associative list
 			L[T] = MAX_VALUE //Set them equal to the max value which is unlikely to collide with any other pregenerated value
 
+//Removes returns a new list which only contains elements from the original list of a certain type
+/proc/prune_list_to_type(list/L, datum/A, var/exclude_type = FALSE)
+	if(!L || !L.len || !A)
+		return list()
+	if(!ispath(A))
+		A = A.type
+	var/list/nu = L.Copy()
+	for(var/element in nu)
+		if(istype(element,A) == exclude_type)
+			nu -= element
+	return nu
+
 //Empties the list by setting the length to 0. Hopefully the elements get garbage collected
 /proc/clearlist(list/list)
 	if(istype(list))
@@ -95,6 +141,70 @@
 				++i
 				continue
 			L.Cut(i,i+1)
+
+/*
+ * Returns a choice from an input list.
+ * If only one thing is returned, just gives us that with no input list.
+ */
+/proc/filter_list_input(input_text, input_heading, var/list/matches)
+	if(!matches.len)
+		return
+	if(matches.len==1)
+		return matches[1]
+	else
+		var/chosen = input(input_text, input_heading, matches[1]) as null|anything in matches
+		if(!chosen)
+			return
+		return chosen
+
+/*
+ * Returns the length of a common prefix in a list, if any
+ * Requires a SORTED list
+ */
+/proc/find_string_list_prefix(var/list/inputlist)
+	if(!inputlist.len)
+		return
+	if(inputlist.len==1)
+		return inputlist[1]
+	var/i = 0
+	var/first = "[inputlist[1]]"
+	var/last = "[inputlist[inputlist.len]]"
+	while(i < length(first) && first[i+1] == last[i+1])
+		i++
+	return i
+
+/*
+ * Returns a choice from an input typelist, given a string filter
+ * If only one thing is returned, just gives us that with no input list.
+ */
+/proc/filter_typelist_input(input_text, input_heading, var/list/matches)
+	if(!matches.len)
+		return
+	if(matches.len==1)
+		return matches[1]
+	matches = sortList(matches)
+	var/prefix = ""
+	var/common = find_string_list_prefix(matches)
+	if(common)
+		prefix = copytext("[matches[1]]", 1, common+1)
+		var/foundpartial = findlasttext(prefix, "/")
+		if(foundpartial)
+			prefix = copytext(prefix, 1, foundpartial)
+			common = foundpartial
+	var/list/results = list()
+	for(var/x in matches)
+		if(common)
+			results += copytext("[x]", common)
+		else
+			results += "[x]"
+	var/newvalue = input("[input_text][(input_text && prefix) ? "\n" : ""][prefix ? "Prefix: [prefix]" : ""]",input_heading) as null|anything in results
+	if(isnull(newvalue))
+		return
+	if(prefix)
+		newvalue = text2path(prefix + newvalue)
+	else
+		newvalue = text2path(newvalue)
+	return newvalue
 
 /*
  * Returns list containing all the entries from first list that are not present in second.
@@ -128,14 +238,18 @@
 		result = first ^ second
 	return result
 
-//Pretends to pick an element based on its weight but really just seems to pick a random element.
+//Returns a new list of only elements in both lists.
+/proc/andlist(var/list/A, var/list/B)
+	return A & B
+
+//Picks an element based on its weight
 /proc/pickweight(list/L)
 	if(!L || !L.len)
 		return
 	var/total = 0
 	var/item
 	for (item in L)
-		if (!L[item])
+		if (isnull(L[item]))
 			L[item] = 1
 		total += L[item]
 
@@ -146,6 +260,42 @@
 			return item
 
 	return L[L.len]
+
+/// Takes a weighted list (see above) and expands it into raw entries
+/// This eats more memory, but saves time when actually picking from it
+/// Example:  list(item1 = 6, item2 = 3, item3 = 9) becomes list(item1, item1, item2, item3, item3, item3)
+/proc/expand_weights(list/list_to_pick)
+	var/list/values = list()
+	for(var/item in list_to_pick)
+		var/value = list_to_pick[item]
+		if(!value)
+			continue
+		values += value
+
+	var/gcf = greatest_common_factor(values)
+
+	var/list/output = list()
+	for(var/item in list_to_pick)
+		var/value = list_to_pick[item]
+		if(!value)
+			continue
+		for(var/i in 1 to value / gcf)
+			output += item
+	return output
+
+/// Takes a list of numbers as input, returns the highest value that is cleanly divides them all
+/// Note: this implementation is expensive as heck for large numbers, I only use it because most of my usecase
+/// Is < 10 ints
+/proc/greatest_common_factor(list/values)
+	var/smallest = min(values)
+	for(var/i in smallest to 1 step -1)
+		var/safe = TRUE
+		for(var/entry in values)
+			if(entry % i != 0)
+				safe = FALSE
+				break
+		if(safe)
+			return i
 
 //Pick a random element from the list and remove it from the list.
 /proc/pick_n_take(list/L)
@@ -159,10 +309,6 @@
 	if(L.len)
 		. = L[L.len]
 		L.len--
-
-//Puts an item on the end of a list
-/proc/push(list/L, thing)
-	L += thing
 
 //Shift/Unshift works on a FIFO system unlike pop/push working on FILO
 //Returns the bottom(first) element from the list and removes it from the list
@@ -238,6 +384,19 @@
 			K += item
 	return K
 
+//Return a list with no duplicate names
+/proc/uniquenamelist(var/list/L)
+	var/list/K = list()
+	var/current_name = ""
+	var/atom/current_atom = null
+	for(var/item in L)
+		if(isatom(item) || ispath(item))
+			current_atom = item
+		current_name = ispath(item) ? initial(current_atom.name) : isatom(item) ? current_atom.name : item
+		if(!(current_name in K))
+			K += current_name
+	return K
+
 //for sorting clients or mobs by ckey
 /proc/sortKey(list/L, order=1)
 	return sortTim(L, order >= 0 ? /proc/cmp_ckey_asc : /proc/cmp_ckey_dsc)
@@ -290,6 +449,26 @@
 			return key
 	return null
 
+//In an associative list, get only the elements and not the keys.
+/proc/get_list_of_elements(var/list/L)
+	var/list/elements = list()
+	for(var/key in L)
+		elements += L[key]
+	return elements
+
+//In an associative list, get only the keys and not the elements.
+/proc/get_list_of_keys(var/list/L)
+	var/list/keys = list()
+	for(var/key in L)
+		keys += key
+	return keys
+
+//In an associative list, return a sum of the elements.
+/proc/get_sum_of_elements(var/list/L)
+	var/elements = 0
+	for(var/key in L)
+		elements += L[key]
+	return elements
 
 /proc/count_by_type(var/list/L, type)
 	var/i = 0
@@ -298,11 +477,32 @@
 			i++
 	return i
 
+/proc/count_by_name(var/list/L, name)
+	var/i = 0
+	var/atom/current_atom = null
+	var/current_name = ""
+	for(var/T in L)
+		if(isatom(T) || ispath(T))
+			current_atom = T
+		current_name = ispath(T) ? initial(current_atom.name) : isatom(T) ? current_atom.name : T
+		if(current_name == name)
+			i++
+	return i
+
 /proc/find_record(field, value, list/L)
 	for(var/datum/data/record/R in L)
 		if(R.fields[field] == value)
 			return R
 
+//get total of nums in a list, ignores non-num values
+//great with get_list_of_elements!
+/proc/total_list(var/list/L)
+	var/total = 0
+	for(var/element in L)
+		if(!isnum(element))
+			continue
+		total += element
+	return total
 
 //Move a single element from position fromIndex within a list, to position toIndex
 //All elements in the range [1,toIndex) before the move will be before the pivot afterwards
@@ -393,3 +593,31 @@
 	for(var/path in subtypesof(prototype))
 		L += new path()
 	return L
+
+//takes an input_key, as text, and the list of keys already used, outputting a replacement key in the format of "[input_key] ([number_of_duplicates])" if it finds a duplicate
+//use this for lists of things that might have the same name, like mobs or objects, that you plan on giving to a player as input
+/proc/avoid_assoc_duplicate_keys(input_key, list/used_key_list)
+	if(!input_key || !istype(used_key_list))
+		return
+	if(used_key_list[input_key])
+		used_key_list[input_key]++
+		input_key = "[input_key] ([used_key_list[input_key]])"
+	else
+		used_key_list[input_key] = 1
+	return input_key
+
+//returns the maximum value of an associative list, assuming the values are numbers.
+/proc/associative_max(list/L)
+    var/max
+    for(var/a in L)
+        if(max == null || L[a] > max) max = L[a]
+    return max
+
+//Convert a list of paths into a list of object names
+/proc/types_to_english_list(var/list/L)
+	var/list/names = list()
+	for(var/P in L)
+		if(!ispath(P))
+			continue
+		names += "\the [P:name]"
+	return english_list(names)

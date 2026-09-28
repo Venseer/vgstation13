@@ -11,6 +11,7 @@
 	var/obj/item/weapon/cell/cell = null
 	var/obj/machinery/camera/camera = null
 	var/obj/item/device/mmi/mmi = null
+	var/mob/living/simple_animal/mouse/mouse = null
 	var/list/req_access = list(access_robotics) //Access needed to pop out the brain.
 
 	name = "Spider-bot"
@@ -37,19 +38,21 @@
 
 	var/obj/item/held_item = null //Storage for single item they can hold.
 	var/lob_range = 3
-	var/emagged = 0               //IS WE EXPLODEN?
 	var/syndie = 0                //IS WE SYNDICAT? (currently unused)
 	speed = 1                    //Spiderbots gotta go fast.
-	//pass_flags = PASSTABLE      //Maybe griefy?
+	pass_flags = PASSTABLE | PASSRAILING
 	speak_emote = list("beeps","clicks","chirps")
 	size = SIZE_SMALL
 	meat_type = null
+
+	blooded = FALSE
 
 /mob/living/simple_animal/spiderbot/canEnterVentWith()
 	var/static/list/allowed_items = list(
 		/obj/item/device/radio/borg,
 		/obj/machinery/camera,
 		/obj/item/device/mmi,
+		/mob/living/simple_animal/mouse,
 	)
 	return allowed_items
 
@@ -72,11 +75,8 @@
 			to_chat(user, "<span class='warning'>[O] is dead. Sticking it into the frame would sort of defeat the purpose.</span>")
 			return
 
-		if(jobban_isbanned(B.brainmob, "Cyborg"))
-			to_chat(user, "<span class='warning'>[O] does not seem to fit.</span>")
+		if(!user.drop_item(O, src, failmsg = TRUE))
 			return
-		if(!user.drop_item(O, src))
-			user << "<span class='warning'>You can't let go of \the [O].</span>"
 
 		to_chat(user, "<span class='notice'>You install [O] in [src]!</span>")
 
@@ -86,7 +86,7 @@
 		return 1
 
 	if (iswelder(O))
-		var/obj/item/weapon/weldingtool/WT = O
+		var/obj/item/tool/weldingtool/WT = O
 		if (WT.remove_fuel(0))
 			if(health < maxHealth)
 				health += pick(1,1,1,2,2,3)
@@ -101,8 +101,8 @@
 			to_chat(user, "Need more welding fuel!")
 			return
 	else if(istype(O, /obj/item/weapon/card/id)||istype(O, /obj/item/device/pda))
-		if (!mmi)
-			to_chat(user, "<span class='warning'>There's no reason to swipe your ID - the spiderbot has no brain to remove.</span>")
+		if (!mmi && !mouse)
+			to_chat(user, "<span class='warning'>There's no reason to swipe your ID - the spiderbot has nothing to remove.</span>")
 			return 0
 
 		var/obj/item/weapon/card/id/id_card
@@ -114,7 +114,10 @@
 			id_card = pda.id
 
 		if(access_robotics in id_card.access)
-			to_chat(user, "<span class='notice'>You swipe your access card and pop the brain out of [src].</span>")
+			if(mouse)
+				to_chat(user, "<span class='notice'>You swipe your access card and pop the mouse out of [src].</span>")
+			else
+				to_chat(user, "<span class='notice'>You swipe your access card and pop the brain out of [src].</span>")
 			eject_brain()
 
 			if(held_item)
@@ -125,34 +128,39 @@
 		else
 			to_chat(user, "<span class='warning'>You swipe your card, with no effect.</span>")
 			return 0
-	else if (istype(O, /obj/item/weapon/card/emag))
-		if (emagged)
-			to_chat(user, "<span class='warning'>[src] is already overloaded - better run.</span>")
-			return 0
-		else
-			emagged = 1
-			to_chat(user, "<span class='notice'>You short out the security protocols and overload [src]'s cell, priming it to explode in a short time.</span>")
-			spawn(100)	to_chat(src, "<span class='warning'>Your cell seems to be outputting a lot of power...</span>")
-			spawn(200)	to_chat(src, "<span class='warning'>Internal heat sensors are spiking! Something is badly wrong with your cell!</span>")
-			spawn(300)	src.explode()
+	else
+		return ..()
 
+/mob/living/simple_animal/spiderbot/emag_act(mob/user)
+	if (emagged)
+		to_chat(user, "<span class='warning'>[src] is already overloaded - better run.</span>")
+	else
+		emagged = 1
+		to_chat(user, "<span class='notice'>You short out the security protocols and overload [src]'s cell, priming it to explode in a short time.</span>")
+		spawn(100)	to_chat(src, "<span class='warning'>Your cell seems to be outputting a lot of power...</span>")
+		spawn(200)	to_chat(src, "<span class='warning'>Internal heat sensors are spiking! Something is badly wrong with your cell!</span>")
+		spawn(300)	src.explode()
+
+/mob/living/simple_animal/spiderbot/attack_animal(var/mob/user as mob)
+	if(istype(user,/mob/living/simple_animal/mouse) && !(src.mmi || src.mouse))
+		visible_message("<span class='warning'>The [user.name] climbs into the spider-bot chassis!</span>")
+		user.mind.transfer_to(src)
+		src.name = "Spider-bot ([user.name])"
+		src.mouse = user
+		add_language(LANGUAGE_MOUSE)
+		user.forceMove(src)
+		src.update_icon()
 	else
 		return ..()
 
 /mob/living/simple_animal/spiderbot/proc/transfer_personality(var/obj/item/device/mmi/M as obj)
-
-
-		src.mind = M.brainmob.mind
-		src.mind.key = M.brainmob.key
-		src.ckey = M.brainmob.ckey
-		src.name = "Spider-bot ([M.brainmob.name])"
+	src.mind = M.brainmob.mind
+	src.mind.key = M.brainmob.key
+	src.ckey = M.brainmob.ckey
+	src.name = "Spider-bot ([M.brainmob.name])"
 
 /mob/living/simple_animal/spiderbot/proc/explode() //When emagged.
-	for(var/mob/M in viewers(src, null))
-		if ((M.client && !( M.blinded )))
-			M.show_message("<span class='warning'>[src] makes an odd warbling noise, fizzles, and explodes.</span>")
-	explosion(get_turf(loc), -1, -1, 3, 5)
-	eject_brain()
+	explosion(get_turf(loc), -1, -1, 3, 5, whodunnit = src)
 	death()
 
 /mob/living/simple_animal/spiderbot/update_icon()
@@ -163,21 +171,31 @@
 		if(istype(mmi, /obj/item/device/mmi/posibrain))
 			icon_state = "spiderbot-chassis-posi"
 			icon_living = "spiderbot-chassis-posi"
-
+	else if(mouse)
+		var/color = mouse._color
+		icon_state = "spiderbot-chassis-mouse-[color]"
+		icon_living = "spiderbot-chassis-mouse-[color]"
 	else
 		icon_state = "spiderbot-chassis"
 		icon_living = "spiderbot-chassis"
 
 /mob/living/simple_animal/spiderbot/proc/eject_brain()
+	var/turf/T = get_turf(src)
 	if(mmi)
-		var/turf/T = get_turf(loc)
 		if(T)
 			mmi.forceMove(T)
 		if(mind)
 			mind.transfer_to(mmi.brainmob)
 		mmi = null
-		src.name = "Spider-bot"
-		update_icon()
+	if(mouse)
+		if(T)
+			mouse.forceMove(T)
+			mind.transfer_to(mouse)
+			mouse = null
+			remove_language(LANGUAGE_MOUSE)
+
+	src.name = "Spider-bot"
+	update_icon()
 
 /mob/living/simple_animal/spiderbot/Destroy()
 	eject_brain()
@@ -200,7 +218,10 @@
 		held_item.forceMove(src.loc)
 		held_item = null
 
-	robogibs(src.loc, viruses)
+	visible_message("<span class='warning'>The spider-bot explodes!</span>")
+	if(mouse)
+		visible_message("<span class='warning'>The [mouse.name] springs free of the wreckage!</span>")
+	robogibs(src.loc, virus2)
 	qdel(src)
 
 /mob/living/simple_animal/spiderbot/emp_act(severity)
@@ -323,8 +344,8 @@
 	if(src.held_item)
 		to_chat(user, "It is carrying \a [src.held_item] [bicon(src.held_item)].")
 
-/mob/living/simple_animal/spiderbot/CheckSlip()
-	return -1
+/mob/living/simple_animal/spiderbot/CheckSlip(slip_on_walking = FALSE, overlay_type = TURF_WET_WATER, slip_on_magbooties = FALSE)
+	return SLIP_HAS_MAGBOOTS
 
 /mob/living/simple_animal/spiderbot/say(var/message)
 	return ..(message, "R")

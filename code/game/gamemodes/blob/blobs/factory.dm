@@ -3,7 +3,7 @@
 	icon_state = "factory"
 	desc = "A part of a blob. It makes the sound of organic tissue being torn."
 	health = 100
-	maxhealth = 100
+	maxHealth = 100
 	fire_resist = 2
 	var/list/spores = list()
 	var/max_spores = 2
@@ -16,7 +16,7 @@
 	icon_classic = "blob_factory"
 
 //obj/effect/blob/factory/New(loc,newlook = "new") HALLOWEEN
-/obj/effect/blob/factory/New(loc,newlook = "skelleton")
+/obj/effect/blob/factory/New(loc,newlook = null)
 	..()
 	if(icon_size == 64)
 		flick("morph_factory",src)
@@ -31,13 +31,11 @@
 
 	if(icon_size == 64)
 		flick("factorypulse",src)
-		anim(target = loc, a_icon = icon, flick_anim = "sporepulse", sleeptime = 15, lay = 7.2, offX = -16, offY = -16, alph = 220)
+		anim(target = loc, a_icon = icon, flick_anim = "sporepulse", sleeptime = 15, lay = layer+0.5, offX = -16, offY = -16, alph = 220, plane = BLOB_PLANE)
 		spawn(10)
 			new/mob/living/simple_animal/hostile/blobspore(src.loc, src)
 	else
 		new/mob/living/simple_animal/hostile/blobspore(src.loc, src)
-
-	stat_collection.blob_spores_spawned++
 
 	return 1
 
@@ -48,7 +46,7 @@
 	if(!manual_remove && overmind)
 		to_chat(overmind,"<span class='warning'>A factory blob that you had created has been destroyed.</span> <b><a href='?src=\ref[overmind];blobjump=\ref[loc]'>(JUMP)</a></b>")
 		overmind.special_blobs -= src
-		overmind.update_specialblobs()
+		overmind.DisplayUI("Blob Top Panel")
 	..()
 
 /obj/effect/blob/factory/update_icon(var/spawnend = 0)
@@ -93,17 +91,19 @@
 	maxbodytemp = 360
 	plane = BLOB_PLANE
 	layer = BLOB_SPORE_LAYER
+	var/looks = "new"
 
 /mob/living/simple_animal/hostile/blobspore/New(loc, var/obj/effect/blob/factory/linked_node)
 	if(istype(linked_node))
 		factory = linked_node
 		factory.spores += src
 		icon = factory.icon
+		looks = factory.looks
 	..()
 
 /mob/living/simple_animal/hostile/blobspore/fire_act(datum/gas_mixture/air, exposed_temperature, exposed_volume)
 	..()
-	adjustBruteLoss(Clamp(0.01 * exposed_temperature, 1, 5))
+	adjustBruteLoss(clamp(0.01 * exposed_temperature, 1, 5))
 
 /mob/living/simple_animal/hostile/blobspore/blob_act()
 	return
@@ -120,6 +120,26 @@
 	qdel(src)
 
 /mob/living/simple_animal/hostile/blobspore/Destroy()
+	//creating a pathogenic cloud upon death
+	anim(target = loc, a_icon = icon, flick_anim = "blob_act", sleeptime = 15, direction = SOUTH, lay = BLOB_SPORE_LAYER, plane = BLOB_PLANE)
+	if (!(looks in blob_diseases))
+		CreateBlobDisease(looks)
+	var/datum/disease2/disease/D = blob_diseases[looks]
+	var/list/L = list()
+	L["[D.uniqueID]-[D.subID]"] = D
+	new /obj/effect/pathogen_cloud(get_turf(src), null, virus_copylist(L), FALSE)
 	if(factory)
 		factory.spores -= src
 	..()
+
+/mob/living/simple_animal/hostile/blobspore/unarmed_attack_mob(var/mob/living/target)
+	. = ..()
+
+	if (.)
+		//if we damage our target, let's try and infect them
+		if (!(looks in blob_diseases))
+			CreateBlobDisease(looks)
+		var/datum/disease2/disease/D = blob_diseases[looks]
+
+		if (!target.check_contact_sterility(FULL_TORSO))//For simplicity's sake (for once), let's just assume that the blob strikes the torso.
+			target.infect_disease2(D, notes="(Blob, from [src])")

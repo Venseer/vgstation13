@@ -24,16 +24,18 @@
 	set category = null
 
 	if(!src.holder)
-		to_chat(src, "<font color='red'>Only Admins may use this command.</font>")
+		to_chat(src, "<span class='red'>Only Admins may use this command.</span>")
 		return
 
 	var/client/target = input(src,"Choose somebody to grant access to the server's runtime logs (permissions expire at the end of each round):","Grant Permissions",null) as null|anything in clients
 	if(!istype(target,/client))
-		to_chat(src, "<font color='red'>Error: giveruntimelog(): Client not found.</font>")
+		to_chat(src, "<span class='red'>Error: giveruntimelog(): Client not found.</span>")
 		return
 
 	target.verbs |= /client/proc/getruntimelog
-	to_chat(target, "<font color='red'>You have been granted access to runtime logs. Please use them responsibly or risk being banned.</font>")
+	to_chat(target, "<span class='red'>You have been granted access to runtime logs. Please use them responsibly or risk being banned.</span>")
+	message_admins("[key_name_admin(src)] gave runtime log access to: [key_name(target)]")
+	log_admin("[key_name(src)] gave runtime log access to: [key_name(target)]")
 	return
 
 
@@ -51,7 +53,6 @@
 	if(file_spam_check())
 		return
 
-	message_admins("[key_name_admin(src)] accessed file: [path]")
 	obtain_log(path, src)
 	to_chat(src, "Attempting to send file, this may take a fair few minutes if the file is very large.")
 
@@ -69,7 +70,6 @@
 	if(file_spam_check())
 		return
 
-	message_admins("[key_name_admin(src)] accessed file: [path]")
 	obtain_log(path, src)
 	to_chat(src, "Attempting to send file, this may take a fair few minutes if the file is very large.")
 	return
@@ -83,11 +83,11 @@
 	set name = "Show Server Log"
 	set desc = "Shows today's server log."
 
-	var/path = "data/logs/[time2text(world.realtime,"YYYY/MM-Month/DD-Day")].log"
-	if( fexists(path) )
+	var/path = "data/logs/[date_string].log"
+	if(fexists(path))
 		obtain_log(path, src)
 	else
-		to_chat(src, "<font color='red'>Error: view_txt_log(): File not found/Invalid path([path]).</font>")
+		to_chat(src, "<span class='red'>Error: view_txt_log(): File not found/Invalid path([path]).</span>")
 		return
 	feedback_add_details("admin_verb","VTL") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 	return
@@ -98,11 +98,11 @@
 	set name = "Show Server Attack Log"
 	set desc = "Shows today's server attack log."
 
-	var/path = "data/logs/[time2text(world.realtime,"YYYY/MM-Month/DD-Day")] Attack.log"
-	if( fexists(path) )
+	var/path = "data/logs/[date_string] Attack.log"
+	if(fexists(path))
 		obtain_log(path, src)
 	else
-		to_chat(src, "<font color='red'>Error: view_atk_log(): File not found/Invalid path([path]).</font>")
+		to_chat(src, "<span class='red'>Error: view_atk_log(): File not found/Invalid path([path]).</span>")
 		return
 	feedback_add_details("admin_verb","SSAL") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 	return
@@ -110,7 +110,7 @@
 /datum/admins/proc/view_mob_attack_log(var/mob/M as mob)
 	set category	= "Admin"
 	set name		= "Show mob's attack logs"
-	set desc			= "Shows the (formatted) attack log of a mob in a HTML window."
+	set desc		= "Shows the (formatted) attack log of a mob in a HTML window."
 
 	if(!istype(M))
 		to_chat(usr, "That's not a valid mob!")
@@ -119,29 +119,30 @@
 	var/datum/browser/clean/popup = new (usr, "\ref[M]_admin_log_viewer", "Attack logs of [M]", 300, 300)
 	popup.set_content(jointext(M.attack_log, "<br/>"))
 	popup.open()
-
 	feedback_add_details("admin_verb","VMAL")
 
 //Used by the other procs to actually send the selected logs to the user
-/proc/obtain_log(var/path = null, src)
-	if(path && src)
+/proc/obtain_log(var/path = null, source)
+	if(path && source)
+		message_admins("[key_name_admin(source)] accessed file: [path]")
+		log_admin("[key_name(source)] accessed file: [path]")
 		#ifdef RUNWARNING
 		#if DM_VERSION > 506 && DM_VERSION < 508
 			#warn Run is deprecated and disabled for some fucking reason in 507.1275/6, if you have a version that doesn't have run() disabled then comment out #define RUNWARNING in setup.dm
-		src << ftp(file(path))
+		source << ftp(file(path))
 		#else
 		var/method = alert("How do you want to get the logs?",,"Save to file","Open in notepad")
 		if(method == "Save to file")
-			src << ftp(file(path))
+			source << ftp(file(path))
 		else if(method == "Open in notepad")
-			src << run(file(path))
+			source << run(file(path))
 		#endif
 		#else
 		var/method = alert("How do you want to get the logs?",,"Save to file","Open in notepad")
 		if(method == "Save to file")
-			src << ftp(file(path))
+			source << ftp(file(path))
 		else if(method == "Open in notepad")
-			src << run(file(path))
+			source << run(file(path))
 		#endif
 	else
-		to_chat(src, "Error, no log file or src passed to obtain_log")
+		to_chat(source, "Error, no log file or src passed to obtain_log")

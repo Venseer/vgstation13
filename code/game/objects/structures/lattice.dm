@@ -7,6 +7,7 @@
 	anchored = 1.0
 	layer = LATTICE_LAYER
 	plane = ABOVE_PLATING_PLANE
+	pass_flags_self = PASSGRILLE
 
 	//	flags = CONDUCT
 
@@ -20,16 +21,10 @@
 
 /obj/structure/lattice/New(loc)
 	..(loc)
-
 	icon = 'icons/obj/smoothlattice.dmi'
 
-	relativewall()
-
-	relativewall_neighbours()
-
 /obj/structure/lattice/relativewall()
-	var/junction = findSmoothingNeighbors()
-	icon_state = "lattice[junction]"
+	icon_state = "lattice[..()]"
 
 /obj/structure/lattice/isSmoothableNeighbor(atom/A)
 	if (istype(A, /turf/space))
@@ -49,7 +44,7 @@
 
 /obj/structure/lattice/attackby(obj/item/C as obj, mob/user as mob)
 	if(iswelder(C))
-		var/obj/item/weapon/weldingtool/WeldingTool = C
+		var/obj/item/tool/weldingtool/WeldingTool = C
 		if(WeldingTool.remove_fuel(0, user))
 			to_chat(user, "<span class='notice'>Slicing [src] joints...</span>")
 			new/obj/item/stack/rods(loc)

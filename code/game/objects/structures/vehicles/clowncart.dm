@@ -23,8 +23,6 @@
 	density = 1
 	nick = "honkin' ride" //For fucks sake, well then
 	flags = OPENCONTAINER
-	noghostspin = 0
-
 	max_health = 100 //Bananium sheets increases maximum health by 20
 	var/activated = 0 //Honk to activate, it stays active while you sit in it, and will deactivate when you unbuckle
 	var/mode = MODE_NORMAL
@@ -36,7 +34,6 @@
 	var/trail //Trail from banana pie
 	var/colour1 = "#000000" //Change it by using stamps
 	var/colour2 = "#3D3D3D" //Default is boring black
-	var/emagged = 0			//Does something maybe
 	var/honk				//Timer to prevent spamming honk
 
 /obj/structure/bed/chair/vehicle/clowncart/process()
@@ -63,19 +60,18 @@
 /obj/structure/bed/chair/vehicle/clowncart/examine(mob/user)
 	..()
 	if(max_health > 100)
-		to_chat(user, "<span class='info'>It is reinforced with [(max_health-100)/20] bananium sheets.</span>")
+		to_chat(user, "<span class='info'>It is reinforced with [(max_health - 100) / 20] bananium sheets.</span>")
 	switch(mode)
 		if(MODE_DRAWING)
 			to_chat(user, "Currently in drawing mode.")
 		if(MODE_PEELS)
 			to_chat(user, "Currently in banana mode.")
-	switch(health)
-		if(max_health*0.5 to max_health)
-			to_chat(user, "<span class='notice'>It appears slightly dented.</span>")
-		if(1 to max_health*0.5)
-			to_chat(user, "<span class='warning'>It appears heavily dented.</span>")
-		if((INFINITY * -1) to 0)
-			to_chat(user, "<span class='danger'>It appears completely unsalvageable.</span>")
+	if(health in max_health * 0.5 to max_health)
+		to_chat(user, "<span class='notice'>It appears slightly dented.</span>")
+	else if(health in 1 to max_health * 0.5)
+		to_chat(user, "<span class='warning'>It appears heavily dented.</span>")
+	else if(health <= 0)
+		to_chat(user, "<span class='danger'>It appears completely unsalvageable.</span>")
 
 /obj/structure/bed/chair/vehicle/clowncart/attackby(obj/item/W, mob/user)
 	if (istype(W, /obj/item/weapon/bikehorn))
@@ -91,6 +87,7 @@
 				visible_message("<span class='warning'>[nick] lets out a last honk before running out of fuel and activating its ejection seat.</span>")
 				if(ishigherbeing(user)) //This shouldn't be needed, but fucks sakes
 					user.Knockdown(5)
+					user.Stun(5)
 				playsound(src, 'sound/items/bikehorn.ogg', 50, 1)
 				activated = 0
 				reagents.remove_reagent(BANANA, 5)
@@ -179,30 +176,29 @@
 					playsound(src, 'sound/machines/ping.ogg', 50, 1)
 					visible_message("<span class='notice'>You hear a ping as [src]'s SynthPeel Generator starts transforming banana juice into slippery peels.</span>")
 					playsound(src, 'sound/machines/ping.ogg', 50, 1)
-		qdel(W)
-		W = null
+		QDEL_NULL(W)
 	else if(istype(W, /obj/item/toy/crayon/)) //Any crayon
 		if(mode == MODE_DRAWING)
-			printing_text = lowertext(input(user, "Enter a message to print. Possible options: 'rune', 'graffiti', 'paint', 'nothing'", "Message", printing_text))
+			printing_text = copytext(sanitize(lowertext(input(user, "Enter a message to print. Possible options: 'rune', 'graffiti', 'paint', 'nothing'", "Message", printing_text))),1,MAX_MESSAGE_LEN)
 			printing_pos = 0
 			switch(printing_text)
 				if("graffiti")
 					to_chat(user, "<span class='notice'>Set to draw graffiti!</span>")
 				if("rune")
 					to_chat(user, "<span class='notice'>Set to draw runes!</span>")
-				if("" || "nothing")
+				if("", "nothing")
 					to_chat(user, "<span class='warning'>No longer drawing anything.</span>")
 				if("paint")
 					to_chat(user, "<span class='notice'>Set to paint the floor!</span>")
 				else
 					to_chat(user, "<span class='notice'>Set to print the following text: [printing_text].</span>")
-	else if(istype(W, /obj/item/toy/waterflower)) //Water flower
+	else if(istype(W, /obj/item/clothing/accessory/waterflower)) //Water flower
 		to_chat(user, "<span class='notice'>You plug [W] into [src]!</span>")//Using it on the clown cart will transfer anything in the fuel tank (other than banana juice) into the flower
 
 		if(max_health >= HEALTH_FOR_FLOWER_RECHARGE)
 			if(do_after(user, src, 5))
 				W.reagents.remove_any(10)
-				var/tmp/bananas = reagents.get_reagent_amount(BANANA)
+				var/bananas = reagents.get_reagent_amount(BANANA)
 				reagents.remove_reagent(BANANA, bananas) //removing banan so it doesn't get transferred into the water flower
 				if(reagents.total_volume >= 10)
 					visible_message("<span class='notice'>The HONKTech pump has recharged [W].</span>")
@@ -212,10 +208,8 @@
 				reagents.add_reagent(BANANA, bananas) //adding banan back
 		else
 			to_chat(user, "<span class='warning'>The HONKTech pump is not strong enough to do that yet. Reinforce it with more bananium sheets first.</span>")
-	else if(istype(W, /obj/item/weapon/card/emag)) //emag
-		if(!emagged)
-			emagged = 1
-			visible_message("<span class='warning'>[src]'s eyes glow eerily red for a second.</span>")
+	else if(emag_check(W,user)) //emag
+		return
 	else if(istype(W, /obj/item/weapon/stamp/))
 		if(mode == MODE_DRAWING)
 			if(istype(W, /obj/item/weapon/stamp/captain))
@@ -242,7 +236,11 @@
 				colour1 = "#1CA800"
 				colour2 = "#238E0E"
 				to_chat(user, "Selected color: Green Access")
-			else if(istype(W, /obj/item/weapon/stamp/hos))
+			else if(istype(W, /obj/item/weapon/stamp/iaa))
+				colour1 = "#004DCE"
+				colour2 = "#0BB5FF"
+				to_chat(user, "Selected color: Legal Blue")
+			else if(istype(W, /obj/item/weapon/stamp/hos) || istype(W, /obj/item/weapon/stamp/warden))
 				colour1 = "#7F4D21"
 				colour2 = "#B24611"
 				to_chat(user, "Selected color: Shitcurity Brown")
@@ -250,25 +248,42 @@
 				colour1 = "#D22EF7"
 				colour2 = "#D312E5"
 				to_chat(user, "Selected color: Plasma Purple")
+			else if(istype(W, /obj/item/weapon/stamp/chaplain))
+				colour1 = "#9B1C31"
+				colour2 = "#FFD700"
+				to_chat(user, "Selected color: Reverend Red")
 			else
 				colour1 = "#000000"
 				colour2 = "#6D6D6D"
 				to_chat(user, "Selected color: Boring Black")
 
+/obj/structure/bed/chair/vehicle/clowncart/emag_act(mob/user)
+	if(!emagged)
+		emagged = 1
+		visible_message("<span class='warning'>[src]'s eyes glow eerily red for a second.</span>")
+
 /obj/structure/bed/chair/vehicle/clowncart/relaymove(mob/user, direction)
 	if(user.incapacitated())
 		unlock_atom(user)
 		return
+	var/turf/T = get_turf(loc)
+	if(!T)
+		return 0
+	if(!T.has_gravity())
+		// Block relaymove() if needed.
+		if(!Process_Spacemove(0))
+			return 0
 	if(empstun > 0)
 		if(user && can_warn())
 			to_chat(user, "<span class='warning'>[src]'s banana essence battery has been shorted out.</span>")
 		return
 	if(reagents.total_volume <= 0 && max_health < HEALTH_FOR_FREE_MOVEMENT) //No fuel
 		if(user)
-			to_chat(user, "<span class='warning'>[src] has no fuel, it activates its ejection seat as soon as you jam down the pedal!</span>")
-			unlock_atom(user)
 			activated = 0
-			user.Knockdown(5) //Only Weaken after unbuckling
+			to_chat(user, "<span class='warning'>[src] has no fuel, it activates its ejection seat as soon as you jam down the pedal!</span>")
+			if(unlock_atom(user))
+				user.Knockdown(5) //Only Weaken after unbuckling
+				user.Stun(5)
 		return
 	if(activated)
 		var/old_pos = get_turf(src)
@@ -286,10 +301,14 @@
 			draw_graffiti(old_pos)
 		else if(mode == MODE_PEELS)
 			if(!emagged)
-				new /obj/item/weapon/bananapeel/(old_pos)
+				var/atom/peel = new /obj/item/weapon/bananapeel/(old_pos)
+				peel.pixel_x = rand(-12,12)
+				peel.pixel_y = rand(-12,12)
 				reagents.remove_reagent(BANANA,BANANA_FOR_NORMAL_PEEL)
 			else
-				new /obj/item/weapon/bananapeel/traitorpeel/(old_pos)
+				var/atom/peel = new /obj/item/weapon/bananapeel/traitorpeel/(old_pos)
+				peel.pixel_x = rand(-12,12)
+				peel.pixel_y = rand(-12,12)
 				reagents.remove_reagent(BANANA,BANANA_FOR_TRAITOR_PEEL)
 	else
 		if(can_warn())
@@ -317,10 +336,10 @@
 		return
 	reagents.remove_reagent(BANANA, BANANA_FOR_DRAWING)//"graffiti" and "rune" will draw graffiti and runes
 	if(printing_text == "graffiti" || printing_text == "rune") //"paint" will paint floor tiles with selected colour
-		new /obj/effect/decal/cleanable/crayon(pos, colour1, colour2, printing_text)
+		new /obj/effect/decal/cleanable/crayon(pos, color = colour1, shade = colour2, type = printing_text)
 	else
 		if(printing_text == "paint")
-			var/tmp/turf/T = pos
+			var/turf/T = pos
 			var/ind = "[initial(T.icon)][colour1]"
 			if(!cached_icons[ind]) //shamelessly copied from paint.dm
 				var/icon/overlay = new/icon(initial(T.icon))
@@ -336,7 +355,7 @@
 				if(printing_pos >= 0)
 					printing_pos = -length(printing_text)-1 //indian code magic
 			printing_pos++
-			new /obj/effect/decal/cleanable/crayon(pos, colour1, colour2, copytext(printing_text, abs(printing_pos), 1+abs(printing_pos)))
+			new /obj/effect/decal/cleanable/crayon(pos, color = colour1, shade = colour2, type = copytext(printing_text, abs(printing_pos), 1+abs(printing_pos)))
 			if(printing_pos > length(printing_text) - 1 || printing_pos == - 1)
 				printing_text = ""
 				printing_pos = 0

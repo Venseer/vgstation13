@@ -10,8 +10,10 @@
 	sharpness_flags = 0
 	origin_tech = Tc_SYNDICATE + "=6"
 	attack_verb = list("chops", "cleaves", "tears", "cuts")
-	digspeed = 50
-	drill_sound = 'sound/items/metal_impact.ogg'
+	toolspeed = 0.5
+	toolsounds = list('sound/items/metal_impact.ogg')
+	hitsound = 'sound/weapons/empty.ogg'
+	var/list/activated_toolsounds = list('sound/items/Welder2.ogg')
 	var/active = FALSE
 	var/overheat = FALSE
 
@@ -38,10 +40,10 @@
 	active = !active
 	force = active ? 25 : initial(force)
 	damtype = active ? BURN : BRUTE
-	digspeed = active ? 15 : initial(digspeed)
-	drill_sound = active ? 'sound/items/Welder2.ogg' : initial(drill_sound)
+	toolspeed = active ? 0.15 : initial(toolspeed)
+	toolsounds = active ? activated_toolsounds : initial(toolsounds)
 	sharpness = active ? 1.4 : initial(sharpness)
-	heat_production = active ? 5000 : initial(heat_production)
+	heat_production = active ? 54000 : initial(heat_production)
 	w_class = active? W_CLASS_LARGE : initial(w_class)
 	sharpness_flags = active ? (INSULATED_EDGE | SHARP_BLADE | HOT_EDGE) : initial(sharpness_flags)
 	hitsound = active ? 'sound/weapons/blade1.ogg' : 'sound/weapons/empty.ogg'
@@ -50,20 +52,14 @@
 	(active && isrobot(loc)) ? processing_objects.Add(src) : processing_objects.Remove(src)
 
 /obj/item/weapon/pickaxe/plasmacutter/heat_axe/process()
-	if(isrobot(loc)) //Sanity is never enough.
-		var/mob/living/silicon/robot/robot = loc
-		if(active && robot && robot.cell)
-			var/consume = rand(100,250)
-			if(robot.cell.charge <= consume)
-				toggleActive()
-			robot.cell.use(consume)
-	else
+	var/consume = rand(100,250)
+	if(!use_cell_charge(loc,consume))
 		toggleActive()
 
 /obj/item/weapon/pickaxe/plasmacutter/heat_axe/proc/HellFire(var/mob/living/victim)
 	if(isliving(victim) && active) //Just to be sure.
 		victim.adjust_fire_stacks(1)
-		if(victim.IgniteMob())
+		if(victim.ignite())
 			to_chat(victim, "<span class='danger'>You are lit on fire from the intense heat of the [name]!</span>")
 
 /obj/item/weapon/pickaxe/plasmacutter/heat_axe/preattack(atom/target, mob/user, proximity_flag)

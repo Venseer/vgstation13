@@ -14,8 +14,9 @@
 	if(istype(H))
 		head = H
 		name = "[H.name]"
-		if(H.origin_body)
-			desc = "The severed head of [H.origin_body.real_name], crudely shoved onto the tip of a spear."
+		var/mob/living/carbon/human/body = H.origin_body?.get()
+		if(body)
+			desc = "The severed head of [body.real_name], crudely shoved onto the tip of a spear."
 		else
 			desc = "A severed head, crudely shoved onto the tip of a spear."
 		display_head = new (src)
@@ -38,7 +39,7 @@
 
 /obj/structure/headpole/attackby(obj/item/weapon/W, mob/user)
 	..()
-	if(istype(W, /obj/item/weapon/crowbar))
+	if(istype(W, /obj/item/tool/crowbar))
 		to_chat(user, "You pry \the [head] off \the [spear].")
 		if(head)
 			head.forceMove(get_turf(src))
@@ -52,14 +53,11 @@
 
 /obj/structure/headpole/Destroy()
 	if(head)
-		qdel(head)
-		head = null
+		QDEL_NULL(head)
 	if(spear)
-		qdel(spear)
-		spear = null
+		QDEL_NULL(spear)
 	if(display_head)
-		qdel(display_head)
-		display_head = null
+		QDEL_NULL(display_head)
 	..()
 
 /obj/structure/headpole/with_head/New(atom/A)
@@ -67,3 +65,38 @@
 	H.name = "severed head"
 	spear = new (src)
 	..(A, H)
+
+/obj/structure/bigpeppermint_red
+	name = "mounted peppermint"
+	icon = 'icons/obj/structures.dmi'
+	icon_state = "bigpeppermint_red"
+	desc = "Must be a culture thing."
+	density = 0
+	anchored = 1
+
+/obj/structure/bigpeppermint_green
+	name = "mounted peppermint"
+	icon = 'icons/obj/structures.dmi'
+	icon_state = "bigpeppermint_green"
+	desc = "Must be a culture thing."
+	density = 0
+	anchored = 1
+
+/obj/structure/signpost
+	icon = 'icons/obj/stationobjs.dmi'
+	icon_state = "signpost"
+	anchored = 1
+	density = 1
+
+/obj/structure/signpost/attackby(obj/item/weapon/W as obj, mob/user as mob)
+	return attack_hand(user)
+
+/obj/structure/signpost/attack_hand(mob/user as mob)
+	switch(alert("Travel back to ss13?",,"Yes","No"))
+		if("Yes")
+			if(user.z != src.z)
+				return
+			user.loc.loc.Exited(user)
+			user.forceMove(pick(latejoin))
+		if("No")
+			return

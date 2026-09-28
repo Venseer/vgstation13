@@ -10,7 +10,7 @@
 	var/obj/structure/closet/body_bag/R = new /obj/structure/closet/body_bag(user.loc)
 	R.add_fingerprint(user)
 	qdel(src)
-
+	
 
 /obj/item/weapon/storage/box/bodybags
 	name = "body bag kit"
@@ -40,18 +40,21 @@
 	icon_opened = "bodybag_open"
 	density = 0
 	sound_file = 'sound/items/zip.ogg'
+	w_type = NOT_RECYCLABLE
 
-/obj/structure/closet/body_bag/attackby(W as obj, mob/user as mob)
+/obj/structure/closet/body_bag/attackby(obj/item/W, mob/user)
 	if(istype(W,/obj/item/stack/sheet/metal))
 		var/obj/item/stack/sheet/metal/S = W
-		if(S.amount<5)
+		if(!S.use(5))
 			return
-		S.use(5)
-		new /obj/structure/morgue(src.loc)
+		var/obj/structure/morgue/new_morgue = new(loc)
+		for(var/atom/movable/thing in src)
+			thing.forceMove(new_morgue)
+		new_morgue.update_icon()
 		qdel(src)
 	else if(istype(W, /obj/item/weapon/pen) || istype(W, /obj/item/device/flashlight/pen))
-		set_tiny_label(user)
-	else if(iswirecutter(W))
+		set_tiny_label(user, maxlength=32)
+	else if(W.is_wirecutter(user))
 		remove_label()
 		to_chat(user, "<span class='notice'>You cut the tag off the bodybag.</span>")
 
@@ -84,6 +87,48 @@
 	else
 		icon_state = icon_opened
 
+/obj/structure/closet/body_bag/open(mob/user)
+
+	icon_closed = "bodybag_closed"
+
+	var/mob/living/L
+	for (L in src)
+		if (ishuman(L))
+			if (!L.isStunned() && !L.resting)
+				if(!istype(user))
+					return 1
+				if (do_after (user, src, 35)) //delay if someone is standing up
+					return ..()
+				else
+					return 1 //prevents "it won't budge! messages from [closets.dm]
+	return ..()
+
+/obj/structure/closet/body_bag/close(mob/user)
+	var/mob/living/L
+	for (L in get_turf(src))
+		if (ishuman(L))
+			if (!L.isStunned() && !L.resting)
+				if (do_after (user, src, 35))
+					icon_closed = "bodybag_closed_alive"
+					return ..()
+				else
+					return 1
+	return ..()
+
+/obj/structure/closet/body_bag/olympics/New()
+	..()
+	var/mob/living/carbon/human/torso = new
+	if(!torso.resting)
+		torso.rest_action()
+	for(var/datum/organ/external/limb in torso.get_organs(LIMB_LEFT_LEG, LIMB_RIGHT_LEG, LIMB_LEFT_ARM, LIMB_RIGHT_ARM))
+		var/obj/limb_obj = limb.droplimb(override = TRUE, no_explode = TRUE, spawn_limb = TRUE, display_message = FALSE)
+		limb_obj.forceMove(src)
+	var/obj/heart = torso.remove_internal_organ(torso, torso.get_heart(), torso.get_organ(LIMB_CHEST))
+	heart.forceMove(get_turf(src))
+	var/datum/organ/external/head = torso.organs_by_name[LIMB_HEAD]
+	head.droplimb(override = TRUE, no_explode = TRUE, spawn_limb = FALSE, display_message = FALSE)
+	torso.forceMove(src)
+
 //Cryobag (statis bag) below, not currently functional it seems
 
 /obj/item/bodybag/cryobag
@@ -115,7 +160,7 @@
 		O.name = "used stasis bag"
 		O.icon = src.icon
 		O.icon_state = "bodybag_used"
-		O.desc = "Pretty useless now.."
+		O.desc = "Pretty useless now."
 		qdel(src)
 
 /obj/structure/closet/body_bag/cryobag/MouseDropFrom(over_object, src_location, over_location)

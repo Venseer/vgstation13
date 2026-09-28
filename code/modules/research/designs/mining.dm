@@ -20,7 +20,7 @@
 
 /datum/design/plasmacutter
 	name = "Plasma Cutter"
-	desc = "You could use it to cut limbs off of xenos! Or, you know, mine stuff."
+	desc = "A rock cutter that uses bursts of hot plasma."
 	id = "plasmacutter"
 	req_tech = list(Tc_MATERIALS = 4, Tc_PLASMATECH = 3, Tc_ENGINEERING = 3)
 	build_type = PROTOLATHE
@@ -29,9 +29,20 @@
 	category = "Mining"
 	build_path = /obj/item/weapon/pickaxe/plasmacutter
 
+/datum/design/plasmacutterkit
+	name = "Advanced Plasma Cutter Conversion kit"
+	desc = "A set of tools that enables conversion of a plasma cutter into a more advanced form. Needs to be loaded with the parts of a proto-kinetic accelerator first."
+	id = "plasmacutterkit"
+	req_tech = list(Tc_MATERIALS = 4, Tc_PLASMATECH = 3, Tc_ENGINEERING = 3, Tc_NANOTRASEN = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 1500, MAT_GLASS = 500, MAT_GOLD = 500, MAT_PLASMA = 1000, MAT_DIAMOND = 3750)
+	reliability_base = 79
+	category = "Mining"
+	build_path = /obj/item/device/modkit/plasmacutter
+
 /datum/design/pick_diamond
 	name = "Diamond Pickaxe"
-	desc = "A pickaxe with a diamond pick head, this is just like minecraft."
+	desc = "A pickaxe with a diamond pick head. This is just like Minecraft!"
 	id = "pick_diamond"
 	req_tech = list(Tc_MATERIALS = 6)
 	build_type = PROTOLATHE
@@ -52,7 +63,7 @@
 
 /datum/design/auto_ore
 	name = "Automatic Ore Loader"
-	desc = "Used to automatically pick up ore"
+	desc = "Used to automatically pick up ore."
 	id = "auto_ore"
 	req_tech = list(Tc_MATERIALS = 6, Tc_POWERSTORAGE = 4, Tc_ENGINEERING = 4)
 	build_type = PROTOLATHE

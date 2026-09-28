@@ -3,11 +3,12 @@
 	icon_state = "bullet"
 	damage = 60
 	damage_type = BRUTE
-	nodamage = 0
+	nodamage = FALSE
 	phase_type = PROJREACT_WINDOWS
 	penetration = 5 //bullets can now by default move through up to 5 windows, or 2 reinforced windows, or 1 plasma window. (reinforced plasma windows still have enough dampening to completely block them)
 	flag = "bullet"
 	fire_sound = 'sound/weapons/Gunshot_smg.ogg'
+	projectile_speed = 0.5
 	var/embed = 1
 	var/embed_message = TRUE
 
@@ -32,6 +33,76 @@
 	kill_count = 1 //Limits the range to one tile
 	embed = 0
 
+/obj/item/projectile/bullet/weakbullet
+	name = "weak bullet"
+	icon_state = "bbshell"
+	damage = 10
+	stun = 3
+	weaken = 5
+	embed = 0
+	projectile_speed = 0.5
+
+/obj/item/projectile/bullet/weakbullet/booze
+	name = "booze bullet"
+	projectile_speed = 0.5
+
+/obj/item/projectile/bullet/weakbullet/mech
+	stun = 0
+	weaken = 0
+
+/obj/item/projectile/bullet/weakbullet/booze/on_hit(var/atom/target, var/blocked = 0)
+	if(..(target, blocked))
+		var/mob/living/M = target
+		M.dizziness += 20
+		M:slurring += 20
+		M.confused += 20
+		M.eye_blurry += 20
+		M.drowsyness += 20
+		if(M.dizziness <= 150)
+			M.Dizzy(150)
+			M.dizziness = 150
+		for(var/datum/reagent/ethanol/A in M.reagents.reagent_list)
+			M.AdjustParalysis(2)
+			M.dizziness += 10
+			M:slurring += 10
+			M.confused += 10
+			M.eye_blurry += 10
+			M.drowsyness += 10
+			A.volume += 5 //Because we can
+			M.dizziness += 10
+		return 1
+	return 0
+
+/obj/item/projectile/bullet/weakbullet/fanshot
+	name = "FaNshot"
+	projectile_speed = 0.5
+	var/hardthrow = FALSE
+	var/powermult = 1
+
+/obj/item/projectile/bullet/weakbullet/fanshot/to_bump(atom/A)
+	. = ..()
+	if(ismovable(A))
+		var/atom/movable/AM = A
+		var/run = AM.x - starting.x
+		var/rise = AM.y - starting.y
+		var/dist = get_dist(starting,AM)
+		var/multiplier = (7 / (dist > 0 && dist <= 7 ? dist : 7)) * powermult
+		if(ishuman(A))
+			var/mob/living/carbon/human/H = A
+			if(M_HULK in H.mutations)
+				multiplier /= 2
+		if(ismecha(A))
+			multiplier /= 2
+		var/turf/finalturf = locate(starting.x+(run*multiplier),starting.y+(rise*multiplier),AM.z)
+		if(finalturf != get_turf(AM) && !AM.anchored)
+			AM.throw_at(finalturf,INFINITY,superthrow = hardthrow)
+
+/obj/item/projectile/bullet/weakbullet/fanshot/super
+	name = "high force FaNshot"
+	damage = 30
+	hardthrow = TRUE
+	powermult = 2
+
 /obj/item/projectile/bullet/shrapnel
 
 	name = "shrapnel"
@@ -43,13 +114,16 @@
 /obj/item/projectile/bullet/shrapnel/New()
 	..()
 	kill_count = rand(6,10)
-
-
+	damage = rand(15,75)
 
 /obj/item/projectile/bullet/shrapnel/small
 
 	name = "small shrapnel"
 	damage = 25
+
+/obj/item/projectile/bullet/shrapnel/small/New()
+	..()
+	damage = rand(5,45)
 
 /obj/item/projectile/bullet/shrapnel/small/plasma
 
@@ -58,50 +132,22 @@
 	color = "#BF5FFF"
 	damage = 35
 
-
-/obj/item/projectile/bullet/weakbullet
-	name = "weak bullet"
-	icon_state = "bbshell"
-	damage = 10
-	stun = 5
-	weaken = 5
-	embed = 0
-/obj/item/projectile/bullet/weakbullet/booze
-	name = "booze bullet"
-	on_hit(var/atom/target, var/blocked = 0)
-		if(..(target, blocked))
-			var/mob/living/M = target
-			M.dizziness += 20
-			M:slurring += 20
-			M.confused += 20
-			M.eye_blurry += 20
-			M.drowsyness += 20
-			if(M.dizziness <= 150)
-				M.Dizzy(150)
-				M.dizziness = 150
-			for(var/datum/reagent/ethanol/A in M.reagents.reagent_list)
-				M.paralysis += 2
-				M.dizziness += 10
-				M:slurring += 10
-				M.confused += 10
-				M.eye_blurry += 10
-				M.drowsyness += 10
-				A.volume += 5 //Because we can
-				M.dizziness += 10
-			return 1
-		return 0
+/obj/item/projectile/bullet/shrapnel/small/plasma/New()
+	..()
+	damage = rand(10,60)
 
 /obj/item/projectile/bullet/midbullet
 	damage = 20
 	stun = 5
 	weaken = 5
 	fire_sound = 'sound/weapons/Gunshot_c20.ogg'
+	projectile_speed = 1
 
 /obj/item/projectile/bullet/midbullet/lawgiver
 	damage = 10
 	stun = 0
 	weaken = 0
-	projectile_speed = 0.66
+	projectile_speed = 0.5
 
 /obj/item/projectile/bullet/midbullet/assault
 	damage = 20
@@ -124,13 +170,11 @@
 
 /obj/item/projectile/bullet/fourtyfive
 	damage = 35 //buffed up for antag usage
-	drowsy = 2
 	agony = 2
 	penetration = 3
 
 /obj/item/projectile/bullet/fourtyfive/practice
 	damage = 3
-	drowsy = 1
 	agony = 1
 	embed = 0
 	penetration = 0
@@ -140,16 +184,31 @@
 	stun = 5
 	weaken = 5
 	penetration = 1
+	projectile_speed = 1
 
 /obj/item/projectile/bullet/auto380 //new sec pistol ammo, reverse name because lol compiler
 	damage = 15
-	drowsy = 1
-	agony = 1
+	agony = 15
 	penetration = 2
+
+/obj/item/projectile/bullet/auto380/to_bump(atom/A)
+	. = ..()
+	if(A && shot_from.type == /obj/item/weapon/gun/projectile/glock/fancy/kitchengun)
+		var/obj/item/weapon/gun/projectile/glock/fancy/kitchengun/K = shot_from
+		if(!(A in K.cleaning_targets)) // BUT WITH THREE SHOTS FROM KITCHEN GUN
+			K.cleaning_targets += A // BANG
+		K.cleaning_targets[A]++ // BANG
+		if(K.cleaning_targets[A] > 2) // BANG
+			var/turf/T = get_turf(A)
+			T.clean_act(CLEANLINESS_BLEACH)
+			for(var/obj/O in T)
+				O.clean_act(CLEANLINESS_BLEACH)
+			A.clean_act(CLEANLINESS_BLEACH) // AND IT SPARKLES LIKE NEW
+			K.cleaning_targets[A] = 0
+			K.cleaning_targets -= A
 
 /obj/item/projectile/bullet/auto380/practice
 	damage = 2
-	drowsy = 0
 	agony = 0
 	embed = 0
 	penetration = 0
@@ -160,23 +219,14 @@
 	weaken = 5
 	embed = 0
 	penetration = 0
+	projectile_speed = 1
 
-/obj/item/projectile/bullet/suffocationbullet//How does this even work?
-	name = "CO2 bullet"
-	damage = 20
-	damage_type = OXY
-
-
-/obj/item/projectile/bullet/cyanideround
-	name = "poison bullet"
-	damage = 40
-	damage_type = TOX
-
-
-/obj/item/projectile/bullet/burstbullet//I think this one needs something for the on hit
-	name = "exploding bullet"
-	damage = 20
-
+/obj/item/projectile/bullet/LR22
+	damage = 10
+	weaken = 3
+	embed = 1
+	penetration = 1
+	projectile_speed = 1
 
 /obj/item/projectile/bullet/stunshot
 	name = "stunshot"
@@ -188,6 +238,39 @@
 
 /obj/item/projectile/bullet/a762
 	damage = 25
+
+
+/obj/item/projectile/bullet/suffocationbullet
+	name = "CO2 bullet"
+	damage = 20
+	damage_type = OXY
+
+
+/obj/item/projectile/bullet/cyanideround
+	name = "poison bullet"
+	damage = 40
+	damage_type = TOX
+
+/obj/item/projectile/bullet/burstbullet
+	name = "exploding bullet"
+	embed = 0
+	damage = 0
+
+/obj/item/projectile/bullet/burstbullet/on_hit(var/atom/target, var/blocked = 0)
+	..()
+	explosion(target, 0,1,1,5, whodunnit = firer)
+	qdel(src)
+
+/obj/item/projectile/bullet/boombullet
+	name = "small exploding bullet"
+	embed = 0
+	damage = 0
+	penetration = -1
+
+/obj/item/projectile/bullet/boombullet/to_bump(var/atom/target)
+	..()
+	explosion(target, 0,0,1,5)
+	qdel(src)
 
 #define SPUR_FULL_POWER 4
 #define SPUR_HIGH_POWER 3
@@ -288,9 +371,10 @@
 
 	if(istype(A, /turf/unsimulated/mineral))
 		var/turf/unsimulated/mineral/M = A
-		M.GetDrilled()
+		if(M.mining_difficulty < MINE_DIFFICULTY_TOUGH)
+			M.GetDrilled()
 	if(istype(A, /obj/structure/boulder))
-		returnToPool(A)
+		qdel(A)
 
 	return ..()
 
@@ -319,6 +403,36 @@
 	damage = 30
 	fire_sound = 'sound/weapons/gatling_fire.ogg'
 
+/obj/item/projectile/bullet/baton
+	name = "stun baton"
+	icon = 'icons/obj/projectiles_experimental.dmi'
+	icon_state = "baton"
+	damage = 10
+	fire_sound = 'sound/weapons/railgun_lowpower.ogg'
+	phase_type = null
+	penetration = 0
+	projectile_speed = 1
+	stun = 10
+	weaken = 10
+	stutter = 10
+	agony = 10
+	var/rigged = null //if a rigged baton is loaded, it'll fire an explosive burst
+
+/obj/item/projectile/bullet/baton/on_hit(var/atom/target, var/blocked = 0)
+	..()
+	playsound(target.loc, 'sound/weapons/Egloves.ogg', 50, 1, -1)
+	playsound(target.loc, "swing_hit", 50, 1, -1)
+	if(ishuman(target))
+		var/mob/living/carbon/human/targethuman = target
+		targethuman.forcesay(hit_appends)
+	if(rigged) //vars taken from a standard cell explosion
+		var/devastation_range = -1
+		var/heavy_impact_range = 0.5
+		var/light_impact_range = 1
+		var/flash_range = light_impact_range
+		explosion(target.loc, devastation_range, heavy_impact_range, light_impact_range, flash_range, whodunnit = firer)
+	qdel(src)
+
 /obj/item/projectile/bullet/osipr
 	name = "\improper OSIPR bullet"
 	icon = 'icons/obj/projectiles_experimental.dmi'
@@ -343,7 +457,7 @@
 	stutter = 5
 	phase_type = PROJREACT_WALLS|PROJREACT_WINDOWS|PROJREACT_OBJS|PROJREACT_MOBS|PROJREACT_BLOB
 	penetration = 20 //can hit 3 mobs at once, or go through a wall and hit 2 more mobs, or go through an rwall/blast door and hit 1 mob
-	projectile_speed = 0.66
+	projectile_speed = 0.5
 	fire_sound = 'sound/weapons/hecate_fire.ogg'
 
 /obj/item/projectile/bullet/hecate/OnFired()
@@ -368,29 +482,54 @@
 	weaken = 5
 	phase_type = PROJREACT_WALLS|PROJREACT_WINDOWS|PROJREACT_OBJS
 	penetration = 10
+	projectile_speed = 1
+
+/obj/item/projectile/bullet/a76239mm_financial
+	name = "7.6239mm financial round"
+	damage = 1
+
+/obj/item/projectile/bullet/a76239mm_financial/on_hit(var/atom/target, var/blocked = 0)
+	if(blocked)
+		blocked = 100 // completely useless against armor
+	. = ..(target, blocked)
+	if(. && damage > 200 && (def_zone == LIMB_CHEST || def_zone == LIMB_GROIN) && isliving(target))
+		var/mob/living/L = target
+		L.gib()
 
 /obj/item/projectile/bullet/beegun
 	name = "bee"
 	icon = 'icons/obj/projectiles_experimental.dmi'
 	icon_state = "beegun"
-	damage = 5
+	damage = 0
 	damage_type = TOX
 	flag = "bio"
-	var/bug_species = BEESPECIES_NORMAL
-	var/tox = 50
-	var/dam = 2
+	projectile_speed = 1
+	var/bee_type = /mob/living/simple_animal/bee/angry
+	var/angery = 1
+
+/obj/item/projectile/bullet/beegun/chillbug
+	name = "chillbug"
+	icon_state = "chillgun"
+	projectile_speed = 0.5
+	bee_type = /mob/living/simple_animal/bee/chillgun
+	angery = 0
 
 /obj/item/projectile/bullet/beegun/hornet
 	name = "hornet"
 	icon_state = "hornetgun"
-	damage = 7
-	bug_species = BEESPECIES_HORNET
-	tox = 25
-	dam = 4
+	projectile_speed = 0.5
+	bee_type = /mob/living/simple_animal/bee/hornetgun
+
+/obj/item/projectile/bullet/beegun/ss_viscerator
+	name = "viscerator"
+	icon_state = "ss_visceratorgun"
+	projectile_speed = 0.75
+	bee_type = /mob/living/simple_animal/hostile/viscerator/syndiesquad
 
 /obj/item/projectile/bullet/beegun/OnFired()
 	..()
-	playsound(starting, 'sound/effects/bees.ogg', 75, 1)
+	if(isbee(bee_type)	)
+		playsound(starting, 'sound/effects/bees.ogg', 75, 1)
 
 /obj/item/projectile/bullet/beegun/to_bump(atom/A as mob|obj|turf|area)
 	if (!A)
@@ -403,14 +542,24 @@
 	bumped = 1
 
 	var/turf/T = get_turf(src)
-	var/mob/living/simple_animal/bee/angry/BEE = new (T,null,bug_species,tox,dam)
+	var/mob/living/simple_animal/bee/BEE = new bee_type(T,null)
 	if(istype(A,/mob/living))
 		var/mob/living/M = A
-		visible_message("<span class='warning'>\the [M.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
+		visible_message("<span class='warning'>\The [M.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
 		M.bullet_act(src, def_zone)
 		admin_warn(M)
 		BEE.forceMove(M.loc)
 		BEE.target = M
+		if(isbee(BEE))
+			BEE.target_turf = M.loc
+		BEE.AttackTarget(TRUE)//let's sting them once
+		if (isbee(BEE) && BEE.bee_species.angery)
+			BEE.MoveToTarget()//then let's immediately start running after them
+		else
+			BEE.target = null
+			if(isbee(BEE))
+				BEE.target_turf = null
+
 	bullet_die()
 
 /obj/item/projectile/bullet/APS //Armor-piercing sabot round. Metal rods become this when fired from a railgun.
@@ -425,9 +574,17 @@
 	penetration = 0 //By default. Higher-power shots will have penetration.
 
 /obj/item/projectile/bullet/APS/on_hit(var/atom/atarget, var/blocked = 0)
-	if(istype(atarget, /mob/living) && damage == 200)
+	if(istype(atarget, /mob/living) && damage >= 200)
 		var/mob/living/M = atarget
 		M.gib()
+	else if(istype(atarget, /obj/machinery/singularity/narsie) && blessed && damage >= 200) //MINE IS THE ROD THAT SHALL PIERCE THE HEAVENS
+		var/obj/machinery/singularity/narsie/N = atarget
+		N.visible_message("<span class = 'danger'>\The [src] strikes \the [N], ripping through them and splattering blood around. This god can bleed!<span class = 'sinister'>...of course it can...it's a god of blood...and now you have its attention.</span></span>", range = 20)
+		if (firer)
+			N.acquire(firer)
+			new /obj/effect/cult_ritual/confusion(firer.loc)
+		bullet_die()
+		return
 	else
 		..()
 
@@ -441,13 +598,12 @@
 				if(M_turf && (M_turf.z == starting.z))
 					M.playsound_local(starting, 'sound/weapons/hecate_fire_far.ogg', 25, 1)
 
-/obj/item/projectile/bullet/APS/OnDeath()
-	var/turf/T = get_turf(src)
-	new /obj/item/stack/rods(T)
+/obj/item/projectile/bullet/APS/cultify()
+	return
 
 /obj/item/projectile/bullet/stinger
 	name = "alien stinger"
-	damage = 5
+	damage = 15
 	damage_type = TOX
 	flag = "bio"
 	fire_sound = 'sound/weapons/hivehand.ogg'
@@ -477,8 +633,7 @@
 
 /obj/item/projectile/bullet/vial/Destroy()
 	if(vial)
-		qdel(vial)
-		vial = null
+		QDEL_NULL(vial)
 	if(user)
 		user = null
 	..()
@@ -529,54 +684,105 @@
 	var/heavy_damage_range = 0
 	var/medium_damage_range = 0
 	var/light_damage_range = 0
-	fire_sound = 'sound/effects/Explosion1.ogg'
-
-/obj/item/projectile/bullet/blastwave/New()
-	..()
-	var/sound = rand(1,6)
-	switch(sound)
-		if(1)
-			fire_sound = 'sound/effects/Explosion1.ogg'
-		if(2)
-			fire_sound = 'sound/effects/Explosion2.ogg'
-		if(3)
-			fire_sound = 'sound/effects/Explosion3.ogg'
-		if(4)
-			fire_sound = 'sound/effects/Explosion4.ogg'
-		if(5)
-			fire_sound = 'sound/effects/Explosion5.ogg'
-		if(6)
-			fire_sound = 'sound/effects/Explosion6.ogg'
+	var/true_range = 0
+	fire_sound = null//no need, we'll call explosion_effect() instead
+	var/list/affected_turfs = list()
+	var/list/cached_ex_act = list()
+	var/list/heavy_turfs = list()
+	var/list/medium_turfs = list()
+	var/list/light_turfs = list()
+	var/widening_rate = 5
+	var/distance_traveled = 0
+	var/radius = 0
+	projectile_speed = 0//we try to quickly and immediately scan all the turfs, then add some delay when it comes to actually loop through them
+	var/datum/sensed_explosion/explosion_datum
+	var/time_spent = 0
 
 /obj/item/projectile/bullet/blastwave/OnFired()
 	..()
 	if(!heavy_damage_range || !medium_damage_range || !light_damage_range)
 		bullet_die()
 		return
+	explosion_datum = new(starting.x, starting.y, starting.z, heavy_damage_range, medium_damage_range, light_damage_range, true_range)
+	time_spent = start_watch()
+	explosion_effect(starting, heavy_damage_range, medium_damage_range, light_damage_range)
+
+/obj/item/projectile/bullet/blastwave/to_bump(var/atom/A)
+	forceMove(get_step(loc,dir))//The projectile passes freely through everything. The actual explosion dampening is calculated later.
 
 /obj/item/projectile/bullet/blastwave/process_step()
 	..()
-	var/turf/T = get_turf(src)
-	if(light_damage_range)
-		if(medium_damage_range)
-			if(heavy_damage_range)
-				for(var/atom/movable/A in T.contents)
-					if(!istype(A, /obj/item/organ/external/head))
-						A.ex_act(1)
-				T.ex_act(1)
-				heavy_damage_range -= 1
-			else
-				for(var/atom/movable/A in T.contents)
-					A.ex_act(2)
-				T.ex_act(2)
-				medium_damage_range -= 1
-		else
-			for(var/atom/movable/A in T.contents)
-				A.ex_act(3)
-			T.ex_act(3)
-			light_damage_range -= 1
-	else
+	if (!loc)
+		return
+
+	distance_traveled++
+
+	if (distance_traveled > light_damage_range)
 		bullet_die()
+		return
+
+	radius = round(distance_traveled/widening_rate)
+
+	var/max_steps = distance_traveled + radius + 1
+
+	var/turf/relative_epicenter = locate(override_starting_X,override_starting_Y,z)
+
+	var/turf/T = loc
+	for (var/turf/U in range(radius,T))
+		if (!(U in affected_turfs))
+			affected_turfs |= U
+			var/steps = 0
+			var/turf/Trajectory = U
+			var/dist = cheap_pythag(U.x - override_starting_X, U.y - override_starting_Y)
+			while((Trajectory != starting) && (steps <= max_steps))
+				Trajectory = get_step_towards(Trajectory,relative_epicenter)
+				dist += CalculateExplosionSingleBlock(Trajectory)
+				steps++//failsafe in case of fuckery such as the projectile finding itself on a different Z level
+			if (dist <= heavy_damage_range)
+				heavy_turfs += U
+			else if (dist <= medium_damage_range)
+				medium_turfs += U
+			else if (dist <= light_damage_range)
+				light_turfs += U
+
+/obj/item/projectile/bullet/blastwave/teleport_act()
+	override_starting_X = clamp(override_starting_X,1,world.maxx)
+	override_starting_Y = clamp(override_starting_Y,1,world.maxy)
+
+/obj/item/projectile/bullet/blastwave/bullet_die()
+	//the bullet moved all the way, now to explode dem turfs
+	spawn()
+		for (var/turf/T in heavy_turfs)
+			blast_turf(T,1)
+		for (var/turf/T in medium_turfs)
+			blast_turf(T,2)
+		for (var/turf/T in light_turfs)
+			blast_turf(T,3)
+
+		time_spent = stop_watch(time_spent)
+		if (explosion_datum)
+			explosion_datum.ready(time_spent)
+	..()
+
+/obj/item/projectile/bullet/blastwave/proc/blast_turf(var/turf/T,var/severity)
+	explosion_datum.paint(T,severity)
+	for(var/atom/movable/A in T.contents)
+		if(!istype(A, /obj/item/organ/external/head))
+			A.ex_act(severity)
+	for (var/direction in cardinal)
+		var/turf/U = get_step(T,direction)
+		if (istype(U, /turf/simulated/floor) && !(U in affected_turfs))
+			var/turf/simulated/floor/F = U
+			switch (severity)
+				if (1)
+					F.break_tile()
+				if (2)
+					if (prob(50))
+						F.break_tile()
+				if (3)
+					if (prob(25))
+						F.break_tile()
+	T.ex_act(severity)
 
 /obj/item/projectile/bullet/blastwave/ex_act()
 	return
@@ -591,6 +797,7 @@
 	bounce_sound = null
 	custom_impact = 1
 	penetration_message = 0
+	var/effect_type = /obj/effect/fire_blast
 	var/has_O2_in_mix = 0
 	var/datum/gas_mixture/gas_jet = null
 	var/max_range = 10
@@ -683,7 +890,7 @@
 	var/initial_burn_damage = burn_strength/100
 	burn_damage = ((((-(10 * (0.9**((initial_burn_damage/10) * 5))) + 10) * 0.4) * 20)/5) //Exponential decay function 20*(y=(-(10*(0.9^(x/10)))+10)*0.4)
 	//assuming the target stays in the fire for its duration, the total burn damage will be roughly 5 * burn_damage
-	new /obj/effect/fire_blast(get_turf(src.loc), burn_damage, stepped_range, 1, jet_pressure, burn_strength)
+	new effect_type(get_turf(src.loc), burn_damage, stepped_range, 1, jet_pressure, burn_strength, 1 SECONDS, firer.loc)
 
 /obj/item/projectile/bullet/fire_plume/process_step()
 	..()
@@ -704,6 +911,25 @@
 
 /obj/item/projectile/bullet/fire_plume/ex_act()
 	return
+
+/obj/item/projectile/bullet/fire_plume/dragonsbreath //for the shotgun shells
+	has_O2_in_mix = 0
+	max_range = 5
+	burn_strength = 0
+	burn_damage = 10
+	jet_pressure = 0
+	gas_jet = null
+	effect_type = /obj/effect/fire_blast/dragonbreath
+
+/obj/item/projectile/bullet/fire_plume/dragonsbreath/New()
+	..()
+	var/datum/gas_mixture/firemix = new /datum/gas_mixture
+	firemix.adjust_gas(GAS_PLASMA, 666)
+	gas_jet = firemix
+	jet_pressure = firemix.return_pressure()
+	gas_jet.temperature = 383.15
+	burn_strength = gas_jet.temperature
+
 
 /obj/item/projectile/bullet/mahoganut
 	name = "mahogany nut"
@@ -737,8 +963,10 @@
 	custom_impact = 1
 	rotate = 0
 	var/hard = 0
+	var/radius = 1//big glob of liquid, splashes a bit on surroundings
+	var/atom/splashed_atom = null
 
-/obj/item/projectile/bullet/liquid_blob/New(atom/T, var/hardness = null)
+/obj/item/projectile/bullet/liquid_blob/New(atom/T, var/hardness = null, var/mixed_color=null, var/mixed_alpha=255, var/_rad=1)
 	..(T)
 	hard = hardness
 	if(hard)
@@ -746,66 +974,66 @@
 		create_reagents(10)
 	else
 		create_reagents(50)
+	icon += mixed_color
+	alpha = mixed_alpha
+	radius = _rad
 
-/obj/item/projectile/bullet/liquid_blob/OnFired()
-	src.icon += mix_color_from_reagents(reagents.reagent_list)
-	src.alpha = mix_alpha_from_reagents(reagents.reagent_list)
-	..()
+/obj/item/projectile/bullet/liquid_blob/to_bump(var/atom/A)
+	splashed_atom = A//doesn't matter if it's actually the atom we end up splashing since we only use that var on bullet_die()
+	. = ..()
+	if (. && A)
+		if ((special_collision == PROJECTILE_COLLISION_DEFAULT) || (special_collision == PROJECTILE_COLLISION_BLOCKED))
+			if(istype(A, /mob))
+				if(hard)
+					var/splash_verb = pick("dousing","completely soaking","drenching","splashing")
+					A.visible_message("<span class='warning'>\The [src] smashes into [A], [splash_verb] \him!</span>",
+											"<span class='warning'>\The [src] smashes into you, [splash_verb] you!</span>")
+				else
+					var/splash_verb = pick("douses","completely soaks","drenches","splashes")
+					A.visible_message("<span class='warning'>\The [src] [splash_verb] [A]!</span>",
+											"<span class='warning'>\The [src] [splash_verb] you!</span>")
 
-/obj/item/projectile/bullet/liquid_blob/on_hit(atom/A as mob|obj|turf|area)
-	if(!A)
-		return
-	..()
+
+/obj/item/projectile/bullet/liquid_blob/bullet_die()
 	if(reagents.total_volume)
-		for(var/datum/reagent/R in reagents.reagent_list)
-			reagents.add_reagent(R.id, reagents.get_reagent_amount(R.id))
-		if(istype(A, /mob))
-			if(hard)
-				var/splash_verb = pick("dousing","completely soaking","drenching","splashing")
-				A.visible_message("<span class='warning'>\The [src] smashes into [A], [splash_verb] \him!</span>",
-										"<span class='warning'>\The [src] smashes into you, [splash_verb] you!</span>")
-			else
-				var/splash_verb = pick("douses","completely soaks","drenches","splashes")
-				A.visible_message("<span class='warning'>\The [src] [splash_verb] [A]!</span>",
-										"<span class='warning'>\The [src] [splash_verb] you!</span>")
-			splash_sub(reagents, get_turf(A), reagents.total_volume/2)
-		else
-			splash_sub(reagents, get_turf(src), reagents.total_volume/2)
-		splash_sub(reagents, A, reagents.total_volume)
-		return 1
+		var/turf/T = get_turf(splashed_atom)
+		if (!T.density && T.Adjacent(src))
+			loc = T
+		playsound(loc, 'sound/effects/slosh.ogg', 20, 1)
+		reagents.splashplosion(radius)
+	..()
 
-/obj/item/projectile/bullet/liquid_blob/OnDeath()
-	if(get_turf(src))
-		playsound(src, 'sound/effects/slosh.ogg', 20, 1)
-
-/obj/item/projectile/bullet/buckshot
+/obj/item/projectile/bullet/pellet
 	name = "buckshot pellet"
 	icon_state = "buckshot"
 	damage = 10
 	penetration = 0
 	rotate = 0
+
+/obj/item/projectile/bullet/buckshot
+	name = "buckshot pellet"
+	icon_state = "buckshot"
 	var/variance_angle = 20
 	var/total_amount_to_fire = 9
-	var/type_to_fire = /obj/item/projectile/bullet/buckshot
-	var/is_child = 0
-
-/obj/item/projectile/bullet/buckshot/New(atom/T, var/C = 0)
-	..(T)
-	is_child = C
+	var/type_to_fire = /obj/item/projectile/bullet/pellet
 
 /obj/item/projectile/bullet/buckshot/OnFired()
-	if(!is_child)
-		for(var/I = 1; I <=total_amount_to_fire-1; I++)
-			var/obj/item/projectile/bullet/buckshot/B = new type_to_fire(src.loc, 1)
-			B.damage = src.damage
-			B.launch_at(original, tar_zone = src.def_zone, from = src.shot_from, variance_angle = src.variance_angle)
-	..()
+	for(var/I = 1; I <=total_amount_to_fire; I++)
+		var/obj/item/projectile/P = new type_to_fire(src.loc)
+		P.firer = firer
+		P.launch_at(original, tar_zone = src.def_zone, from = src.shot_from, variance_angle = src.variance_angle)
+	bullet_die() // otherwise the buckshot bullet is an extra projectile in addition to the pellets.
+
+/obj/item/projectile/bullet/buckshot/admin
+	name = "admin buckshot pellet"
+	type_to_fire = /obj/item/projectile/bullet/hecate
 
 /obj/item/projectile/bullet/invisible
 	name = "invisible bullet"
 	icon_state = null
 	damage = 25
 	fire_sound = null
+	embed = 0
 
 /obj/item/projectile/bullet/invisible/on_hit(var/atom/target, var/blocked = 0) //silence the target for a few seconds on hit
 	if (..(target, blocked))
@@ -840,7 +1068,6 @@
 /obj/item/projectile/bullet/buckshot/bullet_storm
 	name = "tiny pellet"
 	total_amount_to_fire = 100
-	type_to_fire = /obj/item/projectile/bullet/buckshot/bullet_storm
 	custom_impact = 1
 	embed_message = FALSE
 	variance_angle = 50
@@ -855,12 +1082,13 @@
 	name = "syringe"
 	icon_state = "syringe"
 	damage = 0
-	nodamage = 1
+	nodamage = TRUE
 	phase_type = null
 	penetration = 0
 	fire_sound = 'sound/items/syringeproj.ogg'
 	travel_range = 6
 	custom_impact = TRUE
+	decay_type = /obj/item/weapon/reagent_containers/syringe/broken
 	var/capacity = 15
 	var/stealthy = FALSE
 
@@ -869,13 +1097,15 @@
 	if(source_syringe)
 		create_reagents(source_syringe.reagents.total_volume)
 		source_syringe.reagents.trans_to(src, source_syringe.reagents.total_volume)
+		name = source_syringe.name
 	else
 		create_reagents(capacity)
 
 /obj/item/projectile/bullet/syringe/on_hit(atom/A as mob|obj|turf|area)
 	if(!A)
 		return
-	..()
+	if(!..())
+		return FALSE
 	if(ismob(A))
 		var/mob/M = A
 		var/blocked
@@ -909,3 +1139,146 @@
 
 /obj/item/projectile/bullet/syringe/dart
 	stealthy = TRUE
+
+/obj/item/projectile/bullet/syringe/candycane
+	name = "Candycane"
+	icon_state = "candycane"
+	nodamage = FALSE
+	damage = 20
+	capacity = 15
+	decay_type = null
+	custom_impact = null
+
+/obj/item/projectile/bullet/syringe/candycane/New()
+	..()
+	reagents.add_reagent(DIABEETUSOL, 4)
+	reagents.add_reagent(SUGAR, 5)
+
+/obj/item/projectile/bullet/rocksalt
+	name = "rock-salt slug"
+	icon_state = "rsshell"
+	damage = 10
+	agony = 20
+	penetration = 1
+
+/obj/item/projectile/bullet/rocksalt/New()
+	..()
+	create_reagents(10)
+	reagents.add_reagent(HOLYSALTS, 5)
+	reagents.add_reagent(HOLYWATER, 5)
+
+/obj/item/projectile/bullet/rocksalt/on_hit(var/atom/atarget, var/blocked = 0)
+	..()
+	if(!blocked && ishuman(atarget))
+		reagents.trans_to(atarget, reagents.total_volume)
+	else
+		reagents.reaction(atarget)
+		
+/obj/item/projectile/bullet/superbeanbag
+	name = "super beanbag"
+	icon_state = "bbshell"
+	damage = 0
+	nodamage = TRUE
+	stun = 5
+	weaken = 10
+	stutter = 5
+	embed = 0
+	penetration = 0
+	
+/obj/item/projectile/bullet/concussiveblast
+	name = "concussive blast"
+	icon_state = "bolter"
+	damage_type = BURN
+	damage = 0
+	penetration = -1
+	embed = 0
+	bounce_sound = null
+	custom_impact = 1
+	penetration_message = 0
+	var/max_range = 1
+	var/stepped_range = 0
+	
+/obj/item/projectile/bullet/concussiveblast/to_bump(var/atom/target)
+	bullet_die()
+	
+/obj/item/projectile/bullet/concussiveblast/process_step()
+	..()
+	if(stepped_range <= max_range)
+		stepped_range++
+	else
+		bullet_die()
+		return
+
+/obj/item/projectile/bullet/concussiveblast/OnDeath()
+	var/turf/T = get_turf(src)
+	anim(location = T, a_icon = 'icons/effects/effects.dmi', a_icon_state = "explosionpulse", sleeptime = 5)
+	flashbangprime(TRUE,FALSE,FALSE)
+	..()
+	
+/obj/item/projectile/bullet/buckshot/pepperblast 
+	name = "pepperblast shell"
+	damage = 1
+	penetration = 0
+	embed = 0
+	icon_state = null
+	variance_angle = 33
+	total_amount_to_fire = 6
+	type_to_fire = /obj/item/projectile/bullet/pepperball
+	
+/obj/item/projectile/bullet/pepperball
+	name = "pepperball"
+	damage = 1
+	icon_state = "pbshell"
+	penetration = 0
+	embed = 0
+	
+/obj/item/projectile/bullet/pepperball/New()
+	..()
+	create_reagents(10)
+	reagents.add_reagent(CONDENSEDCAPSAICIN, 10)
+	
+/obj/item/projectile/bullet/pepperball/OnDeath()
+	..()
+
+/obj/item/projectile/bullet/pepperball/on_hit(var/atom/atarget, var/blocked = 0)
+	..()
+	anim(target = atarget, a_icon = 'icons/effects/effects.dmi', a_icon_state = "pepper", sleeptime = 5)
+	if(!blocked && ishuman(atarget))
+		reagents.trans_to(atarget, reagents.total_volume/2)
+	reagents.reaction(atarget)
+
+/obj/item/projectile/bullet/duckshotduck
+	name = "duckshot"
+	damage = 3
+	penetration = 0
+	embed = 0
+	icon_state = "duck"
+	
+/obj/item/projectile/bullet/bb
+	name = "bb"
+	damage = 2
+	penetration = 0
+	embed = 0
+	icon_state = "tinybullet"
+	projectile_speed = 0.5
+
+/obj/item/projectile/bullet/buckshot/duckshot 
+	name = "duckshot shell"
+	damage = 1
+	penetration = 0
+	embed = 0
+	icon_state = null
+	variance_angle = 33
+	
+/obj/item/projectile/bullet/buckshot/duckshot/OnFired()
+	for(var/I = 1; I <=9; I++)
+		var/proj
+		if(!(I % 3))
+			proj = /obj/item/projectile/bullet/duckshotduck
+		else
+			proj = /obj/item/projectile/bullet/bb
+		var/obj/item/projectile/P = new proj(src.loc)
+		P.firer = firer
+		P.launch_at(original, tar_zone = src.def_zone, from = src.shot_from, variance_angle = src.variance_angle)
+	bullet_die() 
+	

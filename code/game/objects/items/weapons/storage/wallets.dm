@@ -5,6 +5,10 @@
 	icon = 'icons/obj/wallet.dmi'
 	icon_state = "wallet"
 	w_class = W_CLASS_SMALL
+	w_type = RECYK_BIOLOGICAL //leather
+	flammable = TRUE
+	use_to_pickup = TRUE
+
 	can_only_hold = list(
 		"/obj/item/weapon/spacecash",
 		"/obj/item/weapon/card",
@@ -25,15 +29,16 @@
 		"/obj/item/weapon/pen",
 		"/obj/item/weapon/photo",
 		"/obj/item/weapon/reagent_containers/dropper",
-		"/obj/item/weapon/screwdriver",
+		"/obj/item/tool/screwdriver",
 		"/obj/item/blueprints/construction_permit",
 		"/obj/item/weapon/stamp")
 	slot_flags = SLOT_ID|SLOT_BELT
+	quick_equip_priority = list(slot_wear_id)
 
 	var/obj/item/weapon/card/id/front_id = null
 
 
-/obj/item/weapon/storage/wallet/remove_from_storage(obj/item/W as obj, atom/new_location)
+/obj/item/weapon/storage/wallet/remove_from_storage(obj/item/W as obj, atom/new_location, var/force = 0, var/refresh = 1)
 	. = ..(W, new_location)
 	if(.)
 		if(W == front_id)
@@ -69,6 +74,8 @@
 	else
 		return ..()
 
+
+
 /obj/item/weapon/storage/wallet/random/New()
 	..()
 	var/item1_type = pick(/obj/item/weapon/spacecash,
@@ -94,3 +101,9 @@
 /obj/item/weapon/storage/wallet/trader/New()
 	..()
 	dispense_cash(rand(150,250),src)
+
+/obj/item/weapon/storage/wallet/nt
+	icon_state = "wallet-NT"
+
+/obj/item/weapon/storage/wallet/nt/update_icon()
+	return

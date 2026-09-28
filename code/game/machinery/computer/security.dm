@@ -23,16 +23,30 @@
 
 	light_color = LIGHT_COLOR_RED
 
-/obj/machinery/computer/secure_data/attackby(obj/item/O as obj, user as mob)
+/obj/machinery/computer/secure_data/attackby(obj/item/O as obj, var/mob/living/user)
 	if(istype(O, /obj/item/weapon/card/id) && !scan)
 		if(usr.drop_item(O, src))
 			scan = O
 			to_chat(user, "You insert \the [O].")
+	if (istype(user) && authenticated && (screen == 3.0) && active1)
+		if(istype(O, /obj/item/weapon/photo/id))
+			var/obj/item/weapon/photo/id/photo_id = O
+			if (photo_id.four_sides)
+				if (alert("Do you want to update the records with this ID photo?",,"Yes","No") == "Yes")
+					if (user && !user.incapacitated() && Adjacent(user) && photo_id && (photo_id == user.get_active_hand()) && authenticated && (screen == 3.0) && active1)
+						active1.fields["photo"] = photo_id.four_sides
+						visible_message("<span class='notice'>[bicon(src)] Database updated.</span>")
+						playsound(src, 'sound/machines/twobeep.ogg', 50, 0)
+						updateUsrDialog()
+		if(istype(O,/obj/item/device/detective_scanner/forger))
+			var/obj/item/device/detective_scanner/forger/F = O
+			if(active1.fields["fingerprint"])
+				var/list/customprints = list()
+				var/print = active1.fields["fingerprint"]
+				to_chat(user,"<span class='notice'>You scan the fingerprints from the active record and add them to the custom fingerprints. It will be tied to the next applicable scanned item.</span>")
+				customprints[print] = print
+				F.custom_forgery[1] = customprints ? customprints.Copy() : null
 	..()
-
-/obj/machinery/computer/secure_data/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return attack_hand(user)
 
 /obj/machinery/computer/secure_data/attack_paw(mob/user as mob)
 	return attack_hand(user)
@@ -80,6 +94,8 @@
 									crimstat = E.fields["criminal"]
 							var/background
 							switch(crimstat)
+								if("*High Threat*")
+									background = "'background-color:#696969;'"
 								if("*Arrest*")
 									background = "'background-color:#DC143C;'"
 								if("Incarcerated")
@@ -164,6 +180,8 @@
 								crimstat = E.fields["criminal"]
 							var/background
 							switch(crimstat)
+								if("*High Threat*")
+									background = "'background-color:#696969;'"
 								if("*Arrest*")
 									background = "'background-color:#DC143C;'"
 								if("Incarcerated")
@@ -187,7 +205,7 @@
 				else
 		else
 			dat += text("<A href='?src=\ref[];choice=Log In'>{Log In}</A>", src)
-	user << browse(text("<HEAD><TITLE>Security Records</TITLE></HEAD><TT>[]</TT>", dat), "window=secure_rec;size=600x400")
+	user << browse(HTML_SKELETON_TITLE("Security Records", "<TT>[dat]</TT>"), "window=secure_rec;size=600x400")
 	onclose(user, "secure_rec")
 	return
 
@@ -266,7 +284,7 @@ What a mess.*/
 						screen = 1
 //RECORD FUNCTIONS
 			if("Search Records")
-				var/t1 = input("Search String: (Partial Name or ID or Fingerprints or Rank)", "Secure. records", null, null)  as text
+				var/t1 = copytext(sanitize(input("Search String: (Partial Name or ID or Fingerprints or Rank)", "Secure. records", null, null)  as text),1,MAX_NAME_LEN)
 				if ((!( t1 ) || usr.stat || !( authenticated ) || usr.restrained() || !in_range(src, usr)))
 					return
 				Perp = new/list()
@@ -308,7 +326,7 @@ What a mess.*/
 					screen = 3
 
 /*			if ("Search Fingerprints")
-				var/t1 = input("Search String: (Fingerprint)", "Secure. records", null, null)  as text
+				var/t1 = copytext(sanitize(input("Search String: (Fingerprint)", "Secure. records", null, null)  as text),1,MAX_NAME_LEN)
 				if ((!( t1 ) || usr.stat || !( authenticated ) || usr.restrained() || (!in_range(src, usr)) && (!istype(usr, /mob/living/silicon))))
 					return
 				active1 = null
@@ -355,8 +373,7 @@ What a mess.*/
 					<a href='?src=\ref[src];choice=Clear Screen'>No</a>"}
 			if ("Purge All Records")
 				for(var/datum/data/record/R in data_core.security)
-					qdel(R)
-					R = null
+					QDEL_NULL(R)
 				temp = "All Security records deleted."
 
 			if ("Add Entry")
@@ -422,7 +439,7 @@ What a mess.*/
 				switch(href_list["field"])
 					if("name")
 						if (istype(active1, /datum/data/record))
-							var/t1 = copytext(sanitize(input("Please input name:", "Secure. records", active1.fields["name"], null)  as text),1,MAX_MESSAGE_LEN)
+							var/t1 = copytext(sanitize(input("Please input name:", "Secure Records", active1.fields["name"], null)  as text),1,MAX_MESSAGE_LEN)
 							if ((!( t1 ) || !length(trim(t1)) || !( authenticated ) || usr.stat || usr.restrained() || (!in_range(src, usr) && (!istype(usr, /mob/living/silicon)))) || active1 != a1)
 								return
 							active1.fields["name"] = t1
@@ -452,7 +469,7 @@ What a mess.*/
 							active1.fields["age"] = t1
 					if("notes")
 						if (istype(active2, /datum/data/record))
-							var/t1 = copytext(sanitize(input("Please summarize notes:", "Secure. records", active2.fields["notes"], null)  as message),1,MAX_MESSAGE_LEN)
+							var/t1 = copytext(sanitize(input("Please summarize notes:", "Secure Records", active2.fields["notes"], null)  as message),1,MAX_MESSAGE_LEN)
 							if ((!( t1 ) || !( authenticated ) || usr.stat || usr.restrained() || (!in_range(src, usr) && (!istype(usr, /mob/living/silicon))) || active2 != a2))
 								return
 							active2.fields["notes"] = t1
@@ -461,6 +478,7 @@ What a mess.*/
 
 							temp = {"<h5>Criminal Status:</h5>
 								<ul>
+								<li><a href='?src=\ref[src];choice=Change Criminal Status;criminal2=highthreat'>*High Threat*</a></li>
 								<li><a href='?src=\ref[src];choice=Change Criminal Status;criminal2=none'>None</a></li>
 								<li><a href='?src=\ref[src];choice=Change Criminal Status;criminal2=arrest'>*Arrest*</a></li>
 								<li><a href='?src=\ref[src];choice=Change Criminal Status;criminal2=incarcerated'>Incarcerated</a></li>
@@ -502,6 +520,8 @@ What a mess.*/
 							switch(href_list["criminal2"])
 								if("none")
 									active2.fields["criminal"] = "None"
+								if("highthreat")
+									active2.fields["criminal"] = "*High Threat*"
 								if("arrest")
 									active2.fields["criminal"] = "*Arrest*"
 								if("incarcerated")
@@ -513,21 +533,17 @@ What a mess.*/
 
 					if ("Delete Record (Security) Execute")
 						if (active2)
-							qdel(active2)
-							active2 = null
+							QDEL_NULL(active2)
 
 					if ("Delete Record (ALL) Execute")
 						if (active1)
 							for(var/datum/data/record/R in data_core.medical)
 								if ((R.fields["name"] == active1.fields["name"] || R.fields["id"] == active1.fields["id"]))
-									qdel(R)
-									R = null
+									QDEL_NULL(R)
 								else
-							qdel(active1)
-							active1 = null
+							QDEL_NULL(active1)
 						if (active2)
-							qdel(active2)
-							active2 = null
+							QDEL_NULL(active2)
 					else
 						temp = "This function does not appear to be working at the moment. Our apologies."
 
@@ -536,7 +552,7 @@ What a mess.*/
 	return
 
 /obj/machinery/computer/secure_data/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		..(severity)
 		return
 
@@ -550,7 +566,7 @@ What a mess.*/
 				if(3)
 					R.fields["age"] = rand(5, 85)
 				if(4)
-					R.fields["criminal"] = pick("None", "*Arrest*", "Incarcerated", "Parolled", "Released")
+					R.fields["criminal"] = pick("None", "*High Threat*", "*Arrest*", "Incarcerated", "Parolled", "Released")
 				if(5)
 					R.fields["p_stat"] = pick("*Unconcious*", "Active", "Physically Unfit")
 				if(6)
@@ -558,8 +574,7 @@ What a mess.*/
 			continue
 
 		else if(prob(1))
-			qdel(R)
-			R = null
+			QDEL_NULL(R)
 			continue
 
 	..(severity)
@@ -567,5 +582,8 @@ What a mess.*/
 /obj/machinery/computer/secure_data/detective_computer
 	icon = 'icons/obj/computer.dmi'
 	icon_state = "messyfiles"
+	moody_state = "overlay_messyfiles"
 
+	light_range_on = 1
 	light_color = null
+	computer_flags = NO_ONOFF_ANIMS

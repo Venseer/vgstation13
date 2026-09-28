@@ -2,6 +2,7 @@
 	name = "\improper PDA Terminal"
 	desc = "It can be used to download Apps on your PDA."
 	icon_state = "pdaterm"
+	moody_state = "overlay_pdaterm"
 	circuit = "/obj/item/weapon/circuitboard/pda_terminal"
 	light_color = LIGHT_COLOR_ORANGE
 
@@ -9,12 +10,17 @@
 	var/machine_id = ""
 
 	machine_flags = EMAGGABLE | SCREWTOGGLE | WRENCHMOVE | FIXED2WORK | MULTITOOL_MENU | PURCHASER
+	computer_flags = NO_ONOFF_ANIMS
+
+	var/image/pda_icon
+	var/image/light_icon
 
 /obj/machinery/computer/pda_terminal/New()
 	..()
 	machine_id = "[station_name()] PDA Terminal #[multinum_display(num_pda_terminals,4)]"
 	num_pda_terminals++
-
+	pda_icon = image(icon = icon, icon_state = "pdaterm-full")
+	light_icon = image(icon = icon, icon_state = "pdaterm-light")
 	if(ticker)
 		initialize()
 
@@ -26,17 +32,18 @@
 
 	var/list/notinstalled = list()
 
-	for(var/app in (typesof(/datum/pda_app) - /datum/pda_app))
+	for(var/app in get_all_installable_apps())
 		if(!(locate(app) in pda_hardware.applications))
 			notinstalled += app
 
 	for(var/app in notinstalled)
 		var/datum/pda_app/appli = new app()
-		formatted.Add(list(list(
-			"app" = get_app_name(appli),
-			"app_name" = get_display_name(appli),
-			"app_desc" = get_display_desc(appli),
-			)))
+		if(appli.can_purchase)
+			formatted.Add(list(list(
+				"app" = get_app_name(appli),
+				"app_name" = get_display_name(appli),
+				"app_desc" = get_display_desc(appli),
+				)))
 
 	return formatted
 
@@ -60,9 +67,6 @@
 
 	nanomanager.update_uis(src)
 	attack_hand(user)
-
-/obj/machinery/computer/pda_terminal/attack_ai(var/mob/user)
-	return attack_hand(user)
 
 /obj/machinery/computer/pda_terminal/attack_paw(var/mob/user)
 	return attack_hand(user)
@@ -207,8 +211,9 @@
 
 /obj/machinery/computer/pda_terminal/update_icon()
 	..()
-	overlays = 0
+	overlays -= pda_icon
+	overlays -= light_icon
 	if(pda_device)
-		overlays += image(icon = icon, icon_state = "pdaterm-full")
+		overlays += pda_icon
 		if(stat == 0)
-			overlays += image(icon = icon, icon_state = "pdaterm-light")
+			overlays += light_icon

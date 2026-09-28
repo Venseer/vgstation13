@@ -9,6 +9,7 @@
 	pressure_resistance = 5
 	flags = FPRINT  | OPENCONTAINER
 	var/amount_per_transfer_from_this = 5 //shit I dunno, adding this so syringes stop runtime erroring. --NeoFite
+	var/tmp/lastsound
 
 /obj/structure/mopbucket/New()
 	..()
@@ -25,10 +26,12 @@
 		anchored = 1
 		user.visible_message("<span class='notice'>[user] locks [src]'s wheels!</span>")
 		lockedby += "\[[time_stamp()]\] [usr] ([usr.ckey]) - locked [src]"
+		icon_state = "mopbucket_deploy"
 	else
 		anchored = 0
 		user.visible_message("<span class='notice'>[user] unlocks [src]'s wheels!</span>")
 		lockedby += "\[[time_stamp()]\] [usr] ([usr.ckey]) - unlocked [src]"
+		icon_state = "mopbucket"
 
 /obj/structure/mopbucket/attackby(obj/item/W, mob/user)
 	if(istype(W, /obj/item/weapon/mop))
@@ -40,9 +43,11 @@
 			if(M.reagents.total_volume >= 25)
 				return 1
 			else
-				src.reagents.trans_to(M, 3)
-				to_chat(user, "<span class='notice'>You wet [M]</span>")
-				playsound(src, 'sound/effects/slosh.ogg', 25, 1)
+				src.reagents.trans_to(M, 25 - M.reagents.total_volume)
+				to_chat(user, "<span class='notice'>You wet [M].</span>")
+				if(lastsound + 2 SECONDS < world.time)
+					playsound(src, 'sound/effects/mopbucket.ogg', 50, 1)
+					lastsound = world.time
 		else
 			to_chat(user, "<span class='notice'>Nothing left to wet [M] with!</span>")
 	return 1

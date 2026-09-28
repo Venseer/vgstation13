@@ -19,50 +19,31 @@
 //- Identify how hard it is to break into the area and where the weak points are
 //- Check if the area has too much empty space. If so, make it smaller and replace the rest with maintenance tunnels.
 
-var/camera_range_display_status = 0
-var/intercom_range_display_status = 0
-
-/obj/effect/debugging/camera_range
-	icon = 'icons/480x480.dmi'
-	icon_state = "25percent"
-
-	New()
-		src.pixel_x = -224 * PIXEL_MULTIPLIER
-		src.pixel_y = -224 * PIXEL_MULTIPLIER
-
-/obj/effect/debugging/marker
-	icon = 'icons/turf/areas.dmi'
-	icon_state = "yellow"
-
-/obj/effect/debugging/marker/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
-	return 0
-
-/client/proc/do_not_use_these()
-	set category = "Mapping"
-	set name = "-None of these are for ingame use!!"
-
-	..()
+/client
+	var/camera_range_display = FALSE
+	var/list/camera_range_images
+	var/intercom_range_display = FALSE
+	var/list/intercom_range_images
 
 /client/proc/camera_view()
 	set category = "Mapping"
 	set name = "Camera Range Display"
 
-	if(camera_range_display_status)
-		camera_range_display_status = 0
-	else
-		camera_range_display_status = 1
+	camera_range_display = !camera_range_display
 
+	if(camera_range_images)
+		images -= camera_range_images
+	QDEL_LIST(camera_range_images)
+	camera_range_images = list()
 
-
-	for(var/obj/effect/debugging/camera_range/C in world)
-		del(C)
-
-	if(camera_range_display_status)
+	if(camera_range_display)
 		for(var/obj/machinery/camera/C in cameranet.cameras)
-			new/obj/effect/debugging/camera_range(C.loc)
+			for (var/turf/T in view(C.view_range, C))
+				var/image/camrange = image('icons/turf/areas.dmi',T,"green")
+				images += camrange
+				camera_range_images += camrange
+
 	feedback_add_details("admin_verb","mCRD") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-
-
 
 /client/proc/sec_camera_report()
 	set category = "Mapping"
@@ -94,32 +75,33 @@ var/intercom_range_display_status = 0
 			if(!(locate(/obj/structure/grille,T)))
 				var/window_check = 0
 				for(var/obj/structure/window/W in T)
-					if (W.dir == turn(C1.dir,180) || W.is_fulltile() )
+					if (W.dir == turn(C1.dir,180) || W.is_fulltile)
 						window_check = 1
 						break
 				if(!window_check)
 					output += "<li><font color='red'>Camera not connected to wall at \[[C1.x], [C1.y], [C1.z]\] ([C1.loc.loc]) Network: [C1.network]</color></li>"
 
 	output += "</ul>"
-	usr << browse(output,"window=airreport;size=1000x500")
+	usr << browse(HTML_SKELETON(output),"window=airreport;size=1000x500")
 	feedback_add_details("admin_verb","mCRP") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/intercom_view()
 	set category = "Mapping"
 	set name = "Intercom Range Display"
 
-	if (intercom_range_display_status)
-		intercom_range_display_status = FALSE
-	else
-		intercom_range_display_status = TRUE
+	intercom_range_display = !intercom_range_display
 
-	for (var/obj/effect/debugging/marker/M in world)
-		qdel(M)
+	if(intercom_range_images)
+		images -= intercom_range_images
+	QDEL_LIST(intercom_range_images)
+	intercom_range_images = list()
 
-	if (intercom_range_display_status)
-		for (var/obj/item/device/radio/intercom/I in world)
+	if(intercom_range_display)
+		for (var/obj/item/device/radio/intercom/I in radio_list)
 			for (var/turf/T in view(I.canhear_range, I))
-				new /obj/effect/debugging/marker(T)
+				var/image/comrange = image('icons/turf/areas.dmi',T,"yellow")
+				images += comrange
+				intercom_range_images += comrange
 
 	feedback_add_details("admin_verb","mIRD") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
@@ -130,7 +112,6 @@ var/intercom_range_display_status = 0
 	if(!check_rights(R_DEBUG))
 		return
 
-	src.verbs += /client/proc/do_not_use_these 			//-errorage
 	src.verbs += /client/proc/camera_view 				//-errorage
 	src.verbs += /client/proc/sec_camera_report 		//-errorage
 	src.verbs += /client/proc/intercom_view 			//-errorage
@@ -146,7 +127,6 @@ var/intercom_range_display_status = 0
 	src.verbs += /client/proc/setup_atmos // Laziness during atmos testing - N3X
 	src.verbs += /client/proc/ticklag	//allows you to set the ticklag.
 	src.verbs += /client/proc/cmd_admin_grantfullaccess
-	src.verbs += /client/proc/kaboom
 	src.verbs += /client/proc/splash
 	src.verbs += /client/proc/cmd_admin_areatest
 	src.verbs += /client/proc/cmd_admin_rejuvenate
@@ -164,12 +144,13 @@ var/intercom_range_display_status = 0
 	src.verbs += /client/proc/Test_ZAS_Connection
 	src.verbs += /client/proc/SDQL2_query
 	src.verbs += /client/proc/check_sim_unsim
-	src.verbs += /proc/generateMiniMaps
 	src.verbs += /client/proc/maprender
 	//src.verbs += /client/proc/cmd_admin_rejuvenate
 	src.verbs += /client/proc/start_line_profiling
 	src.verbs += /client/proc/stop_line_profiling
 	src.verbs += /client/proc/show_line_profiling
+	src.verbs += /client/proc/check_wires
+	src.verbs += /client/proc/check_pipes
 	#if UNIT_TESTS_ENABLED
 	src.verbs += /client/proc/unit_test_panel
 	#endif
@@ -270,12 +251,16 @@ var/intercom_range_display_status = 0
 			// Space is okay for walls
 			/turf/space
 		),
-		/turf/simulated/shuttle/floor = list(
-			/turf/simulated/shuttle,
+		/turf/simulated/floor/shuttle = list(
+			/turf/simulated/wall/shuttle,
+			/turf/simulated/floor/shuttle,
+			/turf/simulated/floor/shuttle/plating,
 			/turf/space
 		),
-		/turf/simulated/shuttle/floor4 = list(
-			/turf/simulated/shuttle,
+		/turf/simulated/floor/shuttle/brig = list(
+			/turf/simulated/wall/shuttle,
+			/turf/simulated/floor/shuttle,
+			/turf/simulated/floor/shuttle/plating,
 			/turf/space
 		),
 		/turf/simulated/floor/plating/airless = list(
@@ -293,7 +278,7 @@ var/intercom_range_display_status = 0
 		/turf/simulated/floor = list(
 			/turf/simulated/floor,
 			/turf/simulated/wall,
-			/turf/simulated/shuttle/wall
+			/turf/simulated/wall/shuttle
 		),
 	)
 
@@ -409,3 +394,112 @@ var/global/movement_disabled_exception //This is the client that calls the proc,
 	else
 		message_admins("[src.ckey] used 'Disable all movement', restoring all movement.")*/
 */
+
+/client/proc/check_wires()
+	set category = "Mapping"
+	set name = "Check wire connections"
+
+	if(!check_rights(R_DEBUG))
+		return
+
+	if(!mob)
+		to_chat(usr, "<span class = 'warning'>You require a mob for this to work.</span>")
+		return
+
+	var/z = mob.z
+	var/error_str = "<h1>Wire connections on current Z Level [z]</h1>"
+	for(var/obj/structure/cable/C in cable_list)
+		if(C.z != z)
+			continue
+		if(!C.d1) //It's a stub
+			continue
+		var/obj/structure/cable/neighbour
+		var/list/found_directions = list()
+		for(var/direction in list(C.d1,C.d2))
+			neighbour = locate() in get_step(get_turf(C),direction)
+			if(!neighbour || neighbour.get_powernet() != C.get_powernet())
+				found_directions += list(dir2text(direction))
+		if(found_directions.len)
+			error_str += "<span class = 'warning'>Disconnected wire at [formatJumpTo(get_turf(C))] (Directions: [english_list(found_directions)])</span><br>"
+	error_str += "<h1>Terminal connections on current Z Level [z]</h1>"
+	for(var/obj/machinery/power/terminal/T in terminals)
+		var/turf/T2 = get_turf(T)
+		if(!T2.get_cable_node())
+			error_str += "<span class = 'warning'>Disconnected terminal at [formatJumpTo(T2)]</span><br>"
+
+	var/datum/browser/popup = new(usr, "Wire connections", usr.name, 300, 400)
+	popup.set_content(error_str)
+	popup.open()
+
+/client/proc/check_pipes()
+	set category = "Mapping"
+	set name = "Check if Distro and Waste mix"
+
+	if(!check_rights(R_DEBUG))
+		return
+	feedback_add_details("admin_verb","CDWM") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+
+	var/bad_pipes = 0
+	var/list/supply_pipes = list(/obj/machinery/atmospherics/pipe/layer_adapter/supply, /obj/machinery/atmospherics/pipe/manifold/supply, /obj/machinery/atmospherics/pipe/manifold4w/supply, /obj/machinery/atmospherics/pipe/simple/supply)
+	var/list/waste_pipes = list(/obj/machinery/atmospherics/pipe/layer_adapter/scrubbers, /obj/machinery/atmospherics/pipe/manifold/scrubbers, /obj/machinery/atmospherics/pipe/manifold4w/scrubbers, /obj/machinery/atmospherics/pipe/simple/scrubbers)
+
+	var/output = {"<B>PLUMBING DISTRO/WASTE MIX REPORT</B><HR>
+		<B>The following anomalies have been detected.</B><BR><ul>"}
+
+	for(var/datum/pipe_network/PN in pipe_networks)
+		//Forgive me for what I must do
+		for(var/datum/pipeline/P in PN.line_members)
+			for(var/obj/machinery/atmospherics/AM in P.members)
+				if(is_type_in_list(AM, supply_pipes))
+					if(istype(AM, /obj/machinery/atmospherics/pipe/simple))
+						var/obj/machinery/atmospherics/pipe/simple/SP = AM
+						if(is_type_in_list(SP.node1, waste_pipes) || is_type_in_list(SP.node2, waste_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/layer_adapter))
+						var/obj/machinery/atmospherics/pipe/layer_adapter/LA = AM
+						if(is_type_in_list(LA.layer_node, waste_pipes) || is_type_in_list(LA.mid_node, waste_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/manifold))
+						var/obj/machinery/atmospherics/pipe/manifold/MF = AM
+						if(is_type_in_list(MF.node1, waste_pipes) || is_type_in_list(MF.node2, waste_pipes) || is_type_in_list(MF.node3, waste_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/manifold4w))
+						var/obj/machinery/atmospherics/pipe/manifold4w/MF4 = AM
+						if(is_type_in_list(MF4.node1, waste_pipes) || is_type_in_list(MF4.node2, waste_pipes) || is_type_in_list(MF4.node3, waste_pipes)|| is_type_in_list(MF4.node4, waste_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+				if(is_type_in_list(AM, waste_pipes))
+					if(istype(AM, /obj/machinery/atmospherics/pipe/simple))
+						var/obj/machinery/atmospherics/pipe/simple/SP = AM
+						if(is_type_in_list(SP.node1, supply_pipes) || is_type_in_list(SP.node2, supply_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/layer_adapter))
+						var/obj/machinery/atmospherics/pipe/layer_adapter/LA = AM
+						if(is_type_in_list(LA.layer_node, supply_pipes) || is_type_in_list(LA.mid_node, supply_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/manifold))
+						var/obj/machinery/atmospherics/pipe/manifold/MF = AM
+						if(is_type_in_list(MF.node1, supply_pipes) || is_type_in_list(MF.node2, supply_pipes) || is_type_in_list(MF.node3, supply_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+					if(istype(AM, /obj/machinery/atmospherics/pipe/manifold4w))
+						var/obj/machinery/atmospherics/pipe/manifold4w/MF4 = AM
+						if(is_type_in_list(MF4.node1, supply_pipes) || is_type_in_list(MF4.node2, supply_pipes) || is_type_in_list(MF4.node3, supply_pipes)|| is_type_in_list(MF4.node4, supply_pipes))
+							bad_pipes++
+							output += "<li>Distro/Waste cross at [formatJumpTo(get_turf(AM))]</li>"
+							continue
+
+	output += "</ul><br>[bad_pipes] bad pipes detected."
+	usr << browse(HTML_SKELETON(output),"window=distrowastemixreport;size=1000x500")

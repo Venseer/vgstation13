@@ -20,6 +20,7 @@ CREATE TABLE players (
     disabilities        INTEGER,
     nanotrasen_relation TEXT,
     bank_security 		INTEGER,
+    wage_ratio  		INTEGER,
     UNIQUE ( player_ckey, player_slot )
 );
 
@@ -64,6 +65,7 @@ CREATE TABLE jobs (
     job_engsec_high   INTEGER,
     job_engsec_med    INTEGER,
     job_engsec_low    INTEGER,
+    jobs              TEXT,
     FOREIGN KEY ( player_ckey, player_slot ) REFERENCES players ( player_ckey, player_slot ) ON DELETE CASCADE,
     UNIQUE ( player_ckey, player_slot )
 );
@@ -111,9 +113,28 @@ CREATE TABLE client (
     space_parallax INTEGER,
     space_dust     INTEGER,
     parallax_speed INTEGER,
+    plane_filters  INTEGER,
     stumble        INTEGER,
     attack_animation INTEGER,
-    pulltoggle     INTEGER
+    pulltoggle     INTEGER,
+    credits        TEXT,
+    jingle         TEXT,
+    hear_voicesound INTEGER,
+    hear_instruments INTEGER,
+    ambience_volume INTEGER,
+    credits_volume INTEGER,
+    headset_sound INTEGER,
+    antag_objectives INTEGER,
+	typing_indicator INTEGER,
+	mob_chat_on_map INTEGER,
+	max_chat_length INTEGER,
+	obj_chat_on_map INTEGER,
+	no_goonchat_for_obj INTEGER,
+	tgui_fancy INTEGER,
+	show_warning_next_time INTEGER DEFAULT 0,
+	last_warned_message TEXT DEFAULT '',
+	warning_admin TEXT DEFAULT '',
+	fps INTEGER DEFAULT 0
 );
 
 

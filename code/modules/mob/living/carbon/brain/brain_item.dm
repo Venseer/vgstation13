@@ -19,12 +19,6 @@
 
 	var/mob/living/carbon/brain/brainmob = null
 
-/obj/item/organ/internal/brain/New()
-	..()
-	spawn(5)
-		if(brainmob && brainmob.client)
-			brainmob.client.screen.len = null //clear the hud
-
 /obj/item/organ/internal/brain/proc/transfer_identity(var/mob/living/carbon/H)
 	name = "[H.real_name]'s brain"
 	brainmob = new(src)
@@ -32,12 +26,19 @@
 	brainmob.real_name = H.real_name
 	if(istype(H) && H.dna)
 		brainmob.dna = H.dna.Clone()
-	brainmob.timeofhostdeath = H.timeofdeath
+
+	if (isbrain(H))
+		var/mob/living/carbon/brain/otherbrain = H
+		brainmob.timeofhostdeath = otherbrain.timeofhostdeath
+	else if (H.timeofdeath == 0)//happens when the human gets decapitated while still alive
+		brainmob.timeofhostdeath = world.time
+	else
+		brainmob.timeofhostdeath = H.timeofdeath
+
 	if(H.mind)
 		H.mind.transfer_to(brainmob)
 
 	to_chat(brainmob, "<span class='notice'>You feel slightly disoriented. That's normal when you're just a brain.</span>")
-	callHook("debrain", list(brainmob))
 
 /obj/item/organ/internal/brain/examine(mob/user)
 	..()
@@ -51,8 +52,10 @@
 			if(ghostmob)
 				to_chat(user, "<span class='deadsay'>It seems particularly lifeless, but not yet gone. Perhaps it will regain some of its luster later...</span>")
 				return
-			to_chat(user, "<span class='deadsay'>This one seems unresponsive.</span>")// Should probably make this more realistic, but this message ties it in with MMI errors.
-			return
+		to_chat(user, "<span class='deadsay'>This one seems unresponsive.</span>")// Should probably make this more realistic, but this message ties it in with MMI errors.
+		if(!brainmob.mind)
+			to_chat(user, "<span class='deadsay'>It shows no signs of sentience.</span>") //monkeyman or NPC
+		return
 
 /obj/item/organ/internal/brain/removed(var/mob/living/target,var/mob/living/user)
 

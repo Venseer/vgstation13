@@ -2,13 +2,24 @@
 #define XENOARCH_SPREAD_CHANCE 15
 #define ARTIFACT_SPAWN_CHANCE 20
 
-proc/SetupXenoarch()
+/proc/SetupXenoarch()
+	for(var/i in subtypesof(/datum/digsite))
+		var/datum/digsite/D = new i
+		digsite_types[D.digsite_ID] = D
+
+	for(var/i in subtypesof(/datum/find))
+		var/datum/find/F = i
+		archaeo_types[initial(F.find_ID)] = i
+
 	for(var/turf/unsimulated/mineral/M in mineral_turfs)
+		if(!M.finddatum)
+			M.finddatum = new(M)
+
 		if(M.no_finds || !prob(XENOARCH_SPAWN_CHANCE))
 			continue
 
 
-		var/digsite = get_random_digsite_type()
+		var/datum/digsite/D = get_random_digsite_type()
 		var/list/processed_turfs = list()
 		var/list/turfs_to_process = list(M)
 
@@ -16,7 +27,7 @@ proc/SetupXenoarch()
 			var/turf/unsimulated/mineral/archeo_turf = turfs_to_process[1]
 
 			for(var/turf/unsimulated/mineral/T in orange(1, archeo_turf))
-				if(T.finds.len)
+				if(T.finddatum?.finds.len)
 					continue
 
 				if(T in processed_turfs)
@@ -28,32 +39,17 @@ proc/SetupXenoarch()
 			turfs_to_process.Remove(archeo_turf)
 			processed_turfs.Add(archeo_turf)
 
-			if(!archeo_turf.finds || !archeo_turf.finds.len)
+			if(!archeo_turf.finddatum)
+				archeo_turf.finddatum = new(archeo_turf)
+			if(!archeo_turf.finddatum.finds || !archeo_turf.finddatum.finds.len)
+				archeo_turf.finddatum.create_finds(D)
 
-				if(prob(50))
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(5,95)))
-				else if(prob(75))
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(5,45)))
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(55,95)))
-				else
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(5,30)))
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(35,75)))
-					archeo_turf.finds.Add(new /datum/find(digsite, rand(75,95)))
-
-				//sometimes a find will be close enough to the surface to show
-				var/datum/find/F = archeo_turf.finds[1]
-
-				if(F.excavation_required <= F.view_range)
-					archeo_turf.archaeo_overlay = "overlay_archaeo[rand(1,3)]"
-					archeo_turf.overlays += archeo_turf.archaeo_overlay
-
-		//dont create artifact machinery in animal or plant digsites, or if we already have one
-		if(!M.artifact_find && digsite != 1 && digsite != 2 && prob(ARTIFACT_SPAWN_CHANCE))
-			M.artifact_find = new()
+		if(!M.finddatum.artifact_find && D.gen_large_artifacts && prob(ARTIFACT_SPAWN_CHANCE))
+			M.finddatum.artifact_find = new()
 			SSxenoarch.artifact_spawning_turfs.Add(M)
 
-		if(isnull(M.geologic_data))
-			M.geologic_data = new/datum/geosample(M)
+		if(isnull(M.finddatum.geologic_data))
+			M.finddatum.geologic_data = new/datum/geosample(M)
 
 #undef XENOARCH_SPAWN_CHANCE
 #undef XENOARCH_SPREAD_CHANCE
@@ -106,16 +102,14 @@ proc/SetupXenoarch()
 
 /obj/structure/bookcase/manuals/xenoarchaeology
 	name = "Xenoarchaeology Manuals bookcase"
-
-/obj/structure/bookcase/manuals/xenoarchaeology/New()
-	..()
-	new /obj/item/weapon/book/manual/excavation(src)
-	new /obj/item/weapon/book/manual/mass_spectrometry(src)
-	new /obj/item/weapon/book/manual/materials_chemistry_analysis(src)
-	new /obj/item/weapon/book/manual/anomaly_testing(src)
-	new /obj/item/weapon/book/manual/anomaly_spectroscopy(src)
-	new /obj/item/weapon/book/manual/stasis(src)
-	update_icon()
+	starting_books = list(
+		/obj/item/weapon/book/manual/excavation,
+		/obj/item/weapon/book/manual/mass_spectrometry,
+		/obj/item/weapon/book/manual/materials_chemistry_analysis,
+		/obj/item/weapon/book/manual/anomaly_testing,
+		/obj/item/weapon/book/manual/anomaly_spectroscopy,
+		/obj/item/weapon/book/manual/stasis
+	)
 
 //---- Lockers and closets
 
@@ -129,17 +123,17 @@ proc/SetupXenoarch()
 	icon_broken = "secureresbroken"
 	icon_off = "secureresoff"
 
-/obj/structure/closet/secure_closet/xenoarchaeologist/New()
-	..()
-	sleep(2)
-	new /obj/item/clothing/under/rank/scientist(src)
-	new /obj/item/clothing/suit/storage/labcoat/science(src)
-	new /obj/item/clothing/shoes/white(src)
-	new /obj/item/clothing/glasses/science(src)
-	new /obj/item/device/radio/headset/headset_sci(src)
-	new /obj/item/weapon/storage/belt/archaeology(src)
-	new /obj/item/weapon/storage/box/excavation(src)
-	return
+/obj/structure/closet/secure_closet/xenoarchaeologist/atoms_to_spawn()
+	return list(
+		/obj/item/clothing/under/rank/scientist,
+		/obj/item/clothing/suit/storage/labcoat/science,
+		/obj/item/clothing/shoes/white,
+		/obj/item/clothing/glasses/scanner/science,
+		/obj/item/device/radio/headset/headset_sci,
+		/obj/item/weapon/storage/belt/archaeology,
+		/obj/item/weapon/storage/box/excavation,
+	)
+
 
 /obj/structure/closet/secure_closet/excavation
 	name = "Excavation Tools"
@@ -151,22 +145,20 @@ proc/SetupXenoarch()
 	icon_broken = "securexenbroken"
 	icon_off = "securexenoff"
 
-/obj/structure/closet/secure_closet/excavation/New()
-	..()
-	sleep(2)
-	new /obj/item/weapon/storage/belt/archaeology(src)
-	new /obj/item/weapon/storage/box/excavation(src)
-	new /obj/item/device/flashlight/lantern(src)
-	new /obj/item/device/depth_scanner(src)
-	new /obj/item/device/core_sampler(src)
-	new /obj/item/device/gps(src)
-	new /obj/item/device/beacon_locator(src)
-	new /obj/item/beacon(src)
-	new /obj/item/clothing/glasses/scanner/meson(src)
-	new /obj/item/weapon/pickaxe(src)
-	new /obj/item/device/measuring_tape(src)
-	new /obj/item/weapon/pickaxe/hand(src)
-	return
+/obj/structure/closet/secure_closet/excavation/atoms_to_spawn()
+	return list(
+		/obj/item/weapon/storage/belt/archaeology,
+		/obj/item/weapon/storage/box/excavation,
+		/obj/item/device/flashlight/lantern,
+		/obj/item/device/depth_scanner,
+		/obj/item/device/core_sampler,
+		/obj/item/device/gps,
+		/obj/item/clothing/glasses/scanner/meson,
+		/obj/item/weapon/pickaxe,
+		/obj/item/device/measuring_tape,
+		/obj/item/weapon/pickaxe/hand,
+	)
+
 
 //---- Isolation room air alarms
 

@@ -29,16 +29,23 @@
 	affecting = victim
 
 	if(!victim.can_be_grabbed(assailant))
-		returnToPool(src)
+		qdel(src)
 		return
 	if(affecting && affecting.anchored)
-		returnToPool(src)
+		qdel(src)
 		return
 
-	hud = getFromPool(/obj/abstract/screen/grab)
+	hud = new /obj/abstract/screen/grab
 	hud.icon_state = "reinforce"
 	hud.name = "reinforce grab"
 	hud.master = src
+
+/obj/item/weapon/grab/on_give(mob/living/carbon/giver, mob/living/carbon/receiver)
+	if(!(giver == assailant) || !giver.Adjacent(affecting) || !receiver.Adjacent(affecting))
+		visible_message("<span class='warning'>[giver] tried to pass [affecting] to [receiver] but couldn't.</span>")
+		return FALSE
+	receiver.grab_mob(affecting)
+	return FALSE
 
 /obj/item/weapon/grab/preattack()
 	if(!assailant || !affecting)
@@ -70,7 +77,7 @@
 
 	if(!assailant)
 		affecting = null
-		returnToPool(src)
+		qdel(src)
 		return
 
 	if(assailant.client)
@@ -110,7 +117,8 @@
 			L.adjustOxyLoss(1)
 
 	if(state >= GRAB_KILL)
-		affecting.Knockdown(5)	//Should keep you down unless you get help.
+		affecting.Stun(5) //Should keep you down unless you get help.
+		affecting.Knockdown(5)
 		affecting.losebreath = min(affecting.losebreath + 1, 3) //builds up to 3 over a few seconds
 		affecting.stuttering = max(affecting.stuttering, 6)
 		if(isliving(affecting) && affecting.losebreath >= 3) //if you've been choked for a few seconds
@@ -139,7 +147,7 @@
 		return
 	*/
 	if(!assailant.canmove || assailant.lying)
-		returnToPool(src)
+		qdel(src)
 		return
 
 	last_upgrade = world.time
@@ -153,7 +161,7 @@
 		assailant.delayNextAttack(10)
 		hud.icon_state = "!reinforce"
 		spawn(10)
-			if(!disposed)
+			if(!gcDestroyed)
 				hud.icon_state = "reinforce"
 		icon_state = "grabbed1"
 	else
@@ -174,7 +182,7 @@
 			assailant.delayNextAttack(10)
 			hud.icon_state = "!reinforce"
 			spawn(10)
-				if(!disposed)
+				if(!gcDestroyed)
 					hud.icon_state = "disarm/kill"
 					hud.name = "disarm/kill"
 		else
@@ -187,10 +195,10 @@
 					if(state == GRAB_KILL)
 						return
 					if(!assailant || !affecting)
-						returnToPool(src)
+						qdel(src)
 						return
 					if(!assailant.canmove || assailant.lying)
-						returnToPool(src)
+						qdel(src)
 						return
 					state = GRAB_KILL
 					assailant.visible_message("<span class='danger'>[assailant] has tightened \his grip on [affecting]'s neck!</span>", \
@@ -205,7 +213,7 @@
 					affecting.losebreath += 1
 				else
 					if(!assailant || !affecting)
-						returnToPool(src)
+						qdel(src)
 						return
 					assailant.visible_message("<span class='warning'>[assailant] was unable to tighten \his grip on [affecting]'s neck!</span>", \
 						drugged_message = "<span class='warning'>[affecting] refused [assailant]'s hug!</span>")
@@ -216,12 +224,12 @@
 //This is used to make sure the victim hasn't managed to yackety sax away before using the grab.
 /obj/item/weapon/grab/proc/confirm()
 	if(!assailant || !affecting)
-		returnToPool(src)
+		qdel(src)
 		return 0
 
 	if(affecting)
 		if(!isturf(assailant.loc) || ( !isturf(affecting.loc) || assailant.loc != affecting.loc && get_dist(assailant, affecting) > 1) )
-			returnToPool(src)
+			qdel(src)
 			return 0
 
 	return 1
@@ -237,8 +245,13 @@
 
 	if(M == assailant && state >= GRAB_AGGRESSIVE)
 		var/can_eat = FALSE
+		// Anti-vore act of 2017
+		var/just_gib = FALSE
+		var/nutriadd = 0
 		if(ishuman(user) && (M_FAT in user.mutations) && ismonkey(affecting))
 			can_eat = TRUE
+			just_gib = TRUE //by order of Chicken
+			nutriadd = 100 //TODO: Adjust to fit what they'd get via the old handle_stomach proc
 		else if(isalien(user) && iscarbon(affecting))
 			can_eat = TRUE
 		if(can_eat)
@@ -256,13 +269,19 @@
 					return
 			user.visible_message("<span class='danger'>[user] devours [affecting]!</span>", \
 				drugged_message="<span class='danger'>[affecting] vanishes in disgust.</span>")
-			affecting.forceMove(user)
-			attacker.stomach_contents.Add(affecting)
-			returnToPool(src)
+			if(just_gib)
+				affecting.drop_all()
+				affecting.gib()
+				qdel(affecting)
+				attacker.nutrition += nutriadd
+			else
+				affecting.forceMove(user)
+				attacker.stomach_contents.Add(affecting)
+			qdel(src)
 
 
 /obj/item/weapon/grab/dropped()
-	returnToPool(src)
+	qdel(src)
 
 /obj/item/weapon/grab/Destroy()
 	if(affecting)
@@ -273,8 +292,7 @@
 			assailant.client.screen -= hud
 		assailant = null
 	if(hud)
-		returnToPool(hud)
-		hud = null
+		QDEL_NULL(hud)
 	..()
 
 /mob/proc/grab_check(mob/victim)

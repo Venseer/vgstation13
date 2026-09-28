@@ -28,7 +28,7 @@
 	idle_vision_range = 6
 	search_objects = 1
 
-	var/static/list/edibles = list(/mob/living/simple_animal/cockroach, /obj/item/weapon/reagent_containers/food/snacks/roach_eggs, /mob/living/simple_animal/bee) //Add bugs to this as they get added in
+	var/static/list/edibles = list(/mob/living/simple_animal/cockroach, /obj/item/weapon/reagent_containers/food/snacks/roach_eggs, /obj/item/weapon/reagent_containers/food/snacks/egg/snail, /mob/living/simple_animal/bee, /mob/living/simple_animal/snail) //Add bugs to this as they get added in
 
 /mob/living/simple_animal/hostile/lizard/UnarmedAttack(var/atom/A)
 	if(is_type_in_list(A, edibles))
@@ -83,3 +83,70 @@
 	else
 		plane = MOB_PLANE
 		to_chat(src, "<span class='notice'>You have stopped hiding.</span>")
+
+/mob/living/simple_animal/hostile/lizard/get_butchering_products()
+	return list(/datum/butchering_product/skin/lizard)
+
+//freg
+/mob/living/simple_animal/hostile/lizard/frog
+	species_type = /mob/living/simple_animal/hostile/lizard/frog
+	name = "frog"
+	desc = "Ribbit."
+	icon_state = "smallfrog"
+	icon_living = "smallfrog"
+	icon_dead = "smallfrog_dead"
+	speak_emote = list("ribbits")
+	holder_type = /obj/item/weapon/holder/animal/frog
+
+/mob/living/simple_animal/hostile/lizard/frog/attack_hand(mob/living/carbon/human/M)
+	. = ..()
+	react_to_touch(M)
+	M.delayNextAttack(2 SECONDS)
+
+/mob/living/simple_animal/hostile/lizard/frog/proc/react_to_touch(mob/M)
+	if(M && !isUnconscious())
+		switch(M.a_intent)
+			if(I_HELP)
+				var/image/heart = image('icons/mob/animal.dmi',src,"heart-ani2")
+				heart.plane = ABOVE_HUMAN_PLANE
+				flick_overlay(heart, list(M.client), 20)
+				emote("me", EMOTE_AUDIBLE, "croaks.")
+				playsound(loc, 'sound/voice/frogcroak.ogg', 50, 1)
+			if(I_HURT)
+				emote("me", EMOTE_AUDIBLE, "grunts.")
+
+/mob/living/simple_animal/hostile/lizard/frog/get_butchering_products()
+	return list(/datum/butchering_product/frog_leg)
+
+
+/mob/living/simple_animal/hostile/lizard/frog/poison
+	species_type = /mob/living/simple_animal/hostile/lizard/frog/poison
+	name = "poison dart frog"
+	desc = "Poisonous, not venomous."
+	icon_state = "poison_dart_frog"
+	icon_living = "poison_dart_frog"
+	icon_dead = "poison_dart_frog_dead"
+	is_poisonous=TRUE
+	
+/mob/living/simple_animal/hostile/lizard/frog/poison/react_to_touch(mob/M)	
+	..()
+	if(istype(M,/mob/living/carbon/human)) //don't touch with bare hands.
+		var/mob/living/carbon/human/H = M
+		if(H.gloves)
+			return	
+	M.reagents.add_reagent(CARPOTOXIN, 10)
+	
+/mob/living/simple_animal/hostile/lizard/frog/get_butchering_products()
+	return list(/datum/butchering_product/frog_leg)
+
+/mob/living/simple_animal/hostile/lizard/frog/poison/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)	
+	..()
+	if(istype(mover,/mob))
+		var/mob/M=mover
+		if(istype(M,/mob/living/carbon/human))
+			var/mob/living/carbon/human/H = M
+			if(!H.shoes) //don't tread on him (without footwear).
+				H.reagents.add_reagent(CARPOTOXIN, 10)
+		else		
+			M.reagents.add_reagent(CARPOTOXIN, 10)
+

@@ -63,8 +63,7 @@
 /obj/item/weapon/crossbow/attackby(obj/item/W as obj, mob/user as mob)
 	if(!arrow)
 		if (istype(W,/obj/item/weapon/arrow))
-			if(!user.drop_item(W, src))
-				user << "<span class='warning'>You can't let go of \the [W]!</span>"
+			if(!user.drop_item(W, src, failmsg = TRUE))
 				return
 
 			arrow = W
@@ -89,8 +88,7 @@
 
 	if(istype(W, /obj/item/weapon/cell))
 		if(!cell)
-			if(!user.drop_item(W, src))
-				user << "<span class='warning'>You can't let go of \the [W]!</span>"
+			if(!user.drop_item(W, src, failmsg = TRUE))
 				return
 
 			cell = W
@@ -104,7 +102,7 @@
 		else
 			to_chat(user, "<span class='notice'>[src] already has a cell installed.</span>")
 
-	else if(isscrewdriver(W))
+	else if(W.is_screwdriver(user))
 		if(cell)
 			var/obj/item/C = cell
 			C.forceMove(get_turf(user))
@@ -252,7 +250,7 @@
 			return
 	else if(iswelder(W))
 		if(buildstate == 1)
-			var/obj/item/weapon/weldingtool/T = W
+			var/obj/item/tool/weldingtool/T = W
 			if(T.remove_fuel(0,user))
 				if(!src || !T.isOn()) return
 				playsound(src.loc, 'sound/items/Welder2.ogg', 100, 1)
@@ -296,7 +294,7 @@
 			else
 				to_chat(user, "<span class='notice'>You need at least three plastic sheets to complete this task.</span>")
 			return*/
-	else if(istype(W,/obj/item/weapon/screwdriver))
+	else if(W.is_screwdriver(user))
 		if(buildstate == 5)
 			to_chat(user, "<span class='notice'>You secure the crossbow's various parts.</span>")
 			new /obj/item/weapon/crossbow(get_turf(src))

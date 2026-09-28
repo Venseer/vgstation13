@@ -10,7 +10,6 @@
 	icon = 'icons/obj/projectiles_experimental.dmi'
 	icon_state = "ricochet_head"
 	animate_movement = 0
-	linear_movement = 0
 	custom_impact = 1
 	var/pos_from = EAST	//which side of the turf is the shot coming from
 	var/pos_to = SOUTH	//which side of the turf is the shot heading to
@@ -22,9 +21,21 @@
 		/obj/machinery/turret,
 		/obj/machinery/turretcover,
 		/obj/mecha,
-		/obj/structure/reagent_dispensers/fueltank,
+		/obj/structure/reagent_dispensers,
 		/obj/structure/bed/chair/vehicle,
 		)
+
+/obj/item/projectile/ricochet/taser
+	name = "electrode"
+	damage = 0
+	nodamage = 1
+	stun = 10
+	weaken = 10
+	stutter = 10
+	jittery = 20
+	agony = 10
+	hitsound = 'sound/weapons/taserhit.ogg'
+	icon_state = "ricochet_head_t"
 
 /obj/item/projectile/ricochet/OnFired()	//The direction and position of the projectile when it spawns depends heavily on where the player clicks.
 	var/turf/T1 = get_turf(shot_from)	//From a single turf, a player can fire the ricochet rifle in 8 different directions.
@@ -140,7 +151,7 @@
 	else
 		OnDeath()
 		loc = null
-		returnToPool(src)
+		qdel(src)
 		return
 
 	var/turf/newspawn = locate(T1.x + X_spawn, T1.y + Y_spawn, z)
@@ -175,8 +186,10 @@
 /obj/item/projectile/ricochet/proc/bounce()
 	bouncin = 1
 	var/obj/structure/ricochet_bump/bump = new(loc)
+	if(nodamage)
+		bump.icon_state += "_t"
 	bump.dir = pos_to
-	playsound(src, 'sound/items/metal_impact.ogg', 50, 1)
+	playsound(src, bounce_sound, 50, 1)
 	switch(pos_to)
 		if(NORTH)
 			if(pos_from == WEST)
@@ -204,7 +217,7 @@
 			pos_from = WEST
 
 /obj/item/projectile/ricochet/proc/bulletdies(var/atom/A = null)
-	var/obj/effect/overlay/beam/impact = getFromPool(/obj/effect/overlay/beam,get_turf(src),10,0,'icons/obj/projectiles_impacts.dmi')
+	var/obj/effect/overlay/beam/impact = new /obj/effect/overlay/beam(get_turf(src), 10, 0, 'icons/obj/projectiles_impacts.dmi')
 	if(A)
 		switch(get_dir(src,A))
 			if(NORTH)
@@ -215,13 +228,13 @@
 				impact.pixel_x = WORLD_ICON_SIZE/2
 			if(WEST)
 				impact.pixel_x = -WORLD_ICON_SIZE/2
-	impact.icon_state = "ricochet_hit"
+	impact.icon_state = "ricochet_hit[nodamage ? "_t" : ""]"
 	playsound(impact, 'sound/weapons/pierce.ogg', 30, 1)
 
 	spawn()
 		setDensity(FALSE)
 		invisibility = 101
-		returnToPool(src)
+		qdel(src)
 		OnDeath()
 
 /obj/item/projectile/ricochet/to_bump(atom/A as mob|obj|turf|area)
@@ -237,21 +250,21 @@
 			if(istype(A,/mob/living/carbon/human))
 				var/mob/living/carbon/human/H = A
 				if(istype(H.wear_suit,/obj/item/clothing/suit/armor/laserproof))// bwoing!!
-					visible_message("<span class='warning'>\the [src.name] bounces off \the [A.name]'s [H.wear_suit]!</span>")
+					visible_message("<span class='warning'>\The [src.name] bounces off \the [A.name]'s [H.wear_suit]!</span>")
 					bounce()
 				else
-					visible_message("<span class='warning'>\the [A.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
+					visible_message("<span class='warning'>\The [A.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
 					A.bullet_act(src, def_zone)
 					admin_warn(A)
 					bulletdies(A)
 			else
-				visible_message("<span class='warning'>\the [A.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
+				visible_message("<span class='warning'>\The [A.name] is hit by \the [src.name] in the [parse_zone(def_zone)]!</span>")
 				A.bullet_act(src, def_zone)
 				admin_warn(A)
 				bulletdies(A)
 
 		else if(is_type_in_list(A,ricochet_bump))//beware fuel tanks!
-			visible_message("<span class='warning'>\the [A.name] is hit by \the [src.name]!</span>")
+			visible_message("<span class='warning'>\The [A.name] is hit by \the [src.name]!</span>")
 			A.bullet_act(src)
 			bulletdies(A)
 
@@ -280,6 +293,8 @@
 
 /obj/item/projectile/ricochet/proc/ricochet_step(var/phase=1)
 	var/obj/structure/ricochet_trail/trail = new(loc)
+	if(nodamage)
+		trail.icon_state += "_t"
 	switch(pos_to)
 		if(NORTH)
 			if(pos_from == WEST)
@@ -360,7 +375,7 @@
 	anchored = 1
 	layer = BELOW_PROJECTILE_LAYER
 
-/obj/structure/ricochet_trail/acidable()
+/obj/structure/ricochet_trail/dissolvable()
 	return 0
 
 /obj/structure/ricochet_trail/New()
@@ -377,7 +392,7 @@
 	anchored = 1
 	layer = ABOVE_PROJECTILE_LAYER
 
-/obj/structure/ricochet_bump/acidable()
+/obj/structure/ricochet_bump/dissolvable()
 	return 0
 
 /obj/structure/ricochet_bump/New()

@@ -89,6 +89,7 @@ var/global/list/all_docking_ports = list()
 	for(var/obj/machinery/door/airlock/A in range(1,src))
 		if(!A.shuttle_warning_lights)
 			A.shuttle_warning_lights = image('icons/obj/doors/Doorint.dmi', src, "warning_lights")
+			A.shuttle_warning_lights.plane = ABOVE_LIGHTING_PLANE
 		A.overlays += A.shuttle_warning_lights
 	for(var/obj/machinery/docklight/D in dockinglights)
 		if(D.id_tag == areaname)
@@ -153,20 +154,31 @@ var/global/list/all_docking_ports = list()
 	var/turf/origin_turf = null
 	var/list/disk_references = list() //List of shuttle destination disks that know about this docking port
 
-	var/base_turf_type			= /turf/space
+	var/base_turf_type			= null // was formerly /turf/space. undo this (and the change in shuttle.dm) if it causes stuff to mess up.
 	var/base_turf_icon			= null
 	var/base_turf_icon_state	= null
+	var/base_turf_override		= FALSE
+
+	var/refill_area				= null
 
 /obj/docking_port/destination/New()
 	.=..()
 
 	origin_turf = get_turf(src)
 	//The following few lines exist to make shuttle corners and the syndicate base Less Shit :*
-	if(src.z in (1 to map.zLevels.len))
-		base_turf_type = get_base_turf(src.z)
+	if(!refill_area)
+		var/turf/T = get_step(src,dir)
+		var/area/A = get_area(T)
+		if(!istype(A,/area/shuttle))
+			refill_area = A.type //look at the area we're pointing at, if it's not a shuttle, make it our refill area
+	if(base_turf_override)
+		return //Allows mappers to manually set base_turf info
+	var/datum/virtual_z/vz = get_virtual_z()
+	if(vz)
+		base_turf_type = get_base_turf(vz)
 
-	var/datum/zLevel/L = get_z_level(src)
-	if(istype(L,/datum/zLevel/centcomm)) //If the docking port is at z-level 2 (the one with the transit areas)
+	var/datum/virtual_z/L = get_virtual_z()
+	if(!L || L.level_type == VZ_TRANSIT) //If the docking port is at a transit area
 		var/turf/T = get_turf(src)
 		if(istype(T, /turf/space))	//Placed on space
 			base_turf_type = T.type //This ensures that once a shuttle leaves transit, its turfs are replaced with MOVING SPACE instead of STATIC SPACE
@@ -218,15 +230,17 @@ var/global/list/all_docking_ports = list()
 
 		var/teleporter_typepath = /obj/effect/step_trigger/teleporter/random/shuttle_transit
 
-		var/area/shuttle_area = D.linked_shuttle.linked_area
-		for(var/turf/T in shuttle_area)
+		for(var/turf/T in D.linked_shuttle.shuttle_contents())
 			for(var/dir in cardinal)
 				var/turf/check = get_step(T, dir)
-				if(check.loc != shuttle_area) //Turf doesn't belong to a shuttle
+				if(!D.linked_shuttle.has_area(check.loc)) //Turf doesn't belong to a shuttle
 					if(!locate(teleporter_typepath) in check)
 						new teleporter_typepath(check)
 
 		generate_borders = 0
+
+/obj/docking_port/destination/planet_surface
+	areaname = "planet surface"
 
 //SILLY PROC
 /proc/select_port_from_list(var/mob/user, var/message="Select a docking port", var/title="Admin abuse", var/list/list) //like input
@@ -239,7 +253,7 @@ var/global/list/all_docking_ports = list()
 		choices += name
 		choices[name] = D
 
-	var/choice = input(user,message,title) in choices as text|null
+	var/choice = input(user,message,title) as null|anything in choices
 
 	var/obj/docking_port/destination/D = choices[choice]
 	if(istype(D))
@@ -255,14 +269,16 @@ var/global/list/dockinglights = list()
 	icon_state = "docklight"
 	light_color = LIGHT_COLOR_ORANGE
 	machine_flags = MULTITOOL_MENU
+	anchored = 1
 	var/triggered = 0
-	var/id_tag = "" //Mappers: This should match the areaname of the target destination port.
+	id_tag = "" //Mappers: This should match the areaname of the target destination port.
 	//Examples: "main research department", "research outpost", "deep space", "station auxillary docking", "north of the station", etc.
 
 /obj/machinery/docklight/New()
 	..()
-	dockinglights += src
-	
+	if(!triggered) //don't add the permanently-on lights
+		dockinglights += src
+
 /obj/machinery/docklight/Destroy()
 	dockinglights -= src
 	..()
@@ -281,3 +297,10 @@ var/global/list/dockinglights = list()
 	<ul>
 		<li>[format_tag("ID Tag","id_tag")]</li>
 	</ul>"}
+
+/obj/machinery/docklight/alwayson
+	triggered = 1
+
+/obj/machinery/docklight/alwayson/New()
+	..()
+	update_icon()

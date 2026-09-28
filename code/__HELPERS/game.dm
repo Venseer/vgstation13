@@ -1,27 +1,44 @@
-/proc/dopage(src,target)
+/proc/dopage(source,target)
 	var/href_list
 	var/href
-	href_list = params2list("src=\ref[src]&[target]=1")
-	href = "src=\ref[src];[target]=1"
-	src:temphtml = null
-	src:Topic(href, href_list)
+	href_list = params2list("src=\ref[source]&[target]=1")
+	href = "src=\ref[source];[target]=1"
+	source:Topic(href, href_list)
 	return null
 
 /proc/get_area(const/atom/O)
+	RETURN_TYPE(/area)
 	if(isarea(O))
 		return O
 	var/turf/T = get_turf(O)
 	if(T)
 		return T.loc
 
-/proc/get_area_name(N) //get area by its name
+/proc/get_area_by_name(N) //get area by its name
 	for(var/area/A in areas)
 		if(A.name == N)
 			return A
 	return 0
 
+/proc/get_area_name(atom/X, format_text = FALSE, short = FALSE)
+	var/area/A = isarea(X) ? X : get_area(X)
+	if(!A)
+		return null
+	if(short)
+		if(A.short_name)
+			. = A.short_name
+		else
+			. = replacetext(format_text(get_first_word(A.name)),"'s","")
+	else
+		. = format_text ? format_text(A.name) : A.name
+
+/proc/get_coordinates_string(var/atom/A)
+	var/turf/T = get_turf(A)
+	return T ? "[T.x],[T.y],[T.z]" : "nullspace"
+
+
 /proc/in_range(atom/source, mob/user)
-	if(user.Adjacent(source))
+	if(source.Adjacent(user))
 		return 1
 	else if(istype(user) && user.mutations && user.mutations.len)
 		if((M_TK in user.mutations) && (get_dist(user,source) < tk_maxrange))
@@ -156,51 +173,6 @@
 
 #define SIGN(X) ((X<0)?-1:1)
 
-proc
-	inLineOfSight(X1,Y1,X2,Y2,Z=1,PX1=16.5,PY1=16.5,PX2=16.5,PY2=16.5)
-		var/turf/T
-		if(X1==X2)
-			if(Y1==Y2)
-				return 1 //Light cannot be blocked on same tile
-			else
-				var/s = SIGN(Y2-Y1)
-				Y1+=s
-				while(Y1!=Y2)
-					T=locate(X1,Y1,Z)
-					if(T.opacity)
-						return 0
-					Y1+=s
-		else
-			var/m=(32*(Y2-Y1)+(PY2-PY1))/(32*(X2-X1)+(PX2-PX1))
-			var/b=(Y1+PY1/32-0.015625)-m*(X1+PX1/32-0.015625) //In tiles
-			var/signX = SIGN(X2-X1)
-			var/signY = SIGN(Y2-Y1)
-			if(X1<X2)
-				b+=m
-			while(X1!=X2 || Y1!=Y2)
-				if(round(m*X1+b-Y1))
-					Y1+=signY //Line exits tile vertically
-				else
-					X1+=signX //Line exits tile horizontally
-				T=locate(X1,Y1,Z)
-				if(T.opacity)
-					return 0
-		return 1
-#undef SIGN
-
-proc/isInSight(var/atom/A, var/atom/B)
-	var/turf/Aturf = get_turf(A)
-	var/turf/Bturf = get_turf(B)
-
-	if(!Aturf || !Bturf)
-		return 0
-
-	if(inLineOfSight(Aturf.x,Aturf.y, Bturf.x,Bturf.y,Aturf.z))
-		return 1
-
-	else
-		return 0
-
 /proc/get_cardinal_step_away(atom/start, atom/finish) //returns the position of a step from start away from finish, in one of the cardinal directions
 	//returns only NORTH, SOUTH, EAST, or WEST
 	var/dx = finish.x - start.x
@@ -228,52 +200,11 @@ proc/isInSight(var/atom/A, var/atom/B)
 			return M
 	return null
 
-//i think this is used soley by verb/give(), cael
-proc/check_can_reach(atom/user, atom/target)
-	if(!in_range(target,user))
-		return 0
-	return CanReachThrough(get_turf(user), get_turf(target), target)
-
-//dummy caching, used to speed up reach checks
-var/list/DummyCache = list()
-
-/proc/CanReachThrough(turf/srcturf, turf/targetturf, atom/target, var/pass_flags=0)
-
-
-	var/obj/item/weapon/dummy/D = locate() in DummyCache
-	if(!D)
-		D = new /obj/item/weapon/dummy( srcturf )
-	else
-		DummyCache.Remove(D)
-		D.forceMove(srcturf)
-
-	D.flags=initial(D.flags)
-	D.pass_flags=initial(D.pass_flags)
-	if(pass_flags&PASSTABLE)
-		D.pass_flags |= PASSTABLE
-
-	if(targetturf.density && targetturf != get_turf(target))
-		return 0
-
-	//Now, check objects to block exit that are on the border
-	for(var/obj/border_obstacle in srcturf)
-		if(border_obstacle.flow_flags & ON_BORDER)
-			if(!border_obstacle.Uncross(D, targetturf))
-				D.forceMove(null)
-				DummyCache.Add(D)
-				return 0
-
-	//Next, check objects to block entry that are on the border
-	for(var/obj/border_obstacle in targetturf)
-		if((border_obstacle.flow_flags & ON_BORDER) && (target != border_obstacle))
-			if(!border_obstacle.Cross(D, srcturf, 1, 0))
-				D.forceMove(null)
-				DummyCache.Add(D)
-				return 0
-
-	D.forceMove(null)
-	DummyCache.Add(D)
-	return 1
+/proc/get_mind_by_key(var/key)
+	for(var/datum/mind/M in ticker.minds)
+		if(lowertext(M.key) == lowertext(key))
+			return M
+	return null
 
 // Comment out when done testing shit.
 //#define DEBUG_ROLESELECT
@@ -302,6 +233,10 @@ var/list/DummyCache = list()
 
 			if(((G.client.inactivity/10)/60) > buffer + i) // the most active players are more likely to become an alien
 				roleselect_debug("get_active_candidates(role_id=[role_id], buffer=[buffer], poll=[poll]): Skipping [G]  - Inactive.")
+				continue
+
+			if(isAdminGhost(G)) // don't do this to admins
+				roleselect_debug("get_active_candidates(role_id=[role_id], buffer=[buffer], poll=[poll]): Skipping [G]  - Is adminned.")
 				continue
 
 			roleselect_debug("get_active_candidates(role_id=[role_id], buffer=[buffer], poll=[poll]): Selected [G] as candidate.")
@@ -407,6 +342,32 @@ var/list/DummyCache = list()
 		if(client_needed && !M.client)
 			continue
 		if(our_area != get_area(M))
+			continue
+		mobs_found += M
+	return mobs_found
+
+/proc/mobs_in_zlevel(var/target_z, var/client_needed=0, var/moblist=mob_list)
+	var/list/mobs_found = list()
+	for(var/mob/M in moblist)
+		if(client_needed && !M.client)
+			continue
+		var/turf/T = get_turf(M)
+		if(T?.z != target_z)
+			continue
+		mobs_found += M
+	return mobs_found
+
+/proc/mobs_in_vlevel(var/datum/virtual_z/vz, var/client_needed=FALSE, var/moblist=mob_list)
+	if(!vz)
+		return list()
+	if(vz.size_x == ALLOCATION_FULL && vz.size_y == ALLOCATION_FULL)
+		return mobs_in_zlevel(vz.z(), client_needed, moblist)
+	var/list/mobs_found = list()
+	for(var/mob/M in moblist)
+		if(client_needed && !M.client)
+			continue
+		var/turf/T = get_turf(M)
+		if(T?.v != vz)
 			continue
 		mobs_found += M
 	return mobs_found
@@ -574,4 +535,30 @@ var/list/DummyCache = list()
 	//if(mixedcolor<0x00 || mixedcolor>0xFF)
 	//	return 0
 	// that's not the kind of operation we are running here, nerd
-	return Clamp(round(mixedcolor), 0, 255)
+	return clamp(round(mixedcolor), 0, 255)
+
+//Gets all areas within a department
+/proc/get_department_areas(atom/AM)
+	var/department_type
+	var/area/our_area = get_area(AM)
+	var/all_master_types = direct_subtypesof(/area)
+	for(var/checkable in all_master_types)
+		if(istype(our_area,checkable))
+			department_type = checkable
+			break
+	if(!department_type)
+		department_type = our_area.type
+	var/list/department_areas = list()
+	for(var/area/A in areas)
+		if(istype(A,department_type))
+			department_areas += A
+	return department_areas
+
+/proc/get_department_area_typepaths(atom/AM)
+	var/areapathtext = "[get_area(AM).type]"
+	var/secondslash = findtext(areapathtext, "/", 2)
+	if(secondslash)
+		var/thirdslash = findtext(areapathtext, "/", secondslash + 1)
+		if(thirdslash)
+			return typesof(text2path(copytext(areapathtext, 1, thirdslash)))
+	return typesof(text2path(areapathtext))

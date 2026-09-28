@@ -9,7 +9,7 @@
  */
 
 //slower then jointext, but correctly processes associative lists.
-proc/tg_jointext(list/list, glue = ",")
+/proc/tg_jointext(list/list, glue = ",")
 	if(!istype(list) || !list.len)
 		return
 	for(var/i=1 to list.len)
@@ -86,22 +86,43 @@ proc/tg_jointext(list/list, glue = ",")
 
 /proc/dir2text(direction)
 	switch(direction)
-		if(1.0)
+		if(NORTH)
 			return "north"
-		if(2.0)
+		if(SOUTH)
 			return "south"
-		if(4.0)
+		if(EAST)
 			return "east"
-		if(8.0)
+		if(WEST)
 			return "west"
-		if(5.0)
+		if(NORTHEAST)
 			return "northeast"
-		if(6.0)
+		if(SOUTHEAST)
 			return "southeast"
-		if(9.0)
+		if(NORTHWEST)
 			return "northwest"
-		if(10.0)
+		if(SOUTHWEST)
 			return "southwest"
+		else
+	return
+
+/proc/dir2text_short(direction)
+	switch(direction)
+		if(NORTH)
+			return "N"
+		if(SOUTH)
+			return "S"
+		if(EAST)
+			return "E"
+		if(WEST)
+			return "W"
+		if(NORTHEAST)
+			return "NE"
+		if(SOUTHEAST)
+			return "SE"
+		if(NORTHWEST)
+			return "NW"
+		if(SOUTHWEST)
+			return "SW"
 		else
 	return
 
@@ -109,26 +130,50 @@ proc/tg_jointext(list/list, glue = ",")
 /proc/text2dir(direction)
 	switch(uppertext(direction))
 		if("NORTH")
-			return 1
+			return NORTH
 		if("SOUTH")
-			return 2
+			return SOUTH
 		if("EAST")
-			return 4
+			return EAST
 		if("WEST")
-			return 8
+			return WEST
 		if("NORTHEAST")
-			return 5
+			return NORTHEAST
 		if("NORTHWEST")
-			return 9
+			return NORTHWEST
 		if("SOUTHEAST")
-			return 6
+			return SOUTHEAST
 		if("SOUTHWEST")
-			return 10
+			return SOUTHWEST
 		else
 	return
 
+// A copy of text2dir, extended to accept one and two letter
+//  directions, and to clearly return 0 otherwise.
+/proc/text2dir_extended(direction)
+	switch(uppertext(direction))
+		if("NORTH", "N")
+			return NORTH
+		if("SOUTH", "S")
+			return SOUTH
+		if("EAST", "E")
+			return EAST
+		if("WEST", "W")
+			return WEST
+		if("NORTHEAST", "NE")
+			return NORTHEAST
+		if("NORTHWEST", "NW")
+			return NORTHWEST
+		if("SOUTHEAST", "SE")
+			return SOUTHEAST
+		if("SOUTHWEST", "SW")
+			return SOUTHWEST
+		else
+	return 0
+
 //Converts an angle (degrees) into an ss13 direction
 /proc/angle2dir(var/degree)
+	//shifted 22.5 degrees to account for >337.5
 	degree = ((degree+22.5)%360)
 	if(degree < 45)
 		return NORTH
@@ -144,10 +189,9 @@ proc/tg_jointext(list/list, glue = ",")
 		return SOUTHWEST
 	if(degree < 315)
 		return WEST
-	return NORTH|WEST
+	return NORTHWEST
 
 //returns the north-zero clockwise angle in degrees, given a direction
-
 /proc/dir2angle(var/D)
 	switch(D)
 		if(NORTH)
@@ -228,8 +272,8 @@ proc/tg_jointext(list/list, glue = ",")
 		. += "[seperator]+POLLING"
 	if(rights & R_STEALTH)
 		. += "[seperator]+STEALTH"
-	if(rights & R_REJUVINATE)
-		. += "[seperator]+REJUVINATE"
+	if(rights & R_REJUVENATE)
+		. += "[seperator]+REJUVENATE"
 	if(rights & R_VAREDIT)
 		. += "[seperator]+VAREDIT"
 	if(rights & R_SOUNDS)
@@ -262,3 +306,60 @@ proc/tg_jointext(list/list, glue = ",")
 		finalNum = copytext(finalNum, 1, pos) + sep + copytext(finalNum, pos)
 
 	return finalNum
+
+// heat2color functions. Adapted from: http://www.tannerhelland.com/4435/convert-temperature-rgb-algorithm-code/
+/proc/heat2color(temp)
+	return rgb(heat2color_r(temp), heat2color_g(temp), heat2color_b(temp))
+
+/proc/heat2color_r(temp)
+	temp /= 100
+	if(temp <= 66)
+		. = 255
+	else
+		. = max(0, min(255, 329.698727446 * (temp - 60) ** -0.1332047592))
+
+/proc/heat2color_g(temp)
+	temp /= 100
+	if(temp <= 66)
+		. = max(0, min(255, 99.4708025861 * log(temp) - 161.1195681661))
+	else
+		. = max(0, min(255, 288.1221695283 * ((temp - 60) ** -0.0755148492)))
+
+/proc/heat2color_b(temp)
+	temp /= 100
+	if(temp >= 66)
+		. = 255
+	else
+		if(temp <= 16)
+			. = 0
+		else
+			. = max(0, min(255, 138.5177312231 * log(temp - 10) - 305.0447927307))
+
+/proc/type2parent(child)
+	var/string_type = "[child]"
+	var/last_slash = findlasttext(string_type, "/")
+	if(last_slash == 1)
+		switch(child)
+			if(/datum)
+				return null
+			if(/obj, /mob)
+				return /atom/movable
+			if(/area, /turf)
+				return /atom
+			else
+				return /datum
+	return text2path(copytext(string_type, 1, last_slash))
+
+/atom/proc/iconstate2framedir()
+	switch(icon_state)
+		if("N-S","NE-SW","N-SW","N-SE","N-SW-SE","N-SE-SW","N-S-pass")
+			return NORTH
+		if("S-NE","S-NW","S-NE-NW","S-NW-NE")
+			return SOUTH
+		if("E-W","NW-SE","E-NW","E-SW","E-NW-SW","E-SW-NW","E-W-pass")
+			return EAST
+		if("W-SE","W-NE","W-SE-NE","W-NE-SE")
+			return WEST
+		if("closed","open","closing","opening")
+			return dir
+	return 0

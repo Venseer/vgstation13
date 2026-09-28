@@ -1,10 +1,13 @@
 /datum/artifact_effect/deadharvest
 	effecttype = "deadharvest"
+	valid_artifact_styles = list(ARTIFACT_STYLE_ANOMALY, ARTIFACT_STYLE_ELDRITCH, ARTIFACT_STYLE_WIZARD)
 	effect = list(ARTIFACT_EFFECT_TOUCH, ARTIFACT_EFFECT_AURA, ARTIFACT_EFFECT_PULSE)
+	copy_for_battery = list("mob_spawn", "can_be_controlled", "controller")
+	effect_hint = EFFECT_HINT_LOW_LEVEL_EMISSIONS
 	var/list/mob_spawn = list()
 	var/points = 0
 	var/can_be_controlled = 0
-	var/mob/living/controller //Whomever is the leader of these brainless minions
+	var/datum/weakref/controller //Whomever is the leader of these brainless minions
 
 /datum/artifact_effect/deadharvest/New()
 	..()
@@ -14,23 +17,23 @@
 
 /datum/artifact_effect/deadharvest/proc/new_mob_spawn_list(var/choice)
 	if(!choice)
-		choice = rand(4)
+		choice = rand(3)
 	mob_spawn = list()
 	switch(choice)
-		if(1) //Regular necromancy mobs
+		if(0) //Regular necromancy mobs
 			mob_spawn = list(/mob/living/simple_animal/hostile/necro/zombie = 100,
 						/mob/living/simple_animal/hostile/necro/skeleton = 100,)
-		if(2) //Infection zombies
+		if(1) //Infection zombies
 			mob_spawn = list(/mob/living/simple_animal/hostile/necro/zombie/turned = 50,
 						/mob/living/simple_animal/hostile/necro/zombie/rotting = 75,
 						/mob/living/simple_animal/hostile/necro/zombie/putrid = 100,
 						/mob/living/simple_animal/hostile/necro/zombie/crimson = 250,)
-		if(3) //Necromorphs
-			mob_spawn = list(/mob/living/simple_animal/hostile/necromorph = 150,
-							/mob/living/simple_animal/hostile/necromorph/leaper = 90,
-							/mob/living/simple_animal/hostile/necromorph/puker = 120,
-							/mob/living/simple_animal/hostile/necromorph/exploder = 75,) //More necromorph mobs NOW
-		if(4) //Randomized mobs
+		if(2) //Necromorphs
+			mob_spawn = list(/mob/living/simple_animal/hostile/necro/necromorph = 150,
+							/mob/living/simple_animal/hostile/necro/necromorph/leaper = 90,
+							/mob/living/simple_animal/hostile/necro/necromorph/puker = 120,
+							/mob/living/simple_animal/hostile/necro/necromorph/exploder = 75,) //More necromorph mobs NOW
+		if(3) //Randomized mobs
 			var/max_mobs = rand(3,7)
 			for(var/i=0 to max_mobs)
 				var/mob/living/simple_animal/mob_to_add = pick(existing_typesof(/mob/living/simple_animal))
@@ -45,9 +48,9 @@
 		if(can_be_controlled)
 			if(!controller)
 				to_chat(user, "<span class = 'sinister'>You feel a slight biting sensation, which subsides.</span>")
-				controller = user
+				controller = makeweakref(user)
 			else
-				if(controller == user)
+				if(controller ~= user)
 					to_chat(user, "<span class = 'rose'>\The [holder] hums happily.</span>")
 					to_chat(user, "<span class = 'sinister'>[points]</span>")
 
@@ -104,14 +107,14 @@
 	if(!sacrifice.isDead() && !override) //No eating the living unless they come willingly
 		return
 
-	if(can_be_controlled && controller == sacrifice)
+	if(can_be_controlled && controller ~= sacrifice)
 		return
 
 	for(var/mob/living/summons in mob_spawn)
 		if(istype(summons, sacrifice)) //No sacrificing things we've summoned
 			if(heal_associates)
 				sacrifice.revive(0)
-				sacrifice.visible_message("<span class='warning'>\the [src] appears to wake from the dead, having healed all wounds.</span>")
+				sacrifice.visible_message("<span class='warning'>\The [src] appears to wake from the dead, having healed all wounds.</span>")
 			return
 
 	if(iscarbon(sacrifice))
@@ -152,6 +155,8 @@
 	if(ispath(to_spawn, /mob/living/simple_animal/hostile))
 		var/mob/living/simple_animal/hostile/animal_spawn = spawned_mob
 
-		if(controller)
-			animal_spawn.friends.Add(controller)
+		// This causes the weak ref to basically fall apart due to #28794. RIP.
+		var/mob/living/c = controller?.get()
+		if(c)
+			animal_spawn.friends.Add(c)
 	new /obj/effect/gibspawner/generic(get_turf(holder))

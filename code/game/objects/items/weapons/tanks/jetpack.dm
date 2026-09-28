@@ -7,7 +7,7 @@
 	w_class = W_CLASS_MEDIUM
 	item_state = "jetpack"
 	distribute_pressure = ONE_ATMOSPHERE*O2STANDARD
-	var/datum/effect/effect/system/trail/ion_trail
+	var/datum/effect/system/trail/ion_trail
 	var/on = 0.0
 	var/stabilization_on = 0
 	var/volume_rate = 500              //Needed for borg jetpack transfer
@@ -45,8 +45,7 @@
 	if(allgases >= 0.005)
 		return 1
 
-	qdel(G)
-	G = null
+	QDEL_NULL(G)
 	return
 
 /datum/action/item_action/toggle_jetpack
@@ -75,7 +74,7 @@
 
 /obj/item/weapon/tank/jetpack/New()
 	. = ..()
-	ion_trail = new /datum/effect/effect/system/trail()
+	ion_trail = new /datum/effect/system/trail()
 	ion_trail.set_up(src)
 
 /obj/item/weapon/tank/jetpack/void

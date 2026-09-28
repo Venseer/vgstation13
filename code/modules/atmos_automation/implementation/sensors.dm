@@ -22,7 +22,7 @@
 	field = json["field"]
 
 /datum/automation/get_sensor_data/Evaluate()
-	if(sensor && field && sensor in parent.sensor_information)
+	if(sensor && field && (sensor in parent.sensor_information))
 		return parent.sensor_information[sensor][field]
 	return 0
 
@@ -35,15 +35,10 @@
 		return
 
 	if(href_list["set_field"])
-		field = input("Select a sensor output:", "Sensor Data", field) as null | anything in list(
-			"temperature",
-			"pressure",
-			"oxygen",
-			"toxins",
-			"nitrogen",
-			"carbon_dioxide",
-			"nitrous_oxide"
-		)
+		var/options = list("temperature", "pressure")
+		for(var/gas_ID in XGM.noteworthy_gases)
+			options += gas_ID
+		field = input("Select a sensor output:", "Sensor Data", field) as null | anything in options
 		parent.updateUsrDialog()
 		return 1
 

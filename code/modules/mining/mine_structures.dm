@@ -18,12 +18,30 @@
 	icon = 'icons/obj/lighting.dmi'
 	icon_state = "hanginglantern1"
 	anchored = 1
-	plane = LIGHTING_PLANE
-	layer = LIGHTBULB_LAYER
+	plane = OBJ_PLANE
+	layer = ABOVE_DOOR_LAYER
 	var/tmp/flickering = 0 //SPOOK
 	var/obj/item/device/flashlight/lantern/lantern = null
 	var/start_with_lantern = /obj/item/device/flashlight/lantern/on
 	var/busy = 0
+	var/lantern_can_be_removed = TRUE
+
+	health = 60
+	breakable_flags = BREAKABLE_ALL
+	damage_armor = BREAKARMOR_MEDIUM
+	damage_resist = BREAKARMOR_WEAK
+	damaged_examine_text = "It is dented."
+	take_hit_text = "denting"
+	take_hit_text2 = "dents"
+	breaks_text = "breaks apart"
+	glanced_sound = 'sound/items/trayhit1.ogg'
+
+/obj/structure/hanging_lantern/try_break()
+	if(health <= 0)
+		qdel(src)
+		return TRUE
+	else
+		return FALSE
 
 /obj/structure/hanging_lantern/New(turf/T, var/build_dir)
 
@@ -38,14 +56,16 @@
 /obj/structure/hanging_lantern/attack_hand(mob/user)
 
 	if(lantern)
-		user.visible_message("<span class='notice'>[user] takes \the [lantern] off of the \the [src].</span>", \
-		"<span class='notice'>You take \the [lantern] off of the \the [src].</span>")
-		playsound(src, 'sound/machines/click.ogg', 20, 1)
-		lantern.forceMove(user.loc)
-		lantern.add_fingerprint(user)
-		user.put_in_hands(lantern)
-		lantern = null
-		update()
+		if(lantern_can_be_removed)
+			user.visible_message("<span class='notice'>[user] takes \the [lantern] off of the \the [src].</span>", \
+			"<span class='notice'>You take \the [lantern] off of the \the [src].</span>")
+			playsound(src, 'sound/machines/click.ogg', 20, 1)
+			lantern.add_fingerprint(user)
+			user.put_in_hands(lantern)
+			lantern = null
+			update()
+		else
+			to_chat(user, "The lantern is unable to be removed from its hook!")
 
 /obj/structure/hanging_lantern/examine(mob/user)
 	..()
@@ -59,12 +79,12 @@
 
 	add_fingerprint(user)
 
-	if(iswrench(W) && !busy)
+	if(W.is_wrench(user) && !busy)
 		if(lantern)
 			user << "<span class='warning'>Remove \the [lantern] from \the [src] first.</span>"
 			return
 		busy = 1
-		playsound(src, 'sound/items/Ratchet.ogg', 75, 1)
+		W.playtoolsound(src, 75)
 		user.visible_message("<span class='warning'>[user] begins deconstructing \the [src].</span>", \
 		"<span class='notice'>You begin deconstructing \the [src].</span>")
 		if(do_after(user, src, 30))
@@ -87,6 +107,9 @@
 			lantern = W
 			update()
 			return 1
+
+	else
+		..()
 
 /obj/structure/hanging_lantern/update_icon()
 

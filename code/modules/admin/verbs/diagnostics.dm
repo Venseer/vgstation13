@@ -50,7 +50,7 @@
 	var/output = "<b>Radio Report</b><hr>"
 	for (var/fq in radio_controller.frequencies)
 		output += "<b>Freq: [fq]</b><br>"
-		var/list/datum/radio_frequency/fqs = radio_controller.frequencies[fq]
+		var/datum/radio_frequency/fqs = radio_controller.frequencies[fq]
 		if (!fqs)
 			output += "&nbsp;&nbsp;<b>ERROR</b><br>"
 			continue
@@ -66,7 +66,7 @@
 				else
 					output += "&nbsp;&nbsp;&nbsp;&nbsp;[device]<br>"
 
-	usr << browse(output,"window=radioreport")
+	usr << browse(HTML_SKELETON(output),"window=radioreport")
 	feedback_add_details("admin_verb","RR") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/reload_admins()
@@ -75,7 +75,9 @@
 
 	if(!check_rights(R_SERVER))
 		return
-
+	if(alert("Reload admins? Note: currently playing admins may not like this.","Reload Admins","Yes","No") != "Yes")
+		//dear future coders yes i am mad right now
+		return
 	message_admins("[usr] manually reloaded admins")
 	load_admins()
 	feedback_add_details("admin_verb","RLDA") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
@@ -135,3 +137,4 @@
 		else
 			str += "\n|''(Check [R.type]/on_reaction()!)''"
 	text2file(str+"\n|}","chemistry-recipes.wiki")
+z

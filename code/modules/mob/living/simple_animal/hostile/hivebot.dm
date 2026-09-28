@@ -33,6 +33,8 @@
 
 	mob_property_flags = MOB_ROBOTIC
 
+	blooded = FALSE
+
 /mob/living/simple_animal/hostile/hivebot/range
 	name = "Ranged Hivebot"
 	desc = "A biggish robot. This one has a gun!"
@@ -74,13 +76,13 @@
 
 /mob/living/simple_animal/hostile/hivebot/tele//this still needs work
 	name = "Beacon"
-	desc = "Some odd beacon thing"
+	desc = "Some odd beacon thing."
 	icon = 'icons/mob/hivebot.dmi'
 	icon_state = "def_radar-off"
 	icon_living = "def_radar-off"
 	health = 200
 	maxHealth = 200
-	status_flags = 0
+	status_flags = UNPACIFIABLE
 	anchored = 1
 	stop_automated_movement = 1
 	var/bot_type = "norm"
@@ -92,7 +94,7 @@
 
 /mob/living/simple_animal/hostile/hivebot/tele/New()
 	..()
-	var/datum/effect/effect/system/smoke_spread/smoke = new /datum/effect/effect/system/smoke_spread()
+	var/datum/effect/system/smoke_spread/smoke = new /datum/effect/system/smoke_spread()
 	smoke.set_up(5, 0, src.loc)
 	smoke.start()
 	visible_message("<span class='danger'>The [src] warps in!</span>")

@@ -107,7 +107,7 @@
 								if ( search.innerText.toLowerCase().indexOf(filter) == -1 )
 								{
 									//document.write("a");
-									//ltr.removeChild(tr);
+    								tr.parentNode.removeChild(tr);
 									td.innerHTML = "";
 									i--;
 								}
@@ -140,7 +140,7 @@
 					body += "<a href='?src=\ref[src];adminplayeropts="+ref+"'>PP</a> - "
 					body += "<a href='?src=\ref[src];notes=show;mob="+ref+"'>N</a> - "
 					body += "<a href='?_src_=vars;Vars="+ref+"'>VV</a> - "
-					body += "<a href='?src=\ref[src];traitor="+ref+"'>TP</a> - "
+					body += "<a href='?src=\ref[src];traitor="+ref+"'>RP</a> - "
 					body += "<a href='?src=\ref[usr];priv_msg=\ref"+ref+"'>PM</a> - "
 					body += "<a href='?src=\ref[src];subtlemessage="+ref+"'>SM</a> - "
 					body += "<a href='?src=\ref[src];adminplayerobservejump="+ref+"'>JMP</a><br>"
@@ -340,7 +340,7 @@
 	</body></html>
 	"}
 
-	usr << browse(dat, "window=players;size=600x480")
+	usr << browse(HTML_SKELETON(dat), "window=players;size=600x480")
 
 //The old one
 /datum/admins/proc/player_panel_old()

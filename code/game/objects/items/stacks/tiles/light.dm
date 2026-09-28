@@ -46,14 +46,13 @@ var/global/list/lightfloor_colors = list(
 
 /obj/item/stack/tile/light/update_icon(var/new_color)
 	.=..()
-	overlays = list()
-	color_overlay = image('icons/obj/items.dmi', icon_state = "light_tile_overlay")
+	color_overlay = image('icons/obj/tiles.dmi', icon_state = "light_tile_overlay")
 	color_overlay.color = rgb(color_r,color_g,color_b)
 	overlays += color_overlay
 
 /obj/item/stack/tile/light/attackby(var/obj/item/O as obj, var/mob/user as mob)
-	if(istype(O,/obj/item/weapon/crowbar))
-		var/obj/item/stack/sheet/metal/M = getFromPool(/obj/item/stack/sheet/metal, get_turf(src))
+	if(istype(O,/obj/item/tool/crowbar))
+		var/obj/item/stack/sheet/metal/M = new /obj/item/stack/sheet/metal(get_turf(src))
 		M.amount = 1
 		amount--
 		new/obj/item/stack/light_w(user.loc)

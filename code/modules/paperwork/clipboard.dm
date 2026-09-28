@@ -2,13 +2,14 @@
 	name = "clipboard"
 	icon = 'icons/obj/bureaucracy.dmi'
 	icon_state = "clipboard"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/bureaucracy.dmi', "right_hand" = 'icons/mob/in-hand/right/bureaucracy.dmi')
 	item_state = "clipboard"
 	throwforce = 0
 	w_class = W_CLASS_SMALL
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	throw_speed = 3
 	throw_range = 10
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 3
 	storage_slots = 28
 	can_only_hold = list("/obj/item/weapon/photo", "/obj/item/weapon/paper", "/obj/item/weapon/pen")
 	var/obj/item/weapon/paper/toppaper = null
@@ -37,7 +38,7 @@
 		toppaper = W
 	..() //also calls update_icon()
 
-/obj/item/weapon/storage/bag/clipboard/remove_from_storage(obj/item/W as obj, atom/new_location, var/force = 0)
+/obj/item/weapon/storage/bag/clipboard/remove_from_storage(obj/item/W as obj, atom/new_location, var/force = 0, var/refresh = 1)
 	. = ..()
 	for(var/i = contents.len; i>0; i--)
 		if(istype(contents[i],/obj/item/weapon/paper))

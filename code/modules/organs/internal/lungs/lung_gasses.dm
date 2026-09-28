@@ -11,6 +11,14 @@
 /datum/lung_gas/New(var/gas_id) //If you came here looking for what the second arg is, it was removed and no longer matters
 	src.id = gas_id
 
+/datum/lung_gas/Destroy()
+	if(lungs)
+		lungs.gasses -= src
+		lungs = null
+
+	QDEL_NULL(breath)
+	..()
+
 /datum/lung_gas/proc/get_pp()
 	return breath.partial_pressure(id)
 
@@ -138,10 +146,10 @@
 	..()
 	var/pp = get_pp()
 	var/mob/living/carbon/human/H=lungs.owner
-	if(pp > max_pp) // Too much toxins
+	if(pp > max_pp && !(H.species.flags & PLASMA_IMMUNE)) // Too much toxins
 		//testing("TOXIC: gasid=[id];pp=[pp]")
 		var/ratio = (pp/max_pp) * reagent_mult // WAS: (moles/max_moles) * 10
-		//adjustToxLoss(Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
+		//adjustToxLoss(clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
 		if(max_pp_mask)
 			if(H.wear_mask)
 				if(H.wear_mask.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
@@ -151,12 +159,14 @@
 						ratio = 0
 		if(ratio)
 			if(H.reagents)
-				// H.reagents.add_reagent(PLASMA, Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
+				// H.reagents.add_reagent(PLASMA, clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
 				// no this is bad n3x pls no
-				H.adjustToxLoss(Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
+				H.adjustToxLoss(clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
 			H.toxins_alert = max(H.toxins_alert, 1)
+			return TRUE
+		return FALSE
 	else
-		H.toxins_alert = 0
+		return FALSE
 
 
 ////////////////////////
@@ -185,3 +195,37 @@
 		if(prob(20))
 			H.emote(pick("giggle", "laugh"), ignore_status = TRUE)
 	set_moles(0)
+
+
+
+/datum/lung_gas/radioactive
+	var/max_pp=0 // Maximum toxins partial pressure before you get effects. (0.5)
+	var/max_pp_mask=0 // Same as above, but with a mask. (5 _MOLES_; Set to 0 to disable mask blocking.)
+	var/radspermole=3
+	
+/datum/lung_gas/radioactive/New(var/gas_id, var/max_pp=0, var/max_pp_mask=0, var/radspermole=3)
+	..(gas_id)
+	src.max_pp = max_pp
+	src.max_pp_mask = max_pp_mask
+	src.radspermole = radspermole
+
+/datum/lung_gas/radioactive/handle_inhale()
+	..()
+	var/pp = get_pp()
+	var/mob/living/carbon/human/H=lungs.owner
+	if(pp > max_pp) // Too much toxins
+		var/ratio = (pp/max_pp)
+		if(max_pp_mask)
+			if(H.wear_mask)
+				if(H.wear_mask.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
+					if(pp > max_pp_mask)
+						ratio = (pp/max_pp_mask)
+					else
+						ratio = 0
+		if(ratio)
+			H.apply_radiation(ratio*radspermole, RAD_INTERNAL)
+			H.toxins_alert = max(H.toxins_alert, 1)
+			return TRUE
+		return FALSE
+	else
+		return FALSE	

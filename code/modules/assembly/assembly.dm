@@ -33,9 +33,11 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 
 	var/show_status = 1 //in order to prevent the signaler button in signaler.dm from saying "... is ready!" when examined
 	var/secured = 1
-	var/list/attached_overlays = null
+	var/silent = 0
+	var/list/attached_overlays = list()
 	var/obj/item/device/assembly_holder/holder = null
 	var/cooldown = 0//To prevent spam
+	var/datum/wires/connected = null
 	var/wires = WIRE_RECEIVE | WIRE_PULSE
 
 	var/const/WIRE_RECEIVE = 1			//Allows Pulsed(0) to call Activate()
@@ -51,8 +53,8 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 	// List of variables that can be READ / WRITTEN TO by other assemblies.
 		// Format of the list:
 		//
-		// accessible_values = list("Time" = "time;number",\
-		//	"Frequency" = "freq;number",\
+		// accessible_values = list("Time" = "time;number",
+		//	"Frequency" = "freq;number",
 		//	"Code" = "code;number")
 		//
 		// "Time" - name of this value. Can be anything
@@ -137,7 +139,7 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 			return
 
 		if(L.len >= VALUE_VARIABLE_MAX)
-			new_value = Clamp(new_value, text2num(L[VALUE_VARIABLE_MIN]), text2num(L[VALUE_VARIABLE_MAX]))
+			new_value = clamp(new_value, text2num(L[VALUE_VARIABLE_MIN]), text2num(L[VALUE_VARIABLE_MAX]))
 
 	else if(L[VALUE_VARIABLE_TYPE] == VT_POINTER)
 		//When importing assembly frames, assemblies can't connect to stuff with a higher index (because it's not loaded yet)
@@ -179,7 +181,7 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 		if(!istext(new_value))  //Attempted to write a non-string to a string var - convert the non-string into a string and continue
 			new_value = "[new_value]"
 
-		new_value = utf8_sanitize(new_value, length = MAX_TEXT_VALUE_LEN)
+		new_value = strip_html(new_value, MAX_TEXT_VALUE_LEN)
 
 	//text values can accept either numbers or text, so don't check for that
 
@@ -228,7 +230,9 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 
 
 /obj/item/device/assembly/pulse(var/radio = 0)
-	if(istype(holder, /obj/item/device/assembly_frame))
+	if(src.connected && src.wires)
+		connected.Pulse(src)
+	else if(istype(holder, /obj/item/device/assembly_frame))
 		var/obj/item/device/assembly_frame/AB = holder
 
 		AB.receive_pulse(src)
@@ -238,11 +242,10 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 		if(holder && (wires & WIRE_PULSE_SPECIAL))
 			holder.process_activation(src, 0, 1)
 
-	if(istype(loc,/obj/item/weapon/grenade)) // This is a hack.  Todo: Manage this better -Sayu
-		var/obj/item/weapon/grenade/G = loc
-		G.prime() 							 // Adios, muchachos
-//		if(radio && (wires & WIRE_RADIO_PULSE))
-		//Not sure what goes here quite yet send signal?
+	if(loc)
+		//if(radio && (wires & WIRE_RADIO_PULSE)) //TODO: uncomment this? only kept here to make a PR atomic
+		loc.assembly_pulse(src)
+
 	return 1
 
 
@@ -275,7 +278,7 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 		if((!A.secured) && (!secured))
 			attach_assembly(A,user)
 			return
-	if(isscrewdriver(W))
+	if(W.is_screwdriver(user))
 		if(toggle_secure())
 			to_chat(user, "<span class='notice'>\The [src] is ready!</span>")
 		else
@@ -304,48 +307,3 @@ var/global/list/assembly_short_name_to_type = list() //Please, I beg you, don't 
 	user.set_machine(src)
 	interact(user)
 	return 1
-
-
-/obj/item/device/assembly/interact(mob/user as mob)
-	return //HTML MENU FOR WIRES GOES HERE
-
-/*
-	var/small_icon_state = null//If this obj will go inside the assembly use this for icons
-	var/list/small_icon_state_overlays = null//Same here
-	var/obj/holder = null
-	var/cooldown = 0//To prevent spam
-
-	proc
-		Activate()//Called when this assembly is pulsed by another one
-		Process_cooldown()//Call this via spawn(10) to have it count down the cooldown var
-		Attach_Holder(var/obj/H, var/mob/user)//Called when an assembly holder attempts to attach, sets src's loc in here
-
-
-	Activate()
-		if(cooldown > 0)
-			return 0
-		cooldown = 2
-		spawn(10)
-			Process_cooldown()
-		//Rest of code here
-		return 0
-
-
-	Process_cooldown()
-		cooldown--
-		if(cooldown <= 0)
-			return 0
-		spawn(10)
-			Process_cooldown()
-		return 1
-
-
-	Attach_Holder(var/obj/H, var/mob/user)
-		if(!H)
-			return 0
-		if(!H.IsAssemblyHolder())
-			return 0
-		//Remember to have it set its loc somewhere in here
-
-
-*/

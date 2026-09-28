@@ -27,14 +27,14 @@
 
 /obj/machinery/computer/turbine_computer
 	name = "Gas turbine control computer"
-	desc = "A computer to remotely control a gas turbine"
+	desc = "A computer to remotely control a gas turbine."
 	icon = 'icons/obj/computer.dmi'
 	icon_state = "airtunnel0e"
 	anchored = 1
 	density = 1
 	var/obj/machinery/compressor/compressor
 	var/list/obj/machinery/door/poddoor/doors
-	var/id_tag = 0
+	id_tag = 0
 	var/door_status = 0
 
 	light_color = LIGHT_COLOR_BLUE
@@ -73,7 +73,7 @@
 	rpm = max(0, rpm - (rpm*rpm)/COMPFRICTION)
 
 
-	if(starter && !(stat & NOPOWER))
+	if(starter && !(stat & (FORCEDISABLE|NOPOWER)))
 		use_power(2800)
 		if(rpm<1000)
 			rpmtarget = 1000
@@ -110,13 +110,13 @@
 #define TURBGENG 0.8
 
 /obj/machinery/power/turbine/process()
+	if(!compressor)
+		stat |= BROKEN
+		return
 	if(!compressor.starter)
 		return
 	overlays.len = 0
 	if(stat & BROKEN)
-		return
-	if(!compressor)
-		stat |= BROKEN
 		return
 	lastgen = ((compressor.rpm / TURBGENQ)**TURBGENG) *TURBGENQ
 
@@ -143,7 +143,7 @@
 
 /obj/machinery/power/turbine/interact(mob/user)
 
-	if ( (get_dist(src, user) > 1 ) || (stat & (NOPOWER|BROKEN)) && (!istype(user, /mob/living/silicon/ai)) )
+	if ( (get_dist(src, user) > 1 ) || (stat & (FORCEDISABLE|NOPOWER|BROKEN)) && (!istype(user, /mob/living/silicon/ai)) )
 		user.machine = null
 		user << browse(null, "window=turbine")
 		return
@@ -158,7 +158,7 @@
 		Starter: [ compressor.starter ? "<A href='?src=\ref[src];str=1'>Off</A> <B>On</B>" : "<B>Off</B> <A href='?src=\ref[src];str=1'>On</A>"]
 		</PRE><HR><A href='?src=\ref[src];close=1'>Close</A>
 		</TT>"}
-	user << browse(t, "window=turbine")
+	user << browse(HTML_SKELETON(t), "window=turbine")
 	onclose(user, "turbine")
 
 	return
@@ -217,14 +217,17 @@
 			if(P.id_tag == id_tag)
 				doors += P
 
-/obj/machinery/computer/turbine_computer/attackby(I as obj, user as mob)
-	if(isscrewdriver(I))
-		playsound(src, 'sound/items/Screwdriver.ogg', 50, 1)
+/obj/machinery/computer/turbine_computer/attackby(obj/item/I as obj, mob/user as mob)
+
+	add_fingerprint(user)
+
+	if(I.is_screwdriver(user))
+		I.playtoolsound(src, 50)
 		if(do_after(user, src, 20))
 			if (src.stat & BROKEN)
 				to_chat(user, "<span class='notice'>The broken glass falls out.</span>")
 				var/obj/structure/computerframe/A = new /obj/structure/computerframe( src.loc )
-				getFromPool(/obj/item/weapon/shard, loc)
+				new /obj/item/weapon/shard(loc)
 				var/obj/item/weapon/circuitboard/turbine_control/M = new /obj/item/weapon/circuitboard/turbine_control( A )
 				for (var/obj/C in src)
 					C.forceMove(src.loc)
@@ -233,6 +236,7 @@
 				A.state = 3
 				A.icon_state = "3"
 				A.anchored = 1
+				src.transfer_fingerprints_to(A)
 				qdel(src)
 			else
 				to_chat(user, "<span class='notice'>You disconnect the monitor.</span>")
@@ -245,6 +249,7 @@
 				A.state = 4
 				A.icon_state = "4"
 				A.anchored = 1
+				src.transfer_fingerprints_to(A)
 				qdel(src)
 	else
 		src.attack_hand(user)
@@ -268,7 +273,7 @@
 	else
 		dat += "<span class='warning'><B>No compatible attached compressor found.</span>"
 
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 	onclose(user, "computer")
 	return
 

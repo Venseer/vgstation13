@@ -16,7 +16,7 @@
 // Update the MoMMI's visual icon
 // This is called whenever a major change to the MoMMI's visual appearance is made
 // i.e when they change their icon_state, open their cover, get emagged, toggle their parking break, or put on a hat
-/mob/living/silicon/robot/mommi/updateicon(overlay_layer = ABOVE_LIGHTING_LAYER, overlay_plane = LIGHTING_PLANE)
+/mob/living/silicon/robot/mommi/updateicon(overlay_layer = ABOVE_LIGHTING_LAYER, overlay_plane = ABOVE_LIGHTING_PLANE)
 	overlays.Cut()
 
 	if(base_icon)
@@ -25,7 +25,7 @@
 		else
 			icon_state = "[base_icon]"
 
-	if(!stat && cell != null)
+	if(!stat && get_cell())
 		eyes = image(icon,"eyes-[base_icon][emagged?"-emagged":""]", ABOVE_LIGHTING_LAYER)
 		if(plane == HIDING_MOB_PLANE) // Hiding MoMMIs
 			overlay_plane = FLOAT_PLANE
@@ -34,7 +34,7 @@
 			eyes.plane = overlay_plane
 			eyes.layer = overlay_layer
 		else
-			eyes.plane = LIGHTING_PLANE //Emagged MoMMIs don't hide their eyes.
+			eyes.plane = ABOVE_LIGHTING_PLANE //Emagged MoMMIs don't hide their eyes.
 		overlays += eyes
 
 		if(anchored) //anchored, really?
@@ -45,7 +45,7 @@
 	if(opened)
 		if(wiresexposed)
 			overlays += image(icon = icon, icon_state = "[has_icon(icon, "[base_icon]-ov-openpanel +w")? "[icon_state]-ov-openpanel +w" : "ov-openpanel +w"]")
-		else if(cell)
+		else if(get_cell())
 			overlays += image(icon = icon, icon_state = "[has_icon(icon, "[base_icon]-ov-openpanel +c")? "[icon_state]-ov-openpanel +c" : "ov-openpanel +c"]")
 		else
 			overlays += image(icon = icon, icon_state = "[has_icon(icon, "[base_icon]-ov-openpanel -c")? "[icon_state]-ov-openpanel -c" : "ov-openpanel -c"]")
@@ -75,29 +75,42 @@
 				I.pixel_y = -12 * PIXEL_MULTIPLIER
 			if("scout")
 				I.pixel_y = -15 * PIXEL_MULTIPLIER
+			if("cutie")
+				I.pixel_y = -6 * PIXEL_MULTIPLIER
 		// Add the adjusted hat to our overlays
 		overlays += I
 
 // Update the MoMMI's hat inventory icons by adding all icons to overlays_hats
-/mob/living/silicon/robot/mommi/update_inv_head(var/update_icons = TRUE)
+/mob/living/silicon/robot/mommi/update_inv_head(update_icons = TRUE)
+	overlays -= overlays_hats[MOMMI_HEAD_LAYER]
+	overlays_hats[MOMMI_HEAD_LAYER]	= null
 	// If the MoMMI is wearing a hat
 	if(head_state)
 		var/obj/item/clothing/head = head_state
-		var/image/overhats
 		// Create the hat icon
-		overhats = image("icon" = ((head.icon_override) ? head.icon_override : 'icons/mob/head.dmi'), "icon_state" = "[head.icon_state]")
-
+		var/mutable_appearance/overhats = mutable_appearance(((head.icon_override) ? head.icon_override : 'icons/mob/head.dmi'), "[head.icon_state]", -MOMMI_HEAD_LAYER)
 		// If the hat has blood on it
 		if(head.blood_DNA && head.blood_DNA.len)
 			// Add a blood image to the hat
-			var/image/bloodsies = image("icon" = 'icons/effects/blood.dmi', "icon_state" = "helmetblood")
+			var/mutable_appearance/bloodsies = mutable_appearance('icons/effects/blood.dmi', "helmetblood")
 			bloodsies.color = head.blood_color
-			overhats.overlays	+= bloodsies
+			overhats.overlays += bloodsies
+		if(istype(head, /obj/item/clothing/head))
+			var/obj/item/clothing/head/hat = head
+			var/i = 1
+			var/mutable_appearance/abovehats
+			for(var/obj/item/clothing/head/above = hat.on_top; above; above = above.on_top)
+				abovehats = mutable_appearance(((above.icon_override) ? above.icon_override : 'icons/mob/head.dmi'), "[above.icon_state]")
+				abovehats.pixel_y = (2 * i) * PIXEL_MULTIPLIER
+				overhats.overlays += abovehats
+				if(above.blood_DNA && above.blood_DNA.len)
+					var/mutable_appearance/bloodsies = mutable_appearance('icons/effects/blood.dmi', "helmetblood")
+					bloodsies.color = above.blood_color
+					bloodsies.pixel_y = (2 * i) * PIXEL_MULTIPLIER
+					abovehats.overlays += bloodsies
+				i++
 		// Add our hat images to overlays_hats
 		overlays_hats[MOMMI_HEAD_LAYER]	= overhats
-	// If the MoMMI is not wearing a hat
-	else // Clear the hat array
-		overlays_hats[MOMMI_HEAD_LAYER]	= null
 	// Update the MoMMI's icons
 	if(update_icons)
 		updateicon()

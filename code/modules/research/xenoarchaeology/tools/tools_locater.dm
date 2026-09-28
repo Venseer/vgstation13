@@ -3,8 +3,8 @@
 // GPS Locater - locks into a radio frequency and tracks it
 
 /obj/item/device/beacon_locator
-	name = "locater device"
-	desc = "Used to scan and locate signals on a particular frequency according ."
+	name = "locator device"
+	desc = "Used to scan and locate signals on a particular frequency according."
 	icon = 'icons/obj/device.dmi'
 	icon_state = "pinoff"	//pinonfar, pinonmedium, pinonclose, pinondirect, pinonnull
 	item_state = "electronic"
@@ -74,7 +74,7 @@
 				"}
 
 	dat += "<A href='?src=\ref[src];close=1'>Close</a><br>"
-	user << browse(dat,"window=locater;size=300x150")
+	user << browse(HTML_SKELETON(dat),"window=locater;size=300x150")
 	onclose(user, "locater")
 
 /obj/item/device/beacon_locator/Topic(href, href_list)

@@ -1,10 +1,8 @@
 /datum/artifact_effect/darkrevive
 	effecttype = "darkrevive"
+	valid_artifact_styles = list(ARTIFACT_STYLE_ANOMALY, ARTIFACT_STYLE_ELDRITCH, ARTIFACT_STYLE_WIZARD)
 	effect = ARTIFACT_EFFECT_TOUCH
-
-/datum/artifact_effect/darkrevive/New()
-	..()
-	effect_type = pick(0,2,5)
+	effect_hint = EFFECT_HINT_LOW_LEVEL_EMISSIONS
 
 /datum/artifact_effect/darkrevive/DoEffectTouch(var/mob/living/carbon/human/user)
 	if(holder && user.species && user.species.can_artifact_revive() && !user.isDead() && user.dna.mutantrace != "shadow")
@@ -17,7 +15,7 @@
 			if(H.dna && H.dna.mutantrace == "shadow")
 				continue
 			var/datum/organ/external/head/head = H.get_organ(LIMB_HEAD)
-			if(!head || head.status & ORGAN_DESTROYED || M_NOCLONE in H.mutations  || !H.has_brain())
+			if(!head || head.status & ORGAN_DESTROYED || (M_NOCLONE in H.mutations) || !H.has_brain())
 				continue
 			if(H.isDead())
 				targets += H
@@ -31,15 +29,8 @@
 		return
 
 	if(target.mind && !target.client)
-		var/mob/dead/observer/ghost = mind_can_reenter(target.mind)
-		if(ghost)
-			var/mob/ghostmob = ghost.get_top_transmogrification()
-			if(ghostmob)
-				ghostmob << 'sound/effects/adminhelp.ogg'
-				to_chat(ghostmob, "<span class='interface big'><span class='bold'>Someone is trying to revive your body. Return to it if you want to be resurrected!</span> \
-					(Verbs -> Ghost -> Re-enter corpse, or <a href='?src=\ref[ghost];reentercorpse=1'>click here!</a>)</span>")
-				target.visible_message("<span class='warning'>[target] seems to shudder a bit.</span>")
-				return
+		if(target.ghost_reenter_alert("Someone is trying to revive your body. Return to it if you want to be resurrected!"))
+			target.visible_message("<span class='warning'>[target] seems to shudder a bit.</span>")
 		return
 
 	target.visible_message("<span class='warning'>[target] shudders, and starts breathing.</span>")

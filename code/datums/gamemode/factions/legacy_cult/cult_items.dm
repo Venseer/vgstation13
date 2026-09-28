@@ -42,9 +42,8 @@
 	name = "cult hood"
 	icon_state = "culthood"
 	desc = "A hood worn by the followers of Nar-Sie."
-	flags = FPRINT
 	armor = list(melee = 30, bullet = 10, laser = 5,energy = 5, bomb = 0, bio = 0, rad = 0)
-	body_parts_covered = EARS|HEAD
+	body_parts_covered = EARS|HEAD|HIDEHEADHAIR
 	siemens_coefficient = 0
 	heat_conductivity = SPACESUIT_HEAT_CONDUCTIVITY
 
@@ -54,6 +53,7 @@
 /obj/item/clothing/head/legacy_culthood/alt
 	icon_state = "culthelmet_old"
 	item_state = "culthelmet_old"
+	body_parts_visible_override = EYES
 
 /obj/item/clothing/suit/legacy_cultrobes/alt
 	icon_state = "cultarmor_old"
@@ -68,6 +68,8 @@
 	allowed = list(/obj/item/weapon/tome_legacy,/obj/item/weapon/melee/legacy_cultblade)
 	armor = list(melee = 50, bullet = 30, laser = 50,energy = 20, bomb = 25, bio = 10, rad = 0)
 	siemens_coefficient = 0
+	hood = new /obj/item/clothing/head/legacy_culthood()
+	hood_suit_name = "robes"
 
 /obj/item/clothing/suit/legacy_cultrobes/cultify()
 	return
@@ -76,6 +78,7 @@
 	name = "magus helm"
 	icon_state = "magus"
 	item_state = "magus"
+	species_fit = list(INSECT_SHAPED)
 	desc = "A helm worn by the followers of Nar-Sie."
 	flags = FPRINT
 	body_parts_covered = FULL_HEAD|BEARD
@@ -95,15 +98,15 @@
 
 
 /obj/item/clothing/head/helmet/space/legacy_cult
-	name = "cult helmet"
-	desc = "A space worthy helmet used by the followers of Nar-Sie"
+	name = "ancient cult helmet"
+	desc = "A space worthy helmet used by the followers of Nar-Sie."
 	icon_state = "culthelmet_old"
 	item_state = "cult_helmet"
 	armor = list(melee = 60, bullet = 50, laser = 30,energy = 15, bomb = 30, bio = 30, rad = 30)
 	siemens_coefficient = 0
 
 /obj/item/clothing/suit/space/legacy_cult
-	name = "cult armor"
+	name = "ancient cult armor"
 	icon_state = "cultarmor_old"
 	item_state = "cult_armour"
 	desc = "A bulky suit of armor bristling with spikes. It looks space proof."

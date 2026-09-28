@@ -47,12 +47,12 @@
 		var/obj/machinery/bunsen_burner/B = target
 		if(B.held_container)
 			target = B.held_container
-	if(istype(target, /obj/machinery/chemheater))
-		var/obj/machinery/chemheater/H = target
+	if(istype(target, /obj/machinery/chemtemper/heater))
+		var/obj/machinery/chemtemper/heater/H = target
 		if(H.held_container)
 			target = H.held_container
-	if(istype(target, /obj/machinery/chemcooler))
-		var/obj/machinery/chemcooler/C = target
+	if(istype(target, /obj/machinery/chemtemper/cooler))
+		var/obj/machinery/chemtemper/cooler/C = target
 		if(C.held_container)
 			target = C.held_container
 
@@ -85,11 +85,11 @@
 
 /obj/item/weapon/thermometer/proc/measure_human_temperature(mob/living/carbon/human/C)
 	last_temperature = C.bodytemperature
-	return "[round(last_temperature-273.15,5)] C"
+	return "[round(last_temperature-273.15,5)] °C"
 
 /obj/item/weapon/thermometer/proc/measure_obj_temperature(obj/target)
 	last_temperature = target.reagents.chem_temp
-	return "[round(last_temperature-273.15, 5)] C"
+	return "[round(last_temperature-273.15, 5)] °C"
 
 /obj/item/weapon/thermometer/electronic
 	name = "electronic thermometer"
@@ -112,11 +112,11 @@
 
 /obj/item/weapon/thermometer/electronic/measure_human_temperature(mob/living/carbon/human/C)
 	last_temperature = C.bodytemperature
-	return "[last_temperature-273.15] C"
+	return "[last_temperature-273.15] °C | [last_temperature]K"
 
 /obj/item/weapon/thermometer/electronic/measure_obj_temperature(obj/target)
 	last_temperature = target.reagents.chem_temp
-	return "[last_temperature-273.15] C"
+	return "[last_temperature-273.15] °C | [last_temperature]K"
 
 
 /obj/item/weapon/broken_thermometer
@@ -136,3 +136,19 @@
 	melt_temperature = MELTPOINT_GLASS
 	w_type=RECYK_GLASS
 	hitsound = 'sound/weapons/bladeslice.ogg'
+
+/obj/item/weapon/thermometer/byond
+	desc = "A device that measures temperature using the expansion of blood when exposed to heat. There's an imprint on the glass that says \"Made in BYOND\"."
+	icon_state = "therm_byond"
+
+/obj/item/weapon/thermometer/byond/initial_thermometer()
+	create_reagents(5)
+	reagents.add_reagent(BLOOD, 5)
+
+/obj/item/weapon/thermometer/byond/update_icon()
+	if(last_temperature >= 373.15)
+		icon_state = "therm_byond_high"
+	else if(last_temperature <= 273.15)
+		icon_state = "therm_byond_low"
+	else
+		icon_state = "therm_byond"

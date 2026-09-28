@@ -18,8 +18,7 @@
 
 /obj/structure/bed/chair/vehicle/wheelchair/wheelchair_assembly/cannon/Destroy()
 	if(loaded_item)
-		qdel(loaded_item)
-		loaded_item = null
+		QDEL_NULL(loaded_item)
 	..()
 
 /obj/structure/bed/chair/vehicle/wheelchair/wheelchair_assembly/cannon/proc/update_verbs()
@@ -70,30 +69,13 @@
 		to_chat(usr, "You clean the fuel out of \the [src].")
 	update_verbs()
 
-/obj/structure/bed/chair/vehicle/wheelchair/wheelchair_assembly/cannon/verb/rotate_cw()
-	set name = "Rotate (Clockwise)"
-	set category = "Object"
-	set src in oview(1)
-
-	src.dir = turn(src.dir, -90)
-	return 1
-
-/obj/structure/bed/chair/vehicle/wheelchair/wheelchair_assembly/cannon/verb/rotate_ccw()
-	set name = "Rotate (Counter-Clockwise)"
-	set category = "Object"
-	set src in oview(1)
-
-	src.dir = turn(src.dir, 90)
-	return 1
-
 /obj/structure/bed/chair/vehicle/wheelchair/wheelchair_assembly/cannon/attackby(obj/item/W as obj, mob/user as mob)
 	var/item_prohibited = 0
 	for(var/i=1, i<=prohibited_items.len, i++)
 		if(istype(W,prohibited_items[i]))
 			item_prohibited = 1
 	if(!loaded_item && istype(W,/obj/item) && !W.is_open_container() && !item_prohibited)
-		if(!user.drop_item(W, src))
-			to_chat(user, "<span class='warning'>You can't let go of \the [W]!</span>")
+		if(!user.drop_item(W, src, failmsg = TRUE))
 			return 1
 		loaded_item = W
 		user.visible_message("[user] inserts \the [W] into the barrel of the [src].","You insert \the [W] into the barrel of \the [src].")
@@ -192,14 +174,15 @@
 
 	var/obj/item/object = loaded_item
 	var/speed
+	var/wclasstouse = object.arcanetampered || src.arcanetampered ? (W_CLASS_HUGE+1)-object.w_class : object.w_class
 	if(object.w_class > W_CLASS_TINY)
-		speed = (((fire_force*(4/object.w_class))/5)*2) //projectile speed.
+		speed = (((fire_force*(4/wclasstouse))/5)*2) //projectile speed.
 	else
 		speed = (((fire_force*2)/5)*2)
 
 	speed = speed * damage_multiplier
 
-	var/distance = round(((20/object.w_class)*(fuel_level/10))*1.5)
+	var/distance = round(((20/wclasstouse)*(fuel_level/10))*1.5)
 
 	user.visible_message("<span class='danger'>[user] fires \the [object] from \the [src]!</span>","<span class='danger'>You fire \the [object] from \the [src]!</span>")
 	log_attack("[user.name] ([user.ckey]) fired \the [src] (proj:[object.name]) at coordinates ([x],[y],[z])" )

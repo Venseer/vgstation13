@@ -1,44 +1,34 @@
 //Powernets
 /datum/powernet
-	var/list/obj/structure/cable/cables = list()	// all cables & junctions
-	var/list/obj/machinery/power/nodes = list()		// all connected machines
-	var/list/datum/power_connection/components = list()		// all connected components
-	var/load = 0				// the current load on the powernet, increased by each machine at processing
-	var/newavail = 0			// what available power was gathered last tick, then becomes...
-	var/avail = 0				// ...the current available power in the powernet
-	var/viewload = 0			// the load as it appears on the power console (gradually updated)
+	var/list/obj/structure/cable/cables = list()		// all cables & junctions
+	var/list/obj/machinery/power/nodes = list()			// all connected machines
+	var/list/datum/power_connection/components = list()	// all connected components
+	var/list/load[TOTAL_PRIORITY_SLOTS]	// the current load on the powernet, increased by each machine at processing
+	var/newavail = 0					// what available power was gathered last tick, then becomes...
+	var/avail = 0						// ...the current available power in the powernet
+	var/viewload = 0					// the load as it appears on the power console (gradually updated)
 	var/number = 0
-	var/netexcess = 0			// excess power on the powernet (typically avail-load)
+	var/netexcess = 0					// excess power on the powernet (typically avail-load)
+
+	var/satisfaction = 0			// Satisfaction percent of the unsatisfied_priority
+	var/unsatisfied_priority = 1	// First load priority that did not reach full satisfaction last tick. Loads before it are 100% satisfied, loads after are 0% satisfied.
+									//  An unsatisfied_priority of 0 means either there was either no power or more than enough to cover every load, so priorities get the
+									//  same satisfaction (0% for no power, 100% for excess)
+	var/haspulsedemon = 0
+	var/no_pop_mode = FALSE // If on, will always fulfill load demand. This is toggled on by having zero players.
 
 ////////////////////////////////////////////
 // POWERNET DATUM PROCS
 // each contiguous network of cables & nodes
 ////////////////////////////////////////////
 
-/*
-Powernet procs :
 /datum/powernet/New()
-/datum/powernet/Del()
+	powernets += src
+	for (var/i in 1 to load.len)
+		load[i] = 0
+
 /datum/powernet/Destroy()
-/datum/powernet/resetVariables()
-/datum/powernet/proc/remove_cable(var/obj/structure/cable/C)
-/datum/powernet/proc/add_cable(var/obj/structure/cable/C)
-/datum/powernet/proc/remove_machine(var/obj/machinery/power/M)
-/datum/powernet/proc/add_machine(var/obj/machinery/power/M)
-/datum/powernet/proc/reset()
-/datum/powernet/proc/get_electrocute_damage()
-/datum/powernet/proc/set_to_build()
-/obj/structure/cable/proc/rebuild_from()
-*/
-
-/datum/powernet/New()
-	powernets |= src
-
-/datum/powernet/Del()
 	powernets -= src
-	..()
-
-/datum/powernet/Destroy()
 	for(var/obj/structure/cable/C in cables)
 		C.powernet = null
 	for(var/obj/machinery/power/P in nodes)
@@ -49,12 +39,7 @@ Powernet procs :
 	cables = null
 	nodes = null
 	components = null
-
-/datum/powernet/resetVariables()
-	..("cables","nodes")
-	cables = list()
-	nodes = list()
-	components = list()
+	..()
 
 /datum/powernet/proc/is_empty()
 	return !cables.len && !nodes.len && !components.len
@@ -65,7 +50,7 @@ Powernet procs :
 	cables -= C
 	C.powernet = null
 	if(is_empty())
-		returnToPool(src)
+		qdel(src)
 
 // helper proc for removing a power machine from the current powernet
 // warning : this proc doesn't check if the machine exists, but don't worry a runtime should tell you if it doesn't
@@ -73,7 +58,7 @@ Powernet procs :
 	nodes -= M
 	M.powernet = null
 	if(is_empty())
-		returnToPool(src)
+		qdel(src)
 
 // helper proc for removing a power machine from the current powernet
 // warning : this proc doesn't check if the machine exists, but don't worry a runtime should tell you if it doesn't
@@ -81,7 +66,7 @@ Powernet procs :
 	components -= C
 	C.powernet = null
 	if(is_empty())
-		returnToPool(src)
+		qdel(src)
 
 // add a cable to the current powernet
 /datum/powernet/proc/add_cable(obj/structure/cable/C)
@@ -105,7 +90,7 @@ Powernet procs :
 	M.powernet = src
 	nodes += M
 
-/datum/powernet/proc/add_component(var/datum/power_connection/C)
+/datum/powernet/proc/add_connection(var/datum/power_connection/C)
 	if(C.powernet)							// if M already has a powernet...
 		if(C.powernet == src)
 			return
@@ -115,12 +100,42 @@ Powernet procs :
 	C.powernet = src
 	components += C
 
+/datum/powernet/proc/add_load(var/amount, var/priority = POWER_PRIORITY_NORMAL)
+	load[priority] += amount
+
+/datum/powernet/proc/get_load()
+	var/sum = 0
+	for (var/i in load)
+		sum += i
+	return sum
+
+/datum/powernet/proc/get_satisfaction(var/priority)
+	if (!unsatisfied_priority || unsatisfied_priority == priority)	// Either satisfaction is the same for all priorities (0% cause no power, or 100% cause well in excess),
+		return satisfaction											//  or we're checking for the unsatisfied priority
+	return unsatisfied_priority > priority // Priorities before the unsatisfied get 100% satisfaction, priorities after it get 0%
+
 // handles the power changes in the powernet
 // called every ticks by the powernet controller
 // all powernets will have been rebuilt by the time this is called
 /datum/powernet/proc/reset()
-	// see if there's a surplus of power remaining in the powernet and stores unused power in the SMES
-	netexcess = avail - load
+	// Apply loads, calculate satisfaction, and see how much excess we're left with (if any)
+	netexcess = max(avail, 0)
+	unsatisfied_priority = 0
+	if (!netexcess && !no_pop_mode)
+		satisfaction = 0 // No power -> 0% satisfaction for all
+	else
+		satisfaction = 1 // Assume 100% satisfaction for all, for now
+		for (var/i in 1 to load.len)
+			if(no_pop_mode)
+				load[i] = 0
+			if (netexcess >= load[i]) // Go through all loads and substract them from excess
+				netexcess -= load[i]
+
+			else // If we find a priority we can't fully satisfy: note it down so satisfaction only applies to that priority, update the satisfaction %, and consume all excess
+				unsatisfied_priority = i
+				satisfaction = min(netexcess / load[i], 1)
+				netexcess = 0
+				break
 
 	if(netexcess > 100 && nodes && nodes.len) // if there was excess power last cycle
 		for(var/obj/machinery/power/battery/B in nodes) // find the SMESes in the network
@@ -133,11 +148,12 @@ Powernet procs :
 			C.excess(netexcess)
 
 	// updates the viewed load (as seen on power computers)
-	viewload = 0.8 * viewload + 0.2 * load
+	viewload = 0.8 * viewload + 0.2 * get_load()
 	viewload = round(viewload)
 
 	// reset the powernet
-	load = 0
+	for (var/i in 1 to load.len)
+		load[i] = 0
 	avail = newavail
 	newavail = 0
 
@@ -150,14 +166,14 @@ Powernet procs :
 /datum/powernet/proc/set_to_build()
 	for(var/obj/structure/cable/C in cables)
 		C.build_status = 1
-		C.oldload = load
+		C.oldload = load.Copy()
 		C.oldavail = avail
 		C.oldnewavail = newavail
 	for(var/obj/machinery/power/P in nodes)
 		P.build_status = 1
 	for(var/datum/power_connection/C in components)
 		C.build_status = 1
-	returnToPool(src)
+	qdel(src)
 
 //Hopefully this will never ever have to be used
 var/global/powernets_broke = 0
@@ -165,14 +181,15 @@ var/global/powernets_broke = 0
 //This will rebuild a powernet properly during the new tick cycle
 /obj/structure/cable/proc/rebuild_from()
 	if(!powernet)
-		var/datum/powernet/NewPN = getFromPool(/datum/powernet)
+		var/datum/powernet/NewPN = new /datum/powernet
 		NewPN.add_cable(src)
 		propagate_network(src, src.powernet)
-		NewPN.load = oldload
+		NewPN.load = oldload.Copy()
 		NewPN.avail = oldavail
 		NewPN.newavail = oldnewavail //Ha
 		for(var/obj/structure/cable/C in NewPN.cables)
-			C.oldload = 0
+			for (var/i in 1 to C.oldload.len)
+				C.oldload[i] = 0
 			C.oldavail = 0
 			C.oldnewavail = 0
 			C.build_status = 0
@@ -219,7 +236,7 @@ var/global/powernets_broke = 0
 		else if(istype(AM,/obj/structure/cable))
 			var/obj/structure/cable/C = AM
 			if(!unmarked || !C.powernet)
-				if(C.d1 == d || C.d2 == d)
+				if(C.hasDir(d))
 					. += C
 
 // rebuild all power networks from scratch - only called at world creation or by the admin verb
@@ -304,8 +321,11 @@ var/global/powernets_broke = 0
 // power_source is a source of electricity, can be powercell, area, apc, cable, powernet or null
 // source is an object caused electrocuting (airlock, grille, etc)
 // no animations will be performed by this proc.
-/proc/electrocute_mob(mob/living/M, power_source, obj/source, siemens_coeff = 1.0)
+/proc/electrocute_mob(mob/living/M, power_source, atom/source, siemens_coeff = 1.0)
 	if(istype(M.loc, /obj/mecha))											// feckin mechs are dumb
+		return 0
+
+	if(M_NO_SHOCK in M.mutations)
 		return 0
 
 	if(istype(M, /mob/living/carbon/human))
@@ -316,6 +336,9 @@ var/global/powernets_broke = 0
 
 			if(G.siemens_coefficient == 0)									// to avoid spamming with insulated glvoes on
 				return 0
+
+			if(istype(G, /obj/item/clothing/gloves/fyellow/insulted))
+				G.say(pick("Hah, dumbass.", "Get fucked idiot.", "You moron, what did you expect?", "Next time try the OTHER yellow gloves, numbskull.", "Oof that's gotta sting."))
 
 	var/area/source_area
 
@@ -376,7 +399,7 @@ var/global/powernets_broke = 0
 		source_area.use_power(drained_energy / CELLRATE)
 	else if(istype(power_source, /datum/powernet))
 		var/drained_power = drained_energy / CELLRATE						// convert from "joules" to "watts"
-		PN.load += drained_power
+		PN.add_load(drained_power, POWER_PRIORITY_BYPASS)
 	else if(istype(power_source, /obj/item/weapon/cell))
 		cell.use(drained_energy)
 

@@ -5,7 +5,7 @@
 	icon_state = "monkey1"
 	icon = 'icons/mob/monkey.dmi'
 	gender = NEUTER
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING | PASSFLAPS
 	update_icon = 0		///no need to call regenerate_icon
 	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/animal/monkey
 	species_type = /mob/living/carbon/monkey
@@ -18,6 +18,8 @@
 	mob_bump_flag = MONKEY
 	mob_swap_flags = MONKEY|SLIME|SIMPLE_ANIMAL
 	mob_push_flags = MONKEY|SLIME|SIMPLE_ANIMAL|ALIEN
+
+	flags = HEAR_ALWAYS | PROXMOVE
 
 	size = SIZE_SMALL
 
@@ -38,11 +40,12 @@
 	var/list/uni_append = list(0x12C,0x4E2)    // Same as above for DNA2.
 	var/update_muts = 1                        // Monkey gene must be set at start.
 	var/alien = 0								//Used for reagent metabolism.
+	var/canPossess = FALSE
+	var/unmonkey_anim = "monkey2h"
 
 /mob/living/carbon/monkey/New()
-	var/datum/reagents/R = new/datum/reagents(1000)
-	reagents = R
-	R.my_atom = src
+	create_reagents(1000)
+
 
 	if(namenumbers)
 		name = "[name] ([rand(1, 1000)])"
@@ -78,6 +81,10 @@
 
 		add_language(languagetoadd)
 		default_language = all_languages[languagetoadd]
+		init_language = default_language
+
+	hud_list[HEALTH_HUD]      = new/image/hud('icons/mob/hud.dmi', src, "hudhealth100")
+	hud_list[STATUS_HUD]      = new/image/hud('icons/mob/hud.dmi', src, "hudhealthy")
 
 	..()
 	update_icons()
@@ -88,6 +95,9 @@
 	uniform = null
 	hat = null
 	glasses = null
+
+/mob/living/carbon/monkey/get_butchering_products()
+	return list(/datum/butchering_product/skin/monkey, /datum/butchering_product/teeth/few)
 
 /mob/living/carbon/monkey/abiotic()
 	for(var/obj/item/I in held_items)
@@ -156,6 +166,7 @@
 	voice_name = "greyling"
 	icon_state = "grey"
 	canWearGlasses = 0
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/grey
 	languagetoadd = LANGUAGE_GREY
 	greaterform = "Grey"
 
@@ -167,7 +178,7 @@
 
 /mob/living/carbon/monkey/base_movement_tally()
 	. = ..()
-	if(reagents.has_any_reagents(list(HYPERZINE,COCAINE)))
+	if(reagents.has_any_reagents(HYPERZINES))
 		return // Hyperzine ignores slowdown
 	if(istype(loc, /turf/space))
 		return // Space ignores slowdown
@@ -201,7 +212,7 @@
 	if(canWearClothes)
 		dat +=	"<br><b>Uniform:</b> <A href='?src=\ref[src];item=[slot_w_uniform]'>[makeStrippingButton(uniform)]</A>"
 
-	if(handcuffed)
+	if(handcuffed || mutual_handcuffs)
 		dat += "<BR><B>Handcuffed:</B> <A href='?src=\ref[src];item=[slot_handcuffed]'>Remove</A>"
 
 	dat += {"
@@ -226,6 +237,9 @@
 			armorscore = uniform.armor[type]
 	return armorscore
 
+/mob/living/carbon/monkey/getarmorabsorb(var/def_zone, var/type)
+	return getarmor(def_zone, type)
+
 /mob/living/carbon/monkey/attack_paw(mob/living/M)
 	..()
 
@@ -239,20 +253,12 @@
 		if(I_GRAB)
 			M.grab_mob(src)
 
-
-/mob/living/carbon/monkey/proc/defense(var/power, var/def_zone)
-	var/armor = run_armor_check(def_zone, "melee", "Your armor has protected your [def_zone].", "Your armor has softened hit to your [def_zone].")
-	if(armor >= 2)
-		return 0
-	if(!power)
-		return 0
-
-	var/damage = power
-	if(armor)
-		damage = (damage/(armor+1))
-	return damage
-
-/mob/living/carbon/monkey/attack_hand(mob/living/carbon/human/M as mob)
+/mob/living/carbon/monkey/attack_hand(var/mob/living/carbon/human/M)
+	var/touch_zone = get_part_from_limb(M.zone_sel.selecting)
+	var/block = 0
+	if (M.check_contact_sterility(HANDS) || check_contact_sterility(touch_zone))//only one side has to wear protective clothing to prevent contact infection
+		block = 1
+	share_contact_diseases(M,block,0)//monkeys can't bleed right now
 
 	switch(M.a_intent)
 		if(I_HELP)
@@ -285,6 +291,37 @@
 /mob/living/carbon/monkey/attack_slime(mob/living/carbon/slime/M)
 	M.unarmed_attack_mob(src)
 
+/mob/living/carbon/monkey/attack_ghost(var/mob/dead/observer/O)
+	if(canPossess)
+		if(!(src.key))
+			if(O.can_reenter_corpse)
+				var/response = alert(O,"Do you want to take over \the [src]?","Monkey Madness","Yes","No")
+				if(response == "Yes")
+					if(!(src.key))
+						ckey = O.ckey
+						canPossess = FALSE
+						var/newname = input(src,"Enter a name, or leave blank for the default name.", "Name change","") as text
+						newname = copytext(sanitize(newname),1,MAX_NAME_LEN)
+						if (newname != "")
+							fully_replace_character_name(newname = newname)
+					else if(src.key)
+						to_chat(src, "<span class='notice'>Somebody jumped your claim on \the [src] and is already controlling it. Try another </span>")
+			else if(!(O.can_reenter_corpse))
+				to_chat(O,"<span class='notice'>While \the [src] may be mindless, you have recently ghosted and thus are not allowed to take over for now.</span>")
+
+/mob/living/carbon/monkey/attacked_by(var/obj/item/I, var/mob/living/user, var/def_zone, var/originator = null, var/crit = FALSE, var/flavor, var/force)
+	if(!..())
+		return
+
+	if(istype(I.attack_verb, /list) && I.attack_verb.len && !(I.flags & NO_ATTACK_MSG))
+		visible_message("<span class='danger'>\The [user] [flavor ? "[flavor] " : ""][pick(I.attack_verb)] [user == src ? "[get_reflexive_pronoun(user.gender)]" : "\the [src]"] with \the [I]!</span>", \
+			"<span class='userdanger'>[user == src ? "You" : "\The [user]"] [flavor ? "[flavor] " : ""][user == src ? "[shift_verb_tense(pick(I.attack_verb))] yourself": "[pick(I.attack_verb)] you"] with \the [I]!</span>")
+	else if(!(I.flags & NO_ATTACK_MSG))
+		visible_message("<span class='danger'>\The [user] [flavor ? "[flavor] " : ""]attacks [user == src ? "[get_reflexive_pronoun(user.gender)]" : "\the [src]"] with \the [I.name]!</span>", \
+			"<span class='userdanger'>[user == src ? "You" : "\The [user]"] [flavor ? "[flavor] " : ""]attack[user == src ? " yourself" : "s you"] with \the [I.name]!</span>")
+
+	I.disease_contact(src,get_part_from_limb(def_zone))
+
 /mob/living/carbon/monkey/Stat()
 	..()
 	if(statpanel("Status"))
@@ -306,12 +343,11 @@
 	return
 
 /mob/living/carbon/monkey/var/co2overloadtime = null
-/mob/living/carbon/monkey/var/temperature_resistance = T0C+75
 
 /mob/living/carbon/monkey/emp_act(severity)
 	for(var/obj/item/stickybomb/B in src)
 		if(B.stuck_to)
-			visible_message("<span class='warning'>\the [B] stuck on \the [src] suddenly deactivates itself and falls to the ground.</span>")
+			visible_message("<span class='warning'>\The [B] stuck on \the [src] suddenly deactivates itself and falls to the ground.</span>")
 			B.deactivate()
 			B.unstick()
 
@@ -321,6 +357,11 @@
 	if(wear_id)
 		wear_id.emp_act(severity)
 	..()
+
+/mob/living/carbon/monkey/adjustBruteLoss(damage)
+	..()
+	if (damage > 0)
+		damageoverlaytemp = 20
 
 /mob/living/carbon/monkey/ex_act(severity)
 	if(flags & INVULNERABLE)
@@ -362,13 +403,10 @@
 		gib()
 		return
 	if (stat == DEAD && !client)
-		gibs(loc, viruses)
+		gibs(loc, virus2)
 		qdel(src)
 		return
 
-
-/mob/living/carbon/monkey/IsAdvancedToolUser()//Unless its monkey mode monkeys cant use advanced tools
-	return dexterity_check()
 
 // Get ALL accesses available.
 /mob/living/carbon/monkey/GetAccess()
@@ -410,25 +448,28 @@
 				threatcount += 4
 
 	//Loyalty implants imply trustworthyness
-	if(isloyal(src))
+	if(is_loyalty_implanted())
 		threatcount -= 1
 
 	return threatcount
 
 /mob/living/carbon/monkey/dexterity_check()
 	if(stat != CONSCIOUS)
-		return 0
-	if(ticker.mode.name == "monkey")
-		return 1
+		return FALSE
+	if(ticker.mode.name == "monkey")//monkey mode override
+		return TRUE
 	if(reagents.has_reagent(METHYLIN))
-		return 1
-	return 0
+		return TRUE
+	if(is_dexterous)
+		return TRUE
+	return FALSE//monkeys can't use complex things by default unless they're high on methylin
 
 /mob/living/carbon/monkey/reset_layer()
 	if(lying)
 		plane = LYING_MOB_PLANE
 	else
 		plane = MOB_PLANE
+	loc.adjust_layer(src)
 
 /mob/living/carbon/monkey/send_to_past(var/duration)
 	..()
@@ -452,7 +493,7 @@
 	icon_state = "mushroom"
 	greaterform = "Mushroom"
 	species_type = /mob/living/carbon/monkey/mushroom
-	meat_type = /obj/item/weapon/reagent_containers/food/snacks/hugemushroomslice/mushroom_man
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/hugemushroomslice/mushroom_man
 	canWearClothes = 0
 	canWearHats = 0
 	canWearGlasses = 0
@@ -460,6 +501,7 @@
 	canWearBack = 0
 	held_items = list()
 	flag = NO_BREATHE
+	canPossess = TRUE
 	var/growth = 0
 
 /mob/living/carbon/monkey/mushroom/say()
@@ -476,7 +518,7 @@
 			var/turf/T = loc
 			light_amount = T.get_lumcount() * 10
 
-		growth = Clamp(growth + rand(1,3)/(10*light_amount>1 ? light_amount : 1),0,100)
+		growth = clamp(growth + rand(1,3)/(10*light_amount>1 ? light_amount : 1),0,100)
 
 		if(growth >= 100)
 			growth = 0
@@ -488,6 +530,10 @@
 			var/matrix/M = adult.transform
 			M.Scale(0)
 			adult.set_species("Mushroom")
+			adult.my_appearance.h_style = "Plump Helmet"
+			adult.my_appearance.r_hair = 60
+			adult.my_appearance.g_hair = 40
+			adult.my_appearance.b_hair = 80
 			for(var/datum/language/L in languages)
 				adult.add_language(L.name)
 
@@ -514,3 +560,61 @@
 	..()
 	if(statpanel("Status"))
 		stat(null, "Growth completing: [growth]%")
+
+/mob/living/carbon/monkey/mushroom/passive_emote()
+	emote(pick("scratch","jump","roll"))
+
+/mob/living/carbon/monkey/can_be_infected()
+	return 1
+
+/mob/living/carbon/monkey/turn_into_mannequin(var/material = "marble",var/forever = FALSE)
+	if (greaterform != "Human")
+		return FALSE
+
+	var/turf/T = get_turf(src)
+	var/obj/structure/mannequin/new_mannequin
+
+	var/list/mannequin_clothing = list(
+		SLOT_MANNEQUIN_ICLOTHING,
+		SLOT_MANNEQUIN_FEET,
+		SLOT_MANNEQUIN_GLOVES,
+		SLOT_MANNEQUIN_EARS,
+		SLOT_MANNEQUIN_OCLOTHING,
+		SLOT_MANNEQUIN_EYES,
+		SLOT_MANNEQUIN_BELT,
+		SLOT_MANNEQUIN_MASK,
+		SLOT_MANNEQUIN_HEAD,
+		SLOT_MANNEQUIN_BACK,
+		SLOT_MANNEQUIN_ID,
+		)
+
+	mannequin_clothing[SLOT_MANNEQUIN_ICLOTHING] = uniform
+	mannequin_clothing[SLOT_MANNEQUIN_HEAD] = hat
+	mannequin_clothing[SLOT_MANNEQUIN_EYES] = glasses
+	mannequin_clothing[SLOT_MANNEQUIN_MASK] = wear_mask
+	mannequin_clothing[SLOT_MANNEQUIN_BACK] = back
+
+	var/list/mannequin_held_items = list(null, null)
+
+	for (var/i = 1 to mannequin_held_items.len)
+		var/obj/O = held_items[i]
+		if (O)
+			drop_item(O,T,TRUE)
+			mannequin_held_items[i] = O
+
+	for (var/obj/O in get_all_slots())
+		drop_item(O,T,TRUE)
+
+	switch (material)
+		if ("marble")
+			new_mannequin = new /obj/structure/mannequin/monkey(T,null,null,mannequin_clothing,mannequin_held_items,src,forever)
+		if ("wood")
+			new_mannequin = new /obj/structure/mannequin/wood/monkey(T,null,null,mannequin_clothing,mannequin_held_items,src,forever)
+
+	if (new_mannequin)
+		return TRUE
+	return FALSE
+
+/mob/living/carbon/monkey/make_meat(location)
+	var/ourMeat = new meat_type(location, src)
+	return ourMeat

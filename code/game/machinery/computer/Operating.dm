@@ -38,19 +38,15 @@
 	// If no scanner was found, it will return null
 	return optablef
 
-/obj/machinery/computer/operating/attack_ai(user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
-
-/obj/machinery/computer/med_data/attack_paw(user as mob)
-	return src.attack_hand(user)
+/obj/machinery/computer/operating/attack_paw(user as mob)
+	return attack_hand(user)
 
 /obj/machinery/computer/operating/attack_hand(mob/user as mob)
 	if(..())
 		return
 	add_fingerprint(user)
 
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (FORCEDISABLE|BROKEN|NOPOWER))
 		return
 
 	updatemodules()
@@ -81,7 +77,7 @@
 <B>No Patient Detected</B><BR>
 <BR>
 <A HREF='?src=\ref[user];mach_close=op'>Close</A>"}
-	user << browse(dat, "window=op")
+	user << browse(HTML_SKELETON(dat), "window=op")
 	user.set_machine(src)
 	onclose(user, "op")
 
@@ -99,7 +95,7 @@
 
 /obj/machinery/computer/operating/update_icon()
 	..()
-	if(!(stat & (BROKEN | NOPOWER)))
+	if(!(stat & (FORCEDISABLE |BROKEN | NOPOWER)))
 		updatemodules()
 		if(!isnull(src.optable) && (src.optable.check_victim()))
 			src.victim = src.optable.victim

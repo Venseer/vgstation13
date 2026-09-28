@@ -14,6 +14,19 @@
 				paired_to = V
 				V.mykey = src
 
+/obj/item/key/dropped(mob/user)
+	..()
+	if(locate(/obj/structure/table) in loc.contents)
+		desc = "Why did they get left upon the table? [user] wanted to."
+
+/obj/item/key/pickup(mob/user)
+	desc = initial(desc)
+
+/obj/item/key/Destroy()
+	if(paired_to)
+		paired_to.mykey = null
+		paired_to = null
+	..()
 
 /obj/structure/bed/chair/vehicle
 	name = "vehicle"
@@ -21,10 +34,9 @@
 	icon = 'icons/obj/vehicles.dmi'
 	anchored = 1
 	density = 1
-	noghostspin = 1 //You guys are no fun
-
+	buckle_range = 1
 	var/empstun = 0
-	var/health = 100
+	health = 100
 	var/max_health = 100
 
 	plane = ABOVE_HUMAN_PLANE
@@ -45,15 +57,23 @@
 	var/can_have_carts = TRUE
 
 	var/mob/occupant
-	lock_type = /datum/locking_category/buckle/chair/vehicle
+	mob_lock_type = /datum/locking_category/buckle/chair/vehicle
 	var/wreckage_type = /obj/effect/decal/mecha_wreckage/vehicle
 	var/last_warn
 
 	var/list/offsets = list()
 	var/last_dir
 
+	var/list/datum/action/vehicle_actions = list()
+
+	var/headlights = FALSE
+	var/explodes_fueltanks = FALSE
+
 /obj/structure/bed/chair/vehicle/proc/getMovementDelay()
 	return movement_delay
+
+/obj/structure/bed/chair/AltClick(mob/user as mob)
+	buckle_chair(user,user, 1) // Can drag self to it.
 
 /obj/structure/bed/chair/vehicle/proc/delayNextMove(var/delay, var/additive=0)
 	move_delayer.delayNext(delay,additive)
@@ -76,9 +96,16 @@
 		nick=name
 	set_keys()
 	make_offsets()
+	if(headlights)
+		new /datum/action/vehicle/toggle_headlights(src)
 
 /obj/structure/bed/chair/vehicle/Destroy()
 	vehicle_list.Remove(src)
+	if(mykey)
+		mykey.paired_to = null
+		mykey = null
+	if(heldkey)
+		QDEL_NULL(heldkey)
 	..()
 
 /obj/structure/bed/chair/vehicle/proc/set_keys()
@@ -93,8 +120,8 @@
 		empstun = 0
 
 /obj/structure/bed/chair/vehicle/attackby(obj/item/W, mob/living/user)
-	if(iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
+	if(iswelder(W) && health < max_health)
+		var/obj/item/tool/weldingtool/WT = W
 		if (WT.remove_fuel(0))
 			add_fingerprint(user)
 			user.visible_message("<span class='notice'>[user] has fixed some of the dents on \the [src].</span>", "<span class='notice'>You fix some of the dents on \the [src]</span>")
@@ -103,13 +130,19 @@
 		else
 			to_chat(user, "Need more welding fuel!")
 			return
-	else if(istype(W, /obj/item/key))
+	else if((W.arcanetampered && W.is_screwdriver(user)) || (!W.arcanetampered && istype(W, /obj/item/key)))
 		if(!heldkey)
 			if(keytype)
-				if(mykey && mykey != W)
-					to_chat(user, "<span class='warning'>\The [src] is paired to a different key.</span>")
-					return
-				if(((M_CLUMSY in user.mutations) || user.getBrainLoss() >= 60) && prob(50))
+				if(!W.arcanetampered)
+					if(!istype(W, keytype))
+						to_chat(user, "<span class='warning'>\The [W] doesn't fit into \the [src]'s ignition.</span>")
+						return
+					var/obj/item/key/K=W
+					if(mykey && mykey != W)
+						if(!vin || !K.vin || K.vin!=vin) //if neither have a vin id, or they don't match (since they default as null)
+							to_chat(user, "<span class='warning'>\The [src] is paired to a different key.</span>")
+							return
+				if(((M_CLUMSY in user.mutations) || user.getBrainLoss(COORDINATION_L) >= 60) && prob(50))
 					to_chat(user, "<span class='warning'>You try to insert \the [W] to \the [src]'s ignition but you miss the slot!</span>")
 					return
 				if(user.drop_item(W, src))
@@ -120,17 +153,18 @@
 				else //In case the key is unable to leave the user's hand. IE glue.
 					to_chat(user, "<span class='notice'>You fail to put \the [W] into \the [src]'s ignition and turn it.</span>")
 			else
-				if(keytype)
-					to_chat(user, "<span class='warning'>\The [W] doesn't fit into \the [src]'s ignition.</span>")
-				else
-					to_chat(user, "<span class='notice'>You don't need a key.</span>")
+				to_chat(user, "<span class='notice'>You don't need a key.</span>")
 		else
 			to_chat(user, "<span class='notice'>\The [src] already has \the [heldkey] in it.</span>")
-	else if(isscrewdriver(W) && !heldkey)
+	else if(((W.arcanetampered && istype(W, /obj/item/key)) || (!W.arcanetampered && W.is_screwdriver(user))) && !heldkey)
 		var/mob/living/carbon/human/H = user
 		to_chat(user, "<span class='warning'>You jam \the [W] into \the [src]'s ignition and feel like a genius as you try turning it!</span>")
 		playsound(src, "sound/items/screwdriver.ogg", 10, 1)
 		H.adjustBrainLoss(10)
+	else if(W.is_wrench(user))
+		return
+	else
+		return ..()
 
 /obj/structure/bed/chair/vehicle/attack_hand(mob/user)
 	if(occupant && occupant == user)
@@ -138,7 +172,6 @@
 	if(heldkey && !user.incapacitated() && Adjacent(user) && user.dexterity_check())
 		to_chat(user, "<span class='notice'>You remove \the [heldkey] from \the [src]'s ignition.</span>")
 		user.visible_message("<span class='notice'>\The [src]'s engine shuts off.</span>")
-		heldkey.forceMove(get_turf(user))
 		user.put_in_hands(heldkey)
 		heldkey = null
 	else
@@ -147,12 +180,19 @@
 /obj/structure/bed/chair/vehicle/proc/check_key(var/mob/user)
 	if(!keytype)
 		return 1
+	if(vin)
+		if(heldkey && heldkey.vin == vin)
+			return TRUE
+		for(var/obj/item/key/K in user.held_items)
+			if(istype(K,keytype) && K.vin==vin)
+				return TRUE
 	if(mykey)
 		return heldkey == mykey || user.is_holding_item(mykey)
 	return istype(heldkey, keytype) || user.find_held_item_by_type(keytype)
 
 
 /obj/structure/bed/chair/vehicle/relaymove(var/mob/living/user, direction)
+	..()
 	if(user.incapacitated())
 		unlock_atom(user)
 		return
@@ -166,11 +206,14 @@
 		return 0
 	if(move_delayer.blocked())
 		return 0
+	if (istype(locked_to, /obj/machinery/bot/mulebot))
+		var/obj/machinery/bot/mulebot/M = locked_to
+		M.unload(0)
 
 	//If we're in space or our area has no gravity...
-	var/turf/T = get_turf(loc)
-	if(!T)
-		return 0
+	var/turf/T = loc
+	if(!istype(T))
+		return 0 //location isn't a turf or doesn't exist
 	if(!T.has_gravity())
 		// Block relaymove() if needed.
 		if(!Process_Spacemove(0))
@@ -213,7 +256,9 @@
 	return 1
 
 /obj/structure/bed/chair/vehicle/proc/can_buckle(mob/M, mob/user)
-	if(M != user || !ishigherbeing(user) || !Adjacent(user) || user.restrained() || user.lying || user.stat || user.locked_to || occupant)
+	if(M != user || !ishigherbeing(user) || user.restrained() || user.lying || user.stat || user.locked_to || occupant)
+		return 0
+	if(!Adjacent(user) && buckle_range <= 1)
 		return 0
 	if(ishuman(M))
 		var/mob/living/carbon/human/H = M
@@ -231,9 +276,22 @@
 		"<span class='notice'>[M] climbs onto \the [nick]!</span>",\
 		"<span class='notice'>You climb onto \the [nick]!</span>")
 
+	if(!Adjacent(M))
+		playsound(src, 'sound/weapons/emitter2.ogg', 50, 1)
+
 	lock_atom(M, /datum/locking_category/buckle/chair/vehicle)
 
 	add_fingerprint(user)
+
+	for (var/datum/action/action in vehicle_actions)
+		if (action.owner && action.owner != user)
+			action.Remove(action.owner)
+		action.Grant(user)
+
+/obj/structure/bed/chair/vehicle/manual_unbuckle(mob/user, var/resisting = FALSE)
+	..()
+	for (var/datum/action/action in vehicle_actions)
+		action.Remove(user)
 
 /obj/structure/bed/chair/vehicle/handle_layer()
 	if(dir == SOUTH)
@@ -285,6 +343,8 @@
 /obj/structure/bed/chair/vehicle/proc/update_mob()
 	if(!occupant)
 		return
+	if(!(dir in cardinal))
+		return
 
 	if(last_dir)
 		occupant.pixel_x -= offsets["[last_dir]"]["x"]
@@ -307,7 +367,7 @@
 /obj/structure/bed/chair/vehicle/bullet_act(var/obj/item/projectile/Proj)
 	var/hitrider = 0
 	if(istype(Proj, /obj/item/projectile/ion))
-		Proj.on_hit(src, 2)
+		Proj.on_hit(src, 100)
 		return
 
 	if(occupant)
@@ -341,6 +401,15 @@
 	if(health <= 0)
 		die()
 
+/obj/structure/bed/chair/vehicle/suicide_act(var/mob/living/user)
+	if(!keytype)
+		return ..()
+	if(occupant == user)
+		to_chat(viewers(user), "<span class='danger'>[user] is licking the keyhole of the [src]! It looks like \he's trying to commit suicide.</span>")
+		return(SUICIDE_ACT_FIRELOSS)
+	to_chat(viewers(user), "<span class='danger'>[user] is placing \his mouth on the exhaust pipe of the [src]! It looks like \he's trying to commit suicide.</span>")
+	return(SUICIDE_ACT_TOXLOSS|SUICIDE_ACT_OXYLOSS)
+
 /obj/structure/bed/chair/vehicle/ex_act(severity)
 	switch (severity)
 		if(1.0)
@@ -365,6 +434,11 @@
 /obj/structure/bed/chair/vehicle/proc/setup_wreckage(var/obj/effect/decal/mecha_wreckage/wreck)
 	// Transfer salvagables here.
 	return
+
+/obj/structure/bed/chair/vehicle/GetAccess()
+	if(is_locking(/datum/locking_category/buckle/chair/vehicle, subtypes=TRUE))
+		var/atom/locked = get_locked(/datum/locking_category/buckle/chair/vehicle, subtypes=TRUE)[1]
+		return locked.GetAccess()
 
 /obj/structure/bed/chair/vehicle/to_bump(var/atom/movable/obstacle)
 	if(obstacle == src || (is_locking(/datum/locking_category/buckle/chair/vehicle, subtypes=TRUE) && obstacle == get_locked(/datum/locking_category/buckle/chair/vehicle, subtypes=TRUE)[1]))
@@ -399,13 +473,79 @@
 
 /obj/structure/bed/chair/vehicle/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	var/oldloc = loc
-	..()
+	if(!..())
+		//Failed to move at all
+		return
 	if (loc == oldloc)
 		return
 	if(next_cart)
-		next_cart.Move(oldloc)
+		sleep(0)
+		next_cart.Move(oldloc, glide_size_override = src.glide_size)
 
 /obj/structure/bed/chair/vehicle/proc/disconnected() //proc that carts call, we have no use for it
 	return
 
 /datum/locking_category/buckle/chair/vehicle
+
+
+/////////////////////////////////////
+//           VEHICLE ACTIONS
+////////////////////////////////////
+
+/datum/action/vehicle/New(var/obj/structure/bed/chair/vehicle/Target)
+	..()
+	icon_icon = Target.icon
+	button_icon_state = Target.icon_state
+	Target.vehicle_actions += src
+
+/datum/action/vehicle/toggle_headlights
+	name = "toggle headlights"
+	desc = "Turn the headlights on or off."
+	var/on = FALSE
+	var/brightness = 6
+	var/sounds = list('sound/items/flashlight_on.ogg','sound/items/flashlight_off.ogg')
+
+/datum/action/vehicle/toggle_headlights/Trigger()
+	if(!..())
+		return FALSE
+	on = !on
+	if(on)
+		target.set_light(brightness)
+		playsound(target, sounds[1], 50, 1)
+	else
+		target.set_light(0)
+		playsound(target, sounds[2], 50, 1)
+	target.update_icon()
+
+/datum/action/vehicle/toggle_headlights/siren
+	name = "toggle siren"
+	desc = "Turn the siren lights on or off."
+	sounds = list('sound/voice/woopwoop.ogg','sound/items/flashlight_off.ogg')
+
+/datum/action/vehicle/spray_extinguisher
+	name = "spray extinguisher"
+	desc = "Spray an attached extinguisher directly in front of you."
+
+/datum/action/vehicle/spray_extinguisher/New()
+	..()
+	icon_icon = 'icons/obj/items.dmi'
+	button_icon_state = "fire_extinguisher0"
+
+/datum/action/vehicle/spray_extinguisher/IsAvailable()
+	. = ..()
+	if(!locate(/obj/item/weapon/extinguisher) in target.contents)
+		return FALSE
+
+/datum/action/vehicle/spray_extinguisher/Trigger()
+	if(!..())
+		return FALSE
+	for(var/obj/item/weapon/extinguisher/sprayer in target.contents)
+		if(sprayer.safety)
+			to_chat(owner,"<span class='notice'>The trigger is locked, the safety on \the [sprayer] is on.</span>")
+			return FALSE
+		sprayer.afterattack(get_ranged_target_turf(target, target.dir, 4), owner)
+		if(istype(target,/obj/structure/bed/chair/vehicle/tractor/fire/))
+			var/obj/structure/bed/chair/vehicle/tractor/fire/my_tractor = target
+			if(my_tractor.extinguisher_linked)
+				var/avail_vol = sprayer.reagents.maximum_volume - sprayer.reagents.total_volume
+				sprayer.reagents.add_reagent(WATER, avail_vol)

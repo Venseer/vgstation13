@@ -3,14 +3,17 @@
 	desc = "This spell teleports you to a type of area of your selection."
 	abbreviation = "TP"
 	user_type = USER_TYPE_WIZARD
+	specialization = SSUTILITY
 
 	school = "abjuration"
-	charge_max = 600
 	spell_flags = NEEDSCLOTHES
 	autocast_flags = AUTOCAST_NOTARGET
 	invocation = "SCYAR NILA"
-	invocation_type = SpI_SHOUT
-	cooldown_min = 200 //100 deciseconds reduction per rank
+	invocation_type = SP_INV_SHOUT
+
+	charge_cooldown_max = 45 SECONDS
+	cooldown_min = 5 SECONDS
+	cooldown_reduc = 10 SECONDS
 
 	smoke_spread = 1
 	smoke_amt = 5
@@ -22,25 +25,29 @@
 
 	hud_state = "wiz_tele"
 
-/spell/area_teleport/before_cast(list/targets, user)
+/spell/area_teleport/before_cast(list/targets, user, bypass_range = 0)
 	return targets
 
 /spell/area_teleport/choose_targets()
 	var/A = null
 
 	if(!randomise_selection)
-		A = input("Area to teleport to", "Teleport", A) in teleportlocs
+		A = input("Area to teleport to", "Teleport", A) as null|anything in teleportlocs
 	else
 		A = pick(teleportlocs)
 
 	var/area/thearea = teleportlocs[A]
+	if(!thearea) //Wizard didn't pick an area
+		to_chat(holder, "<span class='warning'>You cancel the teleportation.</span>")
+		return
 
 	return list(thearea)
 
 /spell/area_teleport/cast(area/thearea, mob/user)
 	if(!istype(thearea))
 		if(istype(thearea, /list))
-			thearea = thearea[1]
+			var/list/templist = thearea
+			thearea = templist[1]
 	var/list/L = list()
 	for(var/turf/T in get_area_turfs(thearea.type))
 		if(!T.density)

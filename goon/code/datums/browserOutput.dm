@@ -12,6 +12,7 @@ For the main html chat area
 	"goon/browserassets/css/fonts/fontawesome-webfont.woff",
 	"goon/browserassets/css/font-awesome.css",
 	"goon/browserassets/css/browserOutput.css",
+	"goon/browserassets/css/browserOutput_dark.css",
 	"goon/browserassets/css/browserOutput_colorblindv1.css"
 )
 
@@ -39,7 +40,11 @@ For the main html chat area
 		return 0
 
 	if(!winexists(owner, "browseroutput")) // Oh goddamnit.
-		alert(owner.mob, "Updated chat window does not exist. If you are using a custom skin file please allow the game to update.")
+		// winexists() can sleep; the client may have disconnected (owner nulled) during that window.
+		if(!owner)
+			broken = TRUE
+			return 0
+		alert(owner.mob || owner, "Updated chat window does not exist. If you are using a custom skin file please allow the game to update.")
 		broken = TRUE
 		return 0
 
@@ -111,8 +116,20 @@ For the main html chat area
 			else if (encoding == "_autodetect")
 				owner.encoding = "1252"
 
+			// This is the result of that Windows 10 beta thing where Microsoft has UTF-8 as a code page.
+			// It doesn't work in BYOND and *seems* to fall back to 1252?
+			else if (encoding == "utf-8")
+				owner.encoding = "1252"
+
 			else
 				stack_trace("Unknown encoding received from client: \"[sanitize(encoding)]\". Please report this as a bug.")
+
+		if("colorPresetPost") //User just swapped color presets in their goonchat preferences. Do we do anything else?
+			switch(href_list["preset"])
+				if("normal","colorblindv1")
+					owner.white_theme()
+				if("dark")
+					owner.dark_theme()
 
 	if(data)
 		ehjax_send(data = data)
@@ -134,6 +151,7 @@ For the main html chat area
 
 /datum/chatOutput/proc/pingLoop()
 	set waitfor = FALSE
+	usr = null //Otherwise this holds a reference to the new_player and causes it to hard del
 
 	while (owner)
 		ehjax_send(data = owner.is_afk(29 SECONDS) ? "softPang" : "pang") // SoftPang isn't handled anywhere but it'll always reset the opts.lastPang.
@@ -168,15 +186,24 @@ For the main html chat area
 				var/list/row = src.connectionHistory[i]
 				if (!row || row.len < 3 || (!row["ckey"] && !row["compid"] && !row["ip"])) //Passed malformed history object
 					return
-				if (world.IsBanned(row["ckey"], row["compid"], row["ip"]))
+				if (world.IsBanned(row["ckey"], row["ip"], row["compid"], "goonchat"))
 					found = row
 					break
 
 			//Uh oh this fucker has a history of playing on a banned account!!
 			if (found.len > 0)
+				if(owner.ckey == found["ckey"]) //If the banned ckey is the same as the one that successfully connected, ignore it. This happens when someone tries to join as a guest account at some point.
+					cookieSent = 1
+					return
 				//TODO: add a new evasion ban for the CURRENT client details, using the matched row details
 				message_admins("<span class='danger big'>[key_name(src.owner)] has a cookie from a banned account! (Matched: [found["ckey"]], [found["ip"]], [found["compid"]])</span>")
 				log_admin("[key_name(src.owner)] has a cookie from a banned account! (Matched: [found["ckey"]], [found["ip"]], [found["compid"]])")
+				var/admins_number = admins.len
+				var/admin_number_afk = get_afk_admins()
+				var/available_admins = admins_number - admin_number_afk
+				//Probably not a good idea to print IP and CID in these channels
+				send2adminirc("[key_name(src.owner)] has a cookie from a banned account! (Matched: [found["ckey"]]) [available_admins ? "" : "No non-AFK admins online"]")
+				send2admindiscord("**[key_name(src.owner)] has a cookie from a banned account! (Matched: [found["ckey"]]) [available_admins ? "" : "No non-AFK admins online"]**", !available_admins)
 
 	cookieSent = 1
 
@@ -207,6 +234,17 @@ For the main html chat area
 	var/iconData = iconCache.ExportText(iconKey)
 	var/list/partial = splittext(iconData, "{")
 	return replacetext(copytext(partial[2], 3, -5), "\n", "")
+
+//same as above but only saves the South icon_state, used to display the players on last round's scoreboard.
+/proc/iconsouth2base64(var/icon/icon, var/iconKey = "misc")
+	if (!isicon(icon))
+		return 0
+
+	iconCache[iconKey] << icon(icon, dir = SOUTH, frame = 1)
+	var/iconData = iconCache.ExportText(iconKey)
+	var/list/partial = splittext(iconData, "{")
+	var/list/partial2 = splittext(partial[2], "}")
+	return replacetext(copytext(partial2[1], 2, -1), "\n", "")
 
 /proc/bicon(var/obj)
 	if (!obj)
@@ -244,19 +282,20 @@ For the main html chat area
 	if (isicon(obj))
 		return bicon(obj)
 
-	var/icon/I = getFlatIcon(obj)
+	var/icon/I = getFlatIconDeluxe(sort_image_datas(get_content_image_datas(obj)))
 	return bicon(I)
 
 /proc/to_chat(target, message)
 	//Ok so I did my best but I accept that some calls to this will be for shit like sound and images
 	//It stands that we PROBABLY don't want to output those to the browser output so just handle them here
+	if(!target)
+		return
 	if (istype(target, /datum/zLevel)) //Passing it to an entire z level
 		for(var/mob/M in player_list) //List of all mobs with clients, excluding new_player
 			if(!istype(get_z_level(M),target))
 				continue
 			to_chat(M, message)
 		return
-
 	if (istype(message, /image) || istype(message, /sound) || istype(target, /savefile) || !(ismob(target) || islist(target) || isclient(target) || istype(target, /datum/log) || target == world))
 
 		target << message
@@ -300,8 +339,42 @@ For the main html chat area
 
 		message = replacetext(message, "\n", "<br>")
 
-		// url_encode it TWICE, this way any UTF-8 characters are able to be decoded by the Javascript.
-		target << output(url_encode(url_encode(message)), "browseroutput:output")
+		target << output(url_encode(message), "browseroutput:output")
+
+/proc/get_deadchat_hearers()
+	. = list()
+	for(var/mob/M in player_list)
+		if(!M.client)
+			continue
+		if(istype(M, /mob/new_player))
+			continue
+
+		else if(M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD)
+			if(M.client.holder && M.client.holder.rights & R_ADMIN) //admins can toggle deadchat on and off. This is a proc in admin.dm and is only give to Administrators and above
+				. += M
+			else if(M.stat == DEAD && !istype(M, /mob/dead/observer/deafmute))
+				. += M
+			else if(istype(M,/mob/living/carbon/brain))
+				var/mob/living/carbon/brain/B = M
+				if(B.brain_dead_chat())
+					. += M
+
+/proc/formatFollow(var/mob/target,var/custom_text="(Follow)")
+	return "<a href='?src=\ref[SSmob];follow=\ref[target]'>[custom_text]</a>"
+
+/proc/formatGhostJump(var/mob/target,var/custom_text="Teleport")
+	return "<a href='?src=\ref[SSmob];jump=\ref[target]'>[custom_text]</a>"
+
+/* This proc only handles sending the message to everyone who can hear deadchat. Formatting that message is up to you! Consider using <span class='game deadsay'></span> on your message! */
+/* Kinda useless if your message needs to include an href, though... */
+/proc/to_deadchat(message)
+	var/list/hearers = get_deadchat_hearers()
+	if(!hearers || !message)
+		return
+	for(var/mob/M in hearers)
+		to_chat(M, message)
+	log_game("DEADCHAT: [message]")
+	return 1
 
 /datum/log	//exists purely to capture to_chat() output
 	var/log = ""

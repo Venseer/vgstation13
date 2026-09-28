@@ -6,8 +6,8 @@
 /obj/item/device/depth_scanner
 	name = "depth analysis scanner"
 	desc = "Used to check spatial depth and density of rock outcroppings."
-	icon = 'icons/obj/pda.dmi'
-	icon_state = "crap"
+	icon = 'icons/obj/xenoarchaeology.dmi'
+	icon_state = "depthscanner"
 	item_state = "analyzer"
 	w_class = W_CLASS_TINY
 	flags = FPRINT
@@ -21,59 +21,73 @@
 	var/depth = 0
 	var/clearance = 0
 	var/record_index = 1
-	var/dissonance_spread = 1
 	var/material = "unknown"
 
 /obj/item/device/depth_scanner/proc/scan_atom(var/mob/user, var/atom/A)
 	user.visible_message("<span class='notice'>[user] scans [A], the air around them humming gently.</span>")
-	if(istype(A,/turf/unsimulated/mineral))
-		var/turf/unsimulated/mineral/M = A
-		if(M.finds.len || M.artifact_find)
+	if(istype(A,/turf/unsimulated))
+		var/turf/unsimulated/M = A
+		if(M.finddatum)
+			if(M.finddatum.finds.len || M.finddatum.artifact_find)
+				for(var/mob/L in range(src, 1))
+					to_chat(L, "<span class='notice'>[bicon(src)] [src] pings.</span>")
+				playsound(user, 'sound/machines/info.ogg', 20, 1)
+				//create a new scanlog entry
+				var/datum/depth_scan/D = new()
+				D.coords = "[M.x-get_world_x_offset(M.vz())].[rand(0,9)]:[M.y-get_world_y_offset(M.vz())].[rand(0,9)]:[10 * M.vz()]. [rand(0,9)]"
+				D.time = worldtime2text()
+				D.record_index = positive_locations.len + 1
+				D.material = "Rock"
+				if(istype(M,/turf/unsimulated/mineral))
+					var/turf/unsimulated/mineral/MI = M
+					if(MI.mineral)
+						D.material = MI.mineral.display_name
 
-			//create a new scanlog entry
-			var/datum/depth_scan/D = new()
-			D.coords = "[M.x-WORLD_X_OFFSET[M.z]].[rand(0,9)]:[M.y-WORLD_Y_OFFSET[M.z]].[rand(0,9)]:[10 * M.z].[rand(0,9)]"
-			D.time = worldtime2text()
-			D.record_index = positive_locations.len + 1
-			D.material = M.mineral ? M.mineral.display_name : "Rock"
+				//find the first artifact and store it
+				if(M.finddatum.finds.len)
+					var/datum/find/F = M.finddatum.finds[1]
+					D.depth = F.excavation_required	//0-100% and 0-100cm
+					D.clearance = F.clearance_range
+					D.material = F.responsive_reagent
+					to_chat(user,"<span class='notice'>Anomaly depth: <strong>[F.excavation_required]</strong> cm</span>")
+					to_chat(user,"<span class='notice'>Clearance above anomaly depth: <strong>[F.clearance_range]</strong> cm</span>")
+					var/index = responsive_carriers.Find(F.responsive_reagent)
+					if(index > 0 && index <= finds_as_strings.len)
+						to_chat(user,"<span class='notice'>Anomaly material: <strong><font color=[color_from_find_reagent[finds_as_strings[index]]]>[finds_as_strings[index]]</font></strong></span>")
+					else
+						to_chat(user,"<span class='notice'>Anomaly material: <strong>Unknown</strong></span>")
+				else
+					to_chat(user,"<span class='notice'>Anomaly depth: <strong>0</strong> cm</span>")
+					to_chat(user,"<span class='notice'>Clearance above anomaly depth: <strong>0</strong> cm</span>")
+					to_chat(user,"<span class='notice'>Anomaly material: <strong>Unknown</strong></span>")
 
-			//find the first artifact and store it
-			if(M.finds.len)
-				var/datum/find/F = M.finds[1]
-				D.depth = F.excavation_required * 2		//0-100% and 0-200cm
-				D.clearance = F.clearance_range * 2
-				D.material = get_responsive_reagent(F.find_type)
-			/*
-			if(M.excavation_minerals.len)
-				if(M.excavation_minerals[1] < D.depth)
-					D.depth = M.excavation_minerals[1]
-					D.clearance = rand(2,6)
-					D.dissonance_spread = rand(1,1000) / 100
-			*/
-
-			positive_locations.Add(D)
-
-			for(var/mob/L in range(src, 1))
-				to_chat(L, "<span class='notice'>[bicon(src)] [src] pings.</span>")
+				positive_locations.Add(D)
+			else
+				playsound(user, 'sound/items/detscan.ogg', 10, 1)
 
 	else if(istype(A,/obj/structure/boulder))
 		var/obj/structure/boulder/B = A
 		if(B.artifact_find)
+			for(var/mob/L in range(src, 1))
+				to_chat(L, "<span class='notice'>[bicon(src)] [src] pings [pick("madly","wildly","excitedly","crazily")]!</span>")
+			playsound(user, 'sound/items/healthanalyzer.ogg', 50, 1)
 			//create a new scanlog entry
 			var/datum/depth_scan/D = new()
-			D.coords = "[10 * (B.x-WORLD_X_OFFSET[B.z])].[rand(0,9)]:[10 * (B.y-WORLD_Y_OFFSET[B.z])].[rand(0,9)]:[10 * B.z].[rand(0,9)]"
+			D.coords = "[10 * (B.x-get_world_x_offset(B.vz()))].[rand(0,9)]:[10 * (B.y-get_world_y_offset(B.vz()))].[rand(0,9)]:[10 * B.vz()]. [rand(0,9)]"
 			D.time = worldtime2text()
 			D.record_index = positive_locations.len + 1
 
 			//these values are arbitrary
 			D.depth = rand(75,100)
 			D.clearance = rand(5,25)
-			D.dissonance_spread = rand(750,2500) / 100
 
 			positive_locations.Add(D)
 
-			for(var/mob/L in range(src, 1))
-				to_chat(L, "<span class='notice'>[bicon(src)] [src] pings [pick("madly","wildly","excitedly","crazily")]!.</span>")
+			to_chat(user,"<span class='notice'>Anomaly depth: <strong>[rand(75,100)]</strong></span> cm")
+			to_chat(user,"<span class='notice'>Clearance above anomaly depth: <strong>[rand(5,25)]</strong> cm</span>")
+			to_chat(user,"<span class='notice'>Anomaly material: <strong>Unknown</strong></span>")
+		else
+			playsound(user, 'sound/items/detscan.ogg', 10, 1)
 
 /obj/item/device/depth_scanner/attack_self(var/mob/user as mob)
 	return src.interact(user)
@@ -86,10 +100,9 @@
 		dat += "Coords: [current.coords]<br>"
 		dat += "Anomaly depth: [current.depth] cm<br>"
 		dat += "Clearance above anomaly depth: [current.clearance] cm<br>"
-		dat += "Dissonance spread: [current.dissonance_spread]<br>"
 		var/index = responsive_carriers.Find(current.material)
 		if(index > 0 && index <= finds_as_strings.len)
-			dat += "Anomaly material: [finds_as_strings[index]]<br>"
+			dat += "Anomaly material: <font color=[color_from_find_reagent[finds_as_strings[index]]]>[finds_as_strings[index]]</font><br>"
 		else
 			dat += "Anomaly material: Unknown<br>"
 		dat += "<A href='?src=\ref[src];clear=[current.record_index]'>clear entry</a><br>"
@@ -109,7 +122,7 @@
 	dat += "<hr>"
 	dat += "<A href='?src=\ref[src];refresh=1'>Refresh</a><br>"
 	dat += "<A href='?src=\ref[src];close=1'>Close</a><br>"
-	user << browse(dat,"window=depth_scanner;size=300x500")
+	user << browse(HTML_SKELETON(dat),"window=depth_scanner;size=300x500")
 	onclose(user, "depth_scanner")
 
 /obj/item/device/depth_scanner/Topic(href, href_list)
@@ -126,13 +139,11 @@
 			if(index <= positive_locations.len)
 				var/datum/depth_scan/D = positive_locations[index]
 				positive_locations.Remove(D)
-				qdel(D)
-				D = null
+				QDEL_NULL(D)
 		else
 			//GC will hopefully pick them up before too long
 			positive_locations = list()
-			qdel(current)
-			current = null
+			QDEL_NULL(current)
 	else if(href_list["close"])
 		usr.unset_machine()
 		usr << browse(null, "window=depth_scanner")

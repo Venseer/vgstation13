@@ -2,15 +2,18 @@
 	name = "trash compactor"
 	desc = "A machine used to alleviate recycling problems in the absence of a disposal network."
 	icon_state = "compactor_on" //New sprite indicating fullness?
-	machine_flags = WRENCHMOVE | FIXED2WORK
+	machine_flags = WRENCHMOVE | FIXED2WORK | EMAGGABLE
 	flags = FPRINT
-	req_access = list(access_janitor)
 	template_path = "disposalsbincompactor.tmpl"
 
+	hack_abilities = list(
+		/datum/malfhack_ability/toggle/disable,
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
+
 /obj/machinery/disposal/compactor/proc/compact()
-	if(stat & NOPOWER)
-		return
-	if(stat & BROKEN)
+	if(stat & (FORCEDISABLE|NOPOWER|BROKEN))
 		return
 	playsound(src,'sound/machines/compactor.ogg', 30, 1) //Placeholder
 	flush = 1
@@ -86,7 +89,7 @@
 /obj/machinery/disposal/compactor/process()
 	updateDialog()
 	update_icon()
-	if(stat & NOPOWER || stat & BROKEN)
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(!anchored)
 		return
@@ -97,16 +100,19 @@
 
 /obj/machinery/disposal/compactor/attackby(var/obj/item/I, var/mob/user)
 	add_fingerprint(user)
-	if(iswrench(I)) //We want this to be a high level operation, before any of the place in bin code or disassemble bin code
-		wrenchAnchor(user)
+	if(I.is_wrench(user)) //We want this to be a high level operation, before any of the place in bin code or disassemble bin code
+		wrenchAnchor(user, I)
 		power_change()
 		return
-	if(!emagged && istype(I,/obj/item/weapon/card/emag))
-		playsound(src, 'sound/effects/sparks4.ogg', 75, 1)
+	if(emag_check(I,user))
+		return 1
+	..()
+
+/obj/machinery/disposal/compactor/emag_act(mob/user)
+	if(!emagged)
 		emagged = 1
 		to_chat(user, "<span class='notice'>You disable the safety features.</span>")
-		return
-	..()
+		. = ..()
 
 /obj/machinery/disposal/compactor/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	..()

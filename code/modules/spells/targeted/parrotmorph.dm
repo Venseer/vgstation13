@@ -1,26 +1,26 @@
-spell/targeted/parrotmorph
+/spell/targeted/parrotmorph
 	name = "Poly-Morph"
 	desc = "This spell turns the victim into a harmless and near-invincible parrot for a short amount of time."
 	abbreviation = "PM"
 	user_type = USER_TYPE_SPELLBOOK
 
 	school = "evocation"
-	charge_type = Sp_RECHARGE
-	charge_max = 600
+	charge_type = SP_RECHARGE
+	charge_cooldown_max = 60 SECONDS
 	invocation = "'P'Y W'NT A CRAC'K'R!"
-	invocation_type = SpI_SHOUT
+	invocation_type = SP_INV_SHOUT
 	range = 7
 	max_targets = 1
 	spell_flags = WAIT_FOR_CLICK
-	cooldown_min = 200
+	cooldown_min = 20 SECONDS
 	selection_type = "range"
 
 
-	compatible_mobs = list(/mob/living/carbon/human, /mob/living/carbon/monkey)
+	valid_targets = list(/mob/living/carbon/human, /mob/living/carbon/monkey)
 
 	hud_state = "wiz_parrotmorph"
 
-spell/targeted/parrotmorph/cast(var/list/targets)
+/spell/targeted/parrotmorph/cast(var/list/targets)
 	..()
 	for(var/mob/living/target in targets)
 		target.flash_eyes(visual = 1)

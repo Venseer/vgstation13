@@ -22,7 +22,7 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 	icon_state = "Field_Gen"
 	anchored = 0
 	density = 1
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	var/const/num_power_levels = 6	// Total number of power level icon has
 	var/Varedit_start = 0
 	var/Varpower = 0
@@ -45,7 +45,7 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 	// Scale % power to % num_power_levels and truncate value
 	var/p_level = round(num_power_levels * power / field_generator_max_power, 1)
 	// Clamp between 0 and num_power_levels for out of range power values
-	p_level = Clamp(p_level, 0, num_power_levels)
+	p_level = clamp(p_level, 0, num_power_levels)
 	if(p_level)
 		overlays += image(icon = icon, icon_state = "+p[p_level]")
 
@@ -103,7 +103,7 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 		to_chat(user, "The [src] needs to be firmly secured to the floor first.")
 		return 0
 
-/obj/machinery/field_generator/wrenchAnchor(var/mob/user)
+/obj/machinery/field_generator/wrenchAnchor(var/mob/user, var/obj/item/I)
 	if(active)
 		to_chat(user, "Turn off the [src] first.")
 		return FALSE
@@ -123,8 +123,7 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 	if(Proj.flag != "bullet")
 		power += Proj.damage
 		update_icon()
-	return 0
-
+	return ..()
 
 /obj/machinery/field_generator/Destroy()
 	src.cleanup()
@@ -282,8 +281,7 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 	for (var/obj/machinery/containment_field/F in fields)
 		if (isnull(F))
 			continue
-		qdel(F)
-		F = null
+		QDEL_NULL(F)
 	fields = list()
 	for(var/obj/machinery/field_generator/FG in connected_gens)
 		if (isnull(FG))
@@ -305,6 +303,6 @@ var/global/list/obj/machinery/field_generator/field_gen_list = list()
 			if(O.last_warning && temp)
 				if((world.time - O.last_warning) > 50) //to stop message-spam
 					temp = 0
-					message_admins("A singulo exists and a containment field has failed.",1)
+					message_admins("A singulo exists and a containment field has failed. ([O.x],[O.y],[O.z] - <A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[O.x];Y=[O.y];Z=[O.z]'>JMP</a>)",1)
 					investigation_log(I_SINGULO,"has <font color='red'>failed</font> whilst a singulo exists.")
 			O.last_warning = world.time

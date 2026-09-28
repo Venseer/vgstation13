@@ -13,6 +13,22 @@
 	var/list/hidden_records = list()
 	var/list/coin_records = list()
 
+/obj/structure/vendomatpack/MouseDrop(atom/drop_atom, src_location, over_location)
+	. = ..()
+	var/mob/living/user = usr
+	if(!isliving(user))
+		return
+	if(!isturf(user.loc) || user.incapacitated() || user.resting)
+		return
+	if(get_dist(drop_atom, src) != 1 || get_dist(drop_atom, user) != 1)
+		return
+	if(isturf(drop_atom) && istype(loc, /obj/structure/rack/crate_shelf) && user.Adjacent(drop_atom))
+		var/obj/structure/rack/crate_shelf/shelf = loc
+		return shelf.unload(src, user, drop_atom)
+	if(istype(drop_atom, /obj/structure/rack/crate_shelf) && isturf(loc) && user.Adjacent(src))
+		var/obj/structure/rack/crate_shelf/shelf = drop_atom
+		return shelf.load(src, user)
+
 //////CUSTOM PACKS///////
 
 /obj/structure/vendomatpack/custom
@@ -25,10 +41,14 @@
 	overlays += image('icons/obj/vending_pack.dmi',"emptypack")
 
 /obj/structure/vendomatpack/custom/attackby(obj/item/O, mob/user)
-	if(istype(O))
-		if(istype(O, /obj/item/weapon/disk/nuclear))
-			to_chat(user, "<span class='notice'>Suddenly your hand stops responding. You can't do it.</span>")
-		user.drop_item(O, src)
+	var/list/nuke_disks = O.search_contents_for(/obj/item/weapon/disk/nuclear)
+	if(nuke_disks.len) //There's something, it's a nuke disk, no need to recheck
+		to_chat(user, "<span class='warning'>Suddenly your hand stops responding. You can't put that in, something forbidden is within it.</span>")
+		return
+	if(istype(O, /obj/item/weapon/disk/nuclear)) //Need to check separately if it's the thing you're shoving in
+		to_chat(user, "<span class='warning'>Suddenly your hand stops responding. You can't put that in a vending machine.</span>")
+		return
+	user.drop_item(O, src)
 
 /obj/structure/vendomatpack/custom/attack_hand(mob/user)
 	var/selected_item = input("Select an item to remove", "[src]") as null|anything in contents
@@ -36,7 +56,7 @@
 	if(I != null && loc)
 		if(!Adjacent(user))
 			return
-		I.forceMove(get_turf(src))
+		user.put_in_hands(I)
 
 /obj/structure/vendomatpack/undefined
 	//a placeholder for vending machines that don't have their own recharge packs
@@ -143,21 +163,6 @@
 /obj/structure/vendomatpack/discount
 	name = "Discount Dan's recharge pack"
 	targetvendomat = /obj/machinery/vending/discount
-	icon_state = "discout"
-
-/obj/structure/vendomatpack/groans
-	name = "Groans Soda recharge pack"
-	targetvendomat = /obj/machinery/vending/groans
-	icon_state = "groans"
-
-/obj/structure/vendomatpack/shoedispenser
-	name = "Shoelord 9000 recharge pack"
-	targetvendomat = /obj/machinery/vending/shoedispenser
-	icon_state = "shoes"
-
-/obj/structure/vendomatpack/discount
-	name = "Discount Dan's recharge pack"
-	targetvendomat = /obj/machinery/vending/discount
 	icon_state = DISCOUNT
 
 /obj/structure/vendomatpack/groans
@@ -215,6 +220,21 @@
 	targetvendomat = /obj/machinery/vending/mining
 	icon_state = "mining"
 
+/obj/structure/vendomatpack/games
+	name = "Al's Fun And Games recharge pack"
+	targetvendomat = /obj/machinery/vending/games
+	icon_state = "games"
+
+/obj/structure/vendomatpack/team_security
+	name = "Team Security recharge pack"
+	targetvendomat = /obj/machinery/vending/team_security
+	icon_state = "team_security"
+
+/obj/structure/vendomatpack/telecomms
+	name = "Telecommunications Supplies recharge pack"
+	targetvendomat = /obj/machinery/vending/telecomms
+	icon_state = "telecomms"
+
 //////EMPTY PACKS//////
 
 /obj/item/emptyvendomatpack
@@ -224,13 +244,13 @@
 	icon_state = "generic"
 	item_state = "syringe_kit"
 	w_class = W_CLASS_LARGE
+	w_type = RECYK_WOOD
 	flags = FPRINT
+	flammable = TRUE
 
 	var/foldable = /obj/item/stack/sheet/cardboard
 	var/foldable_amount = 4
 
-	autoignition_temperature = 522 // Kelvin
-	fire_fuel = 2
 
 /obj/item/emptyvendomatpack/attack_self()
 	to_chat(usr, "<span class='notice'>You fold [src] flat.</span>")
@@ -253,7 +273,7 @@
 	return
 
 /obj/structure/stackopacks/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(istype(W,/obj/item/weapon/wirecutters) || istype(W,/obj/item/weapon/shard) || istype(W,/obj/item/weapon/kitchen/utensil/knife/large) || istype(W,/obj/item/weapon/circular_saw) || istype(W, /obj/item/weapon/hatchet) || istype(W, /obj/item/weapon/kitchen/utensil/knife))
+	if(W.is_wirecutter(user) || istype(W,/obj/item/weapon/shard) || istype(W,/obj/item/weapon/kitchen/utensil/knife/large) || istype(W,/obj/item/tool/circular_saw) || istype(W, /obj/item/weapon/hatchet) || istype(W, /obj/item/weapon/kitchen/utensil/knife))
 		var/turf/T = get_turf(src)
 		for(var/obj/O in contents)
 			O.forceMove(T)
@@ -282,3 +302,29 @@
 		O.forceMove(T)
 	to_chat(M, "<span class='notice'>You rip the protective coil apart.</span>")
 	qdel(src)
+
+/obj/structure/vendomatpack/zamsnax
+	name = "Zam Snax recharge pack"
+	targetvendomat = /obj/machinery/vending/zamsnax
+	icon_state = "ZAMsnax"
+
+/obj/structure/vendomatpack/lotto
+	name = "Lotto Ticket recharge pack"
+	targetvendomat = /obj/machinery/vending/lotto
+	icon_state = "sale"
+
+/obj/structure/vendomatpack/syndicatesuits
+	name = "Syndicate Suits recharge pack"
+	targetvendomat = /obj/machinery/vending/coffee
+	icon_state = "syndicatesuits"
+
+/obj/structure/vendomatpack/meat
+	name = "Meat Fridge recharge pack"
+	desc = "You could return it to cargo or just flatten it. The label looks like it was partially cut off."
+	targetvendomat = /obj/machinery/vending/meat
+	icon_state = "meat"
+
+/obj/structure/vendomatpack/artsupply
+	name = "\improper Le Patron des Arts recharge pack"
+	targetvendomat = /obj/machinery/vending/art
+	icon_state = "circus"

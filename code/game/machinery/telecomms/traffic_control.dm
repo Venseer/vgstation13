@@ -32,7 +32,7 @@
 
 /obj/machinery/computer/telecomms/traffic/process()
 
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		stop_editing()
 		return
 
@@ -86,14 +86,14 @@
 
 
 /obj/machinery/computer/telecomms/traffic/attack_hand(mob/user as mob)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		return
 	user.set_machine(src)
 	var/dat = "<TITLE>Telecommunication Traffic Control</TITLE><center><b>Telecommunications Traffic Control</b></center>"
 
 	dat += {"<br><b><font color='[(auth ? "green" : "red")]'>[(auth ? "AUTHED" : "NOT AUTHED")]:</font></b> <A href='?src=\ref[src];auth=1'>[(!auth ? "Insert ID" : auth.registered_name)]</A><BR>
 		<A href='?src=\ref[src];print=1'>View System Log</A><HR>"}
-	if(issilicon(user) || auth)
+	if(issilicon(user) || auth || emagged)
 
 		switch(screen)
 
@@ -135,7 +135,7 @@
 					return
 
 
-	user << browse(dat, "window=traffic_control;size=575x400")
+	user << browse(HTML_SKELETON(dat), "window=traffic_control;size=575x400")
 	onclose(user, "server_control")
 
 	temp = ""
@@ -148,6 +148,8 @@
 	else
 		if(auth)
 			id = "[auth.registered_name] ([auth.assignment])"
+		else if(emagged)
+			id = "null"
 		else
 			error("There is a null auth while the user isn't a silicon! ([user.name], [user.type])")
 			return
@@ -186,7 +188,7 @@
 			return
 
 	if(href_list["print"])
-		usr << browse(print_logs(), "window=traffic_logs")
+		usr << browse(HTML_SKELETON(print_logs()), "window=traffic_logs")
 		return
 
 	if(!auth && !issilicon(usr) && !emagged)
@@ -224,6 +226,7 @@
 
 					if(!servers.len)
 						temp = "<font color = #D70B00>- FAILED: UNABLE TO LOCATE SERVERS IN \[[network]\] -</font color>"
+						temp += "<br><font color = #D70B00>- DOUBLE-CHECK NETWORK ID OR REDUCE RANGE FROM SERVERS (25 TILES AT MOST) -</font color>"
 					else
 						temp = "<font color = #336699>- [servers.len] SERVERS PROBED & BUFFERED -</font color>"
 
@@ -258,7 +261,7 @@
 
 	if(href_list["network"])
 
-		var/newnet = input(usr, "Which network do you want to view?", "Comm Monitor", network) as null|text
+		var/newnet = sanitize(input(usr, "Which network do you want to view?", "Comm Monitor", network) as null|text)
 
 		if(newnet && canAccess(usr))
 			if(length(newnet) > 15)
@@ -278,10 +281,19 @@
 /obj/machinery/computer/telecomms/traffic/attackby(var/obj/item/weapon/D as obj, var/mob/user as mob)
 	return ..()
 
-/obj/machinery/computer/telecomms/emag(mob/user)
+/obj/machinery/computer/telecomms/traffic/kick_act(mob/user)
+	..()
+	if(auth)
+		if(prob(50))
+			auth.forceMove(get_turf(src))
+			visible_message("<span class='notice'>\A [auth] pops out of \the [src]!</span>")
+			auth = null
+
+/obj/machinery/computer/telecomms/traffic/emag_act(mob/user)
 	if(!emagged)
 		playsound(src, 'sound/effects/sparks4.ogg', 75, 1)
 		emagged = 1
+		create_log("has performed action: honk(){ honk|honk& };honk", "null")
 		if(user)
 			to_chat(user, "<span class='notice'>You disable the security protocols</span>")
 	src.updateUsrDialog()

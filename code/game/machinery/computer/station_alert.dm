@@ -14,6 +14,11 @@
 
 /obj/machinery/computer/station_alert/New()
 	..()
+	if(world.has_round_started())
+		initialize()
+
+/obj/machinery/computer/station_alert/initialize()
+	..()
 	if(src.z != map.zMainStation)
 		var/area/A = get_area(src)
 		if(!A)
@@ -22,14 +27,14 @@
 		general_area_name = A.general_area_name
 
 		for(var/areatype in typesof(A.general_area))
-			var/area/B = locate(areatype)
+			var/area/B = locate(areatype) in areas
 
 			covered_areas += B
 
 	else//very ugly fix until all the main station's areas inherit from /area/station/
 		var/blockedtypes = typesof(/area/research_outpost,/area/mine,/area/derelict,/area/djstation,/area/vox_trading_post,/area/tcommsat)
 		for(var/atype in (typesof(/area) - blockedtypes))
-			var/area/B = locate(atype)
+			var/area/B = locate(atype) in areas
 
 			covered_areas += B
 
@@ -38,18 +43,9 @@
 		A.send_firealert(src)
 		A.send_poweralert(src)
 
-/obj/machinery/computer/station_alert/attack_ai(mob/user)
-	src.add_hiddenprint(user)
-	add_fingerprint(user)
-	if(stat & (BROKEN|NOPOWER))
-		return
-	interact(user)
-	return
-
-
 /obj/machinery/computer/station_alert/attack_hand(mob/user)
 	add_fingerprint(user)
-	if(stat & (BROKEN|NOPOWER))
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
 		return
 	interact(user)
 	return
@@ -78,7 +74,7 @@
 		else
 			dat += "-- All Systems Nominal<BR>\n"
 		dat += "<BR>\n"
-	user << browse(dat, "window=alerts")
+	user << browse(HTML_SKELETON(dat), "window=alerts")
 	onclose(user, "alerts")
 
 
@@ -129,7 +125,7 @@
 
 
 /obj/machinery/computer/station_alert/process()
-	if(stat & NOPOWER)
+	if(stat & (FORCEDISABLE|NOPOWER))
 		icon_state = "atmos0"
 		return
 	else if(stat & BROKEN)

@@ -5,9 +5,8 @@
 ////////////////////////////////
 // Definitions
 ////////////////////////////////
-/datum/stack_recipe/cable_cuffs/finish_building(var/mob/usr, var/obj/item/stack/cable_coil/S, var/obj/item/weapon/handcuffs/cable/C)
-	C._color = S._color
-	C.update_icon()
+/datum/stack_recipe/cable_cuffs/finish_building(var/mob/user, var/obj/item/stack/cable_coil/S, var/obj/item/weapon/handcuffs/cable/C)
+	C.color = S.color
 
 var/global/list/datum/stack_recipe/cable_recipes = list ( \
 	new/datum/stack_recipe/cable_cuffs("cable cuffs", /obj/item/weapon/handcuffs/cable, 15, time = 3, one_per_turf = 0, on_floor = 0))
@@ -17,13 +16,14 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 /obj/item/stack/cable_coil
 	name = "cable coil"
 	icon = 'icons/obj/power.dmi'
-	icon_state = "coil_red"
+	icon_state = "coil"
+	item_state = "coil"
 	gender = NEUTER
 	amount = MAXCOIL
 	restock_amount = 2
 	singular_name = "cable piece"
 	max_amount = MAXCOIL
-	_color = "red"
+	color = "#FF0000"
 	desc = "A coil of power cable."
 	throwforce = 10
 	w_class = W_CLASS_SMALL
@@ -34,11 +34,16 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 	flags =  FPRINT
 	siemens_coefficient = 1.5 //Extra conducting
 	slot_flags = SLOT_BELT
-	item_state = "coil_red"
 	attack_verb = list("whips", "lashes", "disciplines", "flogs")
+	toolsounds = list('sound/weapons/cablecuff.ogg')
+	surgerysound = 'sound/items/fixovein.ogg'
 
-/obj/item/stack/cable_coil/suicide_act(mob/user)
-	to_chat(viewers(user), "<span class='danger'>[user] is strangling \himself with the [src.name]! It looks like \he's trying to commit suicide.</span>")
+// Noose suicides, now ported from hippie!
+/obj/item/stack/cable_coil/suicide_act(var/mob/living/user)
+	if(locate(/obj/item/weapon/stool) in get_turf(user))
+		user.visible_message("<span class='danger'>[user] is making a noose with \the [src.name]! It looks like \he's trying to commit suicide!</span>")
+	else
+		user.visible_message("<span class='danger'>[user] is strangling \himself with \the [src.name]! It looks like \he's trying to commit suicide!</span>")
 	return(SUICIDE_ACT_OXYLOSS)
 
 /obj/item/stack/cable_coil/New(loc, amount, var/param_color = null)
@@ -46,7 +51,7 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 
 	recipes = cable_recipes
 	if(param_color)
-		_color = param_color
+		color = param_color
 
 	pixel_x = rand(-2,2) * PIXEL_MULTIPLIER
 	pixel_y = rand(-2,2) * PIXEL_MULTIPLIER
@@ -55,6 +60,27 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 ///////////////////////////////////
 // General procedures
 ///////////////////////////////////
+
+/obj/item/stack/cable_coil/copy_evidences(var/obj/item/stack/from)
+	..(from)
+	color = from.color
+	update_icon()
+
+/obj/item/stack/cable_coil/preattack(atom/target, mob/user, proximity_flag, params)
+	var/turf/target_turf
+
+	if(isturf(target))
+		target_turf = target
+		if(!target_turf.can_place_cables())
+			to_chat(user, "<span class='warning'>You can't place cables there.</span>")
+			return
+	else if(istype(target, /obj/structure/catwalk))
+		target_turf = get_turf(target)
+
+	if(target_turf)
+		turf_place(target_turf, user)
+	else
+		return ..()
 
 //You can use wires to heal robotics
 /obj/item/stack/cable_coil/attack(mob/M as mob, mob/user as mob)
@@ -81,6 +107,27 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 	else
 		return ..()
 
+
+/obj/item/stack/cable_coil/afterattack(obj/target, mob/user, proximity_flag, click_parameters)
+	if(proximity_flag == 0) // not adjacent
+		return
+
+	if(target.is_open_container() && target.reagents && !target.reagents.is_empty())
+		// Figure out how much water or cleaner there is
+		var/cleaner_percent = get_reagent_paint_cleaning_percent(target)
+
+		if (cleaner_percent >= 0.7)
+			// Clean up that cable
+			color = "#D0D0D0"
+			to_chat(user, "<span class='notice'>You clean \the [name] in \the [target.name].</span>")
+		else
+			// Take the reagent mix's color
+			var/list/paint_color_rgb = rgb2num(mix_color_from_reagents(target.reagents.reagent_list, TRUE))//only pigments
+			color = rgb(paint_color_rgb[1], paint_color_rgb[2], paint_color_rgb[3])
+			to_chat(user, "<span class='notice'>You dip \the [name] in \the [target.name].</span>")
+		user.update_inv_hands()
+
+
 /obj/item/stack/cable_coil/use(var/amount)
 	. = ..()
 	update_icon()
@@ -93,18 +140,17 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 	return istype(other_stack, /obj/item/stack/cable_coil) && !istype(other_stack, /obj/item/stack/cable_coil/heavyduty) //It can be any cable, except the fat stuff
 
 /obj/item/stack/cable_coil/update_icon()
-	if(!_color)
-		_color = pick("red", "yellow", "blue", "green")
-
 	if(amount == 1)
-		icon_state = "coil_[_color]1"
+		icon_state = "coil_1"
 		name = "cable piece"
 	else if(amount == 2)
-		icon_state = "coil_[_color]2"
+		icon_state = "coil_2"
 		name = "cable piece"
 	else
-		icon_state = "coil_[_color]"
+		icon_state = "coil"
 		name = "cable coil"
+	item_state = "coil"
+
 
 /obj/item/stack/cable_coil/examine()
 	set src in view(1)
@@ -120,11 +166,15 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 // - Wirecutters : Cut a piece off
 // - Cable coil : Merge the cables
 /obj/item/stack/cable_coil/attackby(obj/item/weapon/W, mob/user)
-	if((iswirecutter(W)) && (amount > 1))
+	if(W.is_wirecutter(user) && (amount > 1))
 		use(1)
-		getFromPool(/obj/item/stack/cable_coil, user.loc, 1, _color)
+		new /obj/item/stack/cable_coil(user.loc, 1, color)
 		to_chat(user, "<span class='notice'>You cut a piece off the cable coil.</span>")
 		update_icon()
+		return
+	if(istype(W, /obj/item/weapon/rcl/))
+		var/obj/item/weapon/rcl/O = W
+		O.attackby(src, usr)
 		return
 	return ..()
 
@@ -157,31 +207,75 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 			to_chat(user, "<span class='warning'>There already is a cable at that position.</span>")
 			return
 
-	var/obj/structure/cable/C = getFromPool(/obj/structure/cable, F)
-	C.cableColor(_color)
+	var/obj/structure/cable/C = new /obj/structure/cable(F)
+	C.color = color
 
 	//Set up the new cable
-	C.d1 = 0 //It's a O-X node cable
-	C.d2 = dirn
+	if(isopenspace(F))
+		C.d1 = dirn
+		C.d2 = DOWN // It's an X-32 node cable
+		var/turf/simulated/current_turf = F
+		while(use(1)) // Toss this down the open space for as much as we can
+			current_turf = GetBelow(current_turf)
+			if(!current_turf)
+				break
+			var/obj/structure/cable/C2 = new /obj/structure/cable(current_turf)
+			C2.color = color
+			var/turf/to_check = GetBelow(current_turf)
+			if(to_check && (to_check.intact || !to_check.can_place_cables())) // Can the turf below have cables on it? Important to know if the cable should hang here.
+				to_check = null
+			var/leave_hanging = FALSE
+			if(isopenspace(current_turf) && to_check && use(1))
+				C2.d1 = UP
+				C2.d2 = DOWN
+			else
+				C2.d1 = 0
+				C2.d2 = UP
+				leave_hanging = TRUE
+			C2.add_fingerprint(user)
+			C2.update_icon()
+
+			//Create a new powernet with the cable, if needed it will be merged later
+			var/datum/powernet/PN2 = new /datum/powernet
+			PN2.add_cable(C2)
+
+			C2.mergeZConnectedNetworks()   //Merge the powernet with above powernets
+			C2.mergeConnectedNetworksOnTurf() //Merge the powernet with on turf powernets
+			if(leave_hanging)
+				break
+	else
+		C.d1 = 0 //It's a O-X node cable
+		C.d2 = dirn
 	C.add_fingerprint(user)
 	C.update_icon()
 
 	//Create a new powernet with the cable, if needed it will be merged later
-	var/datum/powernet/PN = getFromPool(/datum/powernet)
+	var/datum/powernet/PN = new /datum/powernet
 	PN.add_cable(C)
 
-	C.mergeConnectedNetworks(C.d2)   //Merge the powernet with adjacents powernets
+
+	C.mergeConnectedNetworks(C.d2 == DOWN ? C.d1 : C.d2)   //Merge the powernet with adjacents powernets
 	C.mergeConnectedNetworksOnTurf() //Merge the powernet with on turf powernets
 
 	if(C.d2 & (C.d2 - 1)) //If the cable is layed diagonally, check the others 2 possible directions
 		C.mergeDiagonalsNetworks(C.d2)
 
+	if(C.d2 == UP || C.d2 == DOWN) //If the cable goes to another z-level, check the others 2 possible directions
+		C.mergeZConnectedNetworks()
+
 	use(1)
 
-	if(C.shock(user, 50))
+	if(arcanetampered && isliving(user))
+		var/mob/living/L = user
+		L.electrocute_act(30,src)
 		if(prob(50)) //Fail
-			getFromPool(/obj/item/stack/cable_coil, C.loc, 1)
-			returnToPool(C)
+			new /obj/item/stack/cable_coil(C.loc, 1)
+			qdel(C)
+			return // let's not return the reference to a pooled cable
+	else if(C.shock(user, 50))
+		if(prob(50)) //Fail
+			new /obj/item/stack/cable_coil(C.loc, 1)
+			qdel(C)
 			return // let's not return the reference to a pooled cable
 
 	return C //What was our last known position?
@@ -238,7 +332,7 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 				to_chat(user, "<span class='warning'>There's already a cable at that position.</span>")
 				return
 
-		C.cableColor(_color)
+		C.color = color
 
 		C.d1 = nd1
 		C.d2 = nd2
@@ -260,8 +354,8 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 
 		if(C.shock(user, 50))
 			if(prob(50)) //Fail
-				getFromPool(/obj/item/stack/cable_coil, C.loc, 1, C.light_color)
-				returnToPool(C)
+				new /obj/item/stack/cable_coil(C.loc, 1, C.light_color)
+				qdel(C)
 				return
 
 		C.denode() //This call may have disconnected some cables that terminated on the centre of the turf, if so split the powernets.
@@ -271,7 +365,6 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 /////////////////////////////
 
 /obj/item/stack/cable_coil/cut
-	item_state = "coil_red2"
 
 /obj/item/stack/cable_coil/cut/New(loc, amount, var/param_color = null)
 	..(loc)
@@ -282,37 +375,42 @@ var/global/list/datum/stack_recipe/cable_recipes = list ( \
 	update_icon()
 
 /obj/item/stack/cable_coil/yellow
-	_color = "yellow"
-	icon_state = "coil_yellow"
+	color = "#FFED00"
 
 /obj/item/stack/cable_coil/blue
-	_color = "blue"
-	icon_state = "coil_blue"
+	color = "#005C84"
 
 /obj/item/stack/cable_coil/green
-	_color = "green"
-	icon_state = "coil_green"
+	color = "#0B8400"
 
 /obj/item/stack/cable_coil/pink
-	_color = "pink"
-	icon_state = "coil_pink"
+	color = "#CA00B6"
 
 /obj/item/stack/cable_coil/orange
-	_color = "orange"
-	icon_state = "coil_orange"
+	color = "#CA6900"
 
 /obj/item/stack/cable_coil/cyan
-	_color = "cyan"
-	icon_state = "coil_cyan"
+	color = "#00B5CA"
 
 /obj/item/stack/cable_coil/white
-	_color = "white"
-	icon_state = "coil_white"
+	color = "#D0D0D0"
+
+/obj/item/stack/cable_coil/random
+	var/list/colors = list("#FF0000","#FFED00","#0B8400","#005C84","#CA00B6")
+
+/obj/item/stack/cable_coil/random/toolbox
+	colors = list("#FF0000","#FFED00","#0B8400","#005C84","#CA00B6","#CA6900","#00B5CA","#D0D0D0")
+
+/obj/item/stack/cable_coil/random/etoolbox
+	colors = list("red","yellow","green","blue","pink","orange","cyan","white")
 
 /obj/item/stack/cable_coil/random/New(loc, amount, var/param_color = null)
 	..()
-	_color = pick("red","yellow","green","blue","pink")
-	icon_state = "coil_[_color]"
+	color = pick(colors)
+	update_icon()
+	if (ismob(loc))
+		var/mob/M = loc
+		M.update_inv_hands()
 
 /obj/item/stack/cable_coil/persistent/turf_place(turf/simulated/floor/F, mob/user, var/dirnew)	//for cable coil that needs to not be capable of being used up entirely
 	if(amount > 1)

@@ -4,35 +4,36 @@
 //////////////////////////////////////////////////////////////////
 
 /datum/surgery_step/tooth_replace
-	/datum/surgery_step/tooth_replace/priority = 10
-	/datum/surgery_step/tooth_replace/can_infect = 0
-	/datum/surgery_step/tooth_replace/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		if (!hasorgans(target))
-			return 0
-		var/datum/organ/external/affected = target.get_organ(target_zone)
-		if (!affected)
-			return 0
-		return target_zone == TARGET_MOUTH
+	priority = 10
+	can_infect = 0
+	blood_level = 0
+
+/datum/surgery_step/tooth_replace/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
+	if (!hasorgans(target))
+		return 0
+	var/datum/organ/external/affected = target.get_organ(target_zone)
+	if (!affected)
+		return 0
+	return target_zone == TARGET_MOUTH
 
 
 ///////MEND ROOTS///////
 /datum/surgery_step/tooth_replace/mend_roots
 	allowed_tools = list(
-		/obj/item/weapon/FixOVein = 100,
+		/obj/item/tool/FixOVein = 100,
 		/obj/item/stack/cable_coil = 50,
 		)
 
-	min_duration = 100
-	max_duration = 120
+	duration = 10 SECONDS
 
 /datum/surgery_step/tooth_replace/mend_roots/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	return ..() && target.op_stage.face == 1
 
 
 /datum/surgery_step/tooth_replace/mend_roots/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		user.visible_message("[user] starts mending the blood vessels and nerves in the empty sockets of [target]'s jaw with \the [tool].", \
-		"You start mending the blood vessels and nerves in the sockets of [target]'s jaw with \the [tool].")
-		..()
+	user.visible_message("[user] starts mending the blood vessels and nerves in the empty sockets of [target]'s jaw with \the [tool].", \
+	"You start mending the blood vessels and nerves in the sockets of [target]'s jaw with \the [tool].")
+	..()
 
 /datum/surgery_step/tooth_replace/mend_roots/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	user.visible_message("<span class='notice'>[user] mends the sockets of [target]'s jaw with \the [tool].</span>", \
@@ -53,8 +54,7 @@
 		/obj/item/stack/teeth = 100,
 		)
 
-	min_duration = 60
-	max_duration = 80
+	duration = 6 SECONDS
 
 /datum/surgery_step/tooth_replace/new_teeth/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 
@@ -99,35 +99,35 @@
 //////////////////////////////////////////////////////////////////
 
 /datum/surgery_step/tooth_extract
-	/datum/surgery_step/tooth_extract/priority = 5
-	/datum/surgery_step/tooth_extract/can_infect = 0
-	/datum/surgery_step/tooth_extract/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		if (!hasorgans(target))
-			return 0
-		var/datum/organ/external/affected = target.get_organ(target_zone)
-		if (!affected)
-			return 0
-		return target_zone == TARGET_MOUTH
+	priority = 5
+	can_infect = 0
+
+/datum/surgery_step/tooth_extract/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
+	if (!hasorgans(target))
+		return 0
+	var/datum/organ/external/affected = target.get_organ(target_zone)
+	if (!affected)
+		return 0
+	return target_zone == TARGET_MOUTH
 
 
 ///////SET JAWS///////
 /datum/surgery_step/tooth_extract/set_jaws
 	allowed_tools = list(
-		/obj/item/weapon/bonesetter = 100,
-		/obj/item/weapon/wrench = 75,
+		/obj/item/tool/bonesetter = 100,
+		"wrench" = 75,
 		)
 
-	min_duration = 60
-	max_duration = 70
+	duration = 6 SECONDS
 
 /datum/surgery_step/tooth_extract/set_jaws/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	return ..()
 
 
 /datum/surgery_step/tooth_extract/set_jaws/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		user.visible_message("[user] starts setting [target]'s jaw in place with \the [tool] to prepare for tooth extraction", \
-		"You start setting [target]'s jaw in place with \the [tool] to prepare for tooth extraction.")
-		..()
+	user.visible_message("[user] starts setting [target]'s jaw in place with \the [tool] to prepare for tooth extraction", \
+	"You start setting [target]'s jaw in place with \the [tool] to prepare for tooth extraction.")
+	..()
 
 /datum/surgery_step/tooth_extract/set_jaws/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	user.visible_message("<span class='notice'>[user] locks [target]'s jaw in place with \the [tool].</span>", \
@@ -142,16 +142,16 @@
 
 
 
+
 	///////EXTRACT TOOTH///////
 /datum/surgery_step/tooth_extract/pull_tooth
 	allowed_tools = list(
-		/obj/item/weapon/hemostat = 100,
-		/obj/item/weapon/wirecutters = 50,
+		/obj/item/tool/hemostat = 100,
+		"wirecutter" = 50,
 		/obj/item/device/assembly/mousetrap = 10,	//I don't know. Don't ask me. But I'm leaving it because hilarity.
 		)
 
-	min_duration = 100
-	max_duration = 120
+	duration = 10 SECONDS
 
 /datum/surgery_step/tooth_extract/pull_tooth/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 
@@ -170,9 +170,9 @@
 
 
 /datum/surgery_step/tooth_extract/pull_tooth/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		user.visible_message("[user] starts pulling one of [target]'s teeth out with \the [tool].", \
-		"You start pulling one of [target]'s teeth out with \the [tool].")
-		..()
+	user.visible_message("[user] starts pulling one of [target]'s teeth out with \the [tool].", \
+	"You start pulling one of [target]'s teeth out with \the [tool].")
+	..()
 
 /datum/surgery_step/tooth_extract/pull_tooth/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	user.visible_message("<span class='notice'>[user] pulls out one of [target]'s teeth with \the [tool].</span>", \
@@ -190,24 +190,26 @@
 	"<span class='warning'>Your hand slips, dropping the tooth and scraping the gums of [user] with \the [tool]!</span>")
 	target.apply_damage(5, BRUTE, affected)
 
+
+
+
 ///////RESET JAWS///////
 /datum/surgery_step/tooth_extract/reset
 	allowed_tools = list(
-		/obj/item/weapon/bonesetter = 100,
-		/obj/item/weapon/wrench = 75,
+		/obj/item/tool/bonesetter = 100,
+		"wrench" = 75,
 		)
 
-	min_duration = 60
-	max_duration = 70
+	duration = 6 SECONDS
 
 /datum/surgery_step/tooth_extract/reset/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	return ..() && target.op_stage.tooth_extract == 1
 
 
 /datum/surgery_step/tooth_extract/reset/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		user.visible_message("[user] starts putting [target]'s jaw back into place with \the [tool].", \
-		"You start putting [target]'s jaw back into place with \the [tool].")
-		..()
+	user.visible_message("[user] starts putting [target]'s jaw back into place with \the [tool].", \
+	"You start putting [target]'s jaw back into place with \the [tool].")
+	..()
 
 /datum/surgery_step/tooth_extract/reset/end_step(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	user.visible_message("<span class='notice'>[user] unlocks [target]'s jaw with \the [tool].</span>", \

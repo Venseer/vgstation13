@@ -14,6 +14,11 @@
 	desc = "Apply butt. Get drunk."
 	icon_state = "bar-stool"
 
+/obj/item/weapon/stool/cushion
+	name = "cushion"
+	desc = "Apply butt. Get comfy."
+	icon_state = "cushion"
+
 /obj/item/weapon/stool/hologram
 	sheet_type = null
 
@@ -21,8 +26,9 @@
 	name = "piano stool"
 	desc = "Apply butt. Become Mozart."
 	icon_state = "stool_piano"
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 3
+	w_class = W_CLASS_LARGE
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	sheet_type = /obj/item/stack/sheet/wood
 
 /obj/item/weapon/stool/piano/initialize()
@@ -34,8 +40,8 @@
 	return
 
 /obj/item/weapon/stool/attackby(var/obj/item/weapon/W, var/mob/user)
-	if(iswrench(W) && sheet_type)
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+	if(W.is_wrench(user) && sheet_type)
+		W.playtoolsound(src, 50)
 		drop_stack(sheet_type, loc, 1, user)
 		qdel(src)
 
@@ -51,11 +57,12 @@
 		user.visible_message("<span class='warning'>[user] breaks \the [src] over [M]'s back!.</span>")
 		user.u_equip(src, 0)
 
-		getFromPool(sheet_type, get_turf(src), 1)
+		new sheet_type(get_turf(src), 1)
 		qdel(src)
 
 		var/mob/living/T = M
 		T.Knockdown(10)
+		T.Stun(10)
 		T.apply_damage(20)
 		return
 

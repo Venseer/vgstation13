@@ -1,6 +1,6 @@
 /obj/item/weapon/melee/lance
 	name = "tournament lance"
-	desc = "A very long and heavy spear, used for jousting. "
+	desc = "A very long and heavy spear, used for jousting."
 
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/96x96.dmi', "right_hand" = 'icons/mob/in-hand/right/96x96.dmi')
 	item_state = "lance"
@@ -75,7 +75,7 @@
 
 /obj/effect/lance_trigger //This stays in front of the user (when the lance is lowered)
 	name = "lance tip"
-	desc = "Colliding with this is a bad idea"
+	desc = "Colliding with this is a bad idea."
 
 	icon = 'icons/obj/weapons.dmi'
 	icon_state = "toddler"
@@ -120,12 +120,13 @@
 		L.raise_lance()
 		return
 
-/obj/effect/lance_trigger/forceMove(turf/destination, no_tp=0, harderforce = FALSE, glide_size_override = 0)
+/obj/effect/lance_trigger/forceMove(atom/destination, step_x = 0, step_y = 0, no_tp = FALSE, harderforce = FALSE, glide_size_override = 0)
 	var/old_last_move = last_move //Old direction
 
 	if(amount_of_turfs_charged > 0 && (world.time - last_moved) >= 3) //More than 2/10 of a second since last moved
-		to_chat(owner, "<span class='notice'>You momentarily lose control of \the [L].</span>")
-		L.raise_lance()
+		if(L)
+			to_chat(owner, "<span class='notice'>You momentarily lose control of \the [L].</span>")
+			L.raise_lance()
 		return
 
 	.=..()
@@ -168,8 +169,8 @@
 				var/mob/living/carbon/human/H = victim
 				var/datum/organ/external/affecting = H.get_organ(ran_zone(owner.zone_sel.selecting))
 
-				if(H.check_shields(base_damage, "the couched lance"))
-					H.visible_message("<span class='danger'>[H] blocks \the [owner]'s [src.L.name] hit.</span>", "<span class='notice'>You block \the [owner]'s couched [src.L.name].</span>")
+				if(H.check_shields(base_damage, L))
+					H.visible_message("<span class='borange'>[H] blocks \the [owner]'s [src.L.name] hit.</span>", "<span class='notice'>You block \the [owner]'s couched [src.L.name].</span>")
 					return
 
 				victim.apply_damage(base_damage, BRUTE, affecting)
@@ -181,7 +182,9 @@
 			add_logs(owner, victim, "delivered couched lance damage ([base_damage] dmg)", admin = (owner.ckey && victim.ckey) ? TRUE : FALSE)
 
 			if(amount_of_turfs_charged >= 5)
-				victim.Knockdown(min(amount_of_turfs_charged-5, 5))//Stun begins at 5 charged turfs. Maximum effect at 10 charged turfs
+				var/incapacitation_duration = min(amount_of_turfs_charged-5, 5) //Stun begins at 5 charged turfs. Maximum effect at 10 charged turfs
+				victim.Knockdown(incapacitation_duration)
+				victim.Stun(incapacitation_duration)
 
 			if(amount_of_turfs_charged >= 10)
 				victim.throw_at(get_edge_target_turf(get_turf(victim), last_move), amount_of_turfs_charged * 0.25, 0.1)

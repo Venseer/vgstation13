@@ -16,17 +16,15 @@
 /obj/item/stack/conveyor_assembly/dropped()
 	..()
 	if(active)
-		returnToPool(active)
-		active = null
+		QDEL_NULL(active)
 
 /obj/item/stack/conveyor_assembly/attack_self(mob/user)
 	if(!active) //Start click drag construction
-		active = getFromPool(/obj/abstract/screen/draggable, src, user)
+		active = new /obj/abstract/screen/draggable(src, user)
 		to_chat(user, "Beginning conveyor construction mode, click and drag screen in direction you wish conveyor to go.")
 		return
 	else
-		returnToPool(active)
-		active = null
+		QDEL_NULL(active)
 
 /obj/item/stack/conveyor_assembly/drag_mousedown(mob/user, turf/origin)
 	if(istype(origin) && user.Adjacent(origin) && (!locate(/obj/structure/conveyor_assembly) in origin) && (!locate(/obj/machinery/conveyor) in origin) && !origin.density)
@@ -35,8 +33,7 @@
 		user.client.images += placeimage
 		placeloc = origin
 	else
-		returnToPool(active)
-		active = null
+		QDEL_NULL(active)
 
 /obj/item/stack/conveyor_assembly/can_drag_use(mob/user, turf/T)
 	return placeimage.dir != get_dir(placeloc, T)
@@ -62,9 +59,9 @@
 
 	if(user.Adjacent(placeloc) && direction && use(1))
 		new /obj/structure/conveyor_assembly(placelocation, direction)
-	if(amount && !disposed)
+	if(amount && !gcDestroyed)
 		spawn()
-			active = getFromPool(/obj/abstract/screen/draggable, src, user)
+			active = new /obj/abstract/screen/draggable(src, user)
 
 /obj/item/stack/conveyor_assembly/end_drag_use(mob/user)
 	if(placeimage && user && user.client)
@@ -75,9 +72,10 @@
 
 /obj/item/stack/conveyor_assembly/attackby(obj/item/W, mob/user)
 	if(iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		if(WT.remove_fuel(0,user))
-			var/obj/item/stack/sheet/metal/M = getFromPool(/obj/item/stack/sheet/metal)
+			var/obj/item/stack/sheet/metal/M = new /obj/item/stack/sheet/metal(loc)
+			M.amount = 2
 			user.visible_message("<span class='warning'>[src] is shaped into metal by [user.name] with the welding tool.</span>", \
 			"<span class='warning'>You shape the [src] into metal with the welding tool.</span>", \
 			"<span class='warning'>You hear welding.</span>")
@@ -106,18 +104,21 @@
 
 /obj/structure/conveyor_assembly/attackby(obj/item/P, mob/user)
 	if(iscrowbar(P))
-		playsound(src, 'sound/items/Crowbar.ogg', 75, 1)
+		P.playtoolsound(src, 75)
 		if(do_after(user, src, 10))
 			to_chat(user, "<span class='notice'>You unhinge the frame.</span>")
-			getFromPool(/obj/item/stack/conveyor_assembly, src.loc)
+			new /obj/item/stack/conveyor_assembly(src.loc)
 			qdel(src)
 			return
 	else if(istype(P, /obj/item/stack/sheet/metal))
 		var/obj/item/stack/S = P
-		if(S.amount > 4)
+		if(S.amount > 2)
 			playsound(src, 'sound/items/Ratchet.ogg', 75, 1)
-			if(do_after(user, src, 30) && S.amount > 4)
-				S.use(4)
+			var/build_time = 3 SECONDS
+			if(user?.reagents?.has_reagent(CARGONANOBOTS))
+				build_time = 15
+			if(do_after(user, src, build_time) && S.amount > 2)
+				S.use(2)
 				to_chat(user, "<span class='notice'>You add the plates to \the [src].</span>")
 				new /obj/machinery/conveyor(src.loc, src.dir)
 				qdel(src)

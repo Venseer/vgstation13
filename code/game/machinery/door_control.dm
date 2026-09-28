@@ -5,7 +5,6 @@
 	icon_state = "doorctrl0"
 	desc = "A remote control-switch for a door."
 	power_channel = ENVIRON
-	var/id_tag = null
 	var/range = 10
 	var/normaldoorcontrol = 0
 	var/specialfunctions = 1
@@ -26,7 +25,7 @@
 	*/
 
 	anchored = 1.0
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 2
 	active_power_usage = 4
 
@@ -36,25 +35,23 @@
 	machine_flags = EMAGGABLE | MULTITOOL_MENU
 
 /obj/machinery/door_control/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
 	if(wires & 2)
-		return src.attack_hand(user)
+		..()
 	else
 		to_chat(user, "Error, no route to host.")
 
 /obj/machinery/door_control/attack_paw(mob/user as mob)
 	return src.attack_hand(user)
 
-/obj/machinery/door_control/emag(mob/user)
+/obj/machinery/door_control/emag_act(mob/user)
 	req_access = list()
 	req_one_access = list()
 	playsound(src, "sparks", 100, 1)
 
 /obj/machinery/door_control/attackby(obj/item/weapon/W, mob/user as mob)
 	..()
-	..()
 	/* For later implementation
-	if (isscrewdriver(W))
+	if (W.is_screwdriver(user))
 	{
 		if(wiresexposed)
 			icon_state = "doorctrl0"
@@ -73,38 +70,41 @@
 
 /obj/machinery/door_control/attack_hand(mob/user as mob)
 	src.add_fingerprint(usr)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 
 	if(!allowed(user) && (wires & 1))
 		to_chat(user, "<span class='warning'>Access Denied.</span>")
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_doorctrl-denied")
 		flick("doorctrl-denied",src)
+		spawn(5)
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_doorctrl1")
 		return
 
 	use_power(5)
 	icon_state = "doorctrl1"
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_doorctrl1")
 	add_fingerprint(user)
 
 	if(normaldoorcontrol)
 		for(var/obj/machinery/door/airlock/D in range(range, src))
 			if(D.id_tag == src.id_tag)
 				spawn(0)
-				if(D)
-					if(D.density)
-						D.open()
-					else
-						D.close()
-					return
-				if(specialfunctions & IDSCAN)
-					D.aiDisabledIdScanner = !D.aiDisabledIdScanner
-				if(specialfunctions & BOLTS)
-					if(!D.isWireCut(4) && D.arePowerSystemsOn())
-						D.locked = !D.locked
-						D.update_icon()
-				if(specialfunctions & SHOCK)
-					D.secondsElectrified = D.secondsElectrified ? 0 : -1
-				if(specialfunctions & SAFE)
-					D.safe = !D.safe
+					if(specialfunctions & IDSCAN)
+						D.aiDisabledIdScanner = !D.aiDisabledIdScanner
+					if(specialfunctions & BOLTS)
+						if(!D.isWireCut(4) && D.arePowerSystemsOn())
+							D.toggle_bolts()
+							D.update_icon()
+					if(specialfunctions & SHOCK)
+						D.secondsElectrified = D.secondsElectrified ? 0 : -1
+					if(specialfunctions & SAFE)
+						D.safe = !D.safe
+					if(specialfunctions & OPEN)
+						if(D.density)
+							D.open()
+						else
+							D.close()
 
 	else
 		for(var/obj/machinery/door/poddoor/M in poddoors)
@@ -118,22 +118,21 @@
 						M.close()
 						return
 	spawn(15)
-		if(!(stat & NOPOWER))
+		if(!(stat & (FORCEDISABLE|NOPOWER)))
 			icon_state = "doorctrl0"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_doorctrl0")
 
 /obj/machinery/door_control/power_change()
 	..()
-	if(stat & NOPOWER)
+	if(stat & (FORCEDISABLE|NOPOWER))
 		icon_state = "doorctrl-p"
+		kill_moody_light()
 	else
 		icon_state = "doorctrl0"
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_doorctrl0")
 
 /obj/machinery/door_control/npc_tamper_act(mob/living/L)
 	attack_hand(L)
-
-/obj/machinery/driver_button/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/driver_button/attack_paw(mob/user as mob)
 	return src.attack_hand(user)
@@ -146,8 +145,8 @@
 	if(istype(W, /obj/item/device/detective_scanner))
 		return
 
-	if(iswrench(W))
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+	if(W.is_wrench(user))
+		W.playtoolsound(src, 50)
 		if(do_after(user, src, 30))
 			to_chat(user, "<span class='notice'>You detach \the [src] from the wall.</span>")
 			new/obj/item/mounted/frame/driver_button(get_turf(src))
@@ -164,9 +163,9 @@
 	</ul>"}
 
 /obj/machinery/driver_button/attack_hand(mob/user as mob)
-
+	playsound(src,'sound/misc/click.ogg',30,0,-1)
 	src.add_fingerprint(usr)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(active)
 		return
@@ -193,7 +192,7 @@
 		if(M.id_tag == src.id_tag)
 			M.drive()
 
-	sleep(50)
+	sleep(door_delay)
 
 	for(var/obj/machinery/door/poddoor/M in poddoors)
 		if (M.id_tag == src.id_tag)
@@ -204,9 +203,10 @@
 	icon_state = "launcherbtt"
 	active = 0
 
+// TODO: Remove this snowflake stuff.
 /obj/machinery/door_control/mapped/interogation_room
 	name = "smartglass control"
-	desc = "Toogle smartglass"
+	desc = "Toggle smartglass."
 	id_tag = "InterogationRoomIDTag"
 
 
@@ -218,3 +218,17 @@
 	for (var/obj/machinery/door/window/plasma/secure/interogation_room/W in range(range))
 		if (W.smartwindow && src.id_tag == W.smartwindow.id_tag)
 			W.smartwindow.toggle_smart_transparency()
+
+/obj/machinery/door_control/mapped/box_armoury
+    name = "windoor control"
+    desc = "Open or close the windoors in the armoury."
+    id_tag = "IDTagBoxArmoury"
+    req_access = list(access_security)
+    range = 6
+
+/obj/machinery/door_control/mapped/box_armoury/attack_hand(var/mob/user)
+    ..() // Sanity
+    for (var/obj/machinery/door/window/brigdoor/W in range(range))
+        if (src.id_tag == W.id_tag)
+            spawn()
+                W.attack_hand(user)

@@ -2,55 +2,106 @@
 	name = "folder"
 	desc = "A folder."
 	icon = 'icons/obj/bureaucracy.dmi'
-	icon_state = "folder"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/bureaucracy.dmi', "right_hand" = 'icons/mob/in-hand/right/bureaucracy.dmi')
+	icon_state = "folder_"
+	item_state = null	// automatically uses the icon_state
 	w_class = W_CLASS_SMALL
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	pressure_resistance = 2
 
-	autoignition_temperature = 522 // Kelvin
-	fire_fuel = 1
+	var/crayon = null
+
+/obj/item/weapon/folder/New()
+	..()
+	update_icon()
+
+/obj/item/weapon/folder/black
+	crayon = "black"
+	icon_state = "folder_black" //previews for mapper sanity
 
 /obj/item/weapon/folder/blue
-	desc = "A blue folder."
+	crayon = "blue"
 	icon_state = "folder_blue"
 
 /obj/item/weapon/folder/red
-	desc = "A red folder."
+	crayon = "red"
 	icon_state = "folder_red"
 
+/obj/item/weapon/folder/white
+	crayon = "sterile"
+	icon_state = "folder_sterile"
+
 /obj/item/weapon/folder/yellow
-	desc = "A yellow folder."
+	crayon = "yellow"
 	icon_state = "folder_yellow"
 
-/obj/item/weapon/folder/white
-	desc = "A white folder."
-	icon_state = "folder_white"
+/obj/item/weapon/folder/purple
+	crayon = "purple"
+	icon_state = "folder_purple"
+
+/obj/item/weapon/folder/orange
+	crayon = "orange"
+	icon_state = "folder_orange"
+
+/obj/item/weapon/folder/green
+	crayon = "green"
+	icon_state = "folder_green"
+
+/obj/item/weapon/folder/rainbow
+	crayon = "rainbow"
+	icon_state = "folder_rainbow"
+
+/obj/item/weapon/folder/mime
+	crayon = "mime"
+	icon_state = "folder_mime"
 
 /obj/item/weapon/folder/update_icon()
 	overlays.len = 0
-	if(contents.len)
-		overlays += image(icon = icon, icon_state = "folder_paper")
-	return
 
-/obj/item/weapon/folder/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(istype(W, /obj/item/weapon/paper) || istype(W, /obj/item/weapon/photo))
+	if(contents.len)
+		var/obj/item/content = contents[1]
+		if(istype(content, /obj/item/weapon/paper) || istype(content, /obj/item/weapon/photo))
+			overlays += image(icon = icon, icon_state = "folder_paper")
+		else if(istype(content, /obj/item/research_blueprint/nano))
+			overlays += image(icon = icon, icon_state = "folder_blueprint_nano")
+		else if(istype(content, /obj/item/research_blueprint))
+			overlays += image(icon = icon, icon_state = "folder_blueprint")
+
+	icon_state = "folder_[crayon]"
+
+/obj/item/weapon/folder/decontaminate()
+	..()
+	crayon = "sterile"
+	update_icon()
+
+/obj/item/weapon/folder/attackby(obj/item/weapon/W, mob/user)
+	if(istype(W, /obj/item/weapon/paper) || istype(W, /obj/item/weapon/photo) || istype(W, /obj/item/weapon/paper/nano)|| istype(W,/obj/item/research_blueprint/nano) || istype(W,/obj/item/research_blueprint))
 		if(user.drop_item(W, src))
 			to_chat(user, "<span class='notice'>You put the [W] into \the [src].</span>")
 			update_icon()
 	else if(istype(W, /obj/item/weapon/pen))
 		set_tiny_label(user, " - '", "'")
-	return
+	else if(istype(W, /obj/item/toy/crayon))
+		var/obj/item/toy/crayon/C = W
+		crayon = C.colourName
+		update_icon()
+	else if (istype(W, /obj/item/weapon/soap))
+		crayon = null
+		update_icon()
 
-/obj/item/weapon/folder/attack_self(mob/user as mob)
+/obj/item/weapon/folder/attack_self(mob/user)
 	var/dat = "<title>[name]</title>"
 
 	for(var/obj/item/weapon/paper/P in src)
 		dat += "<A href='?src=\ref[src];remove=\ref[P]'>Remove</A> - <A href='?src=\ref[src];read=\ref[P]'>[P.name]</A><BR>"
 	for(var/obj/item/weapon/photo/Ph in src)
 		dat += "<A href='?src=\ref[src];remove=\ref[Ph]'>Remove</A> - <A href='?src=\ref[src];look=\ref[Ph]'>[Ph.name]</A><BR>"
-	user << browse(dat, "window=folder")
+	for(var/obj/item/research_blueprint/P in src)
+		dat += "<A href='?src=\ref[src];remove=\ref[P]'>Remove</A> - [P.name]<BR>"
+	user << browse(HTML_SKELETON(dat), "window=folder")
 	onclose(user, "folder")
 	add_fingerprint(usr)
-	return
 
 /obj/item/weapon/folder/Topic(href, href_list)
 	..()
@@ -61,7 +112,7 @@
 
 		if(href_list["remove"])
 			var/obj/item/P = locate(href_list["remove"])
-			if(!(istype(P, /obj/item/weapon/paper)) && !(istype(P, /obj/item/weapon/photo)))
+			if(!(istype(P, /obj/item/weapon/paper)) && !(istype(P, /obj/item/weapon/photo)) && !(istype(P, /obj/item/weapon/paper/nano)) && !(istype(P, /obj/item/research_blueprint)) && !(istype(P, /obj/item/research_blueprint/nano)))
 				var/message = "<span class='warning'>[usr]([usr.key]) has tried to remove something other than a paper/photo from a folder.<span>"
 				message_admins(message)
 				message += "[P]"
@@ -76,7 +127,6 @@
 				admin_log.Add(message)
 				return
 			if(P)
-				P.forceMove(usr.loc)
 				usr.put_in_hands(P)
 
 		if(href_list["read"])

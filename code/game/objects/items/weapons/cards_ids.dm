@@ -16,9 +16,12 @@
 	desc = "Does card things."
 	icon = 'icons/obj/card.dmi'
 	w_class = W_CLASS_TINY
+	w_type = RECYK_PLASTIC
+	flammable = TRUE
 	var/associated_account_number = 0
 
 	var/list/files = list(  )
+	quick_equip_priority = list(slot_wear_id)
 
 /obj/item/weapon/card/data
 	name = "data disk"
@@ -53,12 +56,22 @@
 /*
  * ID CARDS
  */
+ 
+/obj/item/weapon/card/fake_emag
+	desc = "It's a card with a magnetic strip attached to some circuitry... NOT!"
+	name = "cryptographic sequencer"
+	icon_state = "emag"
+	item_state = "card-id"
+	slot_flags = SLOT_ID
+
 /obj/item/weapon/card/emag
 	desc = "It's a card with a magnetic strip attached to some circuitry."
 	name = "cryptographic sequencer"
 	icon_state = "emag"
 	item_state = "card-id"
+	slot_flags = SLOT_ID
 	origin_tech = Tc_MAGNETS + "=2;" + Tc_SYNDICATE + "=2"
+	flags = FPRINT | NO_ATTACK_MSG //because of overrides
 
 	/**
 	 * Number of uses left.  -1 = infinite
@@ -86,12 +99,15 @@
 	var/recharge_rate = 0
 
 	var/nticks=0
+	var/disable_config_sync = FALSE
+	var/flash_animation = FLASH_ID_ANIM
+	var/flash_post_delay = 0.5 SECONDS
 
-/obj/item/weapon/card/emag/New(var/loc, var/disable_tuning=0)
+/obj/item/weapon/card/emag/New(var/loc, var/disable_tuning=1)
 	..(loc)
 
 	// For standardized subtypes, once they're established.
-	if(disable_tuning)
+	if(disable_tuning || disable_config_sync)
 		return
 
 	if(ticker)
@@ -126,14 +142,14 @@
 		nticks = 0
 		processing_objects.Remove(src)
 
-/obj/item/weapon/card/emag/proc/canUse(var/mob/user, var/obj/machinery/M)
+/obj/item/weapon/card/emag/proc/canUse(var/mob/user, var/atom/A)
 	// We've already checked for emaggability.  All we do here is check cost.
 
 	// Infinite uses?  Just return true.
 	if(energy < 0)
 		return 1
 
-	var/cost=M.getEmagCost(user,src)
+	var/cost=A.getEmagCost(user,src)
 
 	// Free to emag?  Return true every time.
 	if(cost == 0)
@@ -163,14 +179,32 @@
 	if(recharge_rate && recharge_ticks)
 		to_chat(user, "<span class=\"info\">A small label on a thermocouple notes that it recharges at a rate of [recharge_rate]MJ for every [recharge_ticks<=1?"":"[recharge_ticks] "]oscillator tick[recharge_ticks>1?"s":""].</span>")
 
+//don't perform emag_act() stuff in this method
 /obj/item/weapon/card/emag/attack()
 	return
 
-/obj/item/weapon/card/emag/afterattack(atom/target, mob/user, proximity)
-	var/atom/A = target
-	if(!proximity)
+//perform individual emag_act() stuff on children overriding the method here
+/obj/item/weapon/card/emag/afterattack(var/atom/target, mob/user, proximity)
+	if(!proximity || !canUse(user,target))
 		return
-	A.emag_act(user)
+	if (ishuman(target))
+		var/mob/living/carbon/target_living = target
+		//get target zone with 0% chance of missing
+		var/zone = ran_zone(user.zone_sel.selecting, 100)
+		var/datum/organ/external/organ = target_living.get_organ(zone)
+		target_living.emag_act(user, organ, src)
+
+/obj/item/weapon/card/emag/attack_self(var/mob/user)
+	if(isliving(user) && !user.incapacitated())
+		user.delayNextAttack(flash_post_delay)
+		add_fingerprint(user)
+		user.visible_message("<span class='warning'>[user] displays \the [src] like an absolute madman.</span>","<span class='warning'>You proudly display \the [src].</span>")
+		flash_object_animation(user, src, flash_animation)
+
+/mob/living/carbon/human/emag_check(obj/item/weapon/card/emag/E, mob/user) //handled above!
+	return FALSE
+
+var/list/global/id_cards = list()
 
 /obj/item/weapon/card/id
 	name = "identification card"
@@ -184,10 +218,11 @@
 	var/registered_name = "Unknown" // The name registered_name on the card
 	slot_flags = SLOT_ID
 
+	var/show_biometrics = TRUE //Necessary to display the below stats
 	var/blood_type = "\[UNSET\]"
 	var/dna_hash = "\[UNSET\]"
 	var/fingerprint_hash = "\[UNSET\]"
-	var/bans = null
+	var/obj/item/demote_chip/dchip = null
 	//alt titles are handled a bit weirdly in order to unobtrusively integrate into existing ID system
 	var/assignment = null	//can be alt title or the actual job
 	var/rank = null			//actual job
@@ -195,35 +230,52 @@
 
 	var/datum/money_account/virtual_wallet = 1	//money! If 0, don't create a wallet. Otherwise create one!
 
+	var/flash_post_delay = 0.5 SECONDS
+
 /obj/item/weapon/card/id/New()
 	..()
 
+	id_cards += src
+
 	if(virtual_wallet)
 		update_virtual_wallet()
-		spawn(30) //AWFULNESS AHOY
-			if(ishuman(loc))
-				var/mob/living/carbon/human/H = loc
-				SetOwnerInfo(H)
-			update_virtual_wallet()
+	if(ishuman(loc))
+		SetOwnerDNAInfo(loc)
+
+/obj/item/weapon/card/id/Destroy()
+	id_cards -= src
+	..()
 
 /obj/item/weapon/card/id/examine(mob/user)
 	..()
 
 	if(Adjacent(user))
-		user.show_message(text("The current assignment on the card is [src.assignment]."),1)
-		user.show_message("The blood type on the card is [blood_type].",1)
-		user.show_message("The DNA hash on the card is [dna_hash].",1)
-		user.show_message("The fingerprint hash on the card is [fingerprint_hash].",1)
+		if (assignment)
+			user.show_message(text("The current assignment on the card is [assignment]."),1)
+		else
+			user.show_message(text("No assignment has been set. Use an identification computer to edit."),1)
+		if(show_biometrics)
+			if (dna_hash == "\[UNSET\]")
+				user.show_message(text("No biometric data referenced. Use a body scanner at Medbay to imprint."),1)
+			else
+				user.show_message("Blood Type: [blood_type].",1)
+				user.show_message("DNA: [dna_hash].",1)
+				user.show_message("Fingerprint: [fingerprint_hash].",1)
+		if(dchip && dchip.stamped.len)
+			to_chat(user,"<span class='bad'>It has a demotion modchip with the following stamps: [english_list(uniquenamelist(dchip.stamped))].</span>")
 
 /obj/item/weapon/card/id/attack_self(var/mob/user)
 	if(user.attack_delayer.blocked())
 		return
-	user.visible_message("[user] shows you: [bicon(src)] [name]: assignment: [assignment]",\
-		"You flash your ID card: [bicon(src)] [name]: assignment: [assignment]")
-	user.delayNextAttack(1 SECONDS)
+	user.visible_message("[user] shows you: [bicon(src)] [name]. Assignment: [assignment]",\
+		"You flash your ID card: [bicon(src)] [name]. Assignment: [assignment]")
+	user.delayNextAttack(flash_post_delay)
 	add_fingerprint(user)
+	flash_object_animation(user, src, FLASH_ID_ANIM)
 
 /obj/item/weapon/card/id/GetAccess()
+	if(arcanetampered)
+		return ..()
 	return (access | base_access)
 
 /obj/item/weapon/card/id/GetID()
@@ -249,10 +301,17 @@
 		virtual_wallet.account_number = next_account_number
 		next_account_number += rand(1,25)
 
+/obj/item/weapon/card/id/proc/add_to_virtual_wallet(var/added_funds=0, var/mob/user, var/atom/source)
+	if(!virtual_wallet)
+		return 0
+	virtual_wallet.money += added_funds
+	new /datum/transaction(virtual_wallet, "Currency deposit", added_funds, source ? source.name : "", user ? user.name : "")
+	return 1
+
 /obj/item/weapon/card/id/proc/UpdateName()
 	name = "[src.registered_name]'s ID Card ([src.assignment])"
 
-/obj/item/weapon/card/id/proc/SetOwnerInfo(var/mob/living/carbon/human/H)
+/obj/item/weapon/card/id/proc/SetOwnerDNAInfo(var/mob/living/carbon/human/H)
 	if(!H || !H.dna)
 		return
 
@@ -277,7 +336,7 @@
 		return jobName
 	if(alt_jobName in get_all_job_icons()) //Check if the base job has a hud icon
 		return alt_jobName
-	if(jobName in get_all_centcom_jobs() || alt_jobName in get_all_centcom_jobs()) //Return with the NT logo if it is a Centcom job
+	if((jobName in get_all_centcom_jobs()) || (alt_jobName in get_all_centcom_jobs())) //Return with the NT logo if it is a Centcom job
 		return "Centcom"
 	return "Unknown" //Return unknown if none of the above apply
 
@@ -312,7 +371,22 @@
 		"A. N. Other",
 		"Guy Incognito",
 		"Hugh Zasking",
-		"Ivan Gottasecret"
+		"Ivan Gottasecret",
+		"Stan Batton",
+		"Zeke Ureety",
+		"Urist Macdonald",
+		"Nathan Aufweisser",
+		"Dee Tekteev",
+		"Scheitt Couritty",
+		"Valyd Huntre",
+		"Gunther Arrest",
+		"Obi Theelaw",
+		"Tazzhizzazz",
+		"Ziccurizzy",
+		"Kachaindaact",
+		"Wakitakiki",
+		"Kiyuritii",
+		"Yakkitisaks",
 	)
 
 /obj/item/weapon/card/id/nt_disguise/attack_self(mob/user)
@@ -321,7 +395,7 @@
 
 		if (ishuman(user))
 			var/mob/living/carbon/human/H = user
-			SetOwnerInfo(H)
+			SetOwnerDNAInfo(H)
 			alert(user,"Personal data gathered successfully; this includes: blood type, DNA, and fingerprints.\nYou may now proceed with the rest.","Nanotrasen undercover ID: notification","Ok")
 
 		var/n = input(user, "What name would you like to put on this card?", "Nanotrasen undercover ID: name") in gimmick_names
@@ -331,7 +405,7 @@
 			return
 		src.registered_name = n
 
-		var/u = strict_ascii(sanitize(stripped_input(user, "What occupation would you like to put on this card?\nNote: this will not grant or remove any access levels.", "Nanotrasen undercover ID: occupation", "Detective", MAX_MESSAGE_LEN)))
+		var/u = sanitize(stripped_input(user, "What occupation would you like to put on this card?\nNote: this will not grant or remove any access levels.", "Nanotrasen undercover ID: occupation", "Detective", MAX_MESSAGE_LEN))
 		if(!u)
 			alert("Invalid assignment.")
 			src.registered_name = null
@@ -372,7 +446,7 @@
 						to_chat(user, "Name changed to [new_name].")
 
 					if("Occupation")
-						var/new_job = strict_ascii(sanitize(stripped_input(user,"What job would you like to put on this card?\nChanging occupation will not grant or remove any access levels.","Nanotrasen undercover ID: occupation", "Detective", MAX_MESSAGE_LEN)))
+						var/new_job = sanitize(stripped_input(user,"What job would you like to put on this card?\nChanging occupation will not grant or remove any access levels.","Nanotrasen undercover ID: occupation", "Detective", MAX_MESSAGE_LEN))
 						if (!Adjacent(user) || user.incapacitated())
 							return
 						if (!new_job)
@@ -385,18 +459,58 @@
 	else
 		..()
 
+#define AGENT_CARD_DEFAULT_ACCESS list(access_maint_tunnels, access_syndicate, access_external_airlocks)
+
 /obj/item/weapon/card/id/syndicate
 	name = "agent card"
-	access = list(access_maint_tunnels, access_syndicate, access_external_airlocks)
+	access = AGENT_CARD_DEFAULT_ACCESS
 	base_access = list(access_syndicate)
 	origin_tech = Tc_SYNDICATE + "=3"
+	blocks_tracking = TRUE
 	var/registered_user=null
+	var/copy_appearance = FALSE
+
+/obj/item/weapon/card/id/syndicate/AltClick()
+	if (can_use(usr)) // Checks that the this is in our inventory. This will be checked by the proc anyways, but we don't want to generate an error message if not.
+		copy_appearance = !copy_appearance
+		to_chat(usr, "<span class='notice'>\The [src] is now set to copy [copy_appearance ? "the appearance along with" : "just"] the access.</span>")
+		return
+	return ..()
+
+/obj/item/weapon/card/id/syndicate/proc/can_use(mob/user)
+	if(ismob(user) && !user.incapacitated() && loc == user)
+		return 1
+	return 0
+
+/obj/item/weapon/card/id/syndicate/commando
+	name = "hacked syndie card"
+
+/obj/item/weapon/card/id/syndicate/commando/New()
+	..()
+	access = get_all_accesses()
+
+/obj/item/weapon/card/id/syndicate/arcane_act(mob/user, recursive)
+	registered_name = prob(75) ? pick(clown_names) : user.real_name
+	icon_state = "clown"
+	assignment = pickweight(list("Clown" = 50,"Jester" = 25,"Syndicate" = 10,"Wizard" = 10,"ID that got arcane tampered" = 5))
+	UpdateName()
+	return ..()
 
 /obj/item/weapon/card/id/syndicate/afterattack(var/obj/item/weapon/O as obj, mob/user as mob)
 	if(istype(O, /obj/item/weapon/card/id))
 		var/obj/item/weapon/card/id/I = O
-		to_chat(user, "<span class='notice'>The [src]'s microscanners activate as you pass it over \the [I], copying its access.</span>")
+		to_chat(user, "<span class='notice'>\The [src]'s microscanners activate as you pass it over \the [I], copying its access[copy_appearance ? " and appearance" : ""].</span>")
 		access |= I.access
+		if(copy_appearance)
+			if(!arcanetampered)
+				registered_name = I.registered_name
+				icon_state = I.icon_state
+				assignment = I.assignment
+			associated_account_number = I.associated_account_number
+			blood_type = I.blood_type
+			dna_hash = I.dna_hash
+			fingerprint_hash = I.fingerprint_hash
+			UpdateName()
 
 /obj/item/weapon/card/id/syndicate/attack_self(mob/user as mob)
 	if(!src.registered_name)
@@ -413,7 +527,7 @@
 			src.registered_name = ""
 			return
 		src.assignment = u
-		src.name = "[src.registered_name]'s ID Card ([src.assignment])"
+		UpdateName()
 		to_chat(user, "<span class='notice'>You successfully forge the ID card.</span>")
 		registered_user = user
 	else if(!registered_user || registered_user == user)
@@ -427,6 +541,10 @@
 			if("Edit")
 				switch(input(user,"What would you like to edit on \the [src]?") in list("Name","Appearance","Occupation","Money account","Blood type","DNA hash","Fingerprint hash","Reset card"))
 					if("Name")
+						if(arcanetampered)
+							to_chat(user,"<span class='sinister'>HONK!</span>")
+							user << 'sound/items/bikehorn.ogg'
+							return
 						var/new_name = reject_bad_name(input(user,"What name would you like to put on this card?","Agent card name", ishuman(user) ? user.real_name : user.name))
 						if(!Adjacent(user))
 							return
@@ -436,6 +554,10 @@
 						to_chat(user, "Name changed to [new_name].")
 
 					if("Appearance")
+						if(arcanetampered)
+							to_chat(user,"<span class='sinister'>HONK!</span>")
+							user << 'sound/items/bikehorn.ogg'
+							return
 						var/list/appearances = list(
 							"data",
 							"id",
@@ -443,14 +565,15 @@
 							"silver",
 							"centcom_old",
 							"centcom",
-							"security",
-							"medical",
 							"HoS",
-							"research",
-							"engineering",
 							"CMO",
 							"RD",
 							"CE",
+							"security",
+							"medical",
+							"research",
+							"engineering",
+							"cargo",
 							"clown",
 							"mime",
 							"trader",
@@ -461,6 +584,7 @@
 							"ERT_security",
 							"ERT_engineering",
 							"ERT_medical",
+							"ERT_empty",
 						)
 						var/choice = input(user, "Select the appearance for this card.", "Choose.") in appearances
 						if(!Adjacent(user))
@@ -471,6 +595,10 @@
 						to_chat(usr, "Appearance changed to [choice].")
 
 					if("Occupation")
+						if(arcanetampered)
+							to_chat(user,"<span class='sinister'>HONK!</span>")
+							user << 'sound/items/bikehorn.ogg'
+							return
 						var/new_job = sanitize(stripped_input(user,"What job would you like to put on this card?\nChanging occupation will not grant or remove any access levels.","Agent card occupation", "Assistant", MAX_MESSAGE_LEN))
 						if(!Adjacent(user))
 							return
@@ -528,20 +656,27 @@
 						to_chat(user, "Fingerprint hash changed to [new_fingerprint_hash].")
 
 					if("Reset card")
-						name = initial(name)
-						registered_name = initial(registered_name)
-						icon_state = initial(icon_state)
-						assignment = initial(assignment)
+						if(!arcanetampered)
+							name = initial(name)
+							registered_name = initial(registered_name)
+							icon_state = initial(icon_state)
+							assignment = initial(assignment)
 						associated_account_number = initial(associated_account_number)
 						blood_type = initial(blood_type)
 						dna_hash = initial(dna_hash)
 						fingerprint_hash = initial(fingerprint_hash)
-						access = initial(access)
+						access = AGENT_CARD_DEFAULT_ACCESS
 						registered_user = null
 
 						to_chat(user, "<span class='notice'>All information has been deleted from \the [src].</span>")
 	else
 		..()
+
+/obj/item/weapon/card/id/syndicate/raider
+	access = list(access_syndicate, access_trade)
+	assignment = "Trader"
+
+#undef AGENT_CARD_DEFAULT_ACCESS
 
 /obj/item/weapon/card/id/syndicate_command
 	name = "syndicate ID card"
@@ -574,6 +709,9 @@
 
 /obj/item/weapon/card/id/admin/New()
 	access = get_absolutely_all_accesses()
+	if(!centcomm_account)
+		centcomm_account = create_account("Centcomm Account", starting_funds = INFINITY, source_db=null, wage_payout=0, security_pref=1, ratio_pref=0, makehidden=TRUE, isStationAccount=FALSE)
+	associated_account_number = centcomm_account.account_number
 	..()
 
 /obj/item/weapon/card/id/centcom
@@ -585,6 +723,9 @@
 
 /obj/item/weapon/card/id/centcom/New()
 	access = get_all_centcom_access()
+	if(!centcomm_account)
+		centcomm_account = create_account("Centcomm Account", starting_funds = INFINITY, source_db=null, wage_payout=0, security_pref=1, ratio_pref=0, makehidden=TRUE, isStationAccount=FALSE)
+	associated_account_number = centcomm_account.account_number
 	..()
 
 /obj/item/weapon/card/id/salvage_captain
@@ -628,14 +769,14 @@
 	registered_name = "Engineer"
 	icon_state = "engineering"
 	desc = "Shame it's going to be lost in the void of a black hole."
-	access = list(access_engine, access_engine_equip, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_atmospherics, access_emergency_storage, access_eva, access_construction)
+	access = list(access_engine_major, access_engine_minor, access_tech_storage, access_maint_tunnels, access_external_airlocks, access_atmospherics, access_emergency_storage, access_eva, access_construction)
 
 /obj/item/weapon/card/id/hos
 	name = "Head of Security ID"
 	registered_name = "HoS"
 	icon_state = "HoS"
 	desc = "An ID awarded to only the most robust shits in the business."
-	access = list(access_security, access_sec_doors, access_brig, access_armory, access_court, access_forensics_lockers, access_morgue, access_maint_tunnels, access_all_personal_lockers, access_science, access_engine, access_mining, access_medical, access_construction, access_mailsorting, access_heads, access_hos, access_RC_announce, access_keycard_auth, access_gateway)
+	access = list(access_security, access_sec_doors, access_brig, access_armory, access_court, access_forensics_lockers, access_morgue, access_maint_tunnels, access_all_personal_lockers, access_science, access_engine_major, access_mining, access_medical, access_construction, access_mailsorting, access_heads, access_hos, access_RC_announce, access_keycard_auth, access_gateway)
 
 /obj/item/weapon/card/id/cmo
 	name = "Chief Medical Officer ID"
@@ -656,7 +797,7 @@
 	registered_name = "CE"
 	icon_state = "CE"
 	desc = "The card has a faint aroma of autism."
-	access = list(access_engine, access_engine_equip, access_tech_storage, access_maint_tunnels, access_teleporter, access_external_airlocks, access_atmospherics, access_emergency_storage, access_eva, access_heads, access_construction, access_sec_doors, access_ce, access_RC_announce, access_keycard_auth, access_tcomsat, access_ai_upload)
+	access = list(access_engine_major, access_engine_minor, access_tech_storage, access_maint_tunnels, access_teleporter, access_external_airlocks, access_atmospherics, access_emergency_storage, access_eva, access_heads, access_construction, access_sec_doors, access_ce, access_RC_announce, access_keycard_auth, access_tcomsat, access_ai_upload)
 
 /obj/item/weapon/card/id/clown
 	name = "Pink ID"
@@ -695,6 +836,15 @@
 	access = list(access_trade)
 	base_access = list(access_trade)
 
+/obj/item/weapon/card/id/hobo
+	name = "worn ID"
+	desc = "A worn ID card, long since of any use. The only thing others may use to recognise you. It shows signs of wear and the photo is almost unrecognizable."
+	registered_name = "traveler"
+	assignment = "visitor"
+	icon_state = "trader"
+	access = list()
+	base_access = list()
+
 /obj/item/weapon/card/id/tunnel_clown
 	name = "Tunnel Clown ID card"
 	assignment = "Tunnel Clown!"
@@ -717,8 +867,17 @@
 	icon_state = "deathsquad"
 
 /obj/item/weapon/card/id/death_commando/New()
-	..()
+	. = ..()
 	access = get_centcom_access("Death Commando")
+
+/obj/item/weapon/card/id/death_commando_leader
+	name = "Sgt.Reaper ID card"
+	assignment = "Death Commander"
+	icon_state = "creed"
+
+/obj/item/weapon/card/id/death_commando_leader/New()
+	. = ..()
+	access = get_centcom_access("Creed Commander")
 
 /obj/item/weapon/card/id/syndicate/commando
 	name = "Syndicate Commando ID card"
@@ -735,6 +894,7 @@
 	assignment = "Nanotrasen Navy Representative"
 	icon_state = "centcom"
 	item_state = "id_inv"
+	rank = "Nanotrasen"
 
 /obj/item/weapon/card/id/nt_rep/New()
 	..()
@@ -744,6 +904,7 @@
 /obj/item/weapon/card/id/centcom/nt_officer
 	name = "Nanotrasen Navy Officer ID card"
 	assignment = "Nanotrasen Navy Officer"
+	rank = "Nanotrasen"
 
 /obj/item/weapon/card/id/centcom/nt_officer/New()
 	..()
@@ -753,17 +914,19 @@
 /obj/item/weapon/card/id/centcom/nt_captain
 	name = "Nanotrasen Navy Captain ID card"
 	assignment = "Nanotrasen Navy Captain"
+	rank = "Nanotrasen"
 
 /obj/item/weapon/card/id/centcom/nt_captain/New()
 	..()
 	access = get_all_accesses()
 	access += get_all_centcom_access()
 
-/obj/item/weapon/card/id/admin/nt_supreme
+/obj/item/weapon/card/id/centcom/nt_supreme
 	name = "Nanotrasen Supreme Commander ID card"
 	assignment = "Nanotrasen Supreme Commander"
+	rank = "Nanotrasen"
 
-/obj/item/weapon/card/id/admin/nt_supreme/New()
+/obj/item/weapon/card/id/centcom/nt_supreme/New()
 	..()
 	access = get_all_accesses()
 	access += get_all_centcom_access()
@@ -771,11 +934,22 @@
 /obj/item/weapon/card/id/emergency_responder
 	name = "Emergency Responder ID card"
 	assignment = "Emergency Responder"
+	rank = "Nanotrasen"
 	icon_state = "ERT_empty"
 
 /obj/item/weapon/card/id/emergency_responder/New()
 	..()
 	access = get_centcom_access("Emergency Responder")
+
+/obj/item/weapon/card/id/emergency_responder_leader
+	name = "Emergency Responder Leader ID card"
+	assignment = "Emergency Responder Leader"
+	rank = "Nanotrasen"
+	icon_state = "ERT_leader"
+
+/obj/item/weapon/card/id/emergency_responder_leader/New()
+	..()
+	access = get_centcom_access("Emergency Responders Leader")
 
 /obj/item/weapon/card/id/special_operations
 	name = "Special Operations Officer ID card"
@@ -796,3 +970,12 @@
 	..()
 	access = get_all_accesses()
 	access += get_all_centcom_access()
+
+/obj/item/weapon/card/id/judge
+	name = "Judge ID card"
+	assignment = "Judge"
+	icon_state = "ERT_empty"
+
+/obj/item/weapon/card/id/judge/New()
+	..()
+	access = get_centcom_access("Emergency Responder")

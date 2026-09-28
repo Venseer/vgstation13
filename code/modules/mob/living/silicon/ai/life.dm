@@ -7,7 +7,7 @@
 
 /mob/living/silicon/ai/proc/life_handle_camera()
 	if(stat != CONSCIOUS)
-		cameraFollow = null
+		stop_ai_tracking()
 		reset_view(null)
 		unset_machine()
 	if(client)
@@ -19,7 +19,7 @@
 				reset_view(null)
 
 /mob/living/silicon/ai/proc/life_handle_malf()
-	if(!malfhack || !malfhack.aidisabled)
+	if(!malfhack)
 		return
 	to_chat(src, "<span class='warning'>ERROR: APC access disabled, hack attempt canceled.</span>")
 	malfhacking = 0
@@ -38,7 +38,7 @@
 	if(client && client.eye == eyeobj) // We are viewing the world through our "eye" mob.
 		change_sight(adding = SEE_TURFS|SEE_MOBS|SEE_OBJS)
 		see_in_dark = 8
-		see_invisible = SEE_INVISIBLE_LEVEL_TWO
+		see_invisible = SEE_INVISIBLE_LEVEL_ONE
 
 	var/area/home = get_area(src)
 	if(home && home.powered(EQUIP))
@@ -152,16 +152,32 @@
 /mob/living/silicon/ai/Life()
 	if(timestopped)
 		return 0 //under effects of time magick
-
 	if (stat == DEAD)
 		return
-
+	if(client)
+		handle_regular_hud_updates()
 	if(life_handle_health())
 		return
+	if(stunned > 0)
+		stunned -= 1
+	if(say_mute)
+		say_mute = max(say_mute-1, 0)
+	if(ear_deaf)
+		ear_deaf = max(ear_deaf-1, 0)
+
+	if(ai_flags & COREFORTIFY)
+		brute_damage_modifier = 0.33
+		burn_damage_modifier = 0.33
+	else
+		brute_damage_modifier = 1
+		burn_damage_modifier = 1
 
 	life_handle_camera()
 	life_handle_malf()
 	life_handle_power_damage()
+
+	if(ismalf(src) && client)
+		client.show_popup_menus = FALSE
 
 	is_ai_powered() ? life_handle_powered_core() : life_handle_unpowered_core()
 
@@ -181,10 +197,24 @@
 		health = maxHealth
 		stat = CONSCIOUS
 	else
+		var/damage_taken
 		if(ai_flags & COREFIRERESIST)
-			health = maxHealth - getOxyLoss() - getToxLoss() - getBruteLoss()
+			damage_taken = getToxLoss() + getBruteLoss() + getOxyLoss()
 		else
-			health = maxHealth - getOxyLoss() - getToxLoss() - getFireLoss() - getBruteLoss()
+			damage_taken = getToxLoss() + getFireLoss() + getBruteLoss() + getOxyLoss()
+
+		health = maxHealth - damage_taken
 
 /mob/living/silicon/ai/update_canmove() //If the AI dies, mobs won't go through it anymore
 	return FALSE
+
+/mob/living/silicon/ai/handle_regular_hud_updates()
+	var/datum/role/malfAI/M = mind.GetRole(MALF)
+	if(!M)
+		return ..()
+	for(var/obj/machinery/power/apc/A in M.currently_hacking_apcs)	//throw an alert for any APCs being hacked
+		var/obj/abstract/screen/alert/robot/apc_hacking/new_alert = throw_alert(A.name, /obj/abstract/screen/alert/robot/apc_hacking)
+		if(new_alert && istype(new_alert))
+			new_alert.desc = "You are currently hacking an APC. Click this alert to jump to the APC."
+			new_alert.apc = A
+

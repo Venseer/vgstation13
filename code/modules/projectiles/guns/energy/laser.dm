@@ -10,6 +10,9 @@
 	origin_tech = Tc_COMBAT + "=3;" + Tc_MAGNETS + "=2"
 	projectile_type = "/obj/item/projectile/beam"
 
+/obj/item/weapon/gun/energy/laser/alien
+	name = "alien gun"
+
 /obj/item/weapon/gun/energy/laser/practice
 	name = "practice laser gun"
 	desc = "A modified version of the basic laser gun, this one fires less concentrated energy bolts designed for target practice."
@@ -27,8 +30,22 @@
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
 	charge_cost = 100 // holds less "ammo" then the rifle variant.
 
+/obj/item/weapon/gun/energy/laser/pistol/New()
+	..()
+	if((Holiday == APRIL_FOOLS_DAY) && (type == /obj/item/weapon/gun/energy/laser/pistol)) //Don't let it carry over to other laser pistols
+		gun_miss_chance_value = 150
+		gun_miss_message = "That's XCOM, baby!"
+
 /obj/item/weapon/gun/energy/laser/pistol/isHandgun()
 	return TRUE
+
+/obj/item/weapon/gun/energy/laser/pistol/NT22L
+	name = "pocket laser pistol"
+	desc = "A sleek, tiny laser pistol,not unlike those found under the coats of politicians or particulaly tech-minded hookers."
+	icon_state = "NT22L"
+	item_state = "NT22L"
+	projectile_type = /obj/item/projectile/beam/weakerlaser
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
 
 /obj/item/weapon/gun/energy/laser/rifle
 	name = "laser rifle"
@@ -38,6 +55,17 @@
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
 	projectile_type = /obj/item/projectile/beam
 	charge_cost = 50
+
+/obj/item/weapon/gun/energy/laser/rifle/New()
+	..()
+	if((Holiday == APRIL_FOOLS_DAY) && (type == /obj/item/weapon/gun/energy/laser/rifle))
+		gun_miss_chance_value = 150
+		gun_miss_message = "That's XCOM, baby!"
+
+/obj/item/weapon/gun/energy/laser/rifle/syndie
+	icon_state = "exaltlasergun"
+	item_state = "exaltlasergun"
+	fire_sound = 'sound/weapons/laserriflefire.ogg'
 
 /obj/item/weapon/gun/energy/laser/failure_check(var/mob/living/carbon/human/M)
 	if(istext(projectile_type))
@@ -126,15 +154,15 @@
 	return TRUE
 
 /obj/item/weapon/gun/energy/laser/captain
+	name ="captain's laser gun"
 	icon_state = "caplaser"
 	item_state = null
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
 	desc = "This is an antique laser gun. All craftsmanship is of the highest quality. It is decorated with assistant leather and chrome. The object menaces with spikes of energy. On the item is an image of Space Station 13. The station is exploding."
 	force = 10
 	origin_tech = null
-	var/charge_tick = 0
-	var/charge_wait = 4
 	projectile_type = "/obj/item/projectile/beam/captain"
+	recharge_time = 4
 
 /obj/item/weapon/gun/energy/laser/captain/isHandgun()
 	return TRUE
@@ -148,67 +176,13 @@
 	processing_objects.Remove(src)
 	..()
 
-
-/obj/item/weapon/gun/energy/laser/captain/process()
-	charge_tick++
-	if(charge_tick < charge_wait)
-		return 0
-	charge_tick = 0
-	if(!power_supply)
-		return 0
-	power_supply.give(100)
-	update_icon()
-	return 1
-
-
-
-/*/obj/item/weapon/gun/energy/laser/cyborg/load_into_chamber()
-	if(in_chamber)
-		return 1
-	if(isrobot(src.loc))
-		var/mob/living/silicon/robot/R = src.loc
-		if(R && R.cell)
-			R.cell.use(100)
-			in_chamber = new/obj/item/projectile/beam(src)
-			return 1
-	return 0*/
+/obj/item/weapon/gun/energy/laser/captain/alien
+	name = "alien gun"
 
 /obj/item/weapon/gun/energy/laser/cyborg
-	var/charge_tick = 0
-
-/obj/item/weapon/gun/energy/laser/cyborg/New()
-	..()
-	processing_objects.Add(src)
-
-
-/obj/item/weapon/gun/energy/laser/cyborg/Destroy()
-	processing_objects.Remove(src)
-	..()
-
-/obj/item/weapon/gun/energy/laser/cyborg/process() //Every [recharge_time] ticks, recharge a shot for the cyborg
-	charge_tick++
-	if(charge_tick < 3)
-		return 0
-	charge_tick = 0
-
-	if(!power_supply)
-		return 0 //sanity
-	if(isrobot(src.loc))
-		var/mob/living/silicon/robot/R = src.loc
-		if(R && R.cell)
-			R.cell.use(charge_cost) 		//Take power from the borg...
-			power_supply.give(charge_cost)	//... to recharge the shot
-
-	update_icon()
-	return 1
-
-/obj/item/weapon/gun/energy/laser/cyborg/restock()
-	if(power_supply.charge < power_supply.maxcharge)
-		power_supply.give(charge_cost)
-		update_icon()
-	else
-		charge_tick = 0
-
+	recharge_time = 3
+	recharges_borg_cell = TRUE
+	borg_restocks = TRUE
 
 /obj/item/weapon/gun/energy/laser/cannon
 	name = "laser cannon"
@@ -219,8 +193,7 @@
 	fire_sound = 'sound/weapons/lasercannonfire.ogg'
 	origin_tech = Tc_COMBAT + "=4;" + Tc_MATERIALS + "=3;" + Tc_POWERSTORAGE + "=3"
 	projectile_type = "/obj/item/projectile/beam/heavylaser"
-
-	fire_delay = 2
+	fire_delay = 2 SECONDS // 2 (TWO) seconds fire delay
 
 /obj/item/weapon/gun/energy/laser/cannon/empty/New()
 	..()
@@ -229,20 +202,10 @@
 		power_supply.charge = 0
 		update_icon()
 
-/obj/item/weapon/gun/energy/laser/cannon/cyborg/process_chambered()
-	if(in_chamber)
-		return 1
-	if(isrobot(src.loc))
-		var/mob/living/silicon/robot/R = src.loc
-		if(R && R.cell && R.cell.use(250))
-			in_chamber = new/obj/item/projectile/beam/heavylaser(src)
-			return 1
-	return 0
-
-/obj/item/weapon/gun/energy/laser/cannon/cyborg/restock()
-	if(power_supply.charge < power_supply.maxcharge)
-		power_supply.give(charge_cost)
-		update_icon()
+/obj/item/weapon/gun/energy/laser/cannon/cyborg
+	charge_cost = 250
+	uses_borg_cell = TRUE
+	borg_restocks = TRUE
 
 /obj/item/weapon/gun/energy/xray
 	name = "xray laser gun"
@@ -282,7 +245,7 @@
 		return 0
 	if(prob(max(0, fire_delay/2-5)))
 		var/turf/T = get_turf(loc)
-		explosion(T, 0, 1, 3, 5)
+		explosion(T, 0, 1, 3, 5, whodunnit = M)
 		M.drop_item(src, force_drop = 1)
 		qdel(src)
 		to_chat(M, "<span class='danger'>\The [src] explodes!.</span>")
@@ -336,6 +299,20 @@
 	projectile_type = /obj/item/projectile/beam
 	charge_cost = 75
 
+/obj/item/weapon/gun/energy/laser/liberator
+	name = "liberator"
+	desc = "A laser carbine designed to protect frontier worlds from xenofauna without arming rebellions. It is particularly deadly against colony organisms."
+	charge_cost = 25
+	cell_type = "/obj/item/weapon/cell/crap/worse"
+	icon_state = "lasercarbine_6"
+	projectile_type = /obj/item/projectile/beam/humanelaser
+	origin_tech = Tc_COMBAT + "=3;" + Tc_ENGINEERING + "=2"
+	w_class = W_CLASS_LARGE
+	slot_flags = SLOT_BACK | SLOT_BELT
+
+/obj/item/weapon/gun/energy/laser/liberator/update_icon()
+	icon_state = "lasercarbine_[round(power_supply.charge / 40)]" //original liberator charge cost, done so icons don't break
+
 /obj/item/weapon/gun/energy/megabuster
 	name = "Mega-buster"
 	desc = "An arm-mounted buster toy!"
@@ -375,20 +352,43 @@
 
 	name = "rainbow laser"
 	desc = "The NanoTrasen iniative to develop a laser weapon for clowns was a failure as the intended users were too clumsy to operate them."
-	projectile_type = "/obj/item/projectile/beam/white"
+	projectile_type = "/obj/item/projectile/beam/rainbow"
 	var/current_color = 1
-	var/static/list/color_list = list("#FF0000","#FF8C00","#FFFF00","#00FF00","#00BFFF","#0000FF","#9400D3")
+	var/static/list/color_list = list("#FF0000","#FF00FF","#0000FF","#00FFFF","#00FF00","#FFFF00")
 	icon_state = "rainbow_laser"
 	item_state = null
+	slot_flags = SLOT_BELT
+	charge_cost = 100
+	cell_type = "/obj/item/weapon/cell"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guns.dmi', "right_hand" = 'icons/mob/in-hand/right/guns.dmi')
+	var/pumping = 0
+
+/obj/item/weapon/gun/energy/laser/rainbow/attack_self(mob/user as mob)
+	if(pumping || !power_supply)
+		return TRUE
+	power_supply.charge = min(power_supply.charge + charge_cost * 2,power_supply.maxcharge)
+	if(power_supply.charge >= power_supply.maxcharge)
+		playsound(src, 'sound/items/AirHorn.ogg', 25, 1)
+		to_chat(user, "<span class='rose'>You squeeze the pump at the back of the gun. The gun is brimming with love!</span>")
+	else
+		pumping = 1
+		playsound(src, 'sound/items/bikehorn.ogg', 25, 1)
+		to_chat(user, "<span class='rose'>You squeeze the pump at the back of the gun. The gun seems a little happier.</span>")
+	sleep(5)
+	pumping = 0
+	update_icon()
 
 /obj/item/weapon/gun/energy/laser/rainbow/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
+	var/next_color
+	if(current_color < color_list.len )
+		next_color = current_color + 1
+	else
+		next_color = 1
 
 	projectile_color = color_list[current_color]
-	if(current_color < color_list.len )
-		current_color+=1
-	else
-		current_color = 1
+	projectile_color_shift = color_list[next_color]
+
+	current_color = next_color
 	..()
 
 /obj/item/weapon/gun/energy/laser/captain/combustion
@@ -400,7 +400,7 @@
 	charge_cost = 1000	//one shot per charge
 	fire_sound = null
 	projectile_type = "/obj/item/projectile/beam/combustion"
-	charge_wait = 2	//40 seconds to fully charge
+	recharge_time = 2	//40 seconds to fully charge
 	slot_flags = 0
 	w_class = W_CLASS_HUGE
 	var/charged = TRUE
@@ -421,3 +421,16 @@
 	. = ..()
 	if(.)
 		charged = FALSE
+
+/obj/item/weapon/gun/energy/plasma/mooninite
+	name = "Mr. Laser" //it's only the quad laser when both mooninites are dual wielding
+	desc = "The explosion will be of EXTRAORDINARY MAGNITUDE. Hang on, it takes a while."
+	icon_state = "mooninite"
+	fire_sound = 'sound/weapons/mrlaser.ogg' //todo: make it so it doesn't pitch shift
+	item_state = null
+	w_class = W_CLASS_TINY
+	projectile_type = /obj/item/projectile/energy/plasma/mooninite
+	charge_cost = 40
+
+/obj/item/weapon/gun/energy/plasma/mooninite/isHandgun()
+	return TRUE

@@ -15,8 +15,10 @@
 		build_click(src, client.buildmode, params, A)
 		return
 
-	if(incapacitated() || lockcharge)
+	if(incapacitated() || lockdown)
 		return
+
+	var/obj/item/W = get_active_hand()
 
 	var/list/modifiers = params2list(params)
 	if(modifiers["middle"] && modifiers["shift"])
@@ -29,6 +31,8 @@
 		ShiftClickOn(A)
 		return
 	if(modifiers["alt"]) // alt and alt-gr (rightalt)
+		if (W && W.AltFrom(A,src,A.Adjacent(src, MAX_ITEM_DEPTH),params))
+			return
 		AltClickOn(A)
 		return
 	if(modifiers["ctrl"])
@@ -47,7 +51,8 @@
 		aicamera.captureimage(A, src)
 		return
 
-	var/obj/item/W = get_active_hand()
+	if(INVOKE_EVENT(src, /event/uattack, "atom" = A))
+		return
 
 	// Cyborgs have no range-checking unless there is item use
 	if(!W)
@@ -92,8 +97,6 @@
 	else
 		//next_move = world.time + 10
 		W.afterattack(A, src, 0, params)
-		return
-	return
 
 //Gripper Handling
 //This is used when a gripper is used on anything. It does all the handling for it.
@@ -144,20 +147,6 @@
 		return
 	A.RobotAltClick(src)
 	return
-
-/mob/living/silicon/robot/ShiftClickOn(var/atom/A)
-	//Borgs can into doors as well
-	if(istype(A, /obj/machinery/door/airlock))
-		A.AIShiftClick(src)
-		return
-	..()
-
-/mob/living/silicon/robot/CtrlClickOn(var/atom/A)
-	//Borgs can into doors as well
-	if(istype(A, /obj/machinery/door/airlock))
-		A.AICtrlClick(src)
-		return
-	..()
 
 /*
 	As with AI, these are not used in click code,

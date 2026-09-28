@@ -1,11 +1,10 @@
 /obj/item/weapon/grenade/spawnergrenade
-	desc = "It is set to detonate in 5 seconds. It will unleash unleash an unspecified anomaly into the vicinity."
+	desc = "Will unleash an unspecified anomaly into the vicinity when triggered."
 	name = "delivery grenade"
 	icon = 'icons/obj/grenade.dmi'
 	icon_state = "delivery"
 	item_state = "flashbang"
 	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4"
-	var/banglet = 0
 	var/spawner_type = null // must be an object path
 	var/deliveryamt = 1 // amount of type to deliver
 	var/mob/living/owner = null
@@ -43,6 +42,7 @@
 
 /obj/item/weapon/grenade/spawnergrenade/manhacks
 	name = "manhack delivery grenade"
+	desc = "Will unleash a swarm of hostile viscerators that will hack at any nearby targets indiscriminately."
 	spawner_type = /mob/living/simple_animal/hostile/viscerator
 	deliveryamt = 5
 	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4;" + Tc_SYNDICATE + "=4"
@@ -54,10 +54,10 @@
 	spawned.faction = "\ref[L]"
 
 /obj/item/weapon/grenade/spawnergrenade/manhacks/syndicate
-	desc = "It is set to detonate in 5 seconds. It will unleash a pair of hostile visceratorrs that will hack at any nearby targets indiscriminately."
 	name = "viscerator grenade"
+	desc = "Will unleash a swarm of hostile viscerators that will hack at any nearby targets indiscriminately."
 	spawner_type = /mob/living/simple_animal/hostile/viscerator
-	deliveryamt = 2
+	deliveryamt = 4
 	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4;" + Tc_SYNDICATE + "=4"
 	mob_faction = "syndicate"
 
@@ -70,16 +70,18 @@
 
 /obj/item/weapon/grenade/spawnergrenade/spesscarp
 	name = "carp delivery grenade"
+	desc = "No more need for a space-rod and fish food!"
 	spawner_type = /mob/living/simple_animal/hostile/carp
 	deliveryamt = 5
 	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4;" + Tc_SYNDICATE + "=4"
 
 /obj/item/weapon/grenade/spawnergrenade/beenade
 	name = "bee-nade"
+	desc = "Over a dozen angry hornets. The grenade comes equiped with a pheromone spray so the hornets won't attack the one who threw the grenade."
 	icon_state = "beenade"
-	spawner_type = /mob/living/simple_animal/bee/angry
+	spawner_type = /mob/living/simple_animal/bee/adminSpawned_hornet/angry
 	deliveryamt = 15
-	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4;" + Tc_BIOTECH + "=4"
+	origin_tech = Tc_MATERIALS + "=3;" + Tc_MAGNETS + "=4;" + Tc_BIOTECH + "=4;" + Tc_SYNDICATE + "=4"
 
 
 /obj/item/weapon/grenade/spawnergrenade/beenade/postPrime(var/list/spawned_atoms)
@@ -87,3 +89,21 @@
 		return
 	playsound(src, 'sound/effects/bees.ogg', 100, 1)
 
+	for(var/mob/living/simple_animal/bee/B in spawned_atoms)
+		B.FindTarget()
+		B.MoveToTarget()
+
+
+/obj/item/weapon/grenade/spawnergrenade/beenade/handle_faction(var/mob/living/spawned, var/mob/living/L)
+	if(!spawned || !L)
+		return
+
+	spawned.faction = "\ref[L]"
+
+/obj/item/weapon/grenade/spawnergrenade/bearnade
+	name = "tactical bearstrike delivery beacon"
+	desc = "HOO HA, HOO-HA!"
+	icon_state = "bearnade"
+	spawner_type = /mob/living/simple_animal/hostile/bear
+	deliveryamt = 5
+	origin_tech = Tc_MATERIALS + "=1;" + Tc_MAGNETS + "=1;" + Tc_SYNDICATE + "=2"

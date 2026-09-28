@@ -14,8 +14,11 @@
 	flow_flags = ON_BORDER
 	machine_flags = SCREWTOGGLE | WRENCHMOVE | EMAGGABLE
 	anchored = 1
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	idle_power_usage = 0
+	pass_flags_self = PASSGLASS
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
 	var/count_power = 0 //How much power have we produced SO FAR this count?
 	var/tick_power = 0 //How much power did we produce last count?
 	var/power_efficiency = 1 //Based on parts
@@ -28,11 +31,17 @@
 		/obj/item/weapon/stock_parts/console_screen
 	)
 
+	hack_abilities = list(
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
+
 /obj/machinery/power/treadmill/New()
+	..()
+	setup_border_dummy()
 	if(anchored)
 		connect_to_network()
 	RefreshParts()
-	..()
 
 /obj/machinery/power/treadmill/RefreshParts()
 	var/calc = 0
@@ -62,8 +71,7 @@
 		playsound(src, 'sound/machines/click.ogg', 50, 1)
 		var/calc = DEFAULT_BUMP_ENERGY * power_efficiency * runner.treadmill_speed
 		if(runner.reagents) //Sanity
-			for(var/datum/reagent/R in runner.reagents.reagent_list)
-				calc *= R.sport
+			calc *= runner.reagents.get_sportiness()
 		if(M_HULK in runner.mutations)
 			calc *= 5
 		count_power += calc
@@ -79,29 +87,30 @@
 						to_chat(runner,"<span class='warning'>Your legs really hurt!</span>")
 						runner.apply_damage(5, BRUTE, LIMB_LEFT_LEG)
 						runner.apply_damage(5, BRUTE, LIMB_RIGHT_LEG)
+					else
+						//do nothing
 				runner.bodytemperature = max(T0C + 100,cached_temp)
 	else
 		to_chat(runner,"<span class='warning'>You're exhausted! You can't run anymore!</span>")
 
-/obj/machinery/power/treadmill/Uncross(var/atom/movable/mover, var/turf/target)
-	if(istype(mover) && mover.checkpass(PASSGLASS))
-		return 1
-	if((flow_flags & ON_BORDER) && (mover.dir == dir))
-		powerwalk(mover)
-		return !density
-	return 1
-
 /obj/machinery/power/treadmill/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
-	if(istype(mover) && mover.checkpass(PASSGLASS))
-		return 1
-	if(get_dir(loc, target) == dir || get_dir(loc, mover) == dir)
-		if(air_group)
-			return 1
-		return 0
-	else
-		return 1
+	if(istype(mover) && mover.checkpass(pass_flags_self))
+		return TRUE
+	if(!density)
+		return TRUE
+	if(locate(/obj/effect/unwall_field) in loc) //Annoying workaround for this -kanef
+		return TRUE
+	if(istype(mover))
+		return bounds_dist(border_dummy, mover) >= 0
+	else if(get_dir(loc, target) == dir)
+		return FALSE
+	return TRUE
 
-/obj/machinery/power/treadmill/wrenchAnchor(var/mob/user)
+/obj/machinery/power/treadmill/Bumped(atom/movable/AM)
+	if(AM.loc == loc)
+		powerwalk(AM)
+
+/obj/machinery/power/treadmill/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
@@ -110,8 +119,8 @@
 	else
 		disconnect_from_network()
 
-/obj/machinery/power/treadmill/emag()
+/obj/machinery/power/treadmill/emag_act()
 	..()
 	emagged = 1
 	name = "\improper DREADMILL"
-	desc = "FEEL THE BURN"
+	desc = "FEEL THE BURN!"

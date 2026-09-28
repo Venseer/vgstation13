@@ -3,12 +3,16 @@
 	~Sayu
 */
 
-//A workaround for a BYOND bug (or at least weird behavior). It's classified.
-/client/Click(object, location, control, params)
-	var/list/p = params2list(params)
-	if(p["drag"])
-		return
-	..()
+//BYOND has a quirk (maybe bug?) where, if you initiate a clickdrag with one mouse button, any clicks with another button during the drag hit the object being dragged.
+//This allowed you to, for example, start a middle-click drag on someone and then have an aimbot that allows you to effortlessly hit them in melee or ranged combat as long as you held MMB.
+//This code discards clicks performed during a drag to prevent this.
+
+//As of 2024 this code has been commented out because the bug/exploit is no longer active.
+// /client/Click(object, location, control, params)
+// 	var/list/p = params2list(params)
+// 	if(p["drag"])
+// 		return
+// 	..()
 
 /*
 	Before anything else, defer these calls to a per-mobtype handler.  This allows us to
@@ -22,15 +26,20 @@
 /atom/Click(location,control,params)
 	usr.ClickOn(src, params)
 
-/mob/living/Click()
-	if(isAI(usr))
-		var/mob/living/silicon/ai/A = usr
-		if(!A.aicamera.in_camera_mode) //Fix for taking photos of mobs
-			return
-	..()
-
 /atom/DblClick(location,control,params)
 	usr.DblClickOn(src,params)
+
+//MouseDrop
+/mob/living/carbon/MouseDrop(var/mob/living/carbon/first, var/second_turf, over_location, src_control, over_control, params)
+	var/mob/living/carbon/second = locate() in second_turf
+	if (!istype(first) || !second || (first == usr && second == usr) || (first == second)) //if user is dragging only on himself or user drags and drops on the same target
+		return ..()
+	var/obj/item/to_be_handcuffs = usr.get_active_hand()
+	if (first.Adjacent(usr) && second.Adjacent(usr) && istype(to_be_handcuffs, /obj/item/weapon/handcuffs))
+		var/obj/item/weapon/handcuffs/handcuffs = to_be_handcuffs
+		handcuffs.apply_mutual_cuffs(first, second, usr)
+		return
+	..()
 
 /*
 	Standard mob ClickOn()
@@ -38,7 +47,7 @@
 
 	After that, mostly just check your state, check whether you're holding an item,
 	check whether you're adjacent to the target, then pass off the click to whoever
-	is recieving it.
+	is receiving it.
 	The most common are:
 	* mob/UnarmedAttack(atom,adjacent,params) - used here only when adjacent, with no item in hand; in the case of humans, checks gloves
 	* atom/attackby(item,user,params) - used only when adjacent
@@ -62,14 +71,15 @@
 		build_click(src, client.buildmode, params, A)
 		return
 
+	var/obj/item/held_item = get_active_hand()
+
 	var/list/modifiers = params2list(params)
-	on_clickon.Invoke(list(
-		"modifiers" = modifiers,
-		"target" = A
-	))
+	INVOKE_EVENT(src, /event/clickon, "user" = src,	"modifiers" = modifiers, "target" = A)
 	if(modifiers["middle"])
 		if(modifiers["shift"])
 			MiddleShiftClickOn(A)
+		else if (modifiers["alt"])
+			MiddleAltClickOn(A)
 		else
 			MiddleClickOn(A)
 		return
@@ -77,10 +87,21 @@
 		ShiftClickOn(A)
 		return
 	if(modifiers["alt"]) // alt and alt-gr (rightalt)
+		if (held_item && held_item.AltFrom(A,src,A.Adjacent(src, MAX_ITEM_DEPTH),params))
+			return
 		AltClickOn(A)
 		return
 	if(modifiers["ctrl"])
 		CtrlClickOn(A)
+		return
+	if(modifiers["right"])
+		RightClickOn(A)
+		return
+	// Equivalent to button M4/M5 on gaming mouses.
+	if(modifiers["xbutton1"] || modifiers["xbutton2"])
+		return
+
+	if(attempt_crawling(A))
 		return
 
 	if(isStunned())
@@ -92,7 +113,8 @@
 		return
 //	to_chat(world, "next_attack is [next_attack] and world.time is [world.time]")
 	if(istype(loc,/obj/mecha))
-		if(!locate(/turf) in list(A,A.loc)) // Prevents inventory from being drilled
+		// Prevents inventory from being drilled and handles a crate shelf special case
+		if((!locate(/turf) in list(A,A.loc)) && !istype(A.loc,/obj/structure/rack/crate_shelf))
 			return
 		var/obj/mecha/M = loc
 		return M.click_action(A,src)
@@ -102,10 +124,12 @@
 		return
 
 	if(in_throw_mode)
-		throw_item(A)
+		if(!get_active_hand() && (a_intent == I_DISARM))
+			doTackle(A)
+		else
+			throw_item(A)
 		return
 
-	var/obj/item/held_item = get_active_hand()
 	var/item_attack_delay = 0
 
 	if(held_item == A)
@@ -128,21 +152,17 @@
 			item_attack_delay = held_item.attack_delay
 			var/resolved = held_item.preattack(A, src, 1, params)
 			if(!resolved)
-				if(ismob(A) && modifiers["def_zone"])
-					var/mob/M = A
-					var/def_zone
-					def_zone = modifiers["def_zone"]
-					resolved = M.attackby(held_item,src,def_zone = def_zone, params)
-				else
-					resolved = A.attackby(held_item, src, params)
-				if((ismob(A) || istype(A, /obj/mecha) || istype(held_item, /obj/item/weapon/grab)) && !A.gcDestroyed)
+				resolved = A.attackby(held_item, src, params)
+				if(ismob(A) && a_intent == I_HELP && can_operate(A, src, held_item) && !A.gcDestroyed)
+					delayNextAttack(SURGERY_DELAY_TIME) //Surgery steps use the click delay (0.1 second)
+				else if((ismob(A) || istype(A, /obj/mecha) || istype(held_item, /obj/item/weapon/grab)) && !A.gcDestroyed)
 					delayNextAttack(item_attack_delay)
-				if(!resolved && A && !A.gcDestroyed && held_item)
+				if(!resolved && A && !A.gcDestroyed && held_item && !held_item.gcDestroyed)
 					held_item.afterattack(A,src,1,params) // 1 indicates adjacency
 		else
 			if(ismob(A) || istype(held_item, /obj/item/weapon/grab))
 				delayNextAttack(10)
-			if(INVOKE_EVENT(on_uattack,list("atom"=A))) //This returns 1 when doing an action intercept
+			if(INVOKE_EVENT(src, /event/uattack, "atom" = A)) //This returns 1 when doing an action intercept
 				return
 			UnarmedAttack(A, 1, params)
 
@@ -160,6 +180,17 @@
 			else
 				//Clicked on a non-adjacent atom that is not in view
 				RemoteClickOn(A, params, held_item, client.eye)
+		else if(mind && mind.assigned_role == "AI") // clown AI stuff
+			if(spell_channeling)
+				spell_channeling.channeled_spell(A, bypassrange = TRUE)
+			else if(istype(A,/obj/machinery/door/airlock))
+				var/obj/machinery/door/airlock/D = A
+				if(D.density)
+					D.Topic("aiEnable=7", list("aiEnable"="7"), 1)
+				else
+					D.Topic("aiDisable=7", list("aiDisable"="7"), 1)
+			else
+				RangedClickOn(A, params, held_item)
 		else
 			RangedClickOn(A, params, held_item)
 
@@ -173,7 +204,7 @@
 	else
 		if(ismob(A))
 			delayNextAttack(10)
-		if(INVOKE_EVENT(on_uattack,list("atom"=A))) //This returns 1 when doing an action intercept
+		if(INVOKE_EVENT(src, /event/uattack, "atom" = A)) //This returns 1 when doing an action intercept
 			return
 		RangedAttack(A, params)
 
@@ -184,9 +215,7 @@
 
 // Default behavior: ignore double clicks, consider them normal clicks instead
 /mob/proc/DblClickOn(var/atom/A, var/params)
-	//ClickOn(A,params)
 	return
-
 
 /*
 	Translates into attack_hand, etc.
@@ -237,8 +266,7 @@
 	Not currently used by anything but could easily be.
 */
 /mob/proc/RestrainedClickOn(var/atom/A)
-	if(INVOKE_EVENT(on_ruattack,list("atom"=A))) //This returns 1 when doing an action intercept
-		return
+	INVOKE_EVENT(src, /event/ruattack, "atom" = A)
 
 /*
 	Middle click
@@ -256,7 +284,11 @@
 */
 
 /mob/proc/MiddleShiftClickOn(var/atom/A)
-	pointed(A)
+	A.MiddleShiftClick(src)
+
+/atom/proc/MiddleShiftClick(var/mob/user)
+	user.pointed(src)
+
 
 /*
 	Shift click
@@ -286,18 +318,42 @@
 	if(Adjacent(user))
 		user.start_pulling(src)
 
+/*
+	Right Click
+*/
+
+/mob/proc/RightClickOn(var/atom/A)
+	A.RightClick()
+
+/atom/proc/RightClick(var/mob/user)
+	return
+
 
 /*
 	Alt click
-	Unused except for AI
 */
+
+/mob/proc/MiddleAltClickOn(var/atom/A)
+	A.MiddleAltClick(src)
+	return
+
+/atom/proc/MiddleAltClick(var/mob/user)
+	return
+
 /mob/proc/AltClickOn(var/atom/A)
 	A.AltClick(src)
 	return
 
 /atom/proc/AltClick(var/mob/user)
 	var/turf/T = get_turf(src)
-	if(T && T.Adjacent(user))
+	var/valid = FALSE
+	if(isAI(user))
+		var/mob/living/silicon/ai/ai = user
+		if(T && (T in range(7, ai.eyeobj.loc)))
+			valid = TRUE
+	else if(T && (T in range(1, user.loc)) && (T in view(1, user.virtualhearer))) //If next to user's location (to allow locker and mech alt-clicks) and if the user can actually view it
+		valid = TRUE
+	if(valid)
 		if(user.listed_turf == T)
 			user.listed_turf = null
 		else
@@ -305,9 +361,15 @@
 			user.client.statpanel = T.name
 
 /mob/living/carbon/AltClick(var/mob/user)
-	if(!(user == src) && !(isrobot(user)) && user.Adjacent(src))
-		src.give_item(user)
-		return
+	if(!(user == src) && user.Adjacent(src))
+		if((meat_type || butchering_drops) && (stat == DEAD))	//if the carbon has a meat, and if it is dead.
+			var/obj/item/item_in_hand = user.get_active_hand()
+			if(item_in_hand && (item_in_hand.sharpness_flags & SHARP_BLADE))
+				butcher()
+				return 1
+		else if(!isrobot(user))
+			src.give_item(user)
+			return
 	..()
 
 /*
@@ -325,7 +387,7 @@
 	var/turf/T = get_turf(src)
 	var/turf/U = get_turf(A)
 
-	var/obj/item/projectile/beam/LE = getFromPool(/obj/item/projectile/beam, loc)
+	var/obj/item/projectile/beam/LE = new /obj/item/projectile/beam(loc)
 	LE.icon = 'icons/effects/genetics.dmi'
 	LE.icon_state = "eyelasers"
 	playsound(usr.loc, 'sound/weapons/laser2.ogg', 75, 1)
@@ -370,7 +432,9 @@
 		else if(A.pixel_x < -16)
 			change_dir(WEST)
 
-		Facing()
+		INVOKE_EVENT(src, /event/before_move)
+		INVOKE_EVENT(src, /event/face)
+		INVOKE_EVENT(src, /event/after_move)
 		return
 
 	if(abs(dx) < abs(dy))
@@ -384,7 +448,9 @@
 		else
 			change_dir(WEST)
 
-	Facing()
+	INVOKE_EVENT(src, /event/before_move)
+	INVOKE_EVENT(src, /event/face)
+	INVOKE_EVENT(src, /event/after_move)
 
 
 // File renamed to mouse.dm?
@@ -399,3 +465,7 @@
 	var/obj/item/W = get_active_hand()
 	if (W)
 		W.MouseWheeled(src, delta_x, delta_y, params)
+
+//Currently used to allow a little bit of freedom in click-dragging for melee combat in _onclick/drag_drop.dm
+/mob/living/MouseDown(location, control, params, var/past_time)
+	usr.client.click_held_down_time = world.timeofday

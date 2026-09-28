@@ -1,12 +1,13 @@
-obj/machinery/recharger/defibcharger/wallcharger // obj/machinery/recharger/defibcharger define doesn't exist, don't bother trying to look for it
+/obj/machinery/recharger/defibcharger/wallcharger // obj/machinery/recharger/defibcharger define doesn't exist, don't bother trying to look for it
 	name = "defibrillator recharger"
 	desc = "A special wall-mounted recharger used to recharge defibrillators."
 	icon = 'icons/obj/stationobjs.dmi'
 	icon_state = "wrecharger0"
 	anchored = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 10
 	active_power_usage = 150
+	has_beeped = FALSE
 
 	machine_flags = SCREWTOGGLE | CROWDESTROY //| WRENCHMOVE | FIXED2WORK if we want it to be wrenchable
 
@@ -28,21 +29,9 @@ obj/machinery/recharger/defibcharger/wallcharger // obj/machinery/recharger/defi
 
 	RefreshParts()
 
-obj/machinery/recharger/defibcharger/wallcharger/attack_hand(mob/user as mob)
-	add_fingerprint(user)
 
-	if(charging)
-		charging.update_icon()
-		charging.forceMove(loc)
-		charging = null
-		use_power = 1
-		update_icon()
-
-obj/machinery/recharger/defibcharger/wallcharger/attack_paw(mob/user as mob)
-	return attack_hand(user)
-
-obj/machinery/recharger/defibcharger/wallcharger/emp_act(severity)
-	if(stat & (NOPOWER|BROKEN) || !anchored)
+/obj/machinery/recharger/defibcharger/wallcharger/emp_act(severity)
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE) || !anchored)
 		..(severity)
 		return
 
@@ -51,7 +40,7 @@ obj/machinery/recharger/defibcharger/wallcharger/emp_act(severity)
 		B.charges = 0
 	..(severity)
 
-obj/machinery/recharger/defibcharger/wallcharger/update_icon()	//we have an update_icon() in addition to the stuff in process to make it feel a tiny bit snappier.
+/obj/machinery/recharger/defibcharger/wallcharger/update_icon()	//we have an update_icon() in addition to the stuff in process to make it feel a tiny bit snappier.
 	if(charging)
 		icon_state = "wrecharger1"
 	else
@@ -59,8 +48,8 @@ obj/machinery/recharger/defibcharger/wallcharger/update_icon()	//we have an upda
 
 
 
-obj/machinery/recharger/defibcharger/wallcharger/process()
-	if(stat & (NOPOWER|BROKEN) || !anchored)
+/obj/machinery/recharger/defibcharger/wallcharger/process()
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE) || !anchored)
 		return
 
 	if(charging)
@@ -72,6 +61,9 @@ obj/machinery/recharger/defibcharger/wallcharger/process()
 				use_power(150)
 			else
 				icon_state = "wrecharger2"
+				if(!has_beeped)
+					playsound(src, 'sound/machines/charge_finish.ogg', 50)
+					has_beeped = TRUE
 
 /obj/machinery/recharger/defibcharger/wallcharger/togglePanelOpen(var/obj/toggleitem, var/mob/user)
 	if(charging)
@@ -79,27 +71,32 @@ obj/machinery/recharger/defibcharger/wallcharger/process()
 		return
 	return(..())
 
-/obj/machinery/recharger/defibcharger/wallcharger/crowbarDestroy()
-	if(..() == 1)
+/obj/machinery/recharger/defibcharger/wallcharger/crowbarDestroy(mob/user, obj/item/tool/crowbar/I)
+	if(..())
 		if(charging)
 			charging.forceMove(src.loc)
 			charging = null
-		return 1
-	return -1
+		return TRUE
+	return FALSE
 
-obj/machinery/recharger/defibcharger/wallcharger/attackby(obj/item/weapon/G as obj, mob/user as mob)
+/obj/machinery/recharger/defibcharger/wallcharger/attackby(obj/item/weapon/G as obj, mob/user as mob)
 	if(istype(G, /obj/item/weapon/melee/defibrillator))
 		if(..())
 			return
+		if(istype(G, /obj/item/weapon/melee/defibrillator/improvised))
+			to_chat(user, "<span class='warning'>\The [G] won't fit.</span>")
+			return
+
 		var/obj/item/weapon/melee/defibrillator/D = G
 		if(D.ready)
 			to_chat(user, "<span class='warning'>\The [D] won't fit. Try putting the paddles back on!</span>")
 			return
 		if(user.drop_item(G, src))
 			charging = G
-			use_power = 2
+			use_power = MACHINE_POWER_USE_ACTIVE
 			update_icon()
-	else if (isscrewdriver(G) || iscrowbar(G))
+			has_beeped = FALSE
+	else if (G.is_screwdriver(user) || iscrowbar(G))
 		..()
 	else
 		to_chat(user, "<span class='warning'>\The [G] isn't a defibrillator, it won't fit!</span>")

@@ -8,7 +8,8 @@
 	name = "mysterious structure"
 	requires_power = 0
 	icon_state = "firingrange"
-	dynamic_lighting = 1
+
+	holomap_draw_override = HOLOMAP_DRAW_EMPTY
 
 	//Used for bizarre/odd/reference vaults, entering them causes the wild wasteland sound to play
 	var/mysterious = FALSE
@@ -19,9 +20,6 @@
 	if(mysterious)
 		//Create a narrator object to play a sound to everybody who enters the area
 		narrator = new /obj/effect/narration/mystery_sound(null)
-
-/area/vault/holomapAlwaysDraw()
-	return 0
 
 //Special area that can be used in map elements. When loaded, it creates a new area object and transfers all of its contents into it.
 //This means that this area can be put into multiple map elements without any issues
@@ -38,9 +36,36 @@
 			allthings.change_area(src, new_area)
 
 	new_area.tag = "[new_area.type]/\ref[ME]"
-	new_area.addSorted()
 
+/area/vault/powered
+	requires_power = 1
 
+/area/vault/gingerbread_house
+
+/area/vault/podstation
+	requires_power = 1
+
+/area/vault/podstation/interior
+	name = "\improper Pod Station"
+	icon_state = "kitchen"
+
+/area/vault/podstation/exterior
+	name = "\improper Pod Station Asteroid"
+	icon_state = "pod"
+
+/area/vault/fastfood
+
+/area/vault/fastfood/dining
+	icon_state = "cafeteria"
+
+/area/vault/fastfood/kitchen
+	icon_state = "kitchen"
+
+/area/vault/fastfood/misc
+	icon_state = "fmaint"
+
+/area/vault/mechclubhouse
+	requires_power = 1
 
 /area/vault/icetruck
 
@@ -75,7 +100,12 @@
 
 /area/vault/hive_shuttle
 
+/area/vault/rsvault
+
 /area/vault/syndiecargo
+
+/area/vault/black_site_prism
+	jammed = 2
 
 //prison vault
 
@@ -113,9 +143,6 @@
 
 /obj/docking_port/destination/vault/biodome
 	areaname = "biodome"
-
-/area/vault/brokeufo
-	requires_power = 1
 
 /area/vault/AIsat
 	requires_power = 1
@@ -191,64 +218,87 @@
 	..()
 	pod_code = "[rand(10000, 99999.0)]"
 
-/area/vault/meteorlogical
-	name = "\improper Meteorlogical Station"
-
-
-/area/vault/lightship
-	name = "\improper Lightspeed Ship"
+/area/vault/amelab
+	name = "\improper Nanotrasen Experimental AME Lab"
 	requires_power = 1
 
-/area/vault/lightship/nopowerstorage
-	name = "\improper Engine Storage Bay"
-	icon_state = "engine"
+/area/vault/amelab/lab
 	requires_power = 0
+	jammed = 2
+	color = "blue"
 
-/area/vault/lightship/cockpit
-	name = "\improper Cockpit"
+/obj/effect/blob/core/ame_lab
+	name = "antimatter control unit"
+	desc = "This device injects antimatter into connected shielding units. Wrench the device to set it...wait hold on, something's off..?"
+	icon = 'icons/mob/blob/blob_AME_64x64.dmi'
+	looks = "AME_new"
+	asleep = TRUE
+	no_ghosts_allowed = TRUE
 
-/area/vault/lightship/dronebay
-	name = "\improper Drone Bay"
+/obj/item/weapon/paper/amelab1
+	name = "paper- 'Initial Report'"
+	info = "I have arrived at the lab. The builders have just finished setting up the atmos and have departed. The station is using so little power that the P.A.C.M.A.N. in the maintenance is more than enough to recharge the APC. Centcomm should send the parts for the reactor by tomorrow, I can't wait to build it."
 
-/area/vault/lightship/Doormaint
-	name = "\improper Airlock Maintenance"
+/obj/item/weapon/paper/amelab2
+	name = "paper- 'Second Report'"
+	info = "The cargo shuttle dropped the parts about an hour ago and I've somehow already finished assembling the Antimatter Engine. In fact, the lab is running on its power right now. It's such a fool-proof system, you just pulse the parts with a multitool and it assembles on its own, not sure how anyone could mess it up really. I've shutdown the P.A.C.M.A.N., it might come in handy later in case of emergency. Antimatter is a much more efficient energy source, with just one jar this small lab could stay online for aeons."
 
-/area/vault/lightship/cameraroom
-	name = "\improper Surveillance Room"
+/obj/item/weapon/paper/amelab3
+	name = "paper- 'Third Report'"
+	info = "As instructed in Phase One of the experiment, I've started slowly raising the fuel injection. The engine seems to remain stable at up to 4 units of antimatter per injection, beyond that it quickly starts losing structural integrity and the injections become quite loud. I have determined that the highest safe amount of fuel units per injection is equal to twice the amount of cores."
 
-/area/vault/lightship/shieldbattery
-	name = "\improper Shield Battery"
+/obj/item/weapon/paper/amelab4
+	name = "paper- 'Fourth Report'"
+	info = "Centcomm has shipped me some much larger fuel jars in preparation for Phase Two. A scientist will be coming, an Anomalist specifically. I'm not quite versed into Exotic Particle science but they will test alternative ways to raise the power output. This can go wrong in so many ways but we're all well aware of the risks, and the pay is good enough. Worst case scenario the lab explodes and we'll be the only casualties."
 
-/area/vault/lightship/Medbay
-	name = "\improper Medical Bay"
+/obj/item/weapon/paper/amelab5
+	name = "paper- 'Fifth Report'"
+	info = "The anomalist has started their experiments on the engine, they brought various devices and machines I do not recognize. Regardless, the radiations their tools emit seem to have a positive effect on the power output. Looks like we're on the verge of a technological breakthrough! With the last deliveries we also ordered a portable SMES kit. If we can export enough surplus energy we might not only earn ourselves a bonus, but also prove the commercial applications of the enhanced AME."
 
-/area/vault/lightship/lounge
-	name = "\improper Lounge"
+/obj/item/weapon/paper/amelab6
+	name = "paper- 'Sixth Report'"
+	info = "Something went wrong, very wrong. The AME isn't outputting any power anymore but will not shutdown. More worrying even, the engine appears to be emitting its own exotic particles now, different from those we were using until now. The rate of particle production seems to be slowly rising at a constant rate. You will find attached to this report all the data we could gather from it. Please advise."
 
-/area/vault/lightship/dining
-	name = "\improper Dining Quarters"
+/obj/item/weapon/paper/amelab7
+	name = "paper- 'Final Report'"
+	info = "We've drained the engine room of oxygen, somehow this seems to have slowed down the increase in exotic particles. After reading the data that came with our previous report Centcomm decided to completely abort the project. A shuttle will come by to extract us shortly, which is either a testament to how valuable we are, or how dangerous the engine has actually become. I like to hope it's both. I leave those notes here should Centcomm decide to resume the experiments. <b>Most importantly I advise against trying to put any more fuel inside the engine</b>."
 
-/area/vault/lightship/atmospherics
-	name = "\improper Atmospherics"
+/obj/item/weapon/storage/bag/clipboard/amelab/New()
+	..()
+	var/list/papers = list()
+	papers += new /obj/item/weapon/paper/amelab1(src)
+	papers += new /obj/item/weapon/paper/amelab2(src)
+	papers += new /obj/item/weapon/paper/amelab3(src)
+	papers += new /obj/item/weapon/paper/amelab4(src)
+	papers += new /obj/item/weapon/paper/amelab5(src)
+	papers += new /obj/item/weapon/paper/amelab6(src)
+	papers += new /obj/item/weapon/paper/amelab7(src)
 
-/area/vault/lightship/teleporter
-	name = "\improper Teleportation Station"
+	for (var/obj/item/weapon/paper/P in papers)
+		P.update_icon()
+		P.mouse_opacity = 2
+		toppaper = P
 
-/area/vault/lightship/maintenance
-	name = "\improper Maintenance"
+	update_icon()
 
-/area/vault/lightship/engine
-	name = "\improper Engineering"
+/obj/item/weapon/disk/shuttle_coords/vault/amelab
+	name = "Experimental AME Lab shuttle destination disk"
+	desc = "This satellite could be repurposed as a comfortable hang-out. Although we might want to keep the lab properly sealed."
+	destination = /obj/docking_port/destination/vault/amelab
 
-/area/vault/lightship/portdock
-	name = "\improper Port Docking"
+/obj/docking_port/destination/vault/amelab
+	areaname = "Nanotrasen Experimental AME Lab"
 
-/area/vault/lightship/starboarddocking
-	name = "\improper Starboard Docking"
+/area/vault/soulblade_sanctum
+	jammed = 2
+	color = "red"
+	ambient_sounds = list(
+		/datum/ambience/spaced2,
+		/datum/ambience/spaced3,
+		)
 
-/area/vault/lightship/weaponsroom
-	name = "\improper Weapon Systems"
-
+/area/vault/meteorlogical
+	name = "\improper Meteorlogical Station"
 
 /area/vault/icecomet
 	jammed = 2
@@ -345,12 +395,12 @@
 	anchored = 1
 	cant_drop = 1
 
-	slip_power = 10
+	slip_override = 11
 
 /obj/item/weapon/melee/morningstar/catechizer
 	name = "The Catechizer"
 	desc = "An unholy weapon forged eons ago by a servant of Nar-Sie."
-
+	origin_tech = null
 	force = 37
 	throwforce = 30
 	throw_speed = 3
@@ -358,26 +408,6 @@
 
 /obj/effect/landmark/catechizer_spawn //Multiple of these are put in a single area. One of these landmark will contain a true catachizer, others only mimics
 	name = "catechizer spawn"
-
-/obj/effect/landmark/catechizer_spawn/New()
-	spawn()
-		if(!isturf(loc))
-			return
-
-		var/list/all_spawns = list()
-		for(var/obj/effect/landmark/catechizer_spawn/S in get_area(src))
-			all_spawns.Add(S)
-
-		var/obj/effect/true_spawn = pick(all_spawns)
-		all_spawns.Remove(true_spawn)
-
-		var/obj/item/weapon/melee/morningstar/catechizer/original = new(get_turf(true_spawn))
-
-		for(var/obj/effect/S in all_spawns)
-			new /mob/living/simple_animal/hostile/mimic/crate/item(get_turf(S), original) //Make copies
-			qdel(S)
-
-		qdel(src)
 
 /obj/machinery/door/poddoor/vault_rust
 	id_tag = "tokamak_yadro_ventilyatsionnyy" // Russian for "tokamak_core_vent"
@@ -391,7 +421,9 @@
 
 /obj/item/weapon/fuel_assembly/trilithium/New()
 	. = ..()
-	rod_quantities["Trilithium"] = 300
+	rod_current_quantities["Trilithium"] = 300
+	rod_starting_quantities["Trilithium"] = 300
+	percent_depleted = 0
 
 /obj/machinery/power/apc/frame/rust_vault
 	make_alerts = FALSE
@@ -476,10 +508,13 @@
 	name = "Duey"
 	desc = "Looks like a maintenance droid, repurposed for botany management. Seems the years haven't been too kind."
 	health = 150
-	maxhealth = 150
+	maxHealth = 150
 	icon_state = "duey0"
 	icon_initial = "duey"
-	Max_Fertilizers = 50
+
+/obj/machinery/bot/farmbot/duey/New()
+	..()
+	reagents.maximum_volume = 500
 
 /obj/structure/ladder/spacepond/ground
 	name = "wine cellar"
@@ -500,16 +535,20 @@
 	. = ..()
 	name = "\improper AI Satellite APC"
 
-/obj/machinery/porta_turret/AIvault
+/obj/machinery/turret/portable/cannon/New()
+	installed = new/obj/item/weapon/gun/energy/laser/cannon(src)
+	..()
+
+/obj/machinery/turret/portable/AIvault
 	req_access = list(access_ai_upload)
 	check_records = 1
 	criminals = 1
 	auth_weapons = 1
-	stun_all = 1
+	stun_peasants = 1
 	check_anomalies = 1
 	ai = 1
 
-/obj/machinery/porta_turret/AIvault/New()
+/obj/machinery/turret/portable/AIvault/New()
 	installed = new/obj/item/weapon/gun/energy/laser/retro/ancient(src)
 	..()
 	if(prob(25))
@@ -523,7 +562,6 @@
 
 /obj/item/projectile/beam/retro/weak
 	damage = 15
-	linear_movement = 0
 
 /turf/simulated/floor/engine/old
 	icon_state = "engineold"
@@ -532,10 +570,6 @@
 	..()
 	network = list()
 	cameranet.removeCamera(src)
-
-/obj/machinery/power/monitor/old
-	icon_state = "powerold"
-	light_color = LIGHT_COLOR_BLUE
 
 /obj/effect/landmark/corpse/engineer/old
 	generate_random_mob_name = 1
@@ -558,18 +592,18 @@
 
 /obj/machinery/portable_atmospherics/canister/old/pressure_overlays(var/state)
 	var/static/list/status_overlays_pressure = list(
-		image(icon, "old-o0"),
-		image(icon, "old-o1"),
-		image(icon, "old-o2"),
-		image(icon, "old-o3")
+		image('icons/obj/atmos.dmi', "old-o0"),
+		image('icons/obj/atmos.dmi', "old-o1"),
+		image('icons/obj/atmos.dmi', "old-o2"),
+		image('icons/obj/atmos.dmi', "old-o3")
 	)
 
 	return status_overlays_pressure[state]
 
 /obj/machinery/portable_atmospherics/canister/old/other_overlays(var/state)
 	var/static/list/status_overlays_other = list(
-		image(icon, "old-open"),
-		image(icon, "old-connector")
+		image('icons/obj/atmos.dmi', "old-open"),
+		image('icons/obj/atmos.dmi', "old-connector")
 	)
 
 	return status_overlays_other[state]
@@ -621,7 +655,7 @@
 		return
 
 	var/dat = text("<B>Engine Ejection Module</B><HR>\nStatus: Ejected<BR>\n<BR>\nCountdown: N/60 \[Reset\]<BR>\n<BR>\nEngine Ejected!<BR>\n<BR>\n<A href='?src=\ref[];mach_close=computer'>Close</A>", user)
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 
 /obj/machinery/computer/ejectedengine/shield
 	name = "Shield Control Console"
@@ -634,7 +668,7 @@
 		return
 
 	var/dat = text("<B>Shield Generator Control</B><HR>\n<font color=red>Error:</font> Cannot locate projector array<BR>\n<font color=red>Error:</font> Cannot locate shield capacitors<BR>\n<font color=red>Error:</font> Cannot locate command signal<BR>\n<BR>\n<A href='?src=\ref[];mach_close=computer'>Close</A>", user)
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 
 /obj/machinery/door/firedoor/red
 	name = "\improper Firelock"
@@ -706,10 +740,10 @@
 		return
 	var/powered = 1
 
-	if(surplus() < active_power_usage)
+	if(get_satisfaction() < 1.0)
 		powered = 0
 
-	if(powered && stat & NOPOWER)
+	if(powered && stat & (NOPOWER))
 		stat &= ~NOPOWER
 		update_icon()
 	else if (!powered && !(stat & NOPOWER))
@@ -879,7 +913,7 @@
 
 /obj/item/weapon/reagent_containers/food/snacks/pie/acid_filled
 	name = "acid pie"
-	desc = "Tangy tasting"
+	desc = "Tangy tasting!"
 
 /obj/item/weapon/reagent_containers/food/snacks/pie/acid_filled/New()
 	..()
@@ -933,9 +967,225 @@
 
 /obj/machinery/microwave/upgraded
 	component_parts = newlist(\
-		/obj/item/weapon/circuitboard/microwave,\
+		/obj/item/weapon/circuitboard/small/microwave,\
 		/obj/item/weapon/stock_parts/micro_laser/high/ultra,\
 		/obj/item/weapon/stock_parts/scanning_module/adv/phasic,\
 		/obj/item/weapon/stock_parts/console_screen\
 	)
 
+
+/obj/machinery/turret/russian
+	faction = "russian"
+
+/obj/machinery/turret/russian/New()
+	installed = new /obj/item/weapon/gun/energy/laser(src)
+
+// Minisat stuff
+
+/obj/item/weapon/disk/shuttle_coords/vault/minisat
+	name = "NT microstation shuttle destination disk"
+	destination = /obj/docking_port/destination/vault/minisat
+
+/obj/docking_port/destination/vault/minisat
+	name = "NT Microstation 1"
+
+/area/vault/powered/mini_station
+	name = "NT Microstation Hallway"
+	icon_state = "hallC"
+
+/area/vault/powered/mini_station_entrance
+	name = "NT Microstation Entrance"
+	icon_state = "entry"
+
+/area/vault/powered/mini_station_kitchen
+	name = "NT Microstation Kitchen"
+	icon_state = "bar"
+
+/area/vault/powered/mini_station_medbay
+	name = "NT Microstation Medbay"
+	icon_state = "medbay"
+
+/area/vault/powered/mini_station_engineering
+	name = "NT Microstation Engineering"
+	icon_state = "engine"
+
+/area/vault/powered/mini_station_botany
+	name = "NT Microstation Botany"
+	icon_state = "hydro"
+
+/area/vault/powered/mini_station_construction
+	name = "NT Microstation Construction Room"
+	icon_state = "construction"
+
+/obj/item/device/pda/clown/broken
+	name = "Antique Clown PDA"
+	desc = "A portable microcomputer by Thinktronic Systems, LTD. The surface is coated with polytetrafluoroethylene and banana drippings. This one has been stepped on for too many times, and appears to be completely unresponsive."
+	starting_apps = list()
+
+/obj/item/device/pda/clown/broken/attack_self(mob/user)
+	INVOKE_EVENT(src, /event/item_attack_self, "user" = user) // Minimalist version of original function
+
+/obj/structure/falsewall/rwall/doorobscurer
+	layer = ABOVE_DOOR_LAYER
+
+/mob/living/simple_animal/hostile/retaliate/cookbot
+	name = "cook bot"
+	desc = "Cooks food for the restaurant."
+	icon = 'icons/mob/robots.dmi'
+	icon_state = "kodiak-service"
+
+	melee_damage_lower = 10
+	melee_damage_upper = 25
+
+	maxHealth = 200
+	health = 200
+
+	attacktext = "electrocutes"
+	a_intent = I_HURT
+
+	attack_sound = 'sound/effects/eleczap.ogg'
+
+	ranged = 1
+	projectiletype = /obj/item/projectile/bullet
+	projectilesound = 'sound/weapons/Gunshot.ogg'
+	casingtype = /obj/item/ammo_casing/a357
+
+	unsuitable_atmos_damage = 0
+	min_oxy = 0
+	max_oxy = 0
+	min_tox = 0
+	max_tox = 0
+	min_co2 = 0
+	max_co2 = 0
+	min_n2 = 0
+	max_n2 = 0
+	minbodytemp = 0
+
+	mob_property_flags = MOB_ROBOTIC
+	meat_type = null
+
+	environment_smash_flags = 0
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/New()
+	..()
+	var/datum/component/ai/area_territorial/signal/door/AT = add_component(/datum/component/ai/area_territorial/signal/door)
+	AT.SetArea(locate(/area/vault/fastfood/kitchen))
+	AT.id_tag = "vaultkitchen"
+	AT.enter_signal = /event/comp_ai_cmd_retaliate
+	AT.typefilter = /mob/living/carbon/human
+	register_event(/event/comp_ai_cmd_retaliate, src, nameof(src::Retaliate()))
+	add_component(/datum/component/ai/conversation)
+	var/datum/component/ai/area_territorial/say/fastfood/intruder/AT2 = add_component(/datum/component/ai/area_territorial/say/fastfood/intruder)
+	AT2.SetArea(locate(/area/vault/fastfood/kitchen))
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/Destroy()
+	unregister_event(/event/comp_ai_cmd_retaliate, src, nameof(src::Retaliate()))
+	..()
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/death(var/gibbed = FALSE)
+	..(gibbed)
+	visible_message("<b>[src]</b> blows apart!")
+	new /obj/effect/gibspawner/robot(src.loc)
+	qdel(src)
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/waiter
+	name = "restaurant service bot"
+	desc = "Serves food asked for by a customer."
+	wander = FALSE
+	flags = HEAR_ALWAYS|PROXMOVE // for AI stuff
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/waiter/New()
+	..()
+	add_component(/datum/component/controller/movement/pathed)
+	var/datum/component/ai/hearing/order/foodndrinks/FD = add_component(/datum/component/ai/hearing/order/foodndrinks)
+	FD.baseprice = rand(5,10) * 5
+	var/datum/component/ai/area_territorial/say/fastfood/welcome/AT = add_component(/datum/component/ai/area_territorial/say/fastfood/welcome)
+	AT.SetArea(locate(/area/vault/fastfood/dining))
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/waiter/examine(mob/user)
+	..()
+	var/datum/component/ai/hearing/order/foodndrinks/FD = get_component(/datum/component/ai/hearing/order/foodndrinks)
+	if(FD)
+		to_chat(user,"Current items in order: [counted_english_list(FD.items2deliver)]<br>Total credits due: [FD.currentprice] credit\s")
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/waiter/kitchen
+	name = "restaurant delivery bot"
+	desc = "Serves food asked for by a customer at the drive-thru."
+
+/mob/living/simple_animal/hostile/retaliate/cookbot/waiter/kitchen/New()
+	..()
+	var/datum/component/ai/hearing/order/foodndrinks/FD = get_component(/datum/component/ai/hearing/order/foodndrinks)
+	FD.inbag = TRUE
+
+/datum/component/ai/area_territorial/say/fastfood
+	typefilter = /mob/living/carbon/human
+
+/datum/component/ai/area_territorial/say/fastfood/welcome
+	enter_args = list("Welcome to #&*£%£&%, how may I take your order?") // TODO: name here
+
+/datum/component/ai/area_territorial/say/fastfood/intruder
+	enter_args = list("Stop! Intruder!")
+
+/obj/machinery/computer/allvaults
+	name = "space structure locator"
+	desc = "A console that shows a list of all coordinates of mysterious structures found in this sector of space."
+	icon_state = "comm_serv"
+	light_color = LIGHT_COLOR_GREEN
+	mech_flags = MECH_SCAN_FAIL
+
+/obj/machinery/computer/allvaults/attack_hand(mob/user)
+	add_fingerprint(user)
+	if(stat & (BROKEN|NOPOWER|FORCEDISABLE))
+		return
+	interact(user)
+
+/obj/machinery/computer/allvaults/interact(mob/user)
+	user.set_machine(src)
+	var/dat = ""
+	for (var/datum/map_element/vault/V in map_elements)
+		dat += "[V.name ? V.name : V.file_path], located in area [V.location ? "[V.location.z]" : "UNKNOWN"]<BR>"
+	var/datum/browser/popup = new(user, "allvaults", "List of found mysterious structures", 300, 400)
+	popup.set_content(dat)
+	popup.open()
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/barbot
+	name = "barbot cube"
+	contained_mob = /mob/living/simple_animal/robot/NPC/barbot
+
+/mob/living/simple_animal/robot/NPC/barbot
+	name = "bar service bot"
+	desc = "Serves drinks asked for by a customer."
+	icon_state = "kodiak-service"
+	var/panelopen = FALSE
+
+/mob/living/simple_animal/robot/NPC/barbot/New()
+	add_component(/datum/component/ai/conversation)
+	var/datum/component/ai/target_finder/simple_view/SV = add_component(/datum/component/ai/target_finder/simple_view)
+	SV.range = 3
+	var/datum/component/ai/hearing/order/bardrinks/select_reagents/BD = add_component(/datum/component/ai/hearing/order/bardrinks/select_reagents)
+	BD.baseprice = rand(5,10) * 5
+
+/mob/living/simple_animal/robot/NPC/barbot/examine(mob/user)
+	..()
+	var/datum/component/ai/hearing/order/bardrinks/select_reagents/BD = get_component(/datum/component/ai/hearing/order/bardrinks/select_reagents)
+	if(BD)
+		to_chat(user,"Current items in order: [counted_english_list(BD.items2deliver)]<br>Total credits due: [BD.currentprice] credit\s")
+
+/mob/living/simple_animal/robot/NPC/barbot/attackby(obj/item/O, mob/user, no_delay, originator)
+	..()
+	if(ismultitool(O))
+		var/datum/component/ai/hearing/order/bardrinks/select_reagents/BD = get_component(/datum/component/ai/hearing/order/bardrinks/select_reagents)
+		if(BD)
+			BD.baseprice = input(user,"Set a base price to serve at","Base price",BD.baseprice) as num
+	if(O.is_screwdriver(user))
+		panelopen = !panelopen
+		to_chat(user,"<span class='notice'>You [panelopen ? "open" : "close"] a panel on the back.</span>")
+	if(iscrowbar(O) && panelopen)
+		to_chat(user,"<span class='notice'>You attempt to pry out the cash storage system.</span>")
+		if(do_after(user,src,3 SECONDS))
+			var/datum/component/ai/hearing/order/bardrinks/select_reagents/BD = get_component(/datum/component/ai/hearing/order/bardrinks/select_reagents)
+			if(BD && BD.profits)
+				dispense_cash(BD.profits,loc)
+				BD.profits = 0
+			else
+				to_chat(user,"<span class='notice'>No cash found inside.</span>")

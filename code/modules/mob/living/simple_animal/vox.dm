@@ -33,11 +33,14 @@
 	var/quills = 3
 
 /mob/living/simple_animal/vox/armalis/death(var/gibbed = FALSE)
-	..(TRUE)
+	if (gibbed)
+		..()
+		return
+
 	var/turf/gloc = get_turf(loc)
 	visible_message("<span class='danger'><B>[src] shudders violently and explodes!</B>","<span class='warning'>You feel your body rupture!</span></span>")
 	gib()
-	explosion(gloc, -1, -1, 3, 5)
+	explosion(gloc, -1, -1, 3, 5, whodunnit = src)
 
 /mob/living/simple_animal/vox/armalis/attackby(var/obj/item/O as obj, var/mob/user as mob)
 	user.delayNextAttack(8)
@@ -53,7 +56,7 @@
 		else
 			for(var/mob/M in viewers(src, null))
 				if ((M.client && !( M.blinded )))
-					M.show_message("<span class='danger'>The [O] bounces harmlessly off of [src]. </span>")
+					M.show_message("<span class='danger'>\The [O] bounces harmlessly off of [src]. </span>")
 	else
 		to_chat(usr, "<span class='warning'>This weapon is ineffective, it does no damage.</span>")
 		for(var/mob/M in viewers(src, null))

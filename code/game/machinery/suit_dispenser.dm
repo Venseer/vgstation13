@@ -19,7 +19,7 @@ var/list/dispenser_presets = list()
 
 /obj/machinery/suit_dispenser
 	name = "Suit Dispenser"
-	desc = "An industrial U-Tak-It Dispenser unit designed to fetch all kinds of space suits.."
+	desc = "An industrial U-Tak-It Dispenser unit designed to fetch all kinds of space suits."
 	icon = 'icons/obj/suitdispenser.dmi'
 	icon_state = "suitdispenser"
 	anchored = 1
@@ -106,7 +106,7 @@ var/list/dispenser_presets = list()
 		to_chat(user,"<span class='notice'>[S.name] specialisation processed. Have a good day.</span>")
 
 
-/obj/machinery/suit_dispenser/emag(var/mob/user)
+/obj/machinery/suit_dispenser/emag_act(var/mob/user)
 	if(!emagged)
 		emagged = TRUE
 		if(user)
@@ -238,19 +238,19 @@ var/list/dispenser_presets = list()
 
 /datum/suit/dorf/security
 	name = "Security"
-	to_spawn = list(/obj/item/clothing/head/helmet/space/rig/security,/obj/item/clothing/suit/space/rig/security)
+	to_spawn = list(/obj/item/clothing/suit/space/rig/security)
 
 /datum/suit/dorf/engineering
 	name = "Engineering"
-	to_spawn = list(/obj/item/clothing/head/helmet/space/rig,/obj/item/clothing/suit/space/rig)
+	to_spawn = list(/obj/item/clothing/suit/space/rig)
 
 /datum/suit/dorf/medical
 	name = "Medical"
-	to_spawn = list(/obj/item/clothing/head/helmet/space/rig/medical,/obj/item/clothing/suit/space/rig/medical)
+	to_spawn = list(/obj/item/clothing/suit/space/rig/medical)
 
 /datum/suit/dorf/atmos
 	name = "Atmospherics Technician"
-	to_spawn = list(/obj/item/clothing/head/helmet/space/rig/atmos,/obj/item/clothing/suit/space/rig/atmos)
+	to_spawn = list(/obj/item/clothing/suit/space/rig/atmos)
 
 /datum/suit/dorf/paramedic
 	name = "Paramedic"
@@ -258,23 +258,23 @@ var/list/dispenser_presets = list()
 
 /datum/suit/dorf/mining
 	name = "Mining"
-	to_spawn = list(/obj/item/clothing/suit/space/rig/mining, /obj/item/clothing/head/helmet/space/rig/mining)
+	to_spawn = list(/obj/item/clothing/suit/space/rig/mining)
 
 /*/datum/suit/dorf/head
 	amount = 1
 
 /datum/suit/dorf/head/captain
 	name = "Captain"
-	to_spawn = (/obj/item/clothing/suit/armor/captain,/obj/item/clothing/head/helmet/space/capspace)
+	to_spawn = (/obj/item/clothing/suit/space/rig/captain)
 
 /datum/suit/dorf/head/chiefengie
 	name = "Chief Engineer"
-	to_spawn = (/obj/item/clothing/suit/space/rig/elite,/obj/item/clothing/head/helmet/space/rig/elite,/obj/item/clothing/shoes/magboots/elite)*/
+	to_spawn = (/obj/item/clothing/suit/space/rig/engineer/elite,/obj/item/clothing/shoes/magboots/elite)*/
 
 
 /obj/machinery/suit_dispenser/dorf
 	desc = "An industrial U-Tak-It Dispenser unit designed to fetch all kinds of space suits. This one is specialised towards asteroid reclamation teams."
-	suits = list(/datum/suit/dorf/standard,/datum/suit/dorf/security,/datum/suit/dorf/engineering,/datum/suit/dorf/medical,/datum/suit/dorf/atmos,/datum/suit/dorf/paramedic)
+	suits = list(/datum/suit/dorf/standard,/datum/suit/dorf/security,/datum/suit/dorf/medical,/datum/suit/dorf/mining,/datum/suit/dorf/paramedic,/datum/suit/dorf/atmos,/datum/suit/dorf/engineering)
 
 /obj/machinery/suit_dispenser/dorf/get_suit_list(var/mob/living/carbon/human/user)
 	if(emagged)
@@ -296,7 +296,7 @@ var/list/dispenser_presets = list()
 				suit_list["Paramedic"] = suits["Paramedic"]
 			if(access_atmospherics)
 				suit_list["Atmospherics Technician"] = suits["Atmospherics Technician"]
-			if(access_engine)
+			if(access_engine_minor)
 				suit_list["Engineering"] = suits["Engineering"]
 	return suit_list
 

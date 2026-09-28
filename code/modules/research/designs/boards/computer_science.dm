@@ -60,6 +60,11 @@
 	id = "rdconsole_pod"
 	build_path = /obj/item/weapon/circuitboard/rdconsole/pod
 
+/datum/design/rdconsole/derelict
+	name = "Circuit Design (Derelict R&D Console)"
+	id = "rdconsole_derelict"
+	build_path = /obj/item/weapon/circuitboard/rdconsole/derelict
+
 /datum/design/aifixer
 	name = "Circuit Design (AI Integrity Restorer)"
 	desc = "Allows for the construction of circuit boards used to build an AI Integrity Restorer."
@@ -82,7 +87,7 @@
 
 /datum/design/rdservercontrol
 	name = "Circuit Design(R&D Server Control Console)"
-	desc = "The circuit board for a R&D Server Control Console"
+	desc = "The circuit board for a R&D Server Control Console."
 	id = "rdservercontrol"
 	req_tech = list(Tc_PROGRAMMING = 3)
 	build_type = IMPRINTER

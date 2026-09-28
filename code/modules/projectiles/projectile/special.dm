@@ -11,21 +11,15 @@
 /obj/item/projectile/ion/to_bump(atom/A as mob|obj|turf|area)
 	if(!bumped && ((A != firer) || reflected))
 		empulse(get_turf(A), 1, 1)
+		qdel(src)
+		return
 	..()
 
-/obj/item/projectile/ionsmall
-	name = "ion bolt"
-	icon_state = "ion"
-	damage = 0
-	damage_type = BURN
-	nodamage = 1
-	layer = PROJECTILE_LAYER
-	flag = "energy"
-	fire_sound = 'sound/weapons/ion.ogg'
-
-/obj/item/projectile/ionsmall/to_bump(atom/A as mob|obj|turf|area)
+/obj/item/projectile/ion/small/to_bump(atom/A as mob|obj|turf|area)
 	if(!bumped && ((A != firer) || reflected))
-		empulse(src, 0, 1)
+		empulse(get_turf(A), 0, 1)
+		qdel(src)
+		return
 	..()
 
 /obj/item/projectile/bullet/gyro
@@ -54,7 +48,7 @@
 
 	var/obj/item/weapon/gun/energy/temperature/T = shot_from
 	if(istype(T))
-		src.temperature = T.temperature
+		temperature = T.temperature
 	else
 		temperature = rand(100,600) //give it a random temp value if it's not fired from a temp gun
 
@@ -90,6 +84,12 @@
 			name = "temperature beam"//failsafe
 			icon_state = "temp_4"
 
+/obj/item/projectile/temp/to_bump(var/atom/A)
+	if (!ismob(A) && A.reagents && A.reagents.total_volume)
+		A.reagents.chem_temp = temperature
+		if(!(A.reagents.skip_flags & SKIP_RXN_CHECK_ON_HEATING))
+			A.reagents.handle_reactions()
+	..()
 
 /obj/item/projectile/temp/on_hit(var/atom/target, var/blocked = 0)//These two could likely check temp protection on the mob
 	if(istype(target, /mob/living))
@@ -120,78 +120,6 @@
 	explosion(get_turf(src), -1, -1, 2, 2)
 	return qdel(src)
 
-/obj/item/projectile/energy/floramut
-	name = "alpha somatoray"
-	icon_state = "energy"
-	damage = 0
-	damage_type = TOX
-	nodamage = 1
-	flag = "energy"
-	var/mutstrength = 10
-	fire_sound = 'sound/effects/stealthoff.ogg'
-
-/obj/item/projectile/energy/floramut/on_hit(var/atom/target, var/blocked = 0)
-	var/mob/living/M = target
-//	if(ishuman(target) && M.dna && M.dna.mutantrace == "plant") //Plantmen possibly get mutated and damaged by the rays.
-	if(ishuman(target))
-		var/mob/living/carbon/human/H = M
-		if((H.species.flags & IS_PLANT))
-			if(prob(mutstrength*2))
-				M.apply_radiation((rand(30,80)),RAD_EXTERNAL)
-				M.Knockdown(5)
-				for (var/mob/V in viewers(src))
-					V.show_message("<span class='warning'>[M] writhes in pain as \his vacuoles boil.</span>", 1, "<span class='warning'>You hear the crunching of leaves.</span>", 2)
-			if(prob(mutstrength*3))
-			//	for (var/mob/V in viewers(src)) //Public messages commented out to prevent possible metaish genetics experimentation and stuff. - Cheridan
-			//		V.show_message("<span class='warning'>[M] is mutated by the radiation beam.</span>", 1, "<span class='warning'>You hear the snapping of twigs.</span>", 2)
-				if(prob(80))
-					randmutb(M)
-					domutcheck(M,null)
-				else
-					randmutg(M)
-					domutcheck(M,null)
-			else
-				M.adjustFireLoss(rand(mutstrength/3, mutstrength))
-				M.show_message("<span class='warning'>The radiation beam singes you!</span>")
-			//	for (var/mob/V in viewers(src))
-			//		V.show_message("<span class='warning'>[M] is singed by the radiation beam.</span>", 1, "<span class='warning'>You hear the crackle of burning leaves.</span>", 2)
-		else
-			M.show_message("<span class='notice'>The radiation beam dissipates harmlessly through your body.</span>")
-	else if(istype(target, /mob/living/carbon/))
-	//	for (var/mob/V in viewers(src))
-	//		V.show_message("The radiation beam dissipates harmlessly through [M]")
-		M.show_message("<span class='notice'>The radiation beam dissipates harmlessly through your body.</span>")
-	else
-		return 1
-
-/obj/item/projectile/energy/floramut/emag
-	name = "gamma somatoray"
-	icon_state = "energy"
-
-/obj/item/projectile/energy/florayield
-	name = "beta somatoray"
-	icon_state = "energy2"
-	damage = 0
-	damage_type = TOX
-	nodamage = 1
-	flag = "energy"
-	fire_sound = 'sound/effects/stealthoff.ogg'
-
-/obj/item/projectile/energy/florayield/on_hit(var/atom/target, var/blocked = 0)
-	var/mob/M = target
-//	if(ishuman(target) && M.dna && M.dna.mutantrace == "plant") //These rays make plantmen fat.
-	if(ishuman(target)) //These rays make plantmen fat.
-		var/mob/living/carbon/human/H = M
-		if((H.species.flags & IS_PLANT) && (M.nutrition < 500))
-			M.nutrition += 30
-		else
-			M.show_message("<span class='notice'>The radiation beam dissipates harmlessly through your body.</span>")
-	else if (istype(target, /mob/living/carbon/))
-		M.show_message("<span class='notice'>The radiation beam dissipates harmlessly through your body.</span>")
-	else
-		return 1
-
-
 /obj/item/projectile/beam/mindflayer
 	name = "flayer ray"
 
@@ -207,10 +135,12 @@
 	damage = 15
 	damage_type = BRUTE
 	flag = "energy"
-	var/range = 2
 	fire_sound = 'sound/weapons/Taser.ogg'
+	color = "#a7ff96"
+	var/low_pressure_bonus = 15 //bonus in pressures below 50kpa
+	var/monster_bonus = 0 //bonus against simple_animals (roid mobs) and xenos
 
-obj/item/projectile/kinetic/New()
+/obj/item/projectile/kinetic/New()
 	var/turf/proj_turf = get_turf(src)
 	if(!istype(proj_turf, /turf))
 		return
@@ -218,7 +148,8 @@ obj/item/projectile/kinetic/New()
 	var/pressure = environment.return_pressure()
 	if(pressure < 50)
 		name = "full strength kinetic force"
-		damage = 30
+		damage += low_pressure_bonus
+		color = "#ccffff"// "#ff4444"
 	..()
 
 /* wat - N3X
@@ -236,11 +167,14 @@ obj/item/projectile/kinetic/New()
 	//testing("Hit [target.type], on [target_turf.type].")
 	if(istype(target_turf, /turf/unsimulated/mineral))
 		var/turf/unsimulated/mineral/M = target_turf
-		M.GetDrilled()
+		if(M.mining_difficulty < MINE_DIFFICULTY_TOUGH)
+			M.GetDrilled()
 	new /obj/item/effect/kinetic_blast(target_turf)
 	..(target,blocked)
 
 /obj/item/projectile/kinetic/to_bump(atom/A as mob|obj|turf|area)
+	if(istype(A, /mob/living/simple_animal) || istype(A, /mob/living/carbon/alien))
+		damage += monster_bonus
 	if(!loc)
 		return
 	if(A == firer)
@@ -254,17 +188,25 @@ obj/item/projectile/kinetic/New()
 			//testing("Bumped [A.type], on [target_turf.type].")
 			if(istype(target_turf, /turf/unsimulated/mineral))
 				var/turf/unsimulated/mineral/M = target_turf
-				M.GetDrilled()
+				if(M.mining_difficulty < MINE_DIFFICULTY_TOUGH)
+					M.GetDrilled()
+				new /obj/item/effect/kinetic_blast(target_turf)
 			// Now we bump as a bullet, if the atom is a non-turf.
 			if(!isturf(A))
 				..(A)
 			//qdel(src) // Comment this out if you want to shoot through the asteroid, ERASER-style.
-			returnToPool(src)
+			qdel(src)
 			return 1
 	else
 		//qdel(src)
-		returnToPool(src)
+		qdel(src)
 		return 0
+
+/obj/item/projectile/kinetic/shotgun
+	low_pressure_bonus = 25
+
+/obj/item/projectile/kinetic/cutter
+	monster_bonus = 15
 
 /obj/item/effect/kinetic_blast
 	name = "kinetic explosion"
@@ -275,7 +217,7 @@ obj/item/projectile/kinetic/New()
 /obj/item/effect/kinetic_blast/New()
 	..()
 	spawn(4)
-		returnToPool(src)
+		qdel(src)
 
 /obj/item/projectile/stickybomb
 	icon = 'icons/obj/projectiles_experimental.dmi'
@@ -366,14 +308,14 @@ obj/item/projectile/kinetic/New()
 /obj/item/projectile/fire_breath/straight
 	fire_blast_type = /obj/effect/fire_blast/no_spread
 
-/obj/item/projectile/fire_breath/New(turf/T, var/direction, var/F_Dam, var/P, var/T, var/F_Dur)
+/obj/item/projectile/fire_breath/New(turf/T, var/direction, var/F_Dam, var/P, var/Temp, var/F_Dur)
 	..(T,direction)
 	if(F_Dam)
 		fire_damage = F_Dam
 	if(P)
 		pressure = P
-	if(T)
-		temperature = T
+	if(Temp)
+		temperature = Temp
 	if(F_Dur)
 		fire_duration = F_Dur
 
@@ -392,6 +334,9 @@ obj/item/projectile/kinetic/New()
 
 	new fire_blast_type(T, fire_damage, stepped_range, 1, pressure, temperature, fire_duration)
 
+/obj/item/projectile/fire_breath/sprayer
+	max_range = 2
+
 /obj/item/projectile/fire_breath/shuttle_exhaust //don't stand behind rockets
 	fire_blast_type = /obj/effect/fire_blast/blue
 
@@ -399,6 +344,9 @@ obj/item/projectile/kinetic/New()
 	max_range = 9
 	fire_damage = 20
 	fire_duration = 6 //shorter but hotter
+
+/obj/item/projectile/fire_breath/shuttle_exhaust/horizon
+	fire_blast_type = /obj/effect/fire_blast/blue/horizon
 
 /obj/item/projectile/cold
 	name = "bolt of cold"
@@ -453,4 +401,70 @@ obj/item/projectile/kinetic/New()
 	do_teleport(firer, T)
 
 /obj/item/projectile/swap/advanced
-	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE
+	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE | PASSRAILING
+
+/obj/item/projectile/energy/microwaveray
+	name = "microwave ray"
+	icon_state = "microwaveray"
+	damage = 15
+	damage_type = BURN
+	flag = "energy"
+	fire_sound = 'sound/weapons/ray2.ogg'
+
+/obj/item/projectile/energy/microwaveray/on_hit(var/atom/target, var/blocked = 0)
+	if (..(target, blocked))
+		var/mob/living/carbon/human/H = target
+		to_chat(H, "<span class='warning'>You are heated by the microwave ray's energy!</span>")
+		H.eye_blurry = max(H.eye_blurry, 5)
+		H.bodytemperature += 120
+	return 0
+
+/obj/item/projectile/energy/scramblerray
+	name = "scrambler ray"
+	icon_state = "scramblerray"
+	flag = "energy"
+	nodamage = 1
+	fire_sound = 'sound/weapons/ray2.ogg'
+
+/obj/item/projectile/energy/scramblerray/on_hit(var/atom/target, var/blocked = 0)
+	if (..(target, blocked))
+		var/mob/living/carbon/human/H = target
+		to_chat(H, "<span class='warning'>The scrambler ray's energy makes you feel lightheaded and sick!</span>")
+		H.eye_blurry = max(H.eye_blurry, 5)
+		H.adjustBrainLoss(2)
+		H.drop_item()
+		H.vomit(0,1)
+	return 0
+
+/obj/item/projectile/puke
+	icon_state = "projectile_puke"
+
+/obj/item/projectile/puke/New()
+	..()
+	create_reagents(500)
+	make_reagents()
+
+/obj/item/projectile/puke/proc/make_reagents()
+	var/room_remaining = 500
+	var/poly_to_add = rand(100,200)
+	reagents.add_reagent(PACID, poly_to_add)
+	room_remaining -= poly_to_add
+	var/sulph_to_add = rand(100,200)
+	reagents.add_reagent(SACID, sulph_to_add)
+	room_remaining -= sulph_to_add
+	reagents.add_reagent(VOMIT, room_remaining)
+
+/obj/item/projectile/puke/clear/make_reagents()
+	return
+
+/obj/item/projectile/puke/on_hit(var/atom/atarget, var/blocked = 0)
+	..()
+	splash_sub(reagents, atarget, -1)
+
+/obj/item/projectile/puke/process_step()
+	..()
+	var/turf/simulated/T = get_turf(src)
+	if(T) //The first time it runs, it won't work, it'll runtime
+		playsound(T, 'sound/effects/splat.ogg', 50, 1)
+		T.add_vomit_floor(src, 1, 1, 1)
+	sleep(1) //Slow the fuck down, hyperspeed vomit

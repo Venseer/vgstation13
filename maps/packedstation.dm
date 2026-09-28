@@ -7,9 +7,6 @@
 	nameShort = "Pack"
 	nameLong = "Packed Station"
 	map_dir = "packedstation"
-	tDomeX = 128
-	tDomeY = 58
-	tDomeZ = 2
 	zLevels = list(
 		/datum/zLevel/station,
 		/datum/zLevel/centcomm,
@@ -24,10 +21,12 @@
 			name = "spacePirateShip" ;
 			},
 		)
+
 	enabled_jobs = list(/datum/job/trader)
 
 	load_map_elements = list(
-	/datum/map_element/dungeon/holodeck
+	/datum/map_element/dungeon/holodeck,
+	/datum/map_element/dungeon/mecha_graveyard
 	)
 
 	holomap_offset_x = list(0,0,0,86,4,0,0,)

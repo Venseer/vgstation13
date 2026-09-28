@@ -95,7 +95,7 @@
 
 /obj/item/weapon/gun/stickybomb/can_discharge()
 	return loaded.len
-	
+
 /obj/item/stickybomb
 	name = "anti-personnel stickybomb"
 	desc = "Ammo for a stickybomb launcher. Only affects living beings, produces a decent amount of knockback."
@@ -167,7 +167,7 @@
 			animate(src, alpha=50, time=300)
 
 	else if(isliving(A))
-		visible_message("<span class='warning'>\the [src] sticks itself on \the [A].</span>")
+		visible_message("<span class='warning'>\The [src] sticks itself on \the [A].</span>")
 		src.forceMove(A)
 		self_overlay = new(icon,src,icon_state,10,dir)
 		self_overlay.pixel_x = pixel_x
@@ -254,5 +254,6 @@
 	if(istype(Proj ,/obj/item/projectile/beam)||istype(Proj,/obj/item/projectile/bullet)||istype(Proj,/obj/item/projectile/ricochet))
 		if(!istype(Proj ,/obj/item/projectile/beam/lasertag) && !istype(Proj ,/obj/item/projectile/beam/practice) )
 			detonate()
+	return ..()
 
 #undef MAX_STICKYBOMBS

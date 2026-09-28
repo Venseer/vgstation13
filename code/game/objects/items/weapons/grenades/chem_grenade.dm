@@ -1,3 +1,14 @@
+#define GRENADE_STAGE_EMPTY 0
+#define GRENADE_STAGE_ASSEMBLY_INSERTED 1
+#define GRENADE_STAGE_COMPLETE 2
+
+#define PATH_STAGE_EMPTY 0
+#define PATH_STAGE_CONTAINER_INSERTED 1
+#define PATH_STAGE_COMPLETE 2
+
+
+
+
 /obj/item/weapon/grenade/chem_grenade
 	name = "grenade casing"
 	icon_state = "chemg"
@@ -5,29 +16,34 @@
 	desc = "A hand made chemical grenade."
 	w_class = W_CLASS_SMALL
 	force = 2.0
-	var/stage = 0
+	var/stage = GRENADE_STAGE_EMPTY
 	var/state = 0
-	var/path = 0
+	var/path = PATH_STAGE_EMPTY
 	var/obj/item/device/assembly_holder/detonator = null
 	var/list/beakers = new/list()
-	var/list/allowed_containers = list(/obj/item/weapon/reagent_containers/glass/beaker, /obj/item/weapon/reagent_containers/glass/bottle)
+	var/list/allowed_containers = list(/obj/item/weapon/reagent_containers/glass/beaker, /obj/item/weapon/reagent_containers/glass/bottle, /obj/item/weapon/reagent_containers/food/drinks)
 	var/affected_area = 3
 	var/inserted_cores = 0
 	var/obj/item/slime_extract/firstExtract = null	//for large and Ex grenades
 	var/obj/item/slime_extract/secondExtract = null	//for Ex grenades
 	var/obj/item/weapon/reagent_containers/glass/beaker/noreactgrenade/reservoir = null
-	var/extract_uses = 0
 	var/mob/primed_by = "N/A" //"name (ckey)". For logging purposes
+	var/disguised = FALSE //use this to hide if the device has an assembly, such as with disguised lipstick grenades...
 	mech_flags = null
+	det_time =0 //recycling this variable to be used by the grenade launcher's timer override function since chemnades use their assembly's timer instead.
+
+/obj/item/weapon/grenade/chem_grenade/splashable()
+	return FALSE
 
 /obj/item/weapon/grenade/chem_grenade/attack_self(mob/user as mob)
-	if(!stage || stage==1)
+	if(!stage || stage==GRENADE_STAGE_ASSEMBLY_INSERTED)
 		if(detonator)
 //				detonator.loc=src.loc
 			detonator.detached()
 			usr.put_in_hands(detonator)
+			detonator.master = null
 			detonator=null
-			stage=0
+			stage=GRENADE_STAGE_EMPTY
 			icon_state = initial(icon_state)
 		else if(beakers.len)
 			for(var/obj/B in beakers)
@@ -38,7 +54,7 @@
 					secondExtract = null
 					inserted_cores = 0
 		name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
-	if(stage > 1 && !active && clown_check(user))
+	if(stage > GRENADE_STAGE_ASSEMBLY_INSERTED  && !active && clown_check(user))
 		to_chat(user, "<span class='attack'>You prime \the [name]!</span>")
 
 		log_attack("<font color='red'>[user.name] ([user.ckey]) primed \a [src].</font>")
@@ -70,7 +86,7 @@
 		reservoir = null
 
 /obj/item/weapon/grenade/chem_grenade/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(istype(W,/obj/item/device/assembly_holder) && (!stage || stage==1) && path != 2)
+	if(istype(W,/obj/item/device/assembly_holder) && (!stage || stage==GRENADE_STAGE_ASSEMBLY_INSERTED ) && path != PATH_STAGE_COMPLETE)
 		var/obj/item/device/assembly_holder/det = W
 		if(istype(det.a_left,det.a_right.type) || (!isigniter(det.a_left) && !isigniter(det.a_right)))
 			to_chat(user, "<span class='warning'> Assembly must contain one igniter.</span>")
@@ -78,35 +94,28 @@
 		if(!det.secured)
 			to_chat(user, "<span class='warning'> Assembly must be secured with screwdriver.</span>")
 			return
-		path = 1
+		path = PATH_STAGE_CONTAINER_INSERTED
 		to_chat(user, "<span class='notice'>You add [W] to the metal casing.</span>")
-		playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+		W.playtoolsound(src, 25, TRUE, -3)
 		user.remove_from_mob(det)
 		det.forceMove(src)
+		det.master = src
 		detonator = det
 		icon_state = initial(icon_state) +"_ass"
 		name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
-		stage = 1
-	else if(istype(W,/obj/item/stack/cable_coil/) && !beakers.len)
-		var/obj/item/stack/cable_coil/coil = W
-		if(coil.amount < 2)
-			return
-		coil.use(2)
-		var/obj/item/weapon/electrolyzer/E = new /obj/item/weapon/electrolyzer
-		to_chat(user, "<span class='notice'>You tightly coil the wire around the metal casing.</span>")
-		playsound(src, 'sound/weapons/cablecuff.ogg', 30, 1, -2)
-		user.before_take_item(src)
-		user.put_in_hands(E)
-		qdel(src)
-	else if(istype(W,/obj/item/weapon/screwdriver) && path != 2)
-		if(stage == 1)
-			path = 1
+		stage = GRENADE_STAGE_ASSEMBLY_INSERTED
+	else if(istype(W,/obj/item/stack/cable_coil) && !beakers.len)
+		W.playtoolsound(src, 30, TRUE, -2)
+		user.create_in_hands(src, /obj/item/weapon/electrolyzer, W, 2, "<span class='notice'>You tightly coil the wire around the metal casing.</span>")
+	else if(W.is_screwdriver(user) && path != PATH_STAGE_COMPLETE)
+		if(stage == GRENADE_STAGE_ASSEMBLY_INSERTED )
+			path = PATH_STAGE_CONTAINER_INSERTED
 			if(beakers.len)
 				to_chat(user, "<span class='notice'>You lock the assembly.</span>")
 				var/temp_reagents = new/list()
 				var/reagents_text = ""
-				for(var/obj/item/weapon/reagent_containers/glass/G in beakers)
-					if(istype(G, /obj/item/weapon/reagent_containers/glass/beaker) || istype(G, /obj/item/weapon/reagent_containers/glass/bottle))
+				for(var/obj/item/weapon/reagent_containers/G in beakers)
+					if(istype(G, /obj/item/weapon/reagent_containers/glass/beaker) || istype(G, /obj/item/weapon/reagent_containers/glass/bottle) || istype(G, /obj/item/weapon/reagent_containers/food/drinks))
 						temp_reagents += G.reagents.amount_cache
 						if(reagents_text)
 							reagents_text += " and ([english_list(temp_reagents)])"
@@ -120,23 +129,23 @@
 //					to_chat(user, "<span class='warning'>You need to add at least one beaker before locking the assembly.</span>")
 				to_chat(user, "<span class='warning'>You lock the empty assembly.</span>")
 				name = "fake grenade"
-			playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+			W.playtoolsound(src, 25, -3)
 			icon_state = initial(icon_state) +"_locked"
-			stage = 2
-		else if(stage == 2)
+			stage = GRENADE_STAGE_COMPLETE
+		else if(stage == GRENADE_STAGE_COMPLETE)
 			if(active && prob(95))
 				to_chat(user, "<span class='warning'>You trigger the assembly!</span>")
 				prime()
 				return
 			else
 				to_chat(user, "<span class='notice'>You unlock the assembly.</span>")
-				playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+				W.playtoolsound(src, 25, -3)
 				name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
 				icon_state = initial(icon_state) + (detonator?"_ass":"")
-				stage = 1
+				stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 				active = 0
-	else if(is_type_in_list(W, allowed_containers) && (!stage || stage==1) && path != 2)
-		path = 1
+	else if(is_type_in_list(W, allowed_containers) && (!stage || stage==GRENADE_STAGE_ASSEMBLY_INSERTED) && path != PATH_STAGE_COMPLETE)
+		path = PATH_STAGE_CONTAINER_INSERTED
 		if(beakers.len == 2)
 			to_chat(user, "<span class='warning'> The grenade can not hold more containers.</span>")
 			return
@@ -150,13 +159,13 @@
 						inserted_cores++
 						firstExtract = W
 						beakers += W
-						stage = 1
+						stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 						name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
 			else if(W.reagents.total_volume)
 				if(user.drop_item(W, src))
 					to_chat(user, "<span class='notice'>You add \the [W] to the assembly.</span>")
 					beakers += W
-					stage = 1
+					stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 					name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
 			else
 				to_chat(user, "<span class='warning'> \the [W] is empty.</span>")
@@ -165,20 +174,12 @@
 	else if(iscrowbar(W))
 		to_chat(user, "You begin pressing \the [W] into \the [src].")
 		if(do_after(user, src, 30))
-			to_chat(user, "You poke a hole in \the [src].")
 			eject_contents()
-			if(src.loc == user)
-				user.drop_item(src, force_drop = 1)
-				var/obj/item/weapon/fuel_reservoir/I = new (get_turf(user))
-				user.put_in_hands(I)
-				qdel(src)
-			else
-				new /obj/item/weapon/fuel_reservoir(get_turf(src.loc))
-				qdel(src)
+			user.create_in_hands(src, /obj/item/weapon/fuel_reservoir, msg = "You poke a hole in \the [src].")
 
 /obj/item/weapon/grenade/chem_grenade/examine(mob/user)
 	..()
-	if(detonator)
+	if(detonator && !disguised)
 		to_chat(user, "<span class='info'>With an attached [detonator.name]</span>")
 
 /obj/item/weapon/grenade/chem_grenade/Crossed(AM as mob|obj)
@@ -194,6 +195,13 @@
 /obj/item/weapon/grenade/chem_grenade/activate(mob/user as mob)
 	if(active)
 		return
+
+	if(det_time != 0) //this can only ever be non-zero if fired from a grenade launcher with timer override toggled on... I think
+		spawn(det_time)
+			if(gcDestroyed)
+				return
+			prime(user)
+			active = 1
 
 	if(detonator)
 		if(!isigniter(detonator.a_left))
@@ -218,12 +226,12 @@
 		icon_state = initial(icon_state) + (primed?"_primed":"_active")
 
 /obj/item/weapon/grenade/chem_grenade/prime()
-	if(!stage || stage<2)
+	if(!stage || stage<GRENADE_STAGE_COMPLETE)
 		return
 
 	//if(prob(reliability))
 	var/has_reagents = 0
-	for(var/obj/item/weapon/reagent_containers/glass/G in beakers)
+	for(var/obj/item/weapon/reagent_containers/G in beakers)
 		if(G.reagents.total_volume)
 			has_reagents = 1
 
@@ -239,35 +247,33 @@
 
 	reservoir = new /obj/item/weapon/reagent_containers/glass/beaker/noreactgrenade() //acts like a stasis beaker, so the chemical reactions don't occur before all the slime reactions have occured
 
-	for(var/obj/item/weapon/reagent_containers/glass/G in beakers)
+	for(var/obj/item/weapon/reagent_containers/G in beakers)
 		G.reagents.trans_to(reservoir, G.reagents.total_volume)
 	for(var/obj/item/slime_extract/S in beakers)		//checking for reagents inside the slime extracts
 		S.reagents.trans_to(reservoir, S.reagents.total_volume)
 	if (firstExtract != null)
-		extract_uses = firstExtract.Uses
-		for(var/i=1,i<=extract_uses,i++)//<-------//exception for slime extracts injected with steroids. The grenade will repeat its checks untill all its remaining uses are gone
-			if (reservoir.reagents.has_reagent(PLASMA, 5))
-				reservoir.reagents.trans_id_to(firstExtract, PLASMA, 5)		//If the grenade contains a slime extract, the grenade will check in this order
-			else if (reservoir.reagents.has_reagent(BLOOD, 5))	//for any Plasma -> Blood ->or Water among the reagents of the other containers
-				reservoir.reagents.trans_id_to(firstExtract, BLOOD, 5)		//and inject 5u of it into the slime extract.
-			else if (reservoir.reagents.has_reagent(WATER, 5))
-				reservoir.reagents.trans_id_to(firstExtract, WATER, 5)
-			else if (reservoir.reagents.has_reagent(SUGAR, 5))
-				reservoir.reagents.trans_id_to(firstExtract, SUGAR, 5)
-		if(firstExtract.reagents.total_volume)						  //<-------//exception for slime reactions that produce new reagents. The grenade checks if any
+		while(firstExtract && firstExtract.uses)//<-------//exception for slime extracts injected with steroids. The grenade will repeat its checks untill all its remaining uses are gone
+			var/init_uses = firstExtract.uses
+			for(var/reagent in firstExtract.reactive_reagents) //If the grenade contains a slime extract, the grenade will check in this order
+				if (reservoir.reagents.has_reagent(reagent, 5))
+					reservoir.reagents.trans_id_to(firstExtract, reagent, 5) //and inject 5u of it into the slime extract.
+				if (!firstExtract)
+					break
+			if(!firstExtract || init_uses == firstExtract.uses) //Nothing happened, get outta here
+				break
+		if(firstExtract && firstExtract.reagents && firstExtract.reagents.total_volume)	//<-------//exception for slime reactions that produce new reagents. The grenade checks if any
 			firstExtract.reagents.trans_to(reservoir, firstExtract.reagents.total_volume)	//reagents are left in the slime extracts after the slime reactions occured
 		if (secondExtract != null)
-			extract_uses = secondExtract.Uses
-			for(var/j=1,j<=extract_uses,j++)	//why don't anyone ever uses "while" directives anyway?
-				if (reservoir.reagents.has_reagent(PLASMA, 5))
-					reservoir.reagents.trans_id_to(secondExtract, PLASMA, 5)	//since the order in which slime extracts are inserted matters (in the case of an Ex grenade)
-				else if (reservoir.reagents.has_reagent(BLOOD, 5))//this allow users to plannify which reagent will get into which extract.
-					reservoir.reagents.trans_id_to(secondExtract, BLOOD, 5)
-				else if (reservoir.reagents.has_reagent(WATER, 5))
-					reservoir.reagents.trans_id_to(secondExtract, WATER, 5)
-				else if (reservoir.reagents.has_reagent(SUGAR, 5))
-					reservoir.reagents.trans_id_to(secondExtract, SUGAR, 5)
-			if(secondExtract.reagents.total_volume)
+			while(secondExtract && secondExtract.uses)	//why don't anyone ever uses "while" directives anyway? //we do now
+				var/init_uses = secondExtract.uses
+				for(var/reagent2 in secondExtract.reactive_reagents)
+					if (reservoir.reagents.has_reagent(reagent2, 5))
+						reservoir.reagents.trans_id_to(secondExtract, reagent2, 5)
+					if (!secondExtract)
+						break
+				if(!secondExtract || init_uses == secondExtract.uses)
+					break
+			if(secondExtract && secondExtract.reagents && secondExtract.reagents.total_volume)
 				secondExtract.reagents.trans_to(reservoir, secondExtract.reagents.total_volume)
 
 		reservoir.reagents.update_total()
@@ -276,16 +282,12 @@
 
 	reservoir.reagents.trans_to(src, reservoir.reagents.total_volume)
 
-	if(src.reagents.total_volume) //The possible reactions didnt use up all reagents.
-		var/datum/effect/effect/system/steam_spread/steam = new /datum/effect/effect/system/steam_spread()
-		steam.set_up(10, 0, get_turf(src))
-		steam.attach(src)
-		steam.start()
+	if (QDELETED(src) || !reagents || !reagents.total_volume)
+		// incase the grenade was explosive and the explosion already qdel'd the grenade
+		return
 
-		for(var/atom/A in view(affected_area, get_turf(src)))
-			if( A == src )
-				continue
-			src.reagents.reaction(A, 1, 10)
+	if(reagents.total_volume) //The possible reactions didnt use up all reagents.
+		reagents.splashplosion(affected_area)
 
 	invisibility = INVISIBILITY_MAXIMUM //Why am i doing this?
 	spawn(50)		   //To make sure all reagents can work
@@ -304,20 +306,20 @@
 	name = "Large Chem Grenade"
 	desc = "An oversized grenade that affects a larger area."
 	icon_state = "large_grenade"
-	allowed_containers = list(/obj/item/weapon/reagent_containers/glass, /obj/item/slime_extract)
+	allowed_containers = list(/obj/item/weapon/reagent_containers/glass, /obj/item/slime_extract, /obj/item/weapon/reagent_containers/food/drinks)
 	origin_tech = Tc_COMBAT + "=3;" + Tc_MATERIALS + "=3"
 	affected_area = 4
 
-obj/item/weapon/grenade/chem_grenade/exgrenade
+/obj/item/weapon/grenade/chem_grenade/exgrenade
 	name = "EX Chem Grenade"
 	desc = "A specially designed large grenade that can hold three containers."
 	icon_state = "ex_grenade"
-	allowed_containers = list(/obj/item/weapon/reagent_containers/glass, /obj/item/slime_extract)
+	allowed_containers = list(/obj/item/weapon/reagent_containers/glass, /obj/item/slime_extract, /obj/item/weapon/reagent_containers/food/drinks)
 	origin_tech = Tc_COMBAT + "=4;" + Tc_MATERIALS + "=3;" + Tc_ENGINEERING + "=2"
 	affected_area = 4
 
-obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(istype(W,/obj/item/device/assembly_holder) && (!stage || stage==1) && path != 2)
+/obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj, mob/user as mob)
+	if(istype(W,/obj/item/device/assembly_holder) && (!stage || stage==GRENADE_STAGE_ASSEMBLY_INSERTED) && path != PATH_STAGE_COMPLETE)
 		var/obj/item/device/assembly_holder/det = W
 		if(istype(det.a_left,det.a_right.type) || (!isigniter(det.a_left) && !isigniter(det.a_right)))
 			to_chat(user, "<span class='warning'> Assembly must contain one igniter.</span>")
@@ -325,41 +327,42 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 		if(!det.secured)
 			to_chat(user, "<span class='warning'> Assembly must be secured with screwdriver.</span>")
 			return
-		path = 1
+		path = PATH_STAGE_CONTAINER_INSERTED
 		to_chat(user, "<span class='notice'>You insert [W] into the grenade.</span>")
-		playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+		W.playtoolsound(src, 25, TRUE, -3)
 		user.remove_from_mob(det)
 		det.forceMove(src)
+		det.master = src
 		detonator = det
 		icon_state = initial(icon_state) +"_ass"
 		name = "unsecured EX grenade with [beakers.len] containers[detonator?" and detonator":""]"
-		stage = 1
-	else if(istype(W,/obj/item/weapon/screwdriver) && path != 2)
-		if(stage == 1)
-			path = 1
+		stage = GRENADE_STAGE_ASSEMBLY_INSERTED
+	else if(W.is_screwdriver(user) && path != PATH_STAGE_COMPLETE)
+		if(stage == GRENADE_STAGE_ASSEMBLY_INSERTED)
+			path = PATH_STAGE_CONTAINER_INSERTED
 			if(beakers.len)
 				to_chat(user, "<span class='notice'>You lock the assembly.</span>")
 				name = "EX Grenade"
 			else
 				to_chat(user, "<span class='notice'>You lock the empty assembly.</span>")
 				name = "fake grenade"
-			playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+			W.playtoolsound(src, 25, -3)
 			icon_state = initial(icon_state) +"_locked"
-			stage = 2
-		else if(stage == 2)
+			stage = GRENADE_STAGE_COMPLETE
+		else if(stage == GRENADE_STAGE_COMPLETE)
 			if(active && prob(95))
 				to_chat(user, "<span class='attack'>You trigger the assembly!</span>")
 				prime()
 				return
 			else
 				to_chat(user, "<span class='notice'>You unlock the assembly.</span>")
-				playsound(src, 'sound/items/Screwdriver.ogg', 25, -3)
+				W.playtoolsound(src, 25, -3)
 				name = "unsecured EX grenade with [beakers.len] containers[detonator?" and detonator":""]"
 				icon_state = initial(icon_state) + (detonator?"_ass":"")
-				stage = 1
+				stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 				active = 0
-	else if(is_type_in_list(W, allowed_containers) && (!stage || stage==1) && path != 2)
-		path = 1
+	else if(is_type_in_list(W, allowed_containers) && (!stage || stage==GRENADE_STAGE_ASSEMBLY_INSERTED) && path != PATH_STAGE_COMPLETE)
+		path = PATH_STAGE_CONTAINER_INSERTED
 		if(beakers.len == 3)
 			to_chat(user, "<span class='warning'> The grenade can not hold more containers.</span>")
 			return
@@ -376,13 +379,13 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 						else
 							secondExtract = W
 						inserted_cores++
-						stage = 1
+						stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 						name = "unsecured grenade with [beakers.len] containers[detonator?" and detonator":""]"
 			else if(W.reagents.total_volume)
 				if(user.drop_item(W, src))
 					to_chat(user, "<span class='notice'>You add \the [W] to the assembly.</span>")
 					beakers += W
-					stage = 1
+					stage = GRENADE_STAGE_ASSEMBLY_INSERTED
 					name = "unsecured EX grenade with [beakers.len] containers[detonator?" and detonator":""]"
 			else
 				to_chat(user, "<span class='warning'> \the [W] is empty.</span>")
@@ -390,8 +393,8 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 /obj/item/weapon/grenade/chem_grenade/metalfoam
 	name = "Metal-Foam Grenade"
 	desc = "Used for emergency sealing of air breaches."
-	path = 1
-	stage = 2
+	path = PATH_STAGE_CONTAINER_INSERTED
+	stage = GRENADE_STAGE_COMPLETE
 
 /obj/item/weapon/grenade/chem_grenade/metalfoam/New()
 	..()
@@ -411,8 +414,8 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 /obj/item/weapon/grenade/chem_grenade/ironfoam
 	name = "Iron-Foam Grenade"
 	desc = "Used for emergency sealing of air breaches."
-	path = 1
-	stage = 2
+	path = PATH_STAGE_CONTAINER_INSERTED
+	stage = GRENADE_STAGE_COMPLETE
 
 /obj/item/weapon/grenade/chem_grenade/ironfoam/New()
 	..()
@@ -432,8 +435,8 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 /obj/item/weapon/grenade/chem_grenade/incendiary
 	name = "Incendiary Grenade"
 	desc = "Used for clearing rooms of living things."
-	path = 1
-	stage = 2
+	path = PATH_STAGE_CONTAINER_INSERTED
+	stage = GRENADE_STAGE_COMPLETE
 
 /obj/item/weapon/grenade/chem_grenade/incendiary/New()
 	..()
@@ -455,8 +458,8 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 /obj/item/weapon/grenade/chem_grenade/antiweed
 	name = "weedkiller grenade"
 	desc = "Used for purging large areas of invasive plant species. Contents under pressure. Do not directly inhale contents."
-	path = 1
-	stage = 2
+	path = PATH_STAGE_CONTAINER_INSERTED
+	stage = GRENADE_STAGE_COMPLETE
 
 /obj/item/weapon/grenade/chem_grenade/antiweed/New()
 	..()
@@ -477,8 +480,8 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 /obj/item/weapon/grenade/chem_grenade/cleaner
 	name = "Cleaner Grenade"
 	desc = "BLAM!-brand foaming space cleaner. In a special applicator for rapid cleaning of wide areas."
-	stage = 2
-	path = 1
+	stage = GRENADE_STAGE_COMPLETE
+	path = PATH_STAGE_CONTAINER_INSERTED
 
 /obj/item/weapon/grenade/chem_grenade/cleaner/New()
 	..()
@@ -495,11 +498,42 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 	beakers += B2
 	icon_state = initial(icon_state) +"_locked"
 
+/obj/item/weapon/grenade/chem_grenade/cleaner/arcane_act(mob/user, recursive)
+	for(var/atom/A in beakers)
+		qdel(A)
+	beakers.Cut()
+	var/obj/item/weapon/reagent_containers/glass/beaker/B1 = new(src)
+	var/obj/item/weapon/reagent_containers/glass/beaker/B2 = new(src)
+
+	B1.reagents.add_reagent(FLUOROSURFACTANT, 40)
+	B2.reagents.add_reagent(WATER, 40)
+	B2.reagents.add_reagent(pick(FLOUR,RADIUM,BLOOD,CARBON,FUEL,CORNOIL,LUBE), 10)
+
+	beakers += B1
+	beakers += B2
+	return ..()
+
+/obj/item/weapon/grenade/chem_grenade/cleaner/bless()
+	if(arcanetampered)
+		for(var/atom/A in beakers)
+			qdel(A)
+		beakers.Cut()
+		var/obj/item/weapon/reagent_containers/glass/beaker/B1 = new(src)
+		var/obj/item/weapon/reagent_containers/glass/beaker/B2 = new(src)
+
+		B1.reagents.add_reagent(FLUOROSURFACTANT, 40)
+		B2.reagents.add_reagent(WATER, 40)
+		B2.reagents.add_reagent(CLEANER, 10)
+
+		beakers += B1
+		beakers += B2
+	..()
+
 /obj/item/weapon/grenade/chem_grenade/wind
 	name = "wind grenade"
 	desc = "Designed to perfectly bring an empty five-by-five room back into a filled, breathable state. Larger rooms will require additional gas sources."
-	stage = 2
-	path = 1
+	stage = GRENADE_STAGE_COMPLETE
+	path = PATH_STAGE_CONTAINER_INSERTED
 
 /obj/item/weapon/grenade/chem_grenade/wind/New()
 	..()
@@ -516,9 +550,78 @@ obj/item/weapon/grenade/chem_grenade/exgrenade/attackby(obj/item/weapon/W as obj
 	beakers += B2
 	icon_state = initial(icon_state) +"_locked"
 
+/obj/item/weapon/grenade/chem_grenade/wind/arcane_act(mob/user, recursive)
+	for(var/atom/A in beakers)
+		qdel(A)
+	beakers.Cut()
+
+	var/obj/item/weapon/reagent_containers/glass/beaker/B1 = new(src)
+	var/obj/item/weapon/reagent_containers/glass/beaker/B2 = new(src)
+
+	B1.reagents.add_reagent(VAPORSALT, 50)
+	B2.reagents.add_reagent(OXYGEN, 25)
+	B2.reagents.add_reagent(PLASMA, 25)
+
+	beakers += B1
+	beakers += B2
+	return ..()
+
+/obj/item/weapon/grenade/chem_grenade/wind/bless()
+	if(arcanetampered)
+		for(var/atom/A in beakers)
+			qdel(A)
+		beakers.Cut()
+
+		var/obj/item/weapon/reagent_containers/glass/beaker/B1 = new(src)
+		var/obj/item/weapon/reagent_containers/glass/beaker/B2 = new(src)
+
+		B1.reagents.add_reagent(VAPORSALT, 50)
+		B2.reagents.add_reagent(OXYGEN, 10)
+		B2.reagents.add_reagent(NITROGEN, 40)
+
+		beakers += B1
+		beakers += B2
+	..()
+
 /obj/item/weapon/reagent_containers/glass/beaker/noreactgrenade
 	name = "grenade reservoir"
 	desc = "..."
 	icon_state = null
 	volume = 1000
 	flags = FPRINT  | OPENCONTAINER | NOREACT
+
+/obj/item/weapon/grenade/chem_grenade/timer  //grenade casing with a 5 second timer+ignitor installed. no beakers.
+											// can be configured via a right click verb. can be done before being assembled and after being assembled
+	name = "grenade casing (timer)"
+	desc = "A hand made chemical grenade. This one seems to have a dial on the top."
+	starting_materials = list(MAT_IRON = 4750, MAT_GLASS = 100)
+	stage = GRENADE_STAGE_ASSEMBLY_INSERTED		//these are marked as 1 because inserting any parts into an empty grenade casing raises the value from 0 to 1
+	path = PATH_STAGE_CONTAINER_INSERTED		//since the act of inserting an assembly hasnt technically occured these two values must be set to 1 to prevent derping
+
+
+/obj/item/weapon/grenade/chem_grenade/timer/New()
+	..()
+	detonator = new/obj/item/device/assembly_holder/timer_igniter(src)
+
+/obj/item/weapon/grenade/chem_grenade/teargas
+	name = "teargas grenade"
+	desc = "Used for training and crowd control operations. Contents under pressure. Do not directly inhale contents."
+	stage = GRENADE_STAGE_COMPLETE
+	path = PATH_STAGE_CONTAINER_INSERTED
+
+/obj/item/weapon/grenade/chem_grenade/teargas/New()
+	..()
+	var/obj/item/weapon/reagent_containers/glass/beaker/large/B1 = new(src)
+	var/obj/item/weapon/reagent_containers/glass/beaker/large/B2 = new(src)
+
+	B1.reagents.add_reagent(CONDENSEDCAPSAICIN, 60)
+	B1.reagents.add_reagent(POTASSIUM, 40)
+	B2.reagents.add_reagent(PHOSPHORUS, 40)
+	B2.reagents.add_reagent(SUGAR, 40)
+
+	detonator = new/obj/item/device/assembly_holder/timer_igniter(src)
+
+	beakers += B1
+	beakers += B2
+	icon_state = initial(icon_state) +"_locked"
+

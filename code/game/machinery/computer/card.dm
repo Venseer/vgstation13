@@ -16,15 +16,15 @@
 		"silver",
 		"centcom_old",
 		"centcom",
-		"security",
-		"medical",
 		"HoS",
-		"research",
-		"cargo",
-		"engineering",
 		"CMO",
 		"RD",
 		"CE",
+		"security",
+		"medical",
+		"research",
+		"engineering",
+		"cargo",
 		"clown",
 		"mime",
 		"trader",
@@ -43,37 +43,46 @@
 		"ERT_security",
 		"ERT_engineering",
 		"ERT_medical",
+		"ERT_empty",
+		"TDred",
+		"TDgreen",
 	)
 
 	light_color = LIGHT_COLOR_BLUE
 
-	proc/is_centcom()
-		return istype(src, /obj/machinery/computer/card/centcom)
+/obj/machinery/computer/card/proc/is_centcom()
+	return istype(src, /obj/machinery/computer/card/centcom)
 
-	proc/is_authenticated()
-		return scan ? check_access(scan) : 0
+/obj/machinery/computer/card/proc/is_authenticated()
+	return scan ? check_access(scan) : 0
 
-	proc/get_target_rank()
-		return modify && modify.assignment ? modify.assignment : "Unassigned"
+/obj/machinery/computer/card/proc/get_target_rank()
+	return modify && modify.assignment ? modify.assignment : "Unassigned"
 
-	proc/format_jobs(list/jobs)
-		var/list/formatted = list()
-		for(var/job in jobs)
-			formatted.Add(list(list(
-				"display_name" = replacetext(job, " ", "&nbsp;"),
-				"target_rank" = get_target_rank(),
-				"job" = job)))
+/obj/machinery/computer/card/proc/format_jobs(list/jobs,region)
+	if(modify && modify.dchip && modify.dchip.stamped.len)
+		for(var/stamptype in modify.dchip.stamped)
+			if(region == stamptype2region[stamptype] || (stamptype2region[stamptype] == 6 && region == 7))
+				return list()
+	var/list/formatted = list()
+	for(var/job in jobs)
+		formatted.Add(list(list(
+			"display_name" = replacetext(job, " ", "&nbsp;"),
+			"target_rank" = get_target_rank(),
+			"job" = job)))
 
-		return formatted
+	return formatted
 
-	proc/format_card_skins(list/card_skins)
-		var/list/formatted = list()
-		for(var/skin in card_skins)
-			formatted.Add(list(list(
-				"display_name" = replacetext(skin, " ", "&nbsp;"),
-				"skin" = skin)))
+/obj/machinery/computer/card/proc/format_card_skins(list/card_skins)
+	var/list/formatted = list()
+	for(var/skin in card_skins)
+		if(modify && modify.dchip && modify.dchip.stamped.len && skin == "gold")
+			continue
+		formatted.Add(list(list(
+			"display_name" = replacetext(skin, " ", "&nbsp;"),
+			"skin" = skin)))
 
-		return formatted
+	return formatted
 
 /obj/machinery/computer/card/verb/eject_id()
 	set category = "Object"
@@ -127,16 +136,13 @@
 	nanomanager.update_uis(src)
 	attack_hand(user)
 
-/obj/machinery/computer/card/attack_ai(var/mob/user as mob)
-	return attack_hand(user)
-
 /obj/machinery/computer/card/attack_paw(var/mob/user as mob)
 	return attack_hand(user)
 
 /obj/machinery/computer/card/attack_hand(mob/user as mob)
 	if(..())
 		return
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	ui_interact(user)
 
@@ -156,17 +162,18 @@
 	data["authenticated"] = is_authenticated()
 	data["has_modify"] = !!modify
 	data["account_number"] = modify ? modify.associated_account_number : null
+	data["target_bio"] = (modify && modify.dna_hash == "\[UNSET\]") ? "Undetected - Use Body Scanner" : "Detected"
 	data["centcom_access"] = is_centcom()
 	data["all_centcom_access"] = null
 	data["regions"] = null
 
-	data["head_jobs"] = format_jobs(command_positions)
-	data["engineering_jobs"] = format_jobs(engineering_positions)
-	data["medical_jobs"] = format_jobs(medical_positions)
-	data["science_jobs"] = format_jobs(science_positions)
-	data["security_jobs"] = format_jobs(security_positions)
-	data["cargo_jobs"] = format_jobs(cargo_positions)
-	data["civilian_jobs"] = format_jobs(civilian_positions)
+	data["head_jobs"] = format_jobs(command_positions,5)
+	data["engineering_jobs"] = format_jobs(engineering_positions,4)
+	data["medical_jobs"] = format_jobs(medical_positions,2)
+	data["science_jobs"] = format_jobs(science_positions,3)
+	data["security_jobs"] = format_jobs(security_positions,1)
+	data["cargo_jobs"] = format_jobs(cargo_positions,7)
+	data["civilian_jobs"] = format_jobs(civilian_positions,6)
 	data["centcom_jobs"] = format_jobs(get_all_centcom_jobs())
 	data["card_skins"] = format_card_skins(card_skins)
 	data["cent_card_skins"] = format_card_skins(cent_card_skins)
@@ -188,12 +195,19 @@
 		var/list/regions = list()
 		for(var/i = 1; i <= 7; i++)
 			var/list/accesses = list()
-			for(var/access in get_region_accesses(i))
-				if (get_access_desc(access))
-					accesses.Add(list(list(
-						"desc" = replacetext(get_access_desc(access), " ", "&nbsp"),
-						"ref" = access,
-						"allowed" = (access in modify.access) ? 1 : 0)))
+			var/addaccess = TRUE
+			if(modify.dchip && modify.dchip.stamped.len)
+				for(var/stamptype in modify.dchip.stamped)
+					if(i == stamptype2region[stamptype] || (stamptype2region[stamptype] == 6 && i == 7))
+						addaccess = FALSE
+						break
+			if(addaccess)
+				for(var/access in get_region_accesses(i))
+					if (get_access_desc(access))
+						accesses.Add(list(list(
+							"desc" = replacetext(get_access_desc(access), " ", "&nbsp"),
+							"ref" = access,
+							"allowed" = (access in modify.access) ? 1 : 0)))
 
 			regions.Add(list(list(
 				"name" = get_region_accesses_name(i),
@@ -249,9 +263,17 @@
 					if(access_type in (is_centcom() ? get_all_centcom_access() : get_all_accesses()))
 						modify.access -= access_type
 						if(!access_allowed)
-							modify.access += access_type
+							var/canadd = TRUE
+							if(modify.dchip && modify.dchip.stamped.len)
+								for(var/stamptype in modify.dchip.stamped)
+									if(access_type in get_region_accesses(stamptype2region[stamptype]))
+										canadd = FALSE
+										break
+							if(canadd)
+								modify.access += access_type
 		if("skin")
-			modify.icon_state = href_list["skin_target"]
+			if(!(modify.dchip && modify.dchip.stamped.len && href_list["skin_target"] == "gold"))
+				modify.icon_state = href_list["skin_target"]
 
 
 		if ("assign")
@@ -264,8 +286,18 @@
 						//let custom jobs function as an impromptu alt title, mainly for sechuds
 						if(temp_t && modify)
 							modify.assignment = temp_t
+					if (!(temp_t in all_jobs_txt))
+						var/new_dept = input("Choose the departement this job belongs to.") as null|anything in departement_list
+						if (new_dept)
+							for (var/list/L in list(data_core.general, data_core.medical, data_core.security,data_core.locked))
+								if (L.len)
+									var/datum/data/record/R = find_record("name", modify.registered_name, L)
+									if (R)
+										R.fields["override_dept"] = new_dept
+
 				else
 					var/list/access = list()
+					var/canadd = TRUE
 					if(is_centcom())
 						access = get_centcom_access(t1)
 					else
@@ -280,10 +312,16 @@
 							return
 
 						access = jobdatum.get_access()
+						if(modify.dchip && modify.dchip.stamped.len)
+							for(var/stamptype in modify.dchip.stamped)
+								if(jobdatum.title in get_region_accesses_positions(stamptype2region[stamptype]))
+									canadd = FALSE
+									break
 
-					modify.access = access
-					modify.assignment = t1
-					modify.rank = t1
+					if(canadd)
+						modify.access = access
+						modify.assignment = t1
+						modify.rank = t1
 
 		if ("reg")
 			if (is_authenticated())
@@ -302,6 +340,13 @@
 				var/t2 = modify
 				if ((modify == t2 && (in_range(src, usr) || (istype(usr, /mob/living/silicon))) && istype(loc, /turf)))
 					var/account_num = text2num(href_list["account"])
+					var/datum/money_account/MA = get_money_account(account_num)
+					if(!MA)
+						to_chat(usr, "<span class='warning'>That account number was invalid.</span>")
+						return
+					if(MA.hidden)
+						to_chat(usr, "<span class='warning'>That account number is reserved.</span>")
+						return
 					modify.associated_account_number = account_num
 			nanomanager.update_uis(src)
 
@@ -325,17 +370,21 @@
 					else if (modify)
 						P.name = "access report"
 						P.info = {"<h4>Access Report</h4>
-							<u>Prepared By:</u> [scan.registered_name ? scan.registered_name : "Unknown"]<br>
+							<u>Prepared By:</u> [scan?.registered_name ? scan.registered_name : "Unknown"]<br>
 							<u>For:</u> [modify.registered_name ? modify.registered_name : "Unregistered"]<br>
 							<hr>
 							<u>Assignment:</u> [modify.assignment]<br>
 							<u>Account Number:</u> #[modify.associated_account_number]<br>
-							<u>Blood Type:</u> [modify.blood_type]<br><br>
+							<u>Blood Type:</u> [modify.blood_type]<br>
+							<u>DNA:</u> [modify.dna_hash]<br>
+							<u>Fingerprint:</u> [modify.fingerprint_hash]<br><br>
 							<u>Access:</u><br>
 						"}
 
+						P.info += "<ul>"
 						for(var/A in modify.access)
-							P.info += "  [get_access_desc(A)]"
+							P.info += "<li>[get_access_desc(A)]</li>"
+						P.info += "</ul>"
 
 	if (modify)
 		modify.name = text("[modify.registered_name]'s ID Card ([modify.assignment])")

@@ -1,4 +1,9 @@
 #define CLONEPODRANGE 7
+#define ERR_NO_CLONEPOD 1
+#define ERR_CLONEPOD_OCCUPIED 2
+#define ERR_CLONEPOD_BIOMASS 3
+#define ERR_CLONEPOD_MESS 4
+
 /obj/machinery/computer/cloning
 	name = "cloning console"
 	desc = "A computer that takes DNA from a DNA scanner and uses it to clone an organism with a cloning pod."
@@ -6,19 +11,26 @@
 	icon_state = "cloning"
 	circuit = "/obj/item/weapon/circuitboard/cloning"
 	req_access = list(access_heads) //Only used for record deletion right now.
-	var/obj/machinery/dna_scannernew/scanner = null //Linked scanner. For scanning.
+	var/list/obj/machinery/dna_scannernew/scanners = list() //Linked scanners. For scanning.
 	//var/obj/machinery/species_modifier/species_mod = null //linked Species Modifier. For handling species.
-	var/obj/machinery/cloning/clonepod/pod1 = null //Linked cloning pod.
+	var/list/obj/machinery/cloning/clonepod/pods = list() //Linked cloning pods.
 	var/temp = ""
 	var/scantemp = "Scanner unoccupied"
 	var/menu = 1 //Which menu screen to display
 	var/list/records = list()
 	var/datum/dna2/record/active_record = null
 	var/obj/item/weapon/disk/data/diskette = null //Mostly so the geneticist can steal everything.
+	var/list/available_species // Species available to emagged consoles. Per-instance copy to allow adminbus.
 	var/loading = 0 // Nice loading text
-	var/available_species = list("Human","Tajaran","Skrell","Unathi","Grey","Plasmamen","Vox")
 
 	light_color = LIGHT_COLOR_BLUE
+
+	hack_abilities = list(
+		/datum/malfhack_ability/toggle/disable,
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
+
 
 /obj/machinery/computer/cloning/New()
 	..()
@@ -28,12 +40,14 @@
 	return
 
 /obj/machinery/computer/cloning/Destroy()
-	if(pod1)
-		pod1.connected = null
-		pod1 = null
-	if(scanner)
-		scanner.connected = null
-		scanner = null
+	if(pods.len)
+		for(var/obj/machinery/cloning/clonepod/pod in pods)
+			pod.connected -= src
+		pods.Cut()
+	if(scanners.len)
+		for(var/obj/machinery/dna_scannernew/scanner in scanners)
+			scanner.connected -= src
+		scanners.Cut()
 	if(diskette)
 		if(loc)
 			diskette.forceMove(loc)
@@ -46,9 +60,8 @@
 	..()
 
 /obj/machinery/computer/cloning/initialize()
-	pod1 = findcloner()
-	if(pod1 && !pod1.connected)
-		pod1.connected = src
+	available_species = emag_cloneable_species.Copy()
+	updatemodules()
 
 /obj/machinery/computer/cloning/multitool_menu(var/mob/user, var/obj/item/device/multitool/P)
 	return ""
@@ -57,44 +70,42 @@
 	return (istype(O,/obj/machinery/cloning) && get_dist(src,O) < CLONEPODRANGE)
 
 /obj/machinery/computer/cloning/isLinkedWith(var/obj/O)
-	return O != null && (O == pod1 || O == scanner)
+	return O != null && ((O in pods) || (O in scanners))
 
 ///obj/machinery/computer/cloning/getLink(var/idx) - abandoned orphan code that never worked anyway
 //	return (idx >= 1 && idx <= links.len) ? links[idx] : null
 
-/obj/machinery/computer/cloning/linkWith(var/mob/user, var/obj/O, var/link/context)
+/obj/machinery/computer/cloning/linkWith(var/mob/user, var/obj/O, var/list/context)
 	if(istype(O, /obj/machinery/cloning/clonepod))
-		pod1 = O
-		pod1.connected = src
+		pods += O
+		var/obj/machinery/cloning/clonepod/C = O
+		C.connected += src
 		return 1
 
 /obj/machinery/computer/cloning/proc/updatemodules()
-	scanner = findscanner()
-	if(scanner && !scanner.connected)
-		scanner.connected = src
+	scanners = findscanners()
+	pods = findcloners()
 
-/obj/machinery/computer/cloning/proc/findscanner()
+/obj/machinery/computer/cloning/proc/findscanners()
+	. = list()
 	var/obj/machinery/dna_scannernew/scannerf = null
 
 	// Loop through every direction
-	for(dir in list(NORTH,EAST,SOUTH,WEST))
+	for(dir in cardinal)
 
 		// Try to find a scanner in that direction
 		scannerf = locate(/obj/machinery/dna_scannernew, get_step(src, dir))
 
-		// If found, then we break, and return the scanner
+		// If found, then we add the scanner to the return
 		if (!isnull(scannerf))
-			break
+			. += scannerf
+			scannerf.connected += src
 
-	// If no scanner was found, it will return null
-	return scannerf
-
-/obj/machinery/computer/cloning/proc/findcloner()
-	var/obj/machinery/cloning/clonepod/pod_found = null
-	for (pod_found in orange(src, CLONEPODRANGE))
-		if(pod_found.connected)
-			continue
-		return pod_found
+/obj/machinery/computer/cloning/proc/findcloners()
+	. = list()
+	for (var/obj/machinery/cloning/clonepod/pod_found in orange(src, CLONEPODRANGE))
+		. += pod_found
+		pod_found.connected += src
 
 #undef CLONEPODRANGE
 
@@ -110,17 +121,13 @@
 				src.updateUsrDialog()
 				return 1
 
-/obj/machinery/computer/cloning/emag(mob/user)
+/obj/machinery/computer/cloning/emag_act(mob/user)
 	if(!emagged)
 		emagged = 1
-		if(user)
+		if(user && !issilicon(user))
 			user.visible_message("<span class='warning'>[user] slides something into \the [src]'s card-reader.</span>","<span class='warning'>You disable \the [src]'s safety overrides.</span>")
 
 /obj/machinery/computer/cloning/attack_paw(mob/user as mob)
-	return attack_hand(user)
-
-/obj/machinery/computer/cloning/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
 	return attack_hand(user)
 
 /obj/machinery/computer/cloning/attack_hand(mob/user as mob)
@@ -139,11 +146,11 @@
 			// Modules
 			dat += "<h4>Modules</h4>"
 			//dat += "<a href='byond://?src=\ref[src];relmodules=1'>Reload Modules</a>"
-			if (isnull(src.scanner))
+			if (!scanners.len)
 				dat += " <font color=red>Scanner-ERROR</font><br>"
 			else
 				dat += " <font color=green>Scanner-Found!</font><br>"
-			if (isnull(src.pod1))
+			if (!pods.len)
 				dat += " <font color=red>Pod-ERROR</font><br>"
 			else
 				dat += " <font color=green>Pod-Found!</font><br>"
@@ -156,21 +163,26 @@
 			else
 				dat += "<b>[scantemp]</b><br>"
 
-			if (isnull(src.scanner))
-				dat += "No scanner connected!<br>"
+			if (!scanners.len)
+				dat += "No scanners connected!<br>"
 			else
-				if (src.scanner.occupant)
-					if(scantemp == "Scanner unoccupied")
-						scantemp = "" // Stupid check to remove the text
+				var/i = 0
+				for(var/obj/machinery/dna_scannernew/scanner in scanners)
+					i++
+					dat += "Scanner [i] lock status: <a href='byond://?src=\ref[src];lock=\ref[scanner]'>[scanner.locked ? "Locked" : "Unlocked"]</a><br>"
+					if (scanner.occupant)
+						if(scantemp == "Scanners unoccupied")
+							scantemp = "" // Stupid check to remove the text
 
-					dat += "<a href='byond://?src=\ref[src];scan=1'>Scan - [src.scanner.occupant]</a><br>"
-				else
-					scantemp = "Scanner unoccupied"
+						dat += "<a href='byond://?src=\ref[src];scan=\ref[scanner]'>Scan - [scanner.occupant]</a><br>"
+					else
+						scantemp = "Scanners unoccupied"
 
-				dat += "Lock status: <a href='byond://?src=\ref[src];lock=1'>[src.scanner.locked ? "Locked" : "Unlocked"]</a><br>"
-
-			if (!isnull(src.pod1))
-				dat += "Biomass: <i>[src.pod1.biomass]</i><br>"
+			if (pods.len)
+				var/i = 0
+				for(var/obj/machinery/cloning/clonepod/pod in pods)
+					i++
+					dat += "Pod [i] Biomass: <i>[pod.biomass]</i><br>"
 
 			// Database
 
@@ -196,15 +208,6 @@
 			else
 				dat += {"<br><font size=1><a href='byond://?src=\ref[src];del_rec=1'>Edit Record</a></font><br>
 					<b>Name:</b> [src.active_record.dna.real_name && src.active_record.dna.real_name != "" ? src.active_record.dna.real_name : "Unknown"]<br>"}
-				var/obj/item/weapon/implant/health/H = null
-				if(src.active_record.implant)
-					H=locate(src.active_record.implant)
-
-				if ((H) && (istype(H)))
-					dat += "<b>Health:</b> [H.sensehealth()] | OXY-BURN-TOX-BRUTE<br>"
-				else
-					dat += "<font color=red>Unable to locate implant.</font><br>"
-
 				if (!isnull(src.diskette))
 
 					dat += {"<a href='byond://?src=\ref[src];disk=load'>Load from disk.</a>
@@ -218,10 +221,15 @@
 				dat += {"<b>UI:</b> [src.active_record.dna.uni_identity]<br>
 				<b>SE:</b> [src.active_record.dna.struc_enzymes]<br><br>"}
 
-				if(pod1 && pod1.biomass >= CLONE_BIOMASS)
+				var/biomass_found = FALSE
+				for(var/obj/machinery/cloning/clonepod/pod in pods)
+					if(pod.biomass >= CLONE_BIOMASS)
+						biomass_found = TRUE
+						break
+				if(biomass_found)
 					dat += {"<a href='byond://?src=\ref[src];clone=\ref[src.active_record]'>Clone</a><br>"}
 				else
-					dat += {"<b>Insufficient biomass</b><br>"}
+					dat += {"<b>Insufficient biomass in any pod</b><br>"}
 
 		if(4)
 			if (!src.active_record)
@@ -233,7 +241,7 @@
                         <h4>Record Deletion</h4>
                         <b><a href='byond://?src=\ref[src];del_rec=1'>Scan card to confirm.</a></b><br>
                         <b><a href='byond://?src=\ref[src];menu=3'>Return</a></b>"}
-	user << browse(dat, "window=cloning")
+	user << browse(HTML_SKELETON(dat), "window=cloning")
 	onclose(user, "cloning")
 	return
 
@@ -244,32 +252,31 @@
 	if(loading)
 		return
 
-	if ((href_list["scan"]) && (!isnull(src.scanner)))
-		scantemp = ""
+	if (href_list["scan"])
+		var/obj/machinery/dna_scannernew/scanner = locate(href_list["scan"])
+		if(scanner in scanners)
+			scantemp = ""
 
-		loading = 1
-		src.updateUsrDialog()
-
-		spawn(20)
-			src.scan_mob(src.scanner.occupant)
-
-			loading = 0
+			loading = 1
 			src.updateUsrDialog()
 
+			spawn(20)
+				src.scan_mob(scanner.occupant)
 
+				loading = 0
+				src.updateUsrDialog()
+
+	else if (href_list["lock"])
 		//No locking an open scanner.
-	else if ((href_list["lock"]) && (!isnull(src.scanner)))
-		if ((!src.scanner.locked) && (src.scanner.occupant))
-			src.scanner.locked = 1
-		else
-			src.scanner.locked = 0
+		var/obj/machinery/dna_scannernew/scanner = locate(href_list["lock"])
+		if(scanner in scanners)
+			scanner.locked = !scanner.locked && scanner.occupant
 
 	else if (href_list["view_rec"])
 		src.active_record = locate(href_list["view_rec"])
 		if(istype(src.active_record,/datum/dna2/record))
 			if ((isnull(src.active_record.ckey)))
-				qdel(src.active_record)
-				src.active_record = null
+				QDEL_NULL(src.active_record)
 				src.temp = "ERROR: Record Corrupt"
 			else
 				src.menu = 3
@@ -289,8 +296,7 @@
 			if (istype(C)||istype(C, /obj/item/device/pda))
 				if(src.check_access(C))
 					src.records.Remove(src.active_record)
-					qdel(src.active_record)
-					src.active_record = null
+					QDEL_NULL(src.active_record)
 					src.temp = "Record deleted."
 					src.menu = 2
 				else
@@ -343,46 +349,46 @@
 		var/datum/dna2/record/C = locate(href_list["clone"])
 		//Look for that player! They better be dead!
 		if(istype(C))
-			//Can't clone without someone to clone.  Or a pod.  Or if the pod is busy. Or full of gibs.
-			if(!pod1 || !canLink(pod1)) //If the pod exists BUT it's too far away from the console
-				temp = "Error: No Clonepod detected."
-				return
-			else if(pod1.occupant)
-				temp = "Error: Clonepod is currently occupied."
-				return
-			else if(pod1.biomass < CLONE_BIOMASS)
-				temp = "Error: Not enough biomass."
-				return
-			else if(pod1.mess)
-				temp = "Error: Clonepod malfunction."
-				return
-			else if(!config.revival_cloning)
-				temp = "Error: Unable to initiate cloning cycle."
-				return
-
-			var/success = pod1.growclone(C)
-			if(success)
-				temp = "Initiating cloning cycle..."
-				records.Remove(C)
-				qdel(C)
-				C = null
-				menu = 1
-			else
-				//if growclone() failed, we can't clone the guy, so what is this even DOING here?
-				var/mob/selected = find_dead_player("[C.ckey]")
-				if(!selected)
-					temp = "Initiating cloning cycle...<br>Error: Post-initialisation failed. Cloning cycle aborted."
-					src.updateUsrDialog()
-					return
-				selected << 'sound/machines/chime.ogg'	//probably not the best sound but I think it's reasonable
-				var/answer = alert(selected,"Do you want to return to life?","Cloning","Yes","No")
-				if(answer != "No" && pod1.growclone(C))
+			var/obj/machinery/cloning/clonepod/pod_used = null
+			var/list/errcodes = list()
+			for(var/obj/machinery/cloning/clonepod/pod in pods)
+				//Can't clone without someone to clone.  Or a pod.  Or if the pod is busy. Or full of gibs.
+				if(!canLink(pod)) //If the pod exists BUT it's too far away from the console
+					errcodes += list(1)
+				else if(pod.occupants.len > 0)
+					errcodes += list(2)
+				else if(pod.biomass < CLONE_BIOMASS)
+					errcodes += list(3)
+				else if(pod.mess)
+					errcodes += list(4)
+				else
+					pod_used = pod
+					break
+			if(pod_used)
+				if(pod_used.growclone(C))
 					temp = "Initiating cloning cycle..."
 					records.Remove(C)
-					qdel(C)
+					QDEL_NULL(C)
 					menu = 1
 				else
 					temp = "Initiating cloning cycle...<br>Error: Post-initialisation failed. Cloning cycle aborted."
+					src.updateUsrDialog()
+					return
+			else if(errcodes.len)
+				temp = "Error:"
+				var/i = 0
+				for(var/code in errcodes)
+					temp += " "
+					i++
+					switch(code)
+						if(ERR_NO_CLONEPOD)
+							temp += "Clone pod [i] unlinkable."
+						if(ERR_CLONEPOD_OCCUPIED)
+							temp += "Clone pod [i] is currently occupied."
+						if(ERR_CLONEPOD_BIOMASS)
+							temp += "Clone pod [i] does not have enough biomass."
+						if(ERR_CLONEPOD_MESS)
+							temp += "Clone pod [i] is malfunctioned."
 
 		else
 			temp = "Error: Data corruption."
@@ -406,13 +412,17 @@
 	src.updateUsrDialog()
 	return
 
-/obj/machinery/computer/cloning/proc/scan_mob(mob/living/carbon/human/subject as mob)
-	if(istype(subject, /mob/living/slime_pile))
-		var/mob/living/slime_pile/S = subject
-		subject = S.slime_person
-	if((isnull(subject)) || (!(ishuman(subject))) || (!subject.dna) || (istype(subject, /mob/living/carbon/human/manifested)))
+/obj/machinery/computer/cloning/proc/scan_mob(mob/living/subject as mob)
+	if((isnull(subject)) || (!ishuman(subject) && !istype(subject, /mob/living/slime_pile)) || (!subject.dna) || (ismanifested(subject)))
 		scantemp = "Error: Unable to locate valid genetic data." //Something went very wrong here
 		return
+	if(istype(subject, /mob/living/slime_pile))
+		var/mob/living/slime_pile/P = subject
+		if(P.slime_person && P.slime_person.has_brain())
+			subject = P.slime_person
+		else
+			scantemp = "Unable to locate genetic base within the slime puddle. Micro-MRI scans indicate its brain is missing."
+			return
 	if(!subject.has_brain())
 		scantemp = "Error: No signs of intelligence detected." //Self explainatory
 		return
@@ -420,7 +430,7 @@
 		scantemp = "Error: Mental interface failure."
 		return
 
-	if(subject.suiciding) //We cannot clone this guy because he suicided. Believe it or not, some people who suicide don't know about this. Let's tell them what's wrong.
+	if(subject.mind && subject.mind.suiciding) //We cannot clone this guy because he suicided. Believe it or not, some people who suicide don't know about this. Let's tell them what's wrong.
 		scantemp = "Error: Mental interface failure."
 		if(subject.client)
 			to_chat(subject, "<span class='warning'>Someone is trying to clone your corpse, but you may not be revived as you committed suicide.</span>")
@@ -437,35 +447,14 @@
 			scantemp = "Error: Unable to locate valid genetic data. However, mental interface initialized successfully."
 			to_chat(subject, "<span class='interface'><span class='big bold'>Someone is trying to clone your corpse.</span> \
 				You cannot be cloned as your body has been husked. However, your brain may still be used. Your ghost has been displayed as active and inside your body.</span>")
-			return
 		else
-			var/mob/dead/observer/ghost = mind_can_reenter(subject.mind)
-			if(ghost)
-				var/mob/ghostmob = ghost.get_top_transmogrification()
-				if(ghostmob)
-					scantemp = "Error: Unable to locate valid genetic data. Additionally, subject's brain is not responding to scanning stimuli."
-					ghostmob << 'sound/effects/adminhelp.ogg'
-					to_chat(ghostmob, "<span class='interface'><span class='big bold'>Someone is trying to clone your corpse.</span> \
-						You cannot be cloned as your body has been husked. However, your brain may still be used. To show you're still active, return to your body! (Verbs -> Ghost -> Re-enter corpse, or <a href='?src=\ref[ghost];reentercorpse=1'>click here!</a>)</span>")
-					return
-			else
-				scantemp = "Error: Unable to locate valid genetic data. Additionally, mental interface failed to initialize."
-				return
+			scantemp = "Error: Unable to locate valid genetic data. Additionally, [subject.ghost_reenter_alert("Someone is trying to clone your corpse. You cannot be cloned as your body has been husked. However, your brain may still be used. To show you're still active, return to your body!") ? "subject's brain is not responding to scanning stimuli" : "mental interface failed to initialize"]."
+		return
 
 	//There's nothing wrong with the corpse itself past this point
 	if(!subject.client) //There is not a player "in control" of this corpse, maybe they ghosted, maybe they logged out
-		var/mob/dead/observer/ghost = mind_can_reenter(subject.mind)
-		if(ghost)
-			var/mob/ghostmob = ghost.get_top_transmogrification()
-			if(ghostmob) //Found this guy's ghost, and it still belongs to this corpse. There's nothing preventing this guy from being cloned, except them being ghosted
-				scantemp = "Error: Subject's brain is not responding to scanning stimuli, subject may be brain dead. Please try again in five seconds."
-				ghostmob << 'sound/effects/adminhelp.ogg'
-				to_chat(ghostmob, "<span class='interface big'><span class='bold'>Someone is trying to clone your corpse. Return to your body if you want to be cloned!</span> \
-					(Verbs -> Ghost -> Re-enter corpse, or <a href='?src=\ref[ghost];reentercorpse=1'>click here!</a>)</span>")
-				return
-		else //No ghost matching this corpse. Guy probably either logged out or was revived by out-of-body means.
-			scantemp = "Error: Mental interface failure."
-			return
+		scantemp = "Error: [subject.ghost_reenter_alert("Someone is trying to clone your corpse. Return to your body if you want to be cloned!") ? "Subject's brain is not responding to scanning stimuli, subject may be brain dead. Please try again in five seconds" : "Mental interface failure"]."
+		return
 
 	//Past this point, we know for sure the corpse is cloneable and has a ghost inside.
 	if(!subject.ckey) //ideally would never happen but a check never hurts
@@ -477,7 +466,7 @@
 
 
 	subject.dna.check_integrity()
-	var/datum/organ/internal/brain/Brain = subject.internal_organs_by_name["brain"]
+
 	// Borer sanity checks.
 	var/mob/living/simple_animal/borer/B=subject.has_brain_worms()
 	if(B && B.controlling)
@@ -485,26 +474,25 @@
 		subject.do_release_control(1)
 
 	var/datum/dna2/record/R = new /datum/dna2/record()
-	if(!isnull(Brain.owner_dna) && Brain.owner_dna != subject.dna)
-		R.dna = Brain.owner_dna.Clone()
-	else
-		R.dna=subject.dna.Clone()
+
+//Removed this so that slime puddles, etc. can be cloned. Anyway, in practice here a brain's owner's DNA should always correspond to the DNA of the subject that brain exists within.
+//	var/datum/organ/internal/brain/Brain = subject.internal_organs_by_name["brain"]
+//	if(!isnull(Brain.owner_dna) && Brain.owner_dna != subject.dna)
+//		R.dna = Brain.owner_dna.Clone()
+//	else
+//		R.dna=subject.dna.Clone()
+	R.dna=subject.dna.Clone()
+
 	R.ckey = subject.ckey
 	R.id= copytext(md5(R.dna.real_name), 2, 6)
 	R.name=R.dna.real_name
 	R.types=DNA2_BUF_UI|DNA2_BUF_UE|DNA2_BUF_SE
 	R.languages = subject.languages.Copy()
+	R.attack_log = subject.attack_log.Copy()
+	R.default_language = subject.default_language
 	R.times_cloned = subject.times_cloned
-
-	//Add an implant if needed
-	var/obj/item/weapon/implant/health/imp = locate(/obj/item/weapon/implant/health, subject)
-	if (isnull(imp))
-		imp = new /obj/item/weapon/implant/health(subject)
-		imp.implanted = subject
-		R.implant = "\ref[imp]"
-	//Update it if needed
-	else
-		R.implant = "\ref[imp]"
+	R.talkcount = subject.talkcount
+	R.clown = (M_CLUMSY in subject.mutations)
 
 	if (!isnull(subject.mind)) //Save that mind so traitors can continue traitoring after cloning.
 		R.mind = "\ref[subject.mind]"
@@ -524,8 +512,12 @@
 /obj/machinery/computer/cloning/update_icon()
 	..()
 	overlays = 0
-	if(!(stat & (NOPOWER | BROKEN)))
-		if(scanner && scanner.occupant)
-			overlays += image(icon = icon, icon_state = "cloning-scan")
-		if(pod1 && pod1.occupant)
-			overlays += image(icon = icon, icon_state = "cloning-pod")
+	if(!(stat & (NOPOWER | BROKEN | FORCEDISABLE)))
+		for(var/obj/machinery/dna_scannernew/scanner in scanners)
+			if(scanner && scanner.occupant)
+				overlays += image(icon = icon, icon_state = "cloning-scan")
+				break
+		for(var/obj/machinery/cloning/clonepod/pod in pods)
+			if(pod && pod.occupants.len > 0)
+				overlays += image(icon = icon, icon_state = "cloning-pod")
+				break

@@ -10,27 +10,28 @@
 	var/reject_antag_hud = 1
 	var/alien_whitelist_id = null // "Diona"
 	var/recruitment_timeout = 600
+	var/logging = FALSE
 
 	// Called when a volunteer has been added.
 	// Args:
 	//  player = /mob/dead/observer
 	//  controls = /string
-	var/event/player_volunteering = new()
+	var/callback/player_volunteering
 
 	// Same, but only called when player has disabled the role.
-	var/event/player_not_volunteering = new()
+	var/callback/player_not_volunteering
 
 	// Args: player = /mob/dead/observer or null
-	var/event/recruited = new()
+	var/callback/recruited
 
 /datum/recruiter/New(var/atom/_subject)
 	subject=_subject
 
 /datum/recruiter/proc/recruiting_player(var/mob/dead/observer/O)
-	INVOKE_EVENT(player_volunteering, list("player"=O, "controls"="<a href='?src=\ref[O];jump=\ref[subject]'>Teleport</a> | <a href='?src=\ref[src];signup=\ref[O]'>Retract</a>"))
+	player_volunteering.invoke_async(O, "[formatGhostJump(subject)] | <a href='?src=\ref[src];signup=\ref[O]'>Retract</a>")
 
 /datum/recruiter/proc/nonrecruiting_player(var/mob/dead/observer/O)
-	INVOKE_EVENT(player_not_volunteering, list("player"=O, "controls"="<a href='?src=\ref[O];jump=\ref[subject]'>Teleport</a> | <a href='?src=\ref[src];signup=\ref[O]'>Sign up</a>"))
+	player_not_volunteering.invoke_async(O, "[formatGhostJump(subject)] | <a href='?src=\ref[src];signup=\ref[O]'>Sign up</a>")
 
 /datum/recruiter/proc/request_player()
 	currently_querying = list()
@@ -45,17 +46,17 @@
 
 		currently_querying |= O
 		recruiting_player(O)
-		//to_chat(O, "<span class='recruit'>Someone is harvesting [display_name]. You have been added to the list of potential ghosts. (<a href='?src=\ref[O];jump=\ref[subject]'>Teleport</a> | <a href='?src=\ref[src];signup=\ref[O]'>Retract</a>)</span>")
+		//to_chat(O, "<span class='recruit'>Someone is harvesting [display_name]. You have been added to the list of potential ghosts. ([formatGhostJump(subject)] | <a href='?src=\ref[src];signup=\ref[O]'>Retract</a>)</span>")
 
 	for(var/mob/dead/observer/O in dead_mob_list - active_candidates)
 		if(!check_observer(O))
 			continue
 		nonrecruiting_player(O)
-		//to_chat(O, "<span class='recruit'>Someone is harvesting [display_name]. (<a href='?src=\ref[O];jump=\ref[subject]'>Teleport</a> | <a href='?src=\ref[src];signup=\ref[O]'>Sign up</a>)</span>")
+		//to_chat(O, "<span class='recruit'>Someone is harvesting [display_name]. ([formatGhostJump(subject)] | <a href='?src=\ref[src];signup=\ref[O]'>Sign up</a>)</span>")
 
 	spawn(recruitment_timeout)
 		if(!currently_querying || currently_querying.len==0)
-			INVOKE_EVENT(recruited, list("player"=null))
+			recruited.invoke_async(null)
 			return
 
 		var/mob/dead/observer/O
@@ -67,10 +68,10 @@
 				O = pick(currently_querying)
 
 		if(!check_observer(O))
-			INVOKE_EVENT(recruited, list("player"=null))
+			recruited.invoke_async(null)
 		else
 			paiController.was_recruited(O)
-			INVOKE_EVENT(recruited, list("player"=O))
+			recruited.invoke_async(O)
 
 /datum/recruiter/Topic(var/href, var/list/href_list)
 	if(href_list["signup"])
@@ -92,9 +93,14 @@
 	if(O in currently_querying)
 		to_chat(O, "<span class='notice'>Removed from registration list.</span>")
 		currently_querying -= O
+		if(logging)
+			subject.investigation_log(I_GHOST, "|| had a ghost abandon an attempt to become its personality: [key_name(O)][O.locked_to ? ", who was haunting [O.locked_to]" : ""]")
+
 	else
 		to_chat(O, "<span class='notice'>Added to registration list.</span>")
 		currently_querying += O
+		if(logging)
+			subject.investigation_log(I_GHOST, "|| had a ghost sign up to become its personality: [key_name(O)][O.locked_to ? ", who was haunting [O.locked_to]" : ""]")
 
 /datum/recruiter/proc/check_observer(var/mob/dead/observer/O)
 	if(reject_antag_hud && O.has_enabled_antagHUD == 1 && config.antag_hud_restricted)
@@ -105,9 +111,6 @@
 			if(jobban_isbanned(O, jbrole))
 				return 0
 
-	if(alien_whitelist_id && !is_alien_whitelisted(src, alien_whitelist_id) && config.usealienwhitelist)
-		return 0
-
 	return O.client
 
 /datum/recruiter/Destroy()
@@ -115,4 +118,5 @@
 	currently_querying = null
 	player_volunteering = null
 	player_not_volunteering = null
+	recruited = null
 	..()

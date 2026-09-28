@@ -5,13 +5,14 @@
 	icon_state = "m_pad"
 	density = 1
 	anchored = 1
-	use_power = 1
+	use_power = MACHINE_POWER_USE_IDLE
 	idle_power_usage = 20
 	active_power_usage = 5000
 	var/building = 0
 	var/cooldown_duration = 10 MINUTES
 	var/cooldown_time = 0
 	var/cooldown_active = 0
+	var/corpse_check = 0 // if set to 1, you can't enter it after ghosting or otherwise being unable to enter corpse (being sharded or deleted)
 	var/print_path = /mob/living/carbon/complex/martian
 
 /obj/machinery/mob_printer/attack_ghost(var/mob/dead/observer/O)
@@ -21,7 +22,7 @@
 		to_chat(O, "<span class='warning'>Error: printer still recharging. Time left: [round((cooldown_time - world.time + 20)/10)] seconds.</span>")
 		return
 
-	if(O.can_reenter_corpse)
+	if(!corpse_check || O.can_reenter_corpse)
 		if(alert(O,"Do you want to enter a corporeal form?","Inset Disk","Yes","No")== "Yes")
 			if(building)
 				to_chat(O, "<span class='notice'>\The [src] is already processing another. Try again later.</span>")
@@ -29,7 +30,7 @@
 		else
 			return
 	else if(!(O.can_reenter_corpse))
-		to_chat(O,"<span class='notice'>You have recently ghosted and can not enter right now. Try again later.</span>")
+		to_chat(O,"<span class='notice'>You have recently ghosted or have no corpse, and cannot use the [src].</span>")
 		return
 
 	make_mob(O)
@@ -52,9 +53,9 @@
 		stat |= NOPOWER
 
 /obj/machinery/mob_printer/proc/canSpawn()
-	if(!use_power)
+	if(use_power == MACHINE_POWER_USE_NONE)
 		return !building //Can be varedited to not need power.
-	return !(stat & NOPOWER) && !building
+	return !(stat & (FORCEDISABLE|NOPOWER)) && !building
 
 /obj/machinery/mob_printer/proc/make_mob(var/mob/dead/observer/user)
 	building = TRUE
@@ -62,7 +63,7 @@
 		// Player has already been made into another mob before this one spawned, so let's reset the spawner
 		building = FALSE
 		update_icon()
-		return FALSE
+		return
 	if(istype(print_path,/mob/living/carbon/complex/martian))
 		flick("m_pad_active", src) //Martians get a special animation
 	else
@@ -71,7 +72,7 @@
 		if(!user || !istype(user) || !user.client)
 			// Player disappeared between clicking on the spawner and now, so we have no one to turn tentacle!
 			building = FALSE
-			return FALSE
+			return
 
 		var/mob/M = new print_path(get_turf(src))
 
@@ -80,4 +81,3 @@
 
 
 		building = FALSE
-		return TRUE

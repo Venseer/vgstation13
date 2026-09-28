@@ -1,14 +1,14 @@
 /spell/undeath
 	name = "Cheat Death"
-	desc = "Instantly return to un-life."
+	desc = "Return to un-life after a moderate delay."
 	abbreviation = "UD"
 
 	school = "vampire"
 	user_type = USER_TYPE_VAMPIRE
 
-	charge_type = Sp_RECHARGE
-	charge_max = 1 SECONDS
-	invocation_type = SpI_NONE
+	charge_type = SP_RECHARGE
+	charge_cooldown_max = 1 SECONDS
+	invocation_type = SP_INV_NONE
 	range = 0
 	spell_flags = STATALLOWED | NEEDSHUMAN
 	cooldown_min = 45 SECONDS
@@ -58,7 +58,6 @@
 		else
 			to_chat(H, "<span class = 'warning'>It seems you couldn't complete the spell.</span>")
 			V.reviving = FALSE
-			return FALSE
 
 // Action button for actual revival
 
@@ -72,7 +71,7 @@
 	var/mob/living/M = owner
 	var/datum/role/vampire/V = isvampire(M)
 	M.revive(FALSE)
-	V.remove_blood(V.blood_usable)
+	V.remove_blood(V.blood_usable-10)
 	V.check_vampire_upgrade()
 	V.reviving = FALSE
 	to_chat(M, "<span class='sinister'>You awaken, ready to strike fear into the hearts of mortals once again.</span>")

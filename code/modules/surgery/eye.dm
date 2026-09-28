@@ -6,36 +6,40 @@
 /datum/surgery_step/eye
 	priority = 2
 	can_infect = 1
-	can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-		if (!hasorgans(target))
-			return 0
-		var/datum/organ/external/affected = target.get_organ(target_zone)
-		if (!affected)
-			return 0
+	blood_level = 0
 
-		var/datum/organ/internal/eyes = target.internal_organs_by_name["eyes"]
+/datum/surgery_step/eye/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
+	if (!hasorgans(target))
+		return 0
+	var/datum/organ/external/affected = target.get_organ(target_zone)
+	if (!affected)
+		return 0
 
-		return target_zone == "eyes" && eyes
+	var/datum/organ/internal/eyes = target.internal_organs_by_name["eyes"]
+
+	return target_zone == "eyes" && eyes
 
 
 //////CUT OPEN///////
-/datum/surgery_step/eye/cut_open/tool_quality(obj/item/tool)
+/datum/surgery_step/eye/cut_open/tool_quality(obj/item/tool, mob/living/user)
 	. = ..()
 	if(!tool.is_sharp())
 		return 0
 
 /datum/surgery_step/eye/cut_open
 	allowed_tools = list(
-		/obj/item/weapon/scalpel = 100,
+		/obj/item/tool/scalpel = 100,
+		/obj/item/weapon/melee/blood_dagger = 90,
 		/obj/item/weapon/kitchen/utensil/knife/large = 75,
 		/obj/item/weapon/shard = 50,
+		/obj/item/soulstone/gem = 0,
+		/obj/item/soulstone = 50,
 		)
 
-	min_duration = 90
-	max_duration = 110
+	duration = 9 SECONDS
 
 /datum/surgery_step/eye/cut_open/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-	return ..()
+	return ..() && target.op_stage.eyes == 0
 
 /datum/surgery_step/eye/cut_open/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 		user.visible_message("[user] starts to separate the corneas on [target]'s eyes with \the [tool].", \
@@ -61,12 +65,12 @@
 //////LIFT EYES///////
 /datum/surgery_step/eye/lift_eyes
 	allowed_tools = list(
-		/obj/item/weapon/retractor = 100,
+		/obj/item/tool/retractor = 100,
 		/obj/item/weapon/kitchen/utensil/fork = 50,
 		)
 
-	min_duration = 30
-	max_duration = 40
+	duration = 3 SECONDS
+	digging = TRUE
 
 /datum/surgery_step/eye/lift_eyes/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	return ..() && target.op_stage.eyes == 1
@@ -94,13 +98,13 @@
 ///////MEND EYES/////////
 /datum/surgery_step/eye/mend_eyes
 	allowed_tools = list(
-		/obj/item/weapon/hemostat = 100,
+		/obj/item/tool/hemostat = 100,
 		/obj/item/stack/cable_coil = 75,
 		/obj/item/device/assembly/mousetrap = 10,	//I don't know. Don't ask me. But I'm leaving it because hilarity.
 		)
 
-	min_duration = 80
-	max_duration = 100
+	duration = 8 SECONDS
+	digging = TRUE
 
 /datum/surgery_step/eye/mend_eyes/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	return ..() && target.op_stage.eyes == 2
@@ -124,26 +128,24 @@
 	eyes.take_damage(5, 0)
 
 //////CAUTERIZE///////
-/datum/surgery_step/eye/cauterize/tool_quality(obj/item/tool)
-	if(tool.is_hot())
-		for (var/T in allowed_tools)
-			if (istype(tool,T))
-				return allowed_tools[T]
-	return 0
+/datum/surgery_step/eye/cauterize/tool_quality(obj/item/tool, mob/living/user)
+	. = ..()
+	if(!tool.is_hot())
+		return 0
+
 /datum/surgery_step/eye/cauterize
 	allowed_tools = list(
-		/obj/item/weapon/cautery = 100,
-		/obj/item/weapon/scalpel/laser = 100,
+		/obj/item/tool/cautery = 100,
+		/obj/item/tool/scalpel/laser = 100,
 		/obj/item/clothing/mask/cigarette = 75,
 		/obj/item/weapon/lighter = 50,
-		/obj/item/weapon/weldingtool = 25,
+		/obj/item/tool/weldingtool = 25,
 		)
 
-	min_duration = 70
-	max_duration = 100
+	duration = 7 SECONDS
 
 /datum/surgery_step/eye/cauterize/can_use(mob/living/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
-	return ..()
+	return ..() && target.op_stage.eyes == 3
 
 /datum/surgery_step/eye/cauterize/begin_step(mob/user, mob/living/carbon/human/target, target_zone, obj/item/tool)
 	user.visible_message("[user] is beginning to cauterize the incision around [target]'s eyes with \the [tool]." , \
@@ -156,6 +158,8 @@
 	if (target.op_stage.eyes == 3)
 		target.disabilities &= ~NEARSIGHTED
 		target.sdisabilities &= ~BLIND
+		target.eye_blind = 0
+		target.eye_blurry = 0
 		eyes.damage = 0
 	target.op_stage.eyes = 0
 

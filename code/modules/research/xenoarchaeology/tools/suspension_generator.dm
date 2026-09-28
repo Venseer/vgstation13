@@ -1,3 +1,6 @@
+// No longer necessary for doing xenoarch, but kept in because you can use it on people.
+// Still available from cargo.
+
 /obj/machinery/suspension_gen
 	name = "suspension field generator"
 	desc = "It has stubby legs bolted up against it's body for stabilising."
@@ -5,6 +8,8 @@
 	icon_state = "suspension2-b"
 	density = 1
 	req_access = list(access_science)
+	machine_flags = EMAGGABLE
+	verb_rotates = TRUE
 	var/obj/item/weapon/cell/cell
 	var/obj/item/weapon/card/id/auth_card
 	var/locked = 1
@@ -24,6 +29,20 @@
 /obj/machinery/suspension_gen/New()
 	src.cell = new/obj/item/weapon/cell/high(src)
 	..()
+	component_parts = newlist(
+		/obj/item/weapon/circuitboard/suspension_gen,
+		/obj/item/weapon/stock_parts/manipulator,
+		/obj/item/weapon/stock_parts/micro_laser,
+		/obj/item/weapon/stock_parts/micro_laser,
+		/obj/item/weapon/stock_parts/capacitor
+	)
+	RefreshParts()
+
+/obj/machinery/suspension_gen/RefreshParts()
+	for(var/obj/item/weapon/stock_parts/parts in component_parts)
+		if(istype(parts, /obj/item/weapon/stock_parts/capacitor))
+			var/pSave = parts.rating*2
+			power_use = 27 - pSave
 
 /obj/machinery/suspension_gen/process()
 	//set background = 1
@@ -35,6 +54,7 @@
 		if(field_type == "carbon")
 			for(var/mob/living/carbon/M in T)
 				M.SetKnockdown(max(M.knockdown, 3))
+				M.SetStunned(max(M.stunned, 3))
 				cell.charge -= power_use
 				if(prob(5))
 					to_chat(M, "<span class='notice'>[pick("You feel tingly.","You feel like floating.","It is hard to speak.","You can barely move.")]</span>")
@@ -42,6 +62,7 @@
 		if(field_type == "iron")
 			for(var/mob/living/silicon/M in T)
 				M.SetKnockdown(max(M.knockdown, 3))
+				M.SetStunned(max(M.stunned, 3))
 				cell.charge -= power_use
 				if(prob(5))
 					to_chat(M, "<span class='notice'>[pick("You feel tingly.","You feel like floating.","It is hard to speak.","You can barely move.")]</span>")
@@ -54,6 +75,7 @@
 
 		for(var/mob/living/simple_animal/M in T)
 			M.SetKnockdown(max(M.knockdown, 3))
+			M.SetStunned(max(M.stunned, 3))
 			cell.charge -= power_use
 			if(prob(5))
 				to_chat(M, "<span class='notice'>[pick("You feel tingly.","You feel like floating.","It is hard to speak.","You can barely move.")]</span>")
@@ -113,7 +135,7 @@
 		dat += "<br>"
 	dat += "<A href='?src=\ref[src];refresh=1'>Refresh console</A><br>"
 	dat += "<A href='?src=\ref[src];close=1'>Close console</A>"
-	user << browse(dat, "window=suspension;size=500x400")
+	user << browse(HTML_SKELETON(dat), "window=suspension;size=500x400")
 	onclose(user, "suspension")
 
 /obj/machinery/suspension_gen/Topic(href, href_list)
@@ -122,14 +144,7 @@
 	usr.set_machine(src)
 
 	if(href_list["toggle_field"])
-		if(!suspension_field)
-			if(cell.charge > 0)
-				if(anchored)
-					activate()
-				else
-					to_chat(usr, "<span class='warning'>You are unable to activate [src] until it is properly secured on the ground.</span>")
-		else
-			deactivate()
+		toggle(usr)
 	if(href_list["select_field"])
 		field_type = href_list["select_field"]
 	else if(href_list["insertcard"])
@@ -137,7 +152,7 @@
 		if (istype(I, /obj/item/weapon/card))
 			if(usr.drop_item(I, src))
 				auth_card = I
-				if(attempt_unlock(I))
+				if(attempt_unlock(I,usr))
 					to_chat(usr, "<span class='info'>You insert [I], the console flashes \'<i>Access granted.</a>\'</span>")
 				else
 					to_chat(usr, "<span class='warning'>You insert [I], the console flashes \'<i>Access denied.</a>\'</span>")
@@ -177,7 +192,7 @@
 		to_chat(user, "<span class='info'>You remove the power cell</span>")
 
 /obj/machinery/suspension_gen/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if (isscrewdriver(W))
+	if (W.is_screwdriver(user))
 		if(!open)
 			if(screwed)
 				screwed = 0
@@ -195,12 +210,12 @@
 					to_chat(user, "<span class='info'>You crowbar the battery panel [open ? "open" : "in place"].</span>")
 					icon_state = "suspension[anchored ? (open ? (cell ? "1" : "0") : "2") : (open ? (cell ? "1-b" : "0-b") : "2-b")]"
 				else
-					to_chat(user, "<span class='warning'>[src]'s safety locks are engaged, shut it down first.</span>")
+					to_chat(user, "<span class='warning'>\The [src]'s safety locks are engaged, shut it down first.</span>")
 			else
-				to_chat(user, "<span class='warning'>Unscrew [src]'s battery panel first.</span>")
+				to_chat(user, "<span class='warning'>Unscrew \the [src]'s battery panel first.</span>")
 		else
-			to_chat(user, "<span class='warning'>[src]'s security locks are engaged.</span>")
-	else if (iswrench(W))
+			to_chat(user, "<span class='warning'>\The [src]'s security locks are engaged.</span>")
+	else if (W.is_wrench(user))
 		if(!suspension_field)
 			if(anchored)
 				anchored = 0
@@ -213,7 +228,7 @@
 			else
 				desc = "It has stubby legs bolted up against it's body for stabilising."
 		else
-			to_chat(user, "<span class='warning'>You are unable to secure [src] while it is active!</span>")
+			to_chat(user, "<span class='warning'>You are unable to secure \the [src] while it is active!</span>")
 	else if (istype(W, /obj/item/weapon/cell))
 		if(open)
 			if(cell)
@@ -236,17 +251,20 @@
 		else
 			to_chat(user, "<span class='warning'>Remove [auth_card] first.</span>")
 
-/obj/machinery/suspension_gen/proc/attempt_unlock(var/obj/item/weapon/card/C)
+/obj/machinery/suspension_gen/proc/attempt_unlock(var/obj/item/weapon/card/C,var/mob/user)
 	if(!open)
-		if(istype(C, /obj/item/weapon/card/emag) && cell.charge > 0)
-			//put sparks here
-			if(prob(95))
-				locked = 0
+		if(emag_check(C,user))
+			return
 		else if(istype(C, /obj/item/weapon/card/id) && check_access(C))
 			locked = 0
-
 		if(!locked)
 			return 1
+
+/obj/machinery/suspension_gen/emag_act(mob/user)
+	if(cell.charge > 0)
+		. = ..()
+		if(prob(95))
+			locked = 0
 
 //checks for whether the machine can be activated or not should already have occurred by this point
 /obj/machinery/suspension_gen/proc/activate()
@@ -294,7 +312,7 @@
 
 	suspension_field = new(T)
 	suspension_field.field_type = field_type
-	src.visible_message("<span class='notice'>[bicon(src)] [src] activates with a low hum.</span>")
+	src.visible_message("<span class='notice'>[bicon(src)] \the [src] activates with a low hum.</span>")
 	icon_state = "suspension3"
 
 	for(var/obj/item/I in T)
@@ -318,10 +336,10 @@
 	for(var/mob/M in T)
 		to_chat(M, "<span class='info'>You no longer feel like floating.</span>")
 		M.SetKnockdown(min(M.knockdown, 3))
+		M.SetStunned(min(M.stunned, 3))
 
-	src.visible_message("<span class='notice'>[bicon(src)] [src] deactivates with a gentle shudder.</span>")
-	qdel(suspension_field)
-	suspension_field = null
+	src.visible_message("<span class='notice'>[bicon(src)] \the [src] deactivates with a gentle shudder.</span>")
+	QDEL_NULL(suspension_field)
 	icon_state = "suspension2"
 
 /obj/machinery/suspension_gen/Destroy()
@@ -329,35 +347,28 @@
 	deactivate()
 	..()
 
-/obj/machinery/suspension_gen/verb/rotate_cw()
-	set src in view(1)
-	set name = "Rotate suspension gen (Clockwise)"
-	set category = "Object"
-
-	if(anchored)
-		to_chat(usr, "<span class='warning'>You cannot rotate [src], it has been firmly fixed to the floor.</span>")
-	else
-		dir = turn(dir, -90)
-
-/obj/machinery/suspension_gen/verb/rotate_ccw()
-	set src in view(1)
-	set name = "Rotate suspension gen (Counter-Clockwise)"
-	set category = "Object"
-
-	if(anchored)
-		to_chat(usr, "<span class='warning'>You cannot rotate [src], it has been firmly fixed to the floor.</span>")
-	else
-		dir = turn(dir, 90)
-
 /obj/effect/suspension_field
 	name = "energy field"
-	icon = 'icons/effects/effects.dmi'
 	anchored = 1
 	density = 1
-	mouse_opacity = 0
 	var/field_type = "chlorine"
 
 /obj/effect/suspension_field/Destroy()
-	for(var/obj/I in src)
+	for(var/atom/movable/I in src)
 		I.forceMove(src.loc)
 	..()
+
+/obj/machinery/suspension_gen/AltClick(mob/user)
+	toggle(user)
+
+/obj/machinery/suspension_gen/proc/toggle(mob/user)
+	if(user.incapacitated() || !user.Adjacent(get_turf(src)) || locked)
+		return
+	if(!suspension_field)
+		if(cell.charge > 0)
+			if(anchored)
+				activate()
+			else
+				to_chat(user, "<span class='warning'>You are unable to activate \the [src] until it is properly secured on the ground.</span>")
+	else
+		deactivate()

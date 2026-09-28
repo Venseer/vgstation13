@@ -9,7 +9,7 @@
 
 /obj/item/weapon/beacon_dispenser
 	name = "beacon based area designator"
-	desc = "Guide to using: 1. spawn beacons in the shape of the future area, 2. use the 'Create an area' command, 3. ???, 4. ADMINBUS"
+	desc = "Guide to using: 1. spawn beacons in the shape of the future area, 2. use the 'Create an area' command, 3. ???, 4. ADMINBUS!"
 	icon = 'icons/obj/bluespace_beacon.dmi'
 	icon_state = "dispenser"
 
@@ -67,7 +67,7 @@
 	areas[newarea] = src.id
 
 	var/area/oldarea = get_area(usr)
-	newarea.name = input(usr, "Select a name for the new area.") as text
+	newarea.name = copytext(sanitize(input(usr, "Select a name for the new area.") as text),1,MAX_NAME_LEN)
 	newarea.tag = "[newarea.type]/[md5(newarea.name)]"
 	newarea.set_dynamic_lighting(FALSE)
 	newarea.contents.Add(turfs)
@@ -75,4 +75,3 @@
 		T.change_area(oldarea,newarea)
 		for(var/atom/allthings in T.contents)
 			allthings.change_area(oldarea,newarea)
-	newarea.addSorted()

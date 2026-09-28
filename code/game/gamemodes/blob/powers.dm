@@ -25,7 +25,8 @@
 	if(blob_nodes.len)
 		var/list/nodes = list()
 		for(var/i = 1; i <= blob_nodes.len; i++)
-			nodes["Blob Node #[i]"] = blob_nodes[i]
+			var/obj/effect/blob/node/B = blob_nodes[i]
+			nodes["Blob Node #[i] ([get_area_name(B)])"] = B
 		var/node_name = input(src, "Choose a node to jump to.", "Node Jump") in nodes
 		var/obj/effect/blob/node/chosen_node = nodes[node_name]
 		if(chosen_node)
@@ -48,6 +49,11 @@
 		to_chat(src, "There is no blob here!")
 		return
 
+	if(istype(B, /obj/effect/blob/core))
+		if(B.overmind == src)
+			restrain_blob()
+			return
+
 	if(!istype(B, /obj/effect/blob/normal))
 		to_chat(src, "Unable to use this blob, find a normal one.")
 		return
@@ -57,9 +63,12 @@
 
 
 	B.change_to(/obj/effect/blob/shield)
-	return
 
-
+	if(mind && istype(mind.faction, /datum/faction/blob_conglomerate))
+		var/datum/faction/blob_conglomerate/BC = mind.faction
+		if(istype(BC.stat_datum, /datum/stat/faction/blob))
+			var/datum/stat/faction/blob/BS = BC.stat_datum
+			BS.built_structures.shields++
 
 /mob/camera/blob/verb/create_resource()
 	set category = "Blob"
@@ -83,7 +92,7 @@
 		return
 
 	for(var/obj/effect/blob/resource/blob in orange(4, T))
-		to_chat(src, "There is a resource blob nearby, move more than 4 tiles away from it!")
+		to_chat(src, "There is a resource blob [get_dist(src,blob)] tiles away, move more than 4 tiles away from it!")
 		return
 
 	if(!can_buy(BLOBRESCOST))
@@ -95,8 +104,12 @@
 	if(R)
 		R.overmind = src
 		special_blobs += R
-		update_specialblobs()
-	return
+		DisplayUI("Blob")
+		if(mind && istype(mind.faction, /datum/faction/blob_conglomerate))
+			var/datum/faction/blob_conglomerate/BC = mind.faction
+			if(istype(BC.stat_datum, /datum/stat/faction/blob))
+				var/datum/stat/faction/blob/BS = BC.stat_datum
+				BS.built_structures.resgens++
 
 /mob/camera/blob/proc/create_core()
 	set category = "Blob"
@@ -120,7 +133,7 @@
 		return
 
 	for(var/obj/effect/blob/core/blob in orange(15))
-		to_chat(src, "There is another core blob nearby, move more than 15 tiles away from it!")
+		to_chat(src, "There is another core blob [get_dist(src,blob)] tiles away, move more than 15 tiles away from it!")
 		return
 	var/number_of_cores = blob_cores.len
 	var/cost = BLOBCOREBASECOST+(BLOBCORECOSTINC*(number_of_cores-1))
@@ -129,10 +142,21 @@
 		to_chat(src, "Current cost of a blob core is [cost]!")
 		return
 
+	if(antag_madness != ANTAG_MADNESS_OFF)
+		to_chat(src, "<span class='danger'>Something is amiss, maybe some genetic defect, but regardless you find yourself unable to create a new blob core. You'll have to endure on your own.</span>")
+		add_points(cost)
+		return
 
-	B.change_to(/obj/effect/blob/core, src)
+	B.change_to(/obj/effect/blob/core, src, TRUE)
 
-	return
+	DisplayUI("Blob")
+
+	if(mind && istype(mind.faction, /datum/faction/blob_conglomerate))
+		var/datum/faction/blob_conglomerate/BC = mind.faction
+		if(istype(BC.stat_datum, /datum/stat/faction/blob))
+			var/datum/stat/faction/blob/BS = BC.stat_datum
+			BS.built_structures.cores++
+
 
 /mob/camera/blob/verb/create_node()
 	set category = "Blob"
@@ -156,7 +180,7 @@
 		return
 
 	for(var/obj/effect/blob/node/blob in orange(5, T))
-		to_chat(src, "There is another node nearby, move more than 5 tiles away from it!")
+		to_chat(src, "There is another node [get_dist(src,blob)] tiles away, move more than 5 tiles away from it!")
 		return
 
 	if(!can_buy(BLOBNODCOST))
@@ -168,9 +192,13 @@
 	if(N)
 		N.overmind = src
 		special_blobs += N
-		update_specialblobs()
 		max_blob_points += BLOBNDPOINTINC
-	return
+		DisplayUI("Blob")
+		if(mind && istype(mind.faction, /datum/faction/blob_conglomerate))
+			var/datum/faction/blob_conglomerate/BC = mind.faction
+			if(istype(BC.stat_datum, /datum/stat/faction/blob))
+				var/datum/stat/faction/blob/BS = BC.stat_datum
+				BS.built_structures.nodes++
 
 
 /mob/camera/blob/verb/create_factory()
@@ -194,7 +222,7 @@
 		return
 
 	for(var/obj/effect/blob/factory/blob in orange(7, T))
-		to_chat(src, "There is a factory blob nearby, move more than 7 tiles away from it!")
+		to_chat(src, "There is a factory blob [get_dist(src,blob)] tiles away, move more than 7 tiles away from it!")
 		return
 
 	if(!can_buy(BLOBFACCOST))
@@ -205,8 +233,12 @@
 	if(F)
 		F.overmind = src
 		special_blobs += F
-		update_specialblobs()
-	return
+		DisplayUI("Blob")
+		if(mind && istype(mind.faction, /datum/faction/blob_conglomerate))
+			var/datum/faction/blob_conglomerate/BC = mind.faction
+			if(istype(BC.stat_datum, /datum/stat/faction/blob))
+				var/datum/stat/faction/blob/BS = BC.stat_datum
+				BS.built_structures.factories++
 
 
 /mob/camera/blob/verb/revert()
@@ -229,7 +261,6 @@
 
 	B.manual_remove = 1
 	B.Delete()
-	return
 
 /mob/camera/blob/verb/callblobs()
 	set category = "Blob"
@@ -244,6 +275,7 @@
 
 	var/they_exist = 0
 	for(var/mob/camera/blob/O in blob_overminds)
+		playsound_local(O,'sound/effects/ping_warning.ogg',50,0)
 		if(O != src)
 			they_exist++
 			to_chat(O,"<span class='notice'>[src] is calling for your attention!</span> <b><a href='?src=\ref[O];blobjump=\ref[loc]'>(JUMP)</a></b>")
@@ -252,8 +284,6 @@
 		to_chat(src,"<span class='notice'>...[they_exist] overmind\s heard your call!</span>")
 	else
 		to_chat(src,"<span class='notice'>...but no one heard you!</span>")
-
-	return
 
 
 /mob/camera/blob/verb/expand_blob_power()
@@ -278,10 +308,14 @@
 		to_chat(src, "There is no blob adjacent to you.")
 		return
 
+	if(attack_delayer.blocked())
+		return
+
 	if(!can_buy(BLOBATTCOST))
 		return
-	OB.expand(T, 0)
-	return
+
+	delayNextAttack(5)
+	OB.expand(T, 0, manual = TRUE) //Doesn't give source because we don't care about passive restraint
 
 
 /mob/camera/blob/verb/rally_spores_power()
@@ -308,13 +342,12 @@
 		if(isturf(BS.loc) && get_dist(BS, T) <= 35)
 			BS.LoseTarget()
 			BS.Goto(pick(surrounding_turfs), BS.move_to_delay)
-	return
 
 /mob/camera/blob/verb/telepathy_power()
 	set category = "Blob"
 	set name = "Psionic Message"
 	set desc = "Give a psionic message to all creatures on and around your 'local' vicinity."
-	var/text = input(src, "What message should we send?", "Message") as null|text
+	var/text = copytext(sanitize(input(src, "What message should we send?", "Message") as null|text),1,MAX_MESSAGE_LEN)
 	if (text)
 		telepathy(text)
 
@@ -329,3 +362,8 @@
 	to_chat(current_zlevel, "<span class='blob'>[message]</span>") //Only sends messages to things on its own z level
 	add_gamelogs(src, "used blob telepathy to convey \"[message]\"", tp_link = TRUE)
 	log_blobtelepathy("[key_name(usr)]: [message]")
+
+/mob/camera/blob/proc/restrain_blob()
+	restrain_blob = !restrain_blob
+	to_chat(src,"<span class='notice'>You will [restrain_blob ? "now" : "not"] restrain your blobs from passively spreading into walls.</span>")
+	DisplayUI("Blob Left Panel")

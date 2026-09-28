@@ -42,15 +42,21 @@
 
 /obj/item/weapon/holder/process()
 	if(!loc)
-		return returnToPool(src)
+		return qdel(src)
 	else if(istype(loc,/turf) || !(contents.len))
-		return returnToPool(src)
+		return qdel(src)
+
+/obj/item/weapon/holder/dropped()
+	..()
+	spawn(1) // im a cheater
+		if(istype(loc,/turf) || !(contents.len))
+			qdel(src)
 
 /obj/item/weapon/holder/relaymove(mob/M, direction)
-	returnToPool(src) //This calls Destroy(), and frees the mob
+	qdel(src) //This calls Destroy(), and frees the mob
 
-/obj/item/weapon/holder/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	for(var/mob/M in src.contents)
+/obj/item/weapon/holder/attackby(var/obj/item/weapon/W, var/mob/user)
+	for(var/mob/M in contents)
 		M.attackby(W,user)
 
 /obj/item/weapon/holder/update_wield(mob/user)
@@ -95,7 +101,7 @@
 	..()
 	if(M)
 		appearance = M.appearance
-		w_class = Clamp((M.size - SIZE_TINY) * W_CLASS_MEDIUM, W_CLASS_TINY, W_CLASS_HUGE)
+		w_class = clamp((M.size - SIZE_TINY) * W_CLASS_MEDIUM, W_CLASS_TINY, W_CLASS_HUGE)
 		//	SIZE		|	W_CLASS
 
 		//	SIZE_TINY	|	W_CLASS_TINY
@@ -108,6 +114,18 @@
 
 		if(w_class > W_CLASS_SMALL)
 			flags |= (TWOHANDABLE | MUSTTWOHAND)
+
+/obj/item/weapon/holder/animal/attackby(var/obj/item/weapon/W, var/mob/user)
+	if (istype(W, /obj/item/offhand))
+		for(var/mob/M in contents)
+			M.attack_hand(user)
+		return
+	for(var/mob/M in contents)
+		M.attackby(W,user)
+
+/obj/item/weapon/holder/animal/attack_self(var/mob/user)
+	for(var/mob/M in contents)
+		M.attack_hand(user)
 
 //MICE
 
@@ -123,7 +141,7 @@
 		var/mob/living/simple_animal/mouse/mouse = M
 
 		item_state = initial(mouse.icon_state) //Initial icon states are "mouse_gray", "mouse_white", etc
-		if(!(item_state in list("mouse_white", "mouse_brown", "mouse_gray")))
+		if(!(item_state in list("mouse_white", "mouse_brown", "mouse_gray", "mouse_black", "mouse_plague", "mouse_balbc", "mouse_operative")))
 			item_state = "mouse_gray"
 
 //CORGI
@@ -133,6 +151,11 @@
 	desc = "Icon states yay!"
 	item_state = "corgi"
 
+	update_itemstate_on_twohand = TRUE
+
+/obj/item/weapon/holder/animal/mutt
+	name = "sasha holder"
+	item_state = "mutt"
 	update_itemstate_on_twohand = TRUE
 
 //CARP
@@ -147,17 +170,38 @@
 
 /obj/item/weapon/holder/animal/cow
 	name = "cow holder"
-	desc = "Pretty heavy"
+	desc = "Pretty heavy!"
+	item_state = "cow"
+
+/obj/item/weapon/holder/animal/chocolatecow
+	name = "chocolate cow holder"
+	desc = "Where else would chocolate milk come from?"
 	item_state = "cow"
 
 //CATS
 
 /obj/item/weapon/holder/animal/cat
 	name = "cat holder"
-	desc = "Runtime error"
+	desc = "RUNTIME ERROR"
 	item_state = "cat1"
 
 	update_itemstate_on_twohand = TRUE
+
+//FROG
+
+/obj/item/weapon/holder/animal/frog
+	name = "frog holder"
+	desc = "Don't hold it too tight."
+	item_state = "frog"
+	slot_flags = SLOT_HEAD
+
+//SNAIL
+
+/obj/item/weapon/holder/animal/snail
+	name = "snail holder"
+	desc = "Eh, it's all gooey and sticky."
+	item_state = "snail"
+	slot_flags = SLOT_HEAD
 
 //SALEM
 
@@ -168,22 +212,76 @@
 
 	update_itemstate_on_twohand = TRUE
 
+//SNAKES
+
+/obj/item/weapon/holder/animal/snek
+	name = "snake holder"
+	desc = "Kept you waiting?"
+	item_state = "snek"
 
 //SLIMES
 /obj/item/weapon/holder/animal/slime
 	name = "slime holder"
-	desc = "It seeps through your fingers"
+	desc = "It seeps through your fingers."
 
 /obj/item/weapon/holder/animal/slime/proc/unfreeze()
 	var/mob/living/simple_animal/slime/S = stored_mob
 	S.canmove = TRUE
 	S.icon_state = "[S.colour] [istype(S,/mob/living/simple_animal/slime/adult) ? "adult" : "baby"] slime"
-	returnToPool(src)
+	qdel(src)
 
 /obj/item/weapon/holder/animal/slime/throw_impact(atom/hit_atom)
-	..()
-	unfreeze()
+	if(!..())
+		unfreeze()
 
 /obj/item/weapon/holder/animal/slime/attack_self(mob/user)
 	..()
 	unfreeze()
+
+/obj/item/weapon/holder/animal/pillow
+	name = "pillow holder"
+	desc = "Comfortable."
+	item_state = "pillow"
+	slot_flags = SLOT_HEAD
+	update_itemstate_on_twohand = TRUE
+
+
+/obj/item/weapon/holder/animal/borer
+	name = "borer holder"
+	desc = "It's wriggly and slimy."
+	item_state = "borer"
+
+/obj/item/weapon/holder/animal/borer/attack_self(mob/user)
+	if(user.a_intent != I_HURT || user.zone_sel.selecting != "mouth")
+		..()
+		return
+
+	user.visible_message("<span class='notice'>[user] bites the head off \the [stored_mob].</span>",\
+	isjusthuman(user) ? "<span class='warning'>You bite the head off \the [stored_mob]. Disgusting.</span>" :\
+	"<span class='notice'>You bite the head off \the [stored_mob]. Not bad!</span>")
+
+	playsound(user, 'sound/effects/crunch_meat.ogg', 30, 0)
+	blood_splatter(src,null,1)
+	user.u_equip(src, 0)
+	user.reagents.add_reagent(NUTRIMENT, 1)
+	user.reagents.add_reagent(GREYGOO, 0.5)
+	user.reagents.add_reagent(PERIDAXON, 0.5)
+
+	var/obj/item/weapon/reagent_containers/food/snacks/meat/borer/B = new(get_turf(src))
+	B.name = stored_mob.name
+
+	if(fingerprints)
+		B.fingerprints = fingerprints.Copy()
+	if(fingerprintshidden)
+		B.fingerprintshidden = fingerprintshidden.Copy()
+	if(fingerprintslast)
+		B.fingerprintslast = fingerprintslast
+
+	user.put_in_active_hand(B)
+	to_chat(stored_mob, "<span class='big danger'>Delicious!</span>")
+	stored_mob.ghostize(0)
+	qdel(stored_mob)
+	qdel(src)
+
+/obj/item/weapon/holder/animal/borer/relaymove(mob/M, direction)
+	return			// There is no escape.

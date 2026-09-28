@@ -7,7 +7,7 @@
 /var/chosen_dir = 1
 
 //Call above constants to change
-/proc/meteor_wave(var/number = meteors_in_wave, var/max_size = 0, var/list/types = null)
+/proc/meteor_wave(var/number = meteors_in_wave, var/max_size = 0, var/list/types = null, var/offset_origin = 0, var/offset_dest = 0)
 
 	if(!ticker || meteor_wave_active)
 		return
@@ -19,23 +19,101 @@
 	var/greek_alphabet = list("Alpha", "Beta", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa", "Lambda", "Mu", \
 						 "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau", "Upsilon", "Phi", "Chi", "Psi", "Omega")
 	var/wave_final_name = "[number > 25 ? "Major":"Minor"] Meteor [pick("Wave", "Cluster", "Group")] [pick(greek_alphabet)]-[rand(1, 999)]"
-	output_information(meteor_wave_delay, chosen_dir, max_size, number, wave_final_name)
+	var/datum/meteor_warning/warning = new (meteor_wave_delay, chosen_dir, max_size, number, wave_final_name, types == null)
+	output_information(warning)
 	spawn(meteor_wave_delay)
 		for(var/i = 0 to number)
 			sleep(rand(1, 3)) //0.1 to 0.3 seconds between meteors
 			var/meteor_type = null
 			if(types != null)
 				meteor_type = pick(types)
-			spawn_meteor(chosen_dir, meteor_type)
+			spawn_meteor(chosen_dir, meteor_type, offset_origin, offset_dest)
 		sleep(50) //Five seconds for the chat to scroll
 		meteor_wave_active = 0
 	return chosen_dir
 
+var/list/meteor_warnings = list()
+
+/datum/meteor_warning
+	var/delay
+	var/dir
+	var/size
+	var/num
+	var/name
+	var/meteors
+	var/image/display
+
+/datum/meteor_warning/New(meteor_wave_delay, chosen_dir, max_size, number, wave_final_name, actually_meteors)
+	..()
+	delay	= meteor_wave_delay
+	dir		= chosen_dir
+	size	= max_size
+	num		= number
+	name	= wave_final_name
+	meteors	= actually_meteors
+
+	//preparing the image that will be displayed on bhangmeters
+	display = image('icons/480x480.dmi',null, "blank")
+	var/icon = "meteorunknown"
+	if (meteors)
+		switch(max_size)
+			if(1)
+				icon = "meteorsmall"
+			if(2)
+				icon = "meteormedium"
+			if(3)
+				icon = "meteorbig"
+			if(4)
+				icon = "meteoraaaaa"
+	var/image/A = image('icons/holomap_markers_32x32.dmi',null, icon)
+	A.overlays += "[dir]"
+	var/image/B = image('icons/holomap_markers_32x32.dmi',null, icon)
+	B.overlays += "[dir]"
+	var/image/C = image('icons/holomap_markers_32x32.dmi',null, icon)
+	C.overlays += "[dir]"
+	switch(dir)
+		if (NORTH)
+			A.pixel_x = 192
+			A.pixel_y = 416
+			B.pixel_x = 224
+			B.pixel_y = 384
+			C.pixel_x = 256
+			C.pixel_y = 416
+		if (SOUTH)
+			A.pixel_x = 192
+			A.pixel_y = 32
+			B.pixel_x = 224
+			B.pixel_y = 64
+			C.pixel_x = 256
+			C.pixel_y = 32
+		if (WEST)
+			A.pixel_x = 32
+			A.pixel_y = 192
+			B.pixel_x = 64
+			B.pixel_y = 224
+			C.pixel_x = 32
+			C.pixel_y = 256
+		if (EAST)
+			A.pixel_x = 416
+			A.pixel_y = 192
+			B.pixel_x = 384
+			B.pixel_y = 224
+			C.pixel_x = 416
+			C.pixel_y = 256
+	display.overlays += A
+	display.overlays += B
+	display.overlays += C
+	meteor_warnings += src
+
+/datum/meteor_warning/Destroy()
+	meteor_warnings -= src
+	..()
+
 //A bunch of information to be used by the bhangmeter (doubles as a meteor monitoring computer), and sent to the admins otherwise
-/proc/output_information(var/meteor_delay, var/wave_dir, var/meteor_size, var/wave_size, var/wave_name)
+/proc/output_information(var/datum/meteor_warning/warning)
 
 	var/meteor_l_size = "unknown"
-	switch(meteor_size)
+	switch(warning.size)
 		if(1)
 			meteor_l_size = "small"
 		if(2)
@@ -46,8 +124,9 @@
 			meteor_l_size = "apocalyptic"
 		else
 			meteor_l_size = "unknown"
+	warning.size = meteor_l_size
 	var/wave_l_dir = "north"
-	switch(wave_dir)
+	switch(warning.dir)
 		if(1)
 			wave_l_dir = "north"
 		if(2)
@@ -56,15 +135,18 @@
 			wave_l_dir = "east"
 		if(8)
 			wave_l_dir = "west"
+	warning.dir = wave_l_dir
 
-	message_admins("[wave_name], containing [wave_size] objects up to [meteor_l_size] size and incoming from the [wave_l_dir], will strike in [meteor_delay/10] seconds.")
+	message_admins("[warning.name], containing [warning.num] objects up to [warning.size] size and incoming from the [warning.dir], will strike in [warning.delay/10] seconds.")
 
 	//Send to all Bhangmeters
-	for(var/obj/machinery/computer/bhangmeter/bhangmeter in doppler_arrays)
-		if(bhangmeter && !bhangmeter.stat)
-			bhangmeter.say("Detected: [wave_name], containing [wave_size] objects up to [meteor_l_size] size and incoming from the [wave_l_dir], will strike in [meteor_delay/10] seconds.")
+	for(var/obj/machinery/computer/bhangmeter/bhangmeter in bhangmeters)
+		bhangmeter.announce_meteors(warning)
 
-/proc/spawn_meteor(var/chosen_dir, var/meteorpath = null)
+	spawn(warning.delay + 30 SECONDS)
+		qdel(warning)
+
+/proc/spawn_meteor(var/chosen_dir, var/meteorpath = null, var/offset_origin = 0, var/offset_dest = 0)
 
 	var/startx
 	var/starty
@@ -79,26 +161,26 @@
 
 			if(1) //North, along the y = max edge
 				starty = world.maxy - (TRANSITIONEDGE + 2)
-				startx = rand((TRANSITIONEDGE + 2), world.maxx - (TRANSITIONEDGE + 2))
+				startx = rand((TRANSITIONEDGE + 2 + offset_origin), world.maxx - (TRANSITIONEDGE + 2 + offset_origin))
 				endy = TRANSITIONEDGE
-				endx = rand(TRANSITIONEDGE, world.maxx - TRANSITIONEDGE)
+				endx = rand(TRANSITIONEDGE + offset_dest, world.maxx - TRANSITIONEDGE - offset_dest)
 
 			if(2) //South, along the y = 0 edge
 				starty = (TRANSITIONEDGE + 2)
-				startx = rand((TRANSITIONEDGE + 2), world.maxx - (TRANSITIONEDGE + 2))
+				startx = rand((TRANSITIONEDGE + 2 + offset_origin), world.maxx - (TRANSITIONEDGE + 2 + offset_origin))
 				endy = world.maxy - (TRANSITIONEDGE + 2)
-				endx = rand(TRANSITIONEDGE, world.maxx - TRANSITIONEDGE)
+				endx = rand(TRANSITIONEDGE + offset_dest, world.maxx - TRANSITIONEDGE - offset_dest)
 
 			if(4) //East, along the x = max edge
-				starty = rand((TRANSITIONEDGE + 2), world.maxy - (TRANSITIONEDGE + 2))
+				starty = rand((TRANSITIONEDGE + 2 + offset_origin), world.maxy - (TRANSITIONEDGE + 2 + offset_origin))
 				startx = world.maxx - (TRANSITIONEDGE + 2)
-				endy = rand(TRANSITIONEDGE, world.maxy - TRANSITIONEDGE)
+				endy = rand(TRANSITIONEDGE + offset_dest, world.maxy - TRANSITIONEDGE - offset_dest)
 				endx = (TRANSITIONEDGE + 2)
 
 			if(8) //West, along the x = 0 edge
-				starty = rand((TRANSITIONEDGE + 2), world.maxy - (TRANSITIONEDGE + 2))
+				starty = rand((TRANSITIONEDGE + 2 + offset_origin), world.maxy - (TRANSITIONEDGE + 2 + offset_origin))
 				startx = (TRANSITIONEDGE + 2)
-				endy = rand(TRANSITIONEDGE, world.maxy - TRANSITIONEDGE)
+				endy = rand(TRANSITIONEDGE + offset_dest, world.maxy - TRANSITIONEDGE - offset_dest)
 				endx = world.maxx - (TRANSITIONEDGE + 2)
 
 		pickedstart = locate(startx, starty, 1)
@@ -106,11 +188,10 @@
 		max_i--
 		if(max_i <= 0)
 			return
-
 	while(!istype(pickedstart, /turf/space))
 
 	if(meteorpath)
-		new meteorpath(pickedstart, pickedgoal)
+		return new meteorpath(pickedstart, pickedgoal)
 	else
 		var/list/possible_meteors = list()
 		if(!max_meteor_size || max_meteor_size >= 1) //Small waves
@@ -123,7 +204,7 @@
 			possible_meteors[/obj/item/projectile/meteor/big] = 10
 			possible_meteors[/obj/item/projectile/meteor/big/cluster] = 1
 		var/chosen = pick(possible_meteors)
-		new chosen(pickedstart, pickedgoal)
+		return new chosen(pickedstart, pickedgoal)
 
 /*
  * Below are all meteor types
@@ -143,8 +224,8 @@
 	if(end)
 		throw_at(end)
 
-/obj/item/projectile/meteor/throw_at(atom/end)
-	original = end
+/obj/item/projectile/meteor/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
+	original = target
 	starting = loc
 	current = loc
 	OnFired()
@@ -185,7 +266,7 @@
 
 /obj/item/projectile/meteor/radioactive
 	name = "radioactive meteor"
-	desc = "The Engineer's bane"
+	desc = "The engineer's bane."
 	icon_state = "medium_radioactive"
 
 /obj/item/projectile/meteor/radioactive/to_bump(atom/a)
@@ -202,13 +283,24 @@
 	name = "small meteor"
 	desc = "The mineral version of armed C4, coming right for your walls."
 	icon_state = "small"
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING
 
 /obj/item/projectile/meteor/small/to_bump(atom/A)
 	if(loc == null)
 		return
 
 	explosion(get_turf(src), -1, 1, 3, 4, 0, 1, 0) //Tiny meteor doesn't cause too much damage
+	qdel(src)
+
+/obj/item/projectile/meteor/small/microdebris
+	name = "micro debris"
+	desc = "A tiny fragment of rock. It stings."
+
+/obj/item/projectile/meteor/small/microdebris/to_bump(atom/A)
+	if(loc == null)
+		return
+
+	explosion(get_turf(src), -1, 0, 1, 2, 0, 1, 0)
 	qdel(src)
 
 /obj/item/projectile/meteor/small/flash
@@ -221,52 +313,7 @@
 	if(loc == null)
 		return
 
-	//Adjusted from flashbangs, should be its own global proc
-	visible_message("<span class='danger'>BANG</span>")
-	playsound(src, 'sound/effects/bang.ogg', 25, 1)
-
-	for(var/mob/living/M in viewers(src, null))
-
-		//Checking for protections
-		var/eye_safety = 0
-		var/ear_safety = 0
-		if(iscarbon(M))
-			var/mob/living/carbon/C = M
-			eye_safety = C.eyecheck()
-			if(ishuman(C))
-				var/mob/living/carbon/human/H = C
-				if(H.earprot())
-					ear_safety += 2
-				if(M_HULK in H.mutations)
-					ear_safety += 1
-				if(istype(H.head, /obj/item/clothing/head/helmet))
-					ear_safety += 1
-
-		//Flashing everyone
-		if(eye_safety < 2)
-			M.flash_eyes(visual = 1)
-			switch(eye_safety)
-				if(1)
-					M.Stun(2)
-				if(0)
-					M.Stun(4)
-					M.Knockdown(10)
-				if(-1)
-					M.Stun(7)
-					M.Knockdown(15)
-
-		if(ear_safety < 2)
-			switch(ear_safety)
-				if(1)
-					M.ear_damage += rand(0, 3)
-				if(0)
-					M.ear_damage += rand(5, 15)
-					M.ear_deaf = max(M.ear_deaf, 10)
-			//Shouldn't have to do this here, this is what life.dm and organ checks are for
-			//Not even going to bother with eye damage
-			if(prob(M.ear_damage - 10 + 5))
-				to_chat(M, "<span class='warning'>You can't hear anything!</span>")
-				M.sdisabilities |= DEAF
+	flashbangprime(TRUE, FALSE, FALSE)
 
 	explosion(get_turf(src), -1, 1, 3, 4, 0, 1, 0) //Tiny meteor doesn't cause too much damage
 	qdel(src)
@@ -321,10 +368,26 @@
 			new /obj/item/projectile/meteor(get_turf(src), c_pickedgoal)
 	qdel(src)
 
-//Placeholder for actual meteors of this kind, will be included SOON
+//Placeholder for actual meteors of this kind, will be included literally never
 /obj/item/projectile/meteor/boss
-	name = "apocalytic meteor"
+	name = "apocalyptic meteor"
 	desc = "And behold, a white meteor. And on that meteor..."
+	projectile_speed = 4 //slow, massive, apocalyptic
+
+/obj/item/projectile/meteor/boss/New()
+	..()
+	appearance_flags |= PIXEL_SCALE
+	var/matrix/boss = matrix()
+	boss.Scale(1.5,1.5)
+	transform = boss
+
+/obj/item/projectile/meteor/boss/to_bump(atom/A)
+
+	if(loc == null)
+		return
+
+	explosion(get_turf(src), 7, 14, 28, 32, 0, 1, 0) //adios
+	qdel(src)
 
 /obj/item/projectile/meteor/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	if(istype(W, /obj/item/weapon/pickaxe)) //Yeah, you can totally do that
@@ -336,15 +399,73 @@
 	..()
 
 /obj/item/projectile/meteor/gib    //non explosive meteor, appears to be a corpse spinning in space before impacting something and spraying gibs everywhere
-	name = "human corpse"
+	name = "organic debris"
 	icon_state = "human"
+	var/mob/living/mob_to_gib = /mob/living/carbon/human
+	var/datum/species/species
+
+/obj/item/projectile/meteor/gib/New(atom/start, atom/end)
+	if(prob(50))
+		var/list/blocked = boss_mobs + blacklisted_mobs
+		do
+			mob_to_gib = pick(existing_typesof(/mob/living/simple_animal) - existing_typesof_list(blocked))
+		while(!initial(mob_to_gib.meat_type))
+	else
+		var/list/human_blocked = list(
+			/mob/living/carbon/human/krampus,
+			/mob/living/carbon/human/dummy,
+			/mob/living/carbon/human/manifested,
+			/mob/living/carbon/human/muton,
+			/mob/living/carbon/human/golem,
+			/mob/living/carbon/human/vampire,
+			/mob/living/carbon/human/frankenstein,
+			/mob/living/carbon/human/lich,
+			/mob/living/carbon/human/NPC,
+		)
+		mob_to_gib = pick(existing_typesof(/mob/living/carbon/human) - existing_typesof_list(human_blocked))
+	name = initial(mob_to_gib.name)
+	if(ispath(mob_to_gib,/mob/living/carbon/human))
+		var/pathtext = "[mob_to_gib]"
+		pathtext = replacetext(pathtext,"/mob/living/carbon/human","/datum/species")
+		pathtext = replacetext(pathtext,"/skelevox","/skellington/skelevox")
+		if(pathtext == "/datum/species")
+			pathtext = "/datum/species/human"
+		var/specpath = text2path(pathtext)
+		species = new specpath
+	else
+		icon = initial(mob_to_gib.icon)
+		icon_state = initial(mob_to_gib.icon_state)
+	..(start,end)
 
 /obj/item/projectile/meteor/gib/to_bump(atom/A)
 
 	if(loc == null)
 		return
-
-	new /obj/effect/gibspawner/human(src.loc)
+	if(ispath(mob_to_gib,/mob/living/carbon/human) && species)
+		for(var/organ_name in species.has_organ)
+			var/datum/organ/internal/O = species.has_organ[organ_name]
+			var/true_organ = initial(O.removed_type)
+			new true_organ(loc)
+		var/static/list/ext_organs = list(
+			/obj/item/organ/external/l_arm,
+			/obj/item/organ/external/r_arm,
+			/obj/item/organ/external/l_leg,
+			/obj/item/organ/external/r_leg,
+			/obj/item/organ/external/l_foot,
+			/obj/item/organ/external/r_foot,
+			/obj/item/organ/external/l_hand,
+			/obj/item/organ/external/r_hand,
+		)
+		for(var/ext_type in ext_organs)
+			var/obj/item/organ/external/E = new ext_type(loc)
+			E.species = species
+			E.update_icon()
+	if(initial(mob_to_gib.meat_type) && (initial(mob_to_gib.meat_amount) || initial(mob_to_gib.size)))
+		var/meattype = ispath(mob_to_gib,/mob/living/carbon/human) && species ? species.meat_type : initial(mob_to_gib.meat_type)
+		var/meatamount = initial(mob_to_gib.meat_amount) ? initial(mob_to_gib.meat_amount) : initial(mob_to_gib.size)
+		for(var/i in 1 to meatamount)
+			new meattype(loc)
+	new /obj/effect/gibspawner/human(loc, fleshcolor = species ? species.flesh_color : DEFAULT_FLESH, bloodcolor = species ? species.blood_color : DEFAULT_BLOOD)
 	qdel(src)
 
 
@@ -354,13 +475,17 @@
 	icon_state = "meteorblob"
 	pixel_x = -16 * PIXEL_MULTIPLIER
 	pixel_y = -16 * PIXEL_MULTIPLIER
+	var/did_blob_stuff = FALSE
 
 /obj/item/projectile/meteor/blob/to_bump(atom/A)
 	if(!loc)
 		return
 
+	if (did_blob_stuff) // we already bumped into something and are probably in the process of deleting ourselves
+		return
+
 	if(ismob(A))
-		src.forceMove(A.loc)
+		forceMove(A.loc)
 		A.blob_act()
 		return
 
@@ -377,17 +502,33 @@
 
 	var/turf/T = get_turf(A)
 
+	var/obj/effect/blob/is_there_a_blob = (locate(/obj/effect/blob) in T)
+
+	if(penetration && !is_there_a_blob)
+		if(penetration >= A.penetration_dampening)	//if the obstacle is too resistant, we don't go through it.
+			penetration = max(0, penetration - A.penetration_dampening)
+
+			new/obj/effect/blob/shield(T, no_morph = 1) // if the meteor goes through, we leave a strong blob on it to prevent sudden airflow
+			forceMove(T)
+			update_pixel()
+			pixel_x = PixelX
+			pixel_y = PixelY
+			return
+
 	for(var/atom/AT in T)
 		AT.blob_act(1)
 
 	T.blob_act(1)
 
-	var/obj/effect/blob/is_there_a_blob = (locate(/obj/effect/blob) in T)
-
 	if(is_there_a_blob)
-		do_blob_stuff(loc)
+		if (loc)
+			do_blob_stuff(loc)
+		else
+			do_blob_stuff(get_step(T,dir))
 	else
 		do_blob_stuff(T)
+
+	did_blob_stuff = TRUE
 
 	qdel(src)
 
@@ -398,6 +539,7 @@
 	name = "Blob Node"
 	icon = 'icons/obj/meteor_64x64.dmi'
 	icon_state = "meteornode"
+	penetration = 10
 
 /obj/item/projectile/meteor/blob/node/do_blob_stuff(var/turf/T)
 	new/obj/effect/blob/node(T, no_morph = 1)
@@ -408,26 +550,22 @@ var/list/blob_candidates = list()
 	name = "Blob Core"
 	icon = 'icons/obj/meteor_64x64.dmi'
 	icon_state = "meteorcore"
+	penetration = 20
 	var/client/blob_candidate = null
+	var/could_reenter_corpse = FALSE
 
-/obj/item/projectile/meteor/blob/core/New()
-	..()
-	var/list/candidates = list()
-
-	candidates = get_candidates(ROLE_BLOB)
-
-	for(var/client/C in candidates)
-		if(istype(C.eye,/obj/item/projectile/meteor/blob/core))
-			candidates -= C
-
-	if(candidates.len)
-		blob_candidate = pick(candidates)
-		blob_candidates += blob_candidate
-
+/obj/item/projectile/meteor/blob/core/proc/AssignMob(var/mob/M)
+	blob_candidate = M.client
 	if(blob_candidate)
 		blob_candidate.perspective = EYE_PERSPECTIVE
 		blob_candidate.eye = src
 		blob_candidate.mob.see_invisible = SEE_INVISIBLE_MINIMUM
+		blob_candidate.mob.seedarkness = FALSE
+		if(isobserver(M))
+			var/mob/dead/observer/O = M
+			if(O.can_reenter_corpse)
+				O.can_reenter_corpse = FALSE
+				could_reenter_corpse = TRUE
 
 /obj/item/projectile/meteor/blob/core/Destroy()
 	if(blob_candidate)
@@ -435,15 +573,20 @@ var/list/blob_candidates = list()
 		blob_candidate.eye = blob_candidate.mob
 		blob_candidates -= blob_candidate
 		blob_candidate = null
+		if(isobserver(blob_candidate.mob))
+			var/mob/dead/observer/O = blob_candidate.mob
+			O.can_reenter_corpse = could_reenter_corpse
 	..()
 
 /obj/item/projectile/meteor/blob/core/do_blob_stuff(var/turf/T)
+	did_blob_stuff = TRUE
+	log_admin("Blob core meteor impacted at [formatJumpTo(T)] controlled by [key_name(blob_candidate)].")
+	message_admins("Blob core meteor impacted at [formatJumpTo(T)] controlled by [key_name(blob_candidate)].")
 	if(blob_candidate && istype(blob_candidate.mob, /mob/dead/observer))
-		new/obj/effect/blob/core(T, new_overmind = blob_candidate, no_morph = 1)
+		new/obj/effect/blob/core(T, new_overmind = blob_candidate, no_morph = 1, new_rate = 4)
 	else
-		new/obj/effect/blob/core(T, no_morph = 1)
-	log_admin("Blob core meteor impacted at [formatJumpTo(loc)] controlled by [key_name(blob_candidate)].")
-	message_admins("Blob core meteor impacted at [formatJumpTo(loc)] controlled by [key_name(blob_candidate)].")
+		new/obj/effect/blob/core(T, no_morph = 1, new_rate = 4)
+	blob_candidate = null
 
 //It's a tool to debug and test stuff, ok? Pls don't hand them out to players unless you just want to set the world on fire.
 /obj/item/weapon/meteor_gun
@@ -482,7 +625,7 @@ var/list/blob_candidates = list()
 
 /obj/item/projectile/meteor/firework
 	name = "firework"
-	desc = "Oooh! Aaaaah"
+	desc = "Oooh! Aaaaah..."
 	icon_state = "firework"
 
 /obj/item/projectile/meteor/firework/New()
@@ -515,7 +658,7 @@ var/list/blob_candidates = list()
 	icon_state = "firework_sparkle"
 	pixel_x = -16 * PIXEL_MULTIPLIER
 	pixel_y = -16 * PIXEL_MULTIPLIER
-	plane = LIGHTING_PLANE
+	plane = ABOVE_LIGHTING_PLANE
 	layer = ABOVE_LIGHTING_LAYER
 
 /obj/effect/overlay/firework_sparkle/New()

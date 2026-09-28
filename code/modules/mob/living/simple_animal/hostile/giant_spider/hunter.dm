@@ -19,14 +19,8 @@
 	wander = 1
 	ranged = 0
 	minimum_distance = 1
-
-/mob/living/simple_animal/hostile/giant_spider/hunter/proc/GiveUp(var/C)
-	spawn(100)
-		if(busy == MOVING_TO_TARGET)
-			if(target == C && get_dist(src,target) > 1)
-				target = null
-			busy = 0
-			stop_automated_movement = 0
+	speed = 2
 
 /mob/living/simple_animal/hostile/giant_spider/hunter/dead
+	iscorpse = 1
 	health = 0

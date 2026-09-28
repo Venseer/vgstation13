@@ -33,34 +33,23 @@
 	name = "floor"
 
 /turf/simulated/floor/vox/wood
-	name = "floor"
 	icon_state = "wood"
-	floor_tile
 
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 10
 	soot_type = null
 	melt_temperature = 0 // Doesn't melt.
 
-/turf/simulated/floor/vox/wood/New()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
-	floor_tile = getFromPool(/obj/item/stack/tile/wood, null)
-	..()
+/turf/simulated/floor/vox/wood/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/wood(null)
 
 /turf/simulated/floor/light
 	name = "Light floor"
 	luminosity = 5
 	icon_state = "light_on"
-	floor_tile
+
+/turf/simulated/floor/light/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/light(null)
 
 /turf/simulated/floor/light/New()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
-	floor_tile = getFromPool(/obj/item/stack/tile/light, null)
-	floor_tile.New() //I guess New() isn't run on objects spawned without the definition of a turf to house them, ah well.
 	var/n = name //just in case commands rename it in the ..() call
 	..()
 	spawn(4)
@@ -71,16 +60,20 @@
 /turf/simulated/floor/wood
 	name = "floor"
 	icon_state = "wood"
-	floor_tile
-
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 10
 	soot_type = null
 	melt_temperature = 0 // Doesn't melt.
+	flammable = TRUE
+	thermal_material = new/datum/thermal_material/wood()
+	thermal_mass = 5
 
 /turf/simulated/floor/wood/New()
-	floor_tile = getFromPool(/obj/item/stack/tile/wood,null)
 	..()
+	footstep_sound = sounds_wood
+	footstep_sound_barefoot = sounds_wood_barefoot
+	footstep_sound_claw = sounds_wood_claw
+
+/turf/simulated/floor/wood/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/wood(null)
 
 /turf/simulated/floor/vault
 	icon_state = "rockvault"
@@ -99,45 +92,164 @@
 /turf/simulated/floor/engine
 	name = "reinforced floor"
 	icon_state = "engine"
+	icon_plating = "engine"
 	thermal_conductivity = 0.025
 	heat_capacity = 325000
+	protect_infrastructure = TRUE
 
 	soot_type = null
 	melt_temperature = 0 // Doesn't melt.
+	var/secured = FALSE
 
-/turf/simulated/floor/engine/attackby(obj/item/weapon/C as obj, mob/user as mob)
+/turf/simulated/floor/engine/create_floor_tile()
+	return
+
+/turf/simulated/floor/engine/attackby(obj/item/C as obj, mob/user as mob)
 	if(!C)
 		return
 	if(!user)
 		return
-	if(iswrench(C))
+	if(C.is_wrench(user) && !floor_tile && !secured)
 		to_chat(user, "<span class='notice'>Removing rods...</span>")
-		playsound(src, 'sound/items/Ratchet.ogg', 80, 1)
+		C.playtoolsound(src, 80)
 		if(do_after(user, src, 30) && istype(src, /turf/simulated/floor/engine)) // Somehow changing the turf does NOT kill the current running proc.
 			new /obj/item/stack/rods(src, 2)
 			ChangeTurf(/turf/simulated/floor)
 			var/turf/simulated/floor/F = src
 			F.make_plating()
 			return
+	if(iscrowbar(C))
+		if (user.a_intent != I_HELP) //We assume the user is fighting
+			to_chat(user, "<span class='notice'>You swing the crowbar in front of you.</span>")
+			return
+		else
+			if(floor_tile)
+				if(secured)
+					to_chat(user, "<span class='warning'>Unsecure the [floor_tile.name] first!</span>")
+				else
+					to_chat(user, "<span class='notice'>You remove the [floor_tile.name].</span>")
+					floor_tile.forceMove(src)
+					floor_tile = null
+					make_plating()
+					// Can't play sounds from areas. - N3X
+					C.playtoolsound(src, 80)
+	if(istype(C, /obj/item/stack/tile/metal/plasteel) && !floor_tile)
+		var/obj/item/stack/tile/T = C
+		if(T.use(1))
+			make_tiled_floor(T)
+	if(istype(C, /obj/item/stack/bolts) && !floor_tile)
+		var/obj/item/stack/bolts/B = C
+		if(B.use(1))
+			ChangeTurf(/turf/simulated/floor/engine/bolted)
+	if(C.is_screwdriver(user) && floor_tile)
+		to_chat(user, "<span class='notice'>You start [secured ? "unsecuring" : "securing"] the [floor_tile.name].</span>")
+		C.playtoolsound(src, 80)
+		if(do_after(user, src, 30))
+			to_chat(user, "<span class='notice'>You [secured ? "unsecure" : "secure"] the [floor_tile.name] in place.</span>")
+			secured = !secured
+			C.playtoolsound(src, 80)
+			update_icon()
+
+/turf/simulated/floor/engine/proc/explode_layers(var/layers = 1)
+	if(secured)		//plasteel tile, screwed in
+		secured = FALSE
+		update_icon()
+		layers -= 1
+		if(!layers)
+			return
+	if(floor_tile)	//plasteel tile, unscrewed
+		qdel(floor_tile)
+		floor_tile = null
+		icon_state = "engine"
+		update_icon()
+		layers -= 1
+		if(!layers)
+			return
+	//reinforced floor
+	new /obj/item/stack/rods(src, 1)
+	ChangeTurf(/turf/simulated/floor)
+	var/turf/simulated/floor/F = src
+	F.make_plating()
+	layers -= 1
+
+	//normal plating
+	if(!layers)
+		return
+
+	var/severity = 2
+	if(layers > 1)
+		severity = 1
+	for(var/obj/structure/cable/C in src)
+		C.ex_act(severity)
+	for(var/obj/machinery/atmospherics/pipe/P in src)
+		P.ex_act(severity)
+	for(var/obj/structure/disposalpipe/D in src)
+		D.ex_act(severity)
+	src.ex_act(severity)
 
 /turf/simulated/floor/engine/ex_act(severity)
 	switch(severity)
 		if(1.0)
-			if(prob(80))
-				src.ReplaceWithLattice()
-			else if(prob(50))
-				src.ChangeTurf(get_underlying_turf())
-			else
-				var/turf/simulated/floor/F = src
-				F.make_plating()
+			explode_layers(pick(2,3))
 		if(2.0)
-			if(prob(50))
-				var/turf/simulated/floor/F = src
-				F.make_plating()
-			else
-				return
+			explode_layers(1)
 		if(3.0)
-			return
+			if(prob(10))
+				explode_layers(1)
+
+/turf/simulated/floor/engine/make_plating()
+	if(floor_tile)
+		floor_tile.forceMove(src)
+		floor_tile = null
+	intact = 0
+	fix_floor()
+	material = "metal"
+
+	update_icon()
+	levelupdate()
+
+/turf/simulated/floor/engine/update_icon()
+	overlays.Cut()
+	icon_plating = "engine" //hotfix for now
+	..()
+	if(floor_tile)
+		if(secured)
+			overlays.Add(image('icons/turf/floors.dmi', icon_state = "r_floor"))
+		else
+			overlays.Add(image('icons/turf/floors.dmi', icon_state = "r_floor_unsec"))
+
+/turf/simulated/floor/engine/bolted
+	name = "bolted floor"
+	desc = "This floor has jutting bolts that would make crawling across it impossible."
+	icon_state = "boltedfloor"
+
+/turf/simulated/floor/engine/bolted/attackby(obj/item/C as obj, mob/user as mob)
+	if(!user || !C)
+		return
+	if(!C.is_wrench(user))
+		return
+	if(user.loc != src)
+		to_chat(user, "<span class='warning'>You must stand directly on the bolted floor to unbolt it.</span>")
+		return
+	C.playtoolsound(src, 80)
+	if(do_after(user, src, 6 SECONDS))
+		new /obj/item/stack/bolts(src)
+		ChangeTurf(/turf/simulated/floor/engine)
+
+// For mappers
+/turf/simulated/floor/engine/plated
+	icon_state = "floor"
+	secured = TRUE
+
+/turf/simulated/floor/engine/plated/create_floor_tile()
+	if(!floor_tile)
+		floor_tile = new /obj/item/stack/tile/metal/plasteel(null)
+		floor_tile.amount = 1
+	update_icon()
+
+/turf/simulated/floor/engine/plated/airless
+	oxygen = 0.01
+	nitrogen = 0.01
 
 /turf/simulated/floor/engine/cult
 	name = "engraved floor"
@@ -149,16 +261,20 @@
 /turf/simulated/floor/engine/cult/cultify()
 	return
 
+/turf/simulated/floor/engine/cult/decultify()
+	ChangeTurf(/turf/simulated/floor/plating)
+
+/turf/simulated/floor/engine/cult/clockworkify()
+	return
+
 /turf/simulated/floor/engine/airless
 	oxygen = 0.01
 	nitrogen = 0.01
 
 /turf/simulated/floor/engine/n20
-
-/turf/simulated/floor/engine/n20/New()
-	..()
-	if(src.air)
-		air.adjust_gas(GAS_SLEEPING, 9 * 4000) //NO goddamn idea what those numbers mean, but it's what they were before
+	oxygen = 0
+	nitrogen = 0
+	misc_gases = list(GAS_SLEEPING = 36000)
 
 /turf/simulated/floor/engine/nitrogen
 	name = "nitrogen floor"
@@ -174,6 +290,12 @@
 	nitrogen = 0.001
 	temperature = TCMB
 
+/turf/simulated/floor/engine/acoustic
+	name = "acoustic panel"
+	desc = "A special floor designed to muffle sound."
+	icon_state = "acoustic"
+	volume_mult = 0.1
+
 /turf/simulated/floor/plating
 	name = "plating"
 	icon_state = "plating"
@@ -182,8 +304,12 @@
 
 /turf/simulated/floor/plating/deck
 	name = "deck"
+	icon_state = "deck"
 	icon_plating = "deck"
 	desc = "Children love to play on this deck."
+	flammable = TRUE
+	thermal_material = new/datum/thermal_material/wood()
+	thermal_mass = 5
 
 /turf/simulated/floor/plating/deck/New()
 	..()
@@ -210,11 +336,8 @@
 	..()
 	name = "deck"
 
-/turf/simulated/floor/plating/New()
-	..()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
+/turf/simulated/floor/plating/create_floor_tile()
+	return
 
 
 /turf/simulated/floor/plating/airless
@@ -268,46 +391,50 @@
 
 /turf/simulated/floor/beach/water/New()
 	..()
-	var/image/water = image("icon"='icons/misc/beach.dmi',"icon_state"="water5")
-	water.plane = ABOVE_HUMAN_PLANE
-	overlays += water
+	if(!BW)
+		BW = new
+	vis_contents.Add(BW)
+
+/turf/simulated/floor/beach/water/Destroy()
+	vis_contents.Cut()
+	..()
 
 /turf/simulated/floor/grass
 	name = "Grass patch"
 	icon_state = "grass1"
-	floor_tile
+	flammable = TRUE
+	thermal_material = new/datum/thermal_material/wood()
+	thermal_mass = 5
+	base_icon_state = "grass"
+	min_icon_states = 2
+	max_icon_states = 4
+	variance = 50
+
+/turf/simulated/floor/grass/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/grass(null)
 
 /turf/simulated/floor/grass/New()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
-	floor_tile = getFromPool(/obj/item/stack/tile/grass, null)
-	floor_tile.New() //I guess New() isn't ran on objects spawned without the definition of a turf to house them, ah well.
-	icon_state = "grass[pick("1","2","3","4")]"
 	..()
-	spawn(4)
-		if(src)
-			update_icon()
-			for(var/direction in cardinal)
-				if(istype(get_step(src,direction),/turf/simulated/floor))
-					var/turf/simulated/floor/FF = get_step(src,direction)
-					FF.update_icon() //so siding get updated properly
+	footstep_sound = sounds_grass
+	footstep_sound_barefoot = sounds_grass
+	footstep_sound_claw = sounds_grass
 
 /turf/simulated/floor/carpet
 	name = "Carpet"
 	icon_state = "carpet"
-	floor_tile
 	var/has_siding=1
+	flammable = TRUE
+	thermal_material = new/datum/thermal_material/fabric()
+	thermal_mass = 5
+
+/turf/simulated/floor/carpet/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/carpet(null)
 
 /turf/simulated/floor/carpet/New()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
-	floor_tile = getFromPool(/obj/item/stack/tile/carpet, null)
-	floor_tile.New() //I guess New() isn't ran on objects spawned without the definition of a turf to house them, ah well.
 	if(!icon_state)
 		icon_state = initial(icon_state)
 	..()
+
 	if(has_siding)
 		spawn(4)
 			if(src)
@@ -317,35 +444,52 @@
 						var/turf/simulated/floor/FF = get_step(src,direction)
 						FF.update_icon() //so siding get updated properly
 
+	footstep_sound = sounds_carpet
+	footstep_sound_barefoot = sounds_carpet_barefoot
+	footstep_sound_claw = sounds_carpet_barefoot
+
 /turf/simulated/floor/carpet/cultify()
 	return
+
+/turf/simulated/floor/carpet/broken/New()
+	. = ..()
+	break_tile()
 
 /turf/simulated/floor/arcade
 	name = "Arcade Carpet"
 	icon_state = "arcade"
-	floor_tile
+	flammable = TRUE
+	thermal_material = new/datum/thermal_material/fabric()
+	thermal_mass = 5
 
-/turf/simulated/floor/arcade/New()
-	if(floor_tile)
-		returnToPool(floor_tile)
-		floor_tile = null
-	floor_tile = getFromPool(/obj/item/stack/tile/arcade, null)
+/turf/simulated/floor/arcade/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/arcade(null)
 	..()
 
+/turf/simulated/floor/carpet/shag
+	name = "Shag Carpet"
+	icon_state = "shagcarpet-dark"
+	has_siding = FALSE
+
+/turf/simulated/floor/carpet/shag/create_floor_tile()
+	floor_tile = new /obj/item/stack/tile/carpet/shag(null)
+
 /turf/simulated/floor/damaged
-	icon_state = "damaged1"
+	var/broken_prob = 71
 
-/turf/simulated/floor/damaged/New()
-	broken = prob(71) // 5 of the icon states are "damaged" icons, 2 are burned.
-	burnt  = !broken
-
-	if(broken)
-		icon_state = pick("damaged1", "damaged2", "damaged3", "damaged4", "damaged5")
-
+/turf/simulated/floor/damaged/pick_icon_state()
+	if(prob(broken_prob))
+		break_tile()
 	else // Burnt states.
-		icon_state = pick("floorscorched1", "floorscorched2")
+		burn_tile()
 
 	. = ..()
+
+/turf/simulated/floor/damaged/broken
+	broken_prob = 100
+
+/turf/simulated/floor/damaged/burnt
+	broken_prob = 0
 
 /turf/simulated/floor/damaged/airless
 	name        = "airless floor"
@@ -353,55 +497,101 @@
 	nitrogen    = 0.01
 	temperature = TCMB
 
-/turf/simulated/floor/plating/ironsand/New()
-	..()
+/turf/simulated/floor/damaged/airless/broken
+	broken_prob = 100
+
+/turf/simulated/floor/damaged/airless/burnt
+	broken_prob = 0
+
+/turf/simulated/floor/plating/ironsand
 	name = "Iron Sand"
-	icon_state = "ironsand[rand(1,15)]"
+	icon_state = "ironsand1"
+	base_icon_state = "ironsand"
+	min_icon_states = 1
+	max_icon_states = 15
+	variance = 100
 
-//snow moved to seperate file pending testing
-/*
-/turf/simulated/floor/plating/snow
-	name = "snow"
-	icon = 'icons/turf/snow.dmi'
-	icon_state = "snow"
-	gender = PLURAL
+/turf/simulated/floor/plating/damaged
+	var/broken_prob = 75
 
-/turf/simulated/floor/plating/snow/concrete
-	name = "concrete"
-	icon = 'icons/turf/floors.dmi'
-	icon_state = "concrete"
+/turf/simulated/floor/plating/damaged/broken
+	broken_prob = 100
 
-/turf/simulated/floor/plating/snow/cold
-	temperature = 273
-/turf/simulated/floor/plating/snow/ex_act(severity)
-	return
+/turf/simulated/floor/plating/damaged/burnt
+	broken_prob = 0
 
-/turf/simulated/floor/plating/snow/ice
-	name = "ice"
-	icon_state = "ice"
-*/
-/turf/simulated/floor/plating/airless/damaged
-	icon_state = "platingdmg1"
-
-/turf/simulated/floor/plating/airless/damaged/New()
-	broken = prob(75) // 3 of the icon states are "damaged" icons, 1 is burned.
-	burnt  = !broken
-
-	if(broken)
-		icon_state = pick("platingdmg1", "platingdmg2", "platigndmg3")
-
-	else // Burnt state.
-		icon_state = "panelscorched"
+/turf/simulated/floor/plating/damaged/pick_icon_state()
+	if(prob(broken_prob))
+		break_tile()
+	else // Burnt states.
+		burn_tile()
 
 	. = ..()
 
+/turf/simulated/floor/plating/damaged/airless
+	name = "airless plating"
+	oxygen = 0.01
+	nitrogen = 0.01
+	temperature = TCMB
+
+/turf/simulated/floor/plating/damaged/airless/broken
+	broken_prob = 100
+
+/turf/simulated/floor/plating/damaged/airless/burnt
+	broken_prob = 0
+
+//syndie themed
+/turf/simulated/floor/dark
+	icon_state = "dark"
+
+//Server rooms, supercooled nitrogen atmosphere
+/turf/simulated/floor/server
+	icon_state = "dark"
+	oxygen = 0
+	temperature = 90
+	nitrogen = MOLES_O2STANDARD+MOLES_N2STANDARD
+
+/turf/simulated/floor/server/bluegrid
+	icon_state = "bcircuit"
+
+/turf/simulated/floor/server/one_atmosphere
+	nitrogen = (ONE_ATMOSPHERE*CELL_VOLUME/(90*R_IDEAL_GAS_EQUATION))
+
+/turf/simulated/floor/server/one_atmosphere/bluegrid
+	icon_state = "bcircuit"
+
 // VOX SHUTTLE SHIT
-/turf/simulated/shuttle/floor/vox
+/turf/simulated/floor/shuttle/vox
 	oxygen=0 // BIRDS HATE OXYGEN FOR SOME REASON
 	nitrogen = MOLES_O2STANDARD+MOLES_N2STANDARD // So it totals to the same pressure
 	//icon = 'icons/turf/shuttle-debug.dmi'
 
-/turf/simulated/shuttle/plating/vox
+/turf/simulated/floor/shuttle/plating/vox
 	oxygen=0 // BIRDS HATE OXYGEN FOR SOME REASON
 	nitrogen = MOLES_O2STANDARD+MOLES_N2STANDARD // So it totals to the same pressure
 	//icon = 'icons/turf/shuttle-debug.dmi'
+
+// Plated catwalks
+/turf/simulated/floor/plated_catwalk
+	icon = 'icons/turf/catwalks.dmi'
+	icon_state = "pcat0"
+	name = "plated catwalk"
+	desc = "A hybrid floor tile-catwalk which provides visibility and easy access to pipes and wires beneath it."
+	plane = TURF_PLANE
+	layer = PAINT_LAYER
+	intact = 0
+	hatch_installed = TRUE
+	hatch_open = FALSE
+
+/turf/simulated/floor/plated_catwalk/create_floor_tile()
+	if(!floor_tile)
+		floor_tile = new /obj/item/stack/tile/plated_catwalk(null)
+		floor_tile.amount = 1
+
+/turf/simulated/floor/plated_catwalk/New()
+	..()
+	update_icon()
+
+/turf/simulated/floor/plated_catwalk/dark
+	icon_state = "pcat0d"
+	catwalk_suffix = "d"

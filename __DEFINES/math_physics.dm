@@ -11,6 +11,7 @@
 
 #define R_IDEAL_GAS_EQUATION	8.314 //kPa*L/(K*mol)
 #define ONE_ATMOSPHERE		101.325	//kPa
+#define HALF_ATM				ONE_ATMOSPHERE * 0.5
 
 #define MEGAWATT 1000000
 #define TEN_MEGAWATTS 10000000
@@ -40,6 +41,7 @@
 #define MELTPOINT_PLASMA (MELTPOINT_STEEL+500)
 #define MELTPOINT_SILICON 1687 // KELVIN
 #define MELTPOINT_PLASTIC (180+T0C)
+#define MELTPOINT_WAX (65+T0C)
 #define MELTPOINT_SNOW	304.15	//about 30°C
 #define MELTPOINT_CARBON (T0C+3550)
 #define MELTPOINT_GOLD (T0C+1064)
@@ -47,8 +49,16 @@
 #define MELTPOINT_URANIUM (T0C+1132)
 #define MELTPOINT_POTASSIUM (T0C+63.5)
 #define MELTPOINT_BRASS (T0C+940)
-#define MELTPOINT_MITHRIL (T0C+893) //Using sterling silver (because silver steel) as base
+#define MELTPOINT_MYTHRIL (T0C+893) //Using sterling silver (because silver steel) as base
 
 // The highest number supported is a signed 32-bit floating point number.
 // Integers beyond the 24 bit range are represented as single-precision floating points, and thus will lose accuracy beyond the range of +/- 16777216
 #define SHORT_REAL_LIMIT 16777216
+
+#define manhattan_distance(a, b) (abs(a.x - b.x) + abs(a.y - b.y))
+
+#define IS_INT(x) (x == round(x))
+
+#define fancytrunc(x, y) (floor(x*(y*10))/(y*10)) //X is the value to truncate, Y is the trunc multiplier, i.e: x,3 would truncate to the thousandth. 
+
+#define GLIDE_SIZE_OF_A_WALKING_HUMAN 2.4615386

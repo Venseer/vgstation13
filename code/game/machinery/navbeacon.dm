@@ -20,7 +20,7 @@ var/list/navbeacons = list()
 	var/list/codes		// assoc. list of transponder codes
 	var/codes_txt = ""	// codes as set on map: "tag1;tag2" or "tag1=value;tag2=value"
 
-	req_access = list(access_engine)
+	req_access = list(access_engine_minor)
 
 	machine_flags = SCREWTOGGLE
 
@@ -33,10 +33,12 @@ var/list/navbeacons = list()
 	hide(T.intact)
 
 	navbeacons.Add(src)
+	if(ticker && ticker.current_state == GAME_STATE_PLAYING)
+		initialize()
 
-	spawn(5)	// must wait for map loading to finish
-		if(radio_controller)
-			radio_controller.add_object(src, freq, RADIO_NAVBEACONS)
+/obj/machinery/navbeacon/initialize()
+	if(radio_controller)
+		radio_controller.add_object(src, freq, RADIO_NAVBEACONS)
 
 /obj/machinery/navbeacon/Destroy()
 	navbeacons.Remove(src)
@@ -85,32 +87,41 @@ var/list/navbeacons = list()
 	// or one of the set transponder keys
 	// if found, return a signal
 /obj/machinery/navbeacon/receive_signal(datum/signal/signal)
-
 	var/request = signal.data["findbeacon"]
+	var/bot = null
+	if(signal.data["bot"])
+		bot = signal.data["bot"]
 	if(request && ((request in codes) || request == "any" || request == location))
 		spawn(1)
-			post_signal()
+			debug_mulebots("navbeacons accepted request [request] from [bot] and posted its own location")
+			post_signal(request, bot)
 
 	// return a signal giving location and transponder codes
 
-/obj/machinery/navbeacon/proc/post_signal()
-
-
+/obj/machinery/navbeacon/proc/post_signal(request, var/mulebot = null)
 	var/datum/radio_frequency/frequency = radio_controller.return_frequency(freq)
-
 	if(!frequency)
 		return
 
-	var/datum/signal/signal = getFromPool(/datum/signal)
+	var/datum/signal/signal = new /datum/signal
 	signal.source = src
 	signal.transmission_method = 1
 	signal.data["beacon"] = location
 
+	if (request == "patrol")
+		signal.data["patrol"] = 1
+
 	for(var/key in codes)
 		signal.data[key] = codes[key]
+		debug_mulebots("Key: [key] - [codes[key]]")
+
+	if(mulebot)
+		debug_mulebots("Bot: [mulebot]")
+		signal.data["bot"] = mulebot
+
+	debug_mulebots("navbeacon [location] posted signal with request [request] for [mulebot] on freq [freq].")
 
 	frequency.post_signal(src, signal, filter = RADIO_NAVBEACONS)
-
 
 /obj/machinery/navbeacon/attackby(var/obj/item/I, var/mob/user)
 	var/turf/T = loc
@@ -132,7 +143,7 @@ var/list/navbeacons = list()
 			to_chat(user, "You must open the cover first!")
 
 /obj/machinery/navbeacon/attack_ai(var/mob/user)
-	src.add_hiddenprint(user)
+	add_hiddenprint(user)
 	interact(user, 1)
 
 /obj/machinery/navbeacon/attack_paw()
@@ -187,7 +198,7 @@ Transponder Codes:<UL>"}
 
 		t += {"<small><A href='byond://?src=\ref[src];add=1;'>(add new)</A></small><BR>
 			<UL></TT>"}
-	user << browse(t, "window=navbeacon")
+	user << browse(HTML_SKELETON(t), "window=navbeacon")
 	onclose(user, "navbeacon")
 
 /obj/machinery/navbeacon/Topic(href, href_list)
@@ -210,12 +221,12 @@ Transponder Codes:<UL>"}
 			else if(href_list["edit"])
 				var/codekey = href_list["code"]
 
-				var/newkey = input("Enter Transponder Code Key", "Navigation Beacon", codekey) as text|null
+				var/newkey = copytext(sanitize(input("Enter Transponder Code Key", "Navigation Beacon", codekey) as text|null),1,MAX_NAME_LEN)
 				if(!newkey)
 					return
 
 				var/codeval = codes[codekey]
-				var/newval = input("Enter Transponder Code Value", "Navigation Beacon", codeval) as text|null
+				var/newval = copytext(sanitize(input("Enter Transponder Code Value", "Navigation Beacon", codeval) as text|null),1,MAX_NAME_LEN)
 				if(!newval)
 					newval = codekey
 					return
@@ -232,11 +243,11 @@ Transponder Codes:<UL>"}
 
 			else if(href_list["add"])
 
-				var/newkey = input("Enter New Transponder Code Key", "Navigation Beacon") as text|null
+				var/newkey = copytext(sanitize(input("Enter New Transponder Code Key", "Navigation Beacon") as text|null),1,MAX_NAME_LEN)
 				if(!newkey)
 					return
 
-				var/newval = input("Enter New Transponder Code Value", "Navigation Beacon") as text|null
+				var/newval = copytext(sanitize(input("Enter New Transponder Code Value", "Navigation Beacon") as text|null),1,MAX_NAME_LEN)
 				if(!newval)
 					newval = "1"
 					return

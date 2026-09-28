@@ -1,5 +1,6 @@
 /obj/item/weapon/implanter
 	name = "implanter"
+	desc = "A small device used to apply implants to people."
 	icon = 'icons/obj/items.dmi'
 	icon_state = "implanter0"
 	item_state = "syringe_0"
@@ -10,77 +11,94 @@
 	var/imp_type = null
 
 /obj/item/weapon/implanter/proc/update()
+	desc = initial(desc)
 	icon_state = "implanter[imp? 1:0]"
+	if(imp)
+		desc += "<br>It is loaded with a [imp.name]."
 
-/obj/item/weapon/implanter/attack(mob/M as mob, mob/user as mob)
-	if(!istype(M, /mob/living/carbon))
+/obj/item/weapon/implanter/attack(atom/target, mob/user)
+	if(!user)
 		return
-	if(user && imp)
-		for (var/mob/O in viewers(M, null))
-			O.show_message("<span class='warning'>[user] is attempting to implant [M].</span>", 1)
-
-		var/turf/T1 = get_turf(M)
-		if(T1 && ((M == user) || do_after(user,M, 50)))
-			if(user && M && (get_turf(M) == T1) && src && imp)
-				for (var/mob/O in viewers(M, null))
-					O.show_message("<span class='warning'>[M] has been implanted by [user].</span>", 1)
-
-				M.attack_log += text("\[[time_stamp()]\] <font color='orange'> Implanted with [name] ([imp.name])  by [user.name] ([user.ckey])</font>")
-				user.attack_log += text("\[[time_stamp()]\] <font color='red'>Used the [name] ([imp.name]) to implant [M.name] ([M.ckey])</font>")
-				msg_admin_attack("[user.name] ([user.ckey]) implanted [M.name] ([M.ckey]) with [name] (INTENT: [uppertext(user.a_intent)]) (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[user.x];Y=[user.y];Z=[user.z]'>JMP</a>)")
-
-				user.show_message("<span class='warning'>You implanted the implant into [M].</span>")
-				if(imp.implanted(M, user))
-					imp.forceMove(M)
-					imp.imp_in = M
-					imp.implanted = 1
-					if(ishuman(M))
-						var/mob/living/carbon/human/H = M
-						var/datum/organ/external/affected = H.get_organ(user.zone_sel.selecting)
-						affected.implants += imp
-						imp.part = affected
-				M:implanting = 0
-				imp = null
+	if(!istype(target))
+		return
+	if(!imp)
+		if(ismob(target))
+			user.show_message("<span class='warning'>There is no implant in \the [src].</span>")
+			return
+	var/mob/living/carbon/M = target
+	if(M)
+		M.visible_message("<span class='warning'>[user] is attempting to implant [M].</span>")
+		add_attacklogs(user, M, "attempted to implant", imp)
+		if(M == user || do_after(user, M, 5 SECONDS))
+			if(imp)
+				if(imp.insert(M, user.zone_sel.selecting, user))
+					add_attacklogs(user, M, "implanted", imp)
+					M.visible_message("<span class='warning'>[user] implants [M].</span>")
+					imp = null
+				else
+					add_attacklogs(user, M, "failed to implant", imp)
+					M.visible_message("<span class='warning'>[user] fails to implant [M].</span>")
 				update()
 
 
+/obj/item/weapon/implanter/arcane_act(mob/user, recursive)
+	. = ..()
+	if(imp)
+		. = imp.arcane_act(user,recursive)
+
 /obj/item/weapon/implanter/New()
+	..()
 	if(imp_type)
 		imp = new imp_type(src)
-		..()
 		update()
+
+/obj/item/weapon/implanter/spesstv
+	name = "promotional Spess.TV implanter"
+	desc = "Does anyone know where the implanter went? I have a lockbox full of loyalty implants here..."
 
 /obj/item/weapon/implanter/traitor
 	name = "greytide conversion kit"
 	desc = "Any humanoid injected with this implant will become loyal to the injector and the greytide, unless of course the host is already loyal to someone else."
 	imp_type = /obj/item/weapon/implant/traitor
 
-
 /obj/item/weapon/implanter/loyalty
 	name = "implanter-loyalty"
+	desc = "Any humanoid injected with this implant will become somewhat loyal to Nanotrasen and the local Heads of Staff."
 	imp_type = /obj/item/weapon/implant/loyalty
+
+/obj/item/weapon/implanter/freedom
+	imp_type = /obj/item/weapon/implant/freedom
+
+/obj/item/weapon/implanter/uplink
+	imp_type = /obj/item/weapon/implant/uplink
 
 /obj/item/weapon/implanter/explosive
 	name = "implanter (E)"
+	desc = "A small device used to apply implants to people. This one has a microphone and some circuitry attached for some reason."
 	imp_type = /obj/item/weapon/implant/explosive
 
 /obj/item/weapon/implanter/adrenalin
 	name = "implanter-adrenalin"
+	desc = "A small device used to apply implants to people. This one has a microphone and some circuitry attached for some reason."
 	imp_type = /obj/item/weapon/implant/adrenalin
 
 /obj/item/weapon/implanter/peace
 	name = "implanter-pax"
-	desc = "An implanter containing a pax implant"
+	desc = "Any humanoid injected with this implant will become unable to perform most physical acts of aggression."
 	imp_type = /obj/item/weapon/implant/peace
+
+/obj/item/weapon/implanter/holy
+	name = "implanter-holy"
+	desc = "This microscripture implanter helps those affected by the Occult from manifesting unwanted abilities."
+	imp_type = /obj/item/weapon/implant/holy
 
 /obj/item/weapon/implanter/compressed
 	name = "implanter (C)"
 	icon_state = "cimplanter1"
+	desc = "A small device used to apply implants to people. This one has a microphone and some circuitry attached for some reason."
 	imp_type = /obj/item/weapon/implant/compressed
 
-	var/list/forbidden_types=list(
-		// /obj/item/weapon/storage/bible // VG #11 - Recursion.
-	)
+	var/list/forbidden_types = list()
 
 /obj/item/weapon/implanter/compressed/update()
 	if(imp)
@@ -92,7 +110,7 @@
 	else
 		icon_state = "cimplanter0"
 
-/obj/item/weapon/implanter/compressed/attack(mob/M as mob, mob/user as mob)
+/obj/item/weapon/implanter/compressed/attack(mob/M, mob/user)
 	// Attacking things in your hands tends to make this fuck up.
 	if(!istype(M))
 		return
@@ -104,8 +122,8 @@
 		return
 	..()
 
-/obj/item/weapon/implanter/compressed/afterattack(var/obj/item/I, mob/user as mob)
-	if(is_type_in_list(I,forbidden_types))
+/obj/item/weapon/implanter/compressed/afterattack(obj/item/I, mob/user)
+	if(is_type_in_list(I, forbidden_types))
 		to_chat(user, "<span class='warning'>A red light flickers on the implanter.</span>")
 		return
 	if(istype(I) && imp)
@@ -122,3 +140,37 @@
 		c.scanned = I
 		c.scanned.forceMove(c)
 		update()
+
+/obj/item/weapon/implanter/vocal
+	name = "implanter (V)"
+	desc = "A small device used to apply implants to people."
+	imp_type = /obj/item/weapon/implant/vocal
+	var/storedcode = ""			// code stored
+
+/obj/item/weapon/implanter/vocal/attack_self(mob/user)
+	if(istype(imp,imp_type))
+		var/uselevel = alert(user, "Which level of complexity do you want to work with? Basic is a simple word replacement with regex, advanced is an implementation of NTSL as found in telecomms servers.", "Level of vocal manipulation", "Basic", "Advanced")
+		if(uselevel == "Basic")
+			var/obj/item/weapon/implant/vocal/V = imp
+			var/input = html_encode(input(user, "Enter an input phrase, regex works here:", "Input phrase") as text)
+			if(!input)
+				return
+			var/keepgoing = FALSE
+			var/list/outputs = list()
+			do
+				var/output =  html_encode(input(user, "Enter an output phrase:", "Output phrase") as text)
+				if(!output)
+					return
+				outputs.Add(output)
+				keepgoing = alert(user, "Add another output?", "Output phrase", "Yes", "No") == "Yes"
+			while(keepgoing)
+			var/casesense = alert(user, "Case sensitive?", "Case sensitivity","Yes","No") == "Yes"
+			if(input && outputs.len)
+				V.filter.addPickReplacement(input,outputs,casesense)
+		else if(uselevel == "Advanced")
+			winshow(user, "Vocal Implant IDE", 1) // show the IDE
+			winset(user, "vicode", "is-disabled=false")
+			winset(user, "vicode", "text=\"\"")
+			var/showcode = replacetext(storedcode, "\\\"", "\\\\\"")
+			showcode = replacetext(storedcode, "\"", "\\\"")
+			winset(user, "vicode", "text=\"[showcode]\"")

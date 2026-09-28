@@ -3,6 +3,10 @@
 	density = TRUE
 	anchored = TRUE
 
+/obj/structure/cult_legacy/cultify()
+	return
+/obj/structure/cult_legacy/clockworkify()
+	return
 
 /obj/structure/cult_legacy/talisman
 	name = "Altar"
@@ -13,85 +17,6 @@
 	name = "Daemon forge"
 	desc = "A forge used in crafting the unholy weapons used by the armies of Nar-Sie."
 	icon_state = "forge"
-
-/obj/structure/cult_legacy/pylon
-	name = "Pylon"
-	desc = "A floating crystal that hums with an unearthly energy."
-	icon_state = "pylon"
-	var/isbroken = 0
-	light_range = 5
-	light_color = LIGHT_COLOR_RED
-	var/last_check = 0
-
-/*
-/obj/structure/cult_legacy/pylon/New()
-	..()
-	processing_objects.Add(src)
-
-/obj/structure/cult_legacy/pylon/Destroy()
-	processing_objects.Remove(src)
-	..()
-
-/obj/structure/cult_legacy/pylon/process()
-	if(!isbroken && world.time > last_check + 3 SECONDS)
-		last_check = world.time
-		for(var/mob/living/simple_animal/construct/C in view(src, 3))
-			if(C.health < C.maxHealth)
-				if(prob(15))
-					src.visible_message("<span class='sinister'>\the [src] mends some of \the <EM>[C]'s</EM> wounds.</span>")
-				make_tracker_effects(get_turf(src), C)
-				C.health = min(C.maxHealth, C.health + 3) //Not quite as good as artificers
-*/
-
-/obj/structure/cult_legacy/pylon/attack_hand(mob/M as mob)
-	attackpylon(M, 5)
-
-/obj/structure/cult_legacy/pylon/attack_animal(mob/living/simple_animal/user as mob)
-	if(istype(user, /mob/living/simple_animal/construct/builder))
-		if(isbroken)
-			if(prob(20))
-				repair(user)
-				return
-			else
-				to_chat(user, "You fail to repair the pylon")
-	attackpylon(user, user.melee_damage_upper)
-
-/obj/structure/cult_legacy/pylon/attackby(obj/item/W as obj, mob/user as mob)
-	attackpylon(user, W.force)
-
-/obj/structure/cult_legacy/pylon/proc/attackpylon(mob/user as mob, var/damage)
-	if(!isbroken)
-		if(prob(1+ damage * 5))
-			to_chat(user, "You hit the pylon, and its crystal breaks apart!")
-			for(var/mob/M in viewers(src))
-				if(M == user)
-					continue
-				M.show_message("[user.name] smashed the pylon!", 1, "You hear a tinkle of crystal shards.", 2)
-			playsound(get_turf(src), 'sound/effects/Glassbr3.ogg', 75, 1)
-			isbroken = 1
-			setDensity(FALSE)
-			icon_state = "pylon-broken"
-			set_light(0)
-		else
-			to_chat(user, "You hit the pylon!")
-			playsound(get_turf(src), 'sound/effects/Glasshit.ogg', 75, 1)
-	else
-		playsound(get_turf(src), 'sound/effects/Glasshit.ogg', 75, 1)
-		if(prob(damage * 2))
-			to_chat(user, "You pulverize what was left of the pylon!")
-			qdel(src)
-		else
-			to_chat(user, "You hit the pylon!")
-
-
-
-/obj/structure/cult_legacy/pylon/proc/repair(mob/user as mob)
-	if(isbroken)
-		to_chat(user, "You repair the pylon.")
-		isbroken = 0
-		setDensity(TRUE)
-		icon_state = "pylon"
-		set_light(5)
 
 /obj/structure/cult_legacy/tome
 	name = "Desk"
@@ -109,7 +34,7 @@
 /*
 /obj/structure/cult_legacy/pillar
 	name = "Pillar"
-	desc = "This should not exist"
+	desc = "This should not exist."
 	icon_state = "pillar"
 	icon = 'magic_pillar.dmi'
 */
@@ -119,20 +44,9 @@
 	desc = "You're pretty sure that abyss is staring back."
 	icon = 'icons/obj/cult.dmi'
 	icon_state = "hole"
-	density = 1
 	anchored = 1.0
 	plane = ABOVE_TURF_PLANE
 	var/spawnable = null
-
-/obj/effect/gateway/Bumped(mob/M as mob|obj)
-	spawn(0)
-		return
-	return
-
-/obj/effect/gateway/Crossed(AM as mob|obj)
-	spawn(0)
-		return
-	return
 
 /obj/effect/gateway/active
 	luminosity=5
@@ -149,18 +63,24 @@
 	spawnable=list(
 		/mob/living/simple_animal/hostile/scarybat/cult,
 		/mob/living/simple_animal/hostile/creature/cult,
-		/mob/living/simple_animal/hostile/faithless/cult
+		/mob/living/simple_animal/hostile/faithless/cult,
+		/obj/abstract/meatblob_spawner
 	)
 
 /obj/effect/gateway/active/cult/cultify()
 	return
 
 /obj/effect/gateway/active/New()
+	flick("hole-appear", src)
+	set_light(3)
 	spawn(rand(30,60) SECONDS)
 		var/t = pick(spawnable)
 		new t(src.loc)
-		qdel(src)
+		flick("hole-die",src)
+		spawn(6)
+			qdel(src)
 
+/*
 /obj/effect/gateway/active/Crossed(var/atom/A)
 	if(!istype(A, /mob/living))
 		return
@@ -190,8 +110,7 @@
 		if(istype(M, /mob/living/silicon/robot))
 			var/mob/living/silicon/robot/Robot = M
 			if(Robot.mmi)
-				qdel(Robot.mmi)
-				Robot.mmi = null
+				QDEL_NULL(Robot.mmi)
 		else
 			for(var/obj/item/W in M)
 				if(istype(W, /obj/item/weapon/implant))	//TODO: Carn. give implants a dropped() or something
@@ -217,3 +136,4 @@
 			new_mob.key = M.key
 
 		to_chat(new_mob, "<B>Your form morphs into that of a cluwne.</B>")
+*/

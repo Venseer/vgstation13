@@ -13,7 +13,7 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 	maxHealth = 60
 	health = 60
 
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING
 	mob_bump_flag = ROBOT
 	mob_swap_flags = ALLMOBS
 	mob_push_flags = 0
@@ -23,6 +23,10 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 
 	//New() stuff
 	startup_sound = 'sound/misc/interference.ogg'
+
+	//mommi milkie
+	var/gives_milk = FALSE
+	var/datum/reagents/udder = null
 
 	//This is no cyborg boy, no cyborg!
 	cell_type = /obj/item/weapon/cell/crepe/mommi //The secret behind MoMMIs, literal powercreep.
@@ -38,9 +42,6 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 	var/prefix = "Mobile MMI"
 	var/damage_control_network = "Damage Control"
 
-	var/static_choice = "static"
-	var/list/static_choices = list("static", "letter", "blank")
-
 	var/obj/abstract/screen/inv_tool = null
 	var/obj/item/tool_state = null
 	var/obj/item/head_state = null
@@ -48,15 +49,13 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 /mob/living/silicon/robot/mommi/getModules()
 	return mommi_modules //Default non-subtype mommis aren't supposed to spawn outside of bus anyways
 
-//REMOVE STATIC
-/mob/living/silicon/robot/mommi/Destroy()
-	remove_static_overlays()
-	..()
+/mob/living/silicon/robot/mommi/track_globally()
+	return //don't track
 
 /mob/living/silicon/robot/mommi/remove_screen_objs()
 	..()
 	if(inv_tool)
-		returnToPool(inv_tool)
+		qdel(inv_tool)
 		if(client)
 			client.screen -= inv_tool
 		inv_tool = null
@@ -79,13 +78,12 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 		return TRUE
 	if(..())
 		return TRUE
-	remove_static_overlays()
 	updateicon()
 
 	//If KEEPER is enabled, disable it.
 	if(keeper)
 		keeper = FALSE
-	
+
 	//and maybe some more freedoms like staying up past bedtime, littering, and jaywalking :)
 	if(!HAS_MODULE_QUIRK(src, MODULE_CAN_HANDLE_FOOD))
 		module.quirk_flags |= MODULE_CAN_HANDLE_FOOD
@@ -134,11 +132,11 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 	else if(istype(W, /obj/item/weapon/cell) && opened)	// trying to put a cell inside
 		if(wiresexposed)
 			to_chat(user, "Close the panel first.")
-		else if(cell)
+		else if(get_cell())
 			to_chat(user, "There is a power cell already installed.")
 		else
 			user.drop_item(W, src)
-			cell = W
+			add_cell(W,user)
 			to_chat(user, "You insert the power cell.")
 		updateicon()
 
@@ -148,12 +146,12 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 		else
 			to_chat(user, "You can't reach the wiring.")
 
-	else if(isscrewdriver(W) && opened && !cell)	// haxing
+	else if(W.is_screwdriver(user) && opened && !get_cell())	// haxing
 		wiresexposed = !wiresexposed
 		to_chat(user, "The wires have been [wiresexposed ? "exposed" : "unexposed"].")
 		updateicon()
 
-	else if(isscrewdriver(W) && opened && cell)	// radio
+	else if(W.is_screwdriver(user) && opened && get_cell())	// radio
 		if(radio)
 			radio.attackby(W,user)//Push it to the radio to let it handle everything
 		else
@@ -174,6 +172,14 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 		help_shake_act(user)
 		return FALSE
 
+	else if(gives_milk && udder && stat == CONSCIOUS && istype(W, /obj/item/weapon/reagent_containers/glass))
+		user.visible_message("<span class='notice'>[user] milks [src] using \the [W].</span>")
+		var/obj/item/weapon/reagent_containers/glass/G = W
+		var/transfered = udder.trans_id_to(G, MOMMIMILK, rand(5,10))
+		if(G.reagents.total_volume >= G.volume)
+			to_chat(user, "<span class='warning'>[W] is full.</span>")
+		if(!transfered)
+			to_chat(user, "<span class='warning'>The MoMMI seems exhausted. Wait a bit longer...</span>")
 	else
 		user.do_attack_animation(src, W)
 		spark(src, 5, FALSE)
@@ -183,12 +189,13 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 	add_fingerprint(user)
 
 	if(opened && !wiresexposed && (!isMoMMI(user)))
+		var/obj/item/weapon/cell/cell = get_cell()
 		if(cell)
 			cell.updateicon()
 			cell.add_fingerprint(user)
 			user.put_in_active_hand(cell)
 			to_chat(user, "You remove \the [cell].")
-			cell = null
+			clear_cell()
 			updateicon()
 			return
 
@@ -201,7 +208,7 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 				log_attack("<font color='red'>[user.name] ([user.ckey]) disarmed [name] ([ckey])</font>")
 				var/randn = rand(1,100)
 				if(randn <= 25)
-					knockdown = 3
+					AdjustKnockdown(3)
 					playsound(loc, 'sound/weapons/thudswoosh.ogg', 50, 1, -1)
 					visible_message("<span class='danger'>[user] has pushed [src]!</span>")
 					var/obj/item/found = locate(tool_state) in module.modules
@@ -223,8 +230,14 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 						visible_message("<span class='danger'>[user] attempted to disarm [src]!</span>")
 					return
 			if(I_HELP)
-				help_shake_act(user)
-				return
+				if(lying)
+					playsound(loc, 'sound/weapons/thudswoosh.ogg', 50, 1, -1)
+					visible_message("<span class='notice'>\The [user.name] attempts to pull up \the [name]!</span>")
+					AdjustKnockdown(-3)
+					if(knockdown <= 0)
+						untip()
+				else
+					help_shake_act(user)
 
 /mob/living/silicon/robot/mommi/choose_icon()
 	if(..())
@@ -262,12 +275,12 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 			dat += text("[module.emag]: <B>Activated</B><BR>")
 		else
 			dat += text("[module.emag]: <A HREF=?src=\ref[src];act=\ref[module.emag]>Activate</A><BR>")
-	src << browse(dat, "window=robotmod&can_close=1")
+	src << browse(HTML_SKELETON(dat), "window=robotmod&can_close=1")
 	onclose(src,"robotmod") // Register on-close shit, which unsets machinery.
 
 
 /mob/living/silicon/robot/mommi/Topic(href, href_list)
-	..()
+	. = ..()
 	if(usr && (src != usr))
 		return
 
@@ -309,7 +322,33 @@ They can only use one tool at a time, they can't choose modules, and they have 1
 				TS.forceMove(loc)
 
 		installed_modules()
-	return
 
 /mob/living/silicon/robot/mommi/radio_menu()
 	radio.interact(src)//Just use the radio's Topic() instead of bullshit special-snowflake code
+
+/mob/living/silicon/robot/mommi/process_killswitch()
+	return
+
+/mob/living/silicon/robot/mommi/New()
+	if(Holiday == APRIL_FOOLS_DAY)
+		gives_milk = TRUE
+	udder = new(50)
+	udder.my_atom = src
+	..()
+
+/mob/living/silicon/robot/mommi/Destroy()
+	QDEL_NULL(udder)
+	return ..()
+
+/mob/living/silicon/robot/mommi/Life()
+	if(timestopped)
+		return 0 //under effects of time magick
+	if(gives_milk && udder && prob(5))
+		udder.add_reagent(MOMMIMILK, rand(5, 10))
+	..()
+
+/mob/living/silicon/robot/mommi/ignite()
+	return 0
+
+/mob/living/silicon/robot/mommi/fire_act(datum/gas_mixture/air, exposed_temperature, exposed_volume)
+	return 0

@@ -16,13 +16,28 @@
 	var/size = 3.0
 	var/obj/item/gift = null
 	w_class = W_CLASS_MEDIUM
-	autoignition_temperature=AUTOIGNITION_PAPER
+	w_type = RECYK_WOOD
+	flammable = TRUE
+
 
 /obj/item/weapon/gift/New(turf/loc, var/obj/item/target, var/W)
 	..()
 	w_class = W
 	gift = target
 	update_icon()
+
+/obj/item/weapon/gift/attackby(obj/item/W, mob/user)
+	if(istype(W, /obj/item/weapon/pen))
+		var/str = copytext(sanitize(input(user,"What should the label read? (max 52 characters)","Write a personal message!","") as message|null),1,MAX_NAME_LEN * 2)
+		if (!Adjacent(user) || user.stat)
+			return
+		if(!str || !length(str))
+			to_chat(user, "<span class='warning'>You clear the label.</span>")
+			src.desc = "A wrapped item."
+			return
+		to_chat(user, "<span class='notice'>You write [str] on the label.</span>")
+		src.desc = "A wrapped item. The label reads: [str]"
+		log_admin("[user.key]/([user.name]) tagged a gift with \"[str]\" at [get_turf(user)]")
 
 /obj/item/weapon/gift/update_icon()
 	switch(w_class)
@@ -36,7 +51,7 @@
 			icon_state = "gift-large"
 			item_state = "gift-large"
 
-/obj/item/weapon/gift/attack_self(mob/user as mob)
+/obj/item/weapon/gift/attack_self(mob/user)
 	user.drop_item(src, force_drop = 1)
 	if(gift)
 		user.put_in_active_hand(gift)
@@ -44,6 +59,8 @@
 		to_chat(user, "<span class='notice'>You unwrapped \a [gift]!</span>")
 	else
 		to_chat(user, "<span class='notice'>The gift was empty!</span>")
+	for (var/obj/item/I in contents)
+		I.forceMove(get_turf(user))
 	qdel(src)
 	return
 
@@ -61,7 +78,9 @@
 	icon_state = "gift"
 	item_state = "gift"
 	w_class = W_CLASS_LARGE
-	autoignition_temperature=AUTOIGNITION_PAPER
+	w_type = RECYK_WOOD
+	flammable = TRUE
+
 
 /obj/item/weapon/winter_gift/New()
 	..()
@@ -236,7 +255,7 @@
 //dangerous items
 /obj/item/weapon/winter_gift/special/attack_self(mob/M as mob)
 	var/gift_type = pick(
-		/obj/item/device/fuse_bomb,
+		/obj/item/cannonball/fuse_bomb,
 		/obj/item/weapon/card/emag,
 		/obj/item/weapon/reagent_containers/food/snacks/grown/apple/poisoned,
 		/obj/item/weapon/tome_legacy,
@@ -248,8 +267,8 @@
 	I.add_fingerprint(M)
 
 	var/additional_info = ""
-	if(istype(I,/obj/item/device/fuse_bomb))
-		var/obj/item/device/fuse_bomb/B = I
+	if(istype(I,/obj/item/cannonball/fuse_bomb))
+		var/obj/item/cannonball/fuse_bomb/B = I
 		B.fuse_lit = 1
 		B.update_icon()
 		B.fuse_burn()
@@ -282,12 +301,17 @@
 
 /obj/structure/strange_present
 	name = "strange present"
-	desc = "It's a ... present?"
+	desc = "It's a... present?"
 	icon = 'icons/obj/items.dmi'
 	icon_state = "strangepresent"
 	density = 1
 	anchored = 0
 	w_type=NOT_RECYCLABLE
+
+/obj/structure/strange_present/Destroy()
+	for(var/atom/movable/AM in contents)
+		AM.forceMove(get_turf(src))
+	..()
 
 /obj/structure/strange_present/relaymove(mob/user as mob)
 	if (user.stat)
@@ -295,7 +319,7 @@
 	to_chat(user, "<span class='notice'>You can't move.</span>")
 
 /obj/structure/strange_present/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if (iswirecutter(W))
+	if (W.is_wirecutter(user))
 		to_chat(user, "<span class='notice'>You cut open the present.</span>")
 
 		for(var/mob/M in src) //Should only be one but whatever.
@@ -317,14 +341,26 @@
 ///Loot crate///
 /obj/item/weapon/winter_gift/dorkcube
 	name = "loot box"
-	desc = "Don't forget to shout the magic phrase when you open it! It has a tag on it: Made by GIBLOOTPLS."
+	desc = "Don't forget to shout the magic phrase when you open it! It smells faintly of iron."
 	icon = 'icons/obj/storage/storage.dmi'
 	icon_state = "lootbox_purple"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/toolbox_ihl.dmi', "right_hand" = 'icons/mob/in-hand/right/toolbox_ihr.dmi')
 	item_state = "lootbox_purple"
 
 /obj/item/weapon/winter_gift/dorkcube/attack_self(mob/user)
-	user.say("Loot get!")
-	playsound(src, 'sound/misc/achievement.ogg', 30, 1)
-	user.gib()
-	qdel(src)
+	to_chat(user, "<span class='notice'>You begin ripping into the wrapper.</span>")
+	playsound(src, 'sound/items/poster_ripped.ogg', 100, 1)
+	if (do_after(user, src, 2 SECONDS))
+		var/turf/T = get_turf(user)
+		var/mob/living/carbon/human/blooddonor = new /mob/living/carbon/human
+		user.say("Loot get!")
+		playsound(src, 'sound/effects/splat.ogg', 30, 1)
+		for(var/atom/A in user.contents)
+			A.add_blood(blooddonor)
+		bloodmess_splatter(T, null, null, null, DEFAULT_BLOOD)
+		qdel(src)
+		var/obj/item/weapon/storage/toolbox/usedlootbox = new /obj/item/weapon/storage/toolbox
+		usedlootbox.add_blood(blooddonor)
+		user.put_in_hands(usedlootbox)
+		user.regenerate_icons()
+		qdel(blooddonor)

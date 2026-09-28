@@ -7,9 +7,6 @@
 	nameShort = "deff"
 	nameLong = "Defficiency"
 	map_dir = "defficiency"
-	tDomeX = 128
-	tDomeY = 58
-	tDomeZ = 2
 	zLevels = list(
 		/datum/zLevel/station,
 		/datum/zLevel/centcomm,
@@ -25,38 +22,11 @@
 			},
 		)
 
-	default_tagger_locations = list(
-		DISP_DISPOSALS,
-		DISP_CARGO_BAY,
-		DISP_QM_OFFICE,
-		DISP_ENGINEERING,
-		DISP_CE_OFFICE,
-		DISP_ATMOSPHERICS,
-		DISP_SECURITY,
-		DISP_HOS_OFFICE,
-		DISP_MEDBAY,
-		DISP_CMO_OFFICE,
-		DISP_CHEMISTRY,
-		DISP_RESEARCH,
-		DISP_RD_OFFICE,
-		DISP_ROBOTICS,
-		DISP_HOP_OFFICE,
-		DISP_LIBRARY,
-		DISP_CHAPEL,
-		DISP_THEATRE,
-		DISP_BAR,
-		DISP_KITCHEN,
-		DISP_HYDROPONICS,
-		DISP_JANITOR_CLOSET,
-		DISP_GENETICS,
-		null,
-		DISP_MECHANICS,
-		null
-	)
 	enabled_jobs = list(/datum/job/trader)
 
 	load_map_elements = list(
-	/datum/map_element/dungeon/holodeck
+	/datum/map_element/dungeon/holodeck,
+	/datum/map_element/dungeon/mecha_graveyard
 	)
 
 	center_x = 231
@@ -82,13 +52,14 @@
 	add_dock(/obj/docking_port/destination/research/outpost)
 
 //All security airlocks have randomized wires
-/obj/machinery/door/airlock/glass_security/New()
-	.=..()
-	wires = new /datum/wires/airlock/secure(src)
+//Disabled from the game
+// /obj/machinery/door/airlock/glass_security/New()
+// 	.=..()
+// 	wires = new /datum/wires/airlock/secure(src)
 
-/obj/machinery/door/airlock/security/New()
-	.=..()
-	wires = new /datum/wires/airlock/secure(src)
+// /obj/machinery/door/airlock/security/New()
+// 	.=..()
+// 	wires = new /datum/wires/airlock/secure(src)
 
 ////////////////////////////////////////////////////////////////
 

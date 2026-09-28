@@ -147,7 +147,7 @@
 		update_icon()
 		walk(src,0)
 
-/obj/machinery/bot/chefbot/emag_act(var/mob/user, var/obj/item/card/emag/E)
+/obj/machinery/bot/chefbot/emag_act(var/mob/user, var/obj/item/weapon/card/emag/E)
 	if(!src.emagged)
 		spark(src, 1)
 		src.emagged = 1
@@ -164,8 +164,8 @@
 
 /obj/machinery/bot/chefbot/attackby(obj/item/W as obj, mob/user as mob)
 	..()
-	if(istype(W, /obj/item/weapon/card/emag))
-		emag_act(user, W)
+	if(emag_check(W,user))
+		return
 	else
 		src.visible_message("<span class = 'warning'>[user] hits [src] with [W]!</span>")
 		if(prob(1))
@@ -193,7 +193,8 @@
 					visible_message("<span class='danger'>[M] has attempted to punch [src]!</span>")
 				if(src.health <= 0)
 					src.explode()
-			M.delayNextAttack(10)
+
+		M.delayNextAttack(10)
 	..()
 
 /obj/machinery/bot/chefbot/kick_act()

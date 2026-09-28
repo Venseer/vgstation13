@@ -9,17 +9,69 @@
  *         icon_states/dirs for each placed beam image
  *             turfs that have that icon_state/dir
  */
+
+
 var/list/beam_master = list()
+
+#define MAX_BEAM_DISTANCE 50
+
+#define RAY_CAST_REBOUND 1.5
+
+#define RAY_CAST_PORTAL 1.6
+
+//overriding the filter function of an inherited beam
+/ray/beam_ray
+	var/obj/item/projectile/beam/fired_beam
+	var/list/rayCastHit/hit_cache
+
+/ray/beam_ray/New(var/_vector/p_origin, var/_vector/p_direction, var/obj/item/projectile/beam/fired_beam)
+	..(p_origin, p_direction, fired_beam.starting.z)
+	src.fired_beam = fired_beam
+	original_damage = fired_beam.damage
+
+/ray/beam_ray/Destroy()
+	fired_beam = null
+	QDEL_LIST_NULL(hit_cache)
+	..()
+
+/ray/beam_ray/cast(max_distance, max_hits, ignore_origin)
+	. = ..()
+	hit_cache = .
+
+/ray/beam_ray/raycast_hit_check(var/rayCastHitInfo/info)
+	var/atom/movable/A = info.hit_atom.get()
+
+	if(isnull(A))
+		return new /rayCastHit(info, RAY_CAST_NO_HIT_CONTINUE)
+
+	var/turf/T = vector2turf(info.point, z)
+	T.last_beam_damage = fired_beam.damage
+	fired_beam.final_turf = final_turf
+	fired_beam.previous_turf = previous_turf
+	if(!A.Cross(fired_beam, T) || (!isturf(fired_beam.original) && A == fired_beam.original))
+		var/ret = fired_beam.to_bump(A)
+		if(ret)
+			return new /rayCastHit(info, RAY_CAST_HIT_EXIT)
+		else
+			switch(fired_beam.special_collision)
+				if (PROJECTILE_COLLISION_REBOUND)
+					return new /rayCastHit(info, RAY_CAST_REBOUND)
+				if (PROJECTILE_COLLISION_MISS)
+					return new /rayCastHit(info, RAY_CAST_NO_HIT_CONTINUE)
+				if (PROJECTILE_COLLISION_PORTAL)
+					return new /rayCastHit(info, RAY_CAST_PORTAL)
+
+	return new /rayCastHit(info, RAY_CAST_NO_HIT_CONTINUE)
 
 /obj/item/projectile/beam
 	name = "laser"
 	icon_state = "laser"
 	invisibility = 101
 	animate_movement = 2
-	linear_movement = 1
-	layer = PROJECTILE_LAYER
-	plane = LIGHTING_PLANE
-	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE
+	linear_movement = 0 //this will set out icon_state to ..._pixel if 1
+	layer = ABOVE_LIGHTING_LAYER
+	plane = ABOVE_LIGHTING_PLANE
+	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE | PASSRAILING
 	damage = 30
 	damage_type = BURN
 	flag = "laser"
@@ -27,269 +79,122 @@ var/list/beam_master = list()
 	fire_sound = 'sound/weapons/Laser.ogg'
 	var/frequency = 1
 	var/wait = 0
-	var/beam_color= null
+	var/beam_color = null
+	var/beam_shift = null// the beam will animate() toward this color after being fired
+	var/list/ray/past_rays = list() //full of rays
+	var/turf/final_turf = null
+	var/turf/previous_turf = null
+	var/luminous = 1
+
+/obj/item/projectile/beam/Destroy()
+	QDEL_LIST_NULL(past_rays)
+	..()
 
 
-/obj/item/projectile/beam/OnFired()	//if assigned, allows for code when the projectile gets fired
-	target = get_turf(original)
-	dist_x = abs(target.x - starting.x)
-	dist_y = abs(target.y - starting.y)
+/obj/item/projectile/beam/proc/fireto(var/_vector/origin, var/_vector/direction)
+	// + 0.5 because we want to start in the middle of the tile
+	var/ray/beam_ray/shot_ray = new /ray/beam_ray(origin + new /_vector(0.5, 0.5), direction, src)
+	for(var/ray/beam_ray/other_ray in past_rays)
+		if(other_ray.equals(shot_ray))
+			return //we already went here
 
-	override_starting_X = starting.x
-	override_starting_Y = starting.y
-	override_target_X = target.x
-	override_target_Y = target.y
-
-	if (target.x > starting.x)
-		dx = EAST
+	var/list/rayCastHit/hits
+	if(travel_range)
+		hits = shot_ray.cast(travel_range)
 	else
-		dx = WEST
+		hits = shot_ray.cast(MAX_BEAM_DISTANCE)
+	final_turf = shot_ray.final_turf
+	previous_turf = shot_ray.previous_turf
+	if(!gcDestroyed)
+		past_rays += shot_ray
 
-	if (target.y > starting.y)
-		dy = NORTH
+	var/distance = MAX_BEAM_DISTANCE
+	if(isnull(hits) || hits.len == 0)
+		if(travel_range)
+			distance = travel_range
+
 	else
-		dy = SOUTH
+		var/rayCastHit/last_hit = hits[hits.len]
 
-	if(dist_x > dist_y)
-		error = dist_x/2 - dist_y
-	else
-		error = dist_y/2 - dist_x
+		distance = last_hit.distance
 
-	target_angle = round(Get_Angle(starting,target))
+		if(last_hit.hit_type == RAY_CAST_REBOUND)
+			final_turf=null
+			ASSERT(!gcDestroyed)
+			spawn()
+				rebound(last_hit.hit_atom.get())
 
-	return 1
+		if(last_hit.hit_type == RAY_CAST_PORTAL)
+			final_turf=null
+			ASSERT(!gcDestroyed)
+			spawn()
+				portal(last_hit.hit_atom.get())
+
+	shot_ray.draw(distance, icon, icon_state, color_override = beam_color, color_shift = beam_shift, above_light = luminous)
+
+	if(gcDestroyed)
+		qdel(shot_ray)
 
 /obj/item/projectile/beam/process()
-	var/lastposition = loc
-	var/reference = "\ref[src]" //So we do not have to recalculate it a ton
+	var/_vector/origin = atom2vector(starting)
+	var/_vector/direction = atoms2vector(starting, original)
 
-	target = get_turf(original)
-	dist_x = abs(target.x - src.x)
-	dist_y = abs(target.y - src.y)
+	fireto(origin, direction)
 
-	if (target.x > src.x)
-		dx = EAST
-	else
-		dx = WEST
+/obj/item/projectile/beam/rebound(atom/A)
+	//we only allow this laser to be rebound once
+	reflected = 1
 
-	if (target.y > src.y)
-		dy = NORTH
-	else
-		dy = SOUTH
-	var/target_dir = SOUTH
+	//we assume that our latest ray is what caused this rebound
+	var/ray/beam_ray/latest_ray = past_rays[past_rays.len]
 
-	if(dist_x > dist_y)
-		error = dist_x/2 - dist_y
+	//make new ray
+	var/list/rayCastHit/hit_cache = latest_ray.hit_cache
+	var/_vector/origin = hit_cache[hit_cache.len].point
+	var/_vector/direction = latest_ray.getReboundOnAtom(hit_cache[hit_cache.len])
+	if(!direction)
+		return
 
-		spawn
-			reference = bresenham_step(dist_x,dist_y,dx,dy,lastposition,target_dir,reference)
+	//check if raypath was already traveled
+	var/ray/temp_ray = new /ray(origin, direction)
+	for(var/ray/beam_ray/other_ray in past_rays)
+		if(temp_ray.equals(other_ray))
+			return
 
-	else
-		error = dist_y/2 - dist_x
-		spawn
-			reference = bresenham_step(dist_y,dist_x,dy,dx,lastposition,target_dir,reference)
+	damage *= A.disperse_coeff
+	if(damage <= 1)
+		bullet_die()
+		return
 
-	cleanup(reference)
+	fireto(origin, direction)
+	shot_from = A //temporary
 
-/obj/item/projectile/beam/bresenham_step(var/distA, var/distB, var/dA, var/dB, var/lastposition, var/target_dir, var/reference)
-	var/first = 1
-	var/tS = 0
-	while(src && src.loc)// only stop when we've hit something, or hit the end of the map
-		bumped = 0
-		if(first && timestopped)
-			tS = 1
-			timestopped = 0
-		if(error < 0)
-			var/atom/step = get_step(src, dB)
-			if(!step)
-				bullet_die()
-			src.Move(step)
-			error += distA
-			target_dir = null
-		else
-			var/atom/step = get_step(src, dA)
-			if(!step)
-				bullet_die()
-			src.Move(step)
-			error -= distB
-			target_dir = dA
-			if(error < 0)
-				target_dir = dA + dB
+/obj/item/projectile/beam/proc/portal(var/atom/A)
+	var/atom/dest
+	if (istype(A, /obj/effect/portal))
+		var/obj/effect/portal/P = A
+		dest = P.target
+	else if (istype(A, /obj/machinery/teleport/hub))
+		var/obj/machinery/teleport/hub/H = A
+		dest = H.get_target_lock()
 
-		if(isnull(loc))
-			return reference
-		if(lastposition == loc && (!tS && !timestopped && !loc.timestopped))
-			kill_count = 0
-		lastposition = loc
-		if(kill_count < 1)
-			bullet_die()
-			return reference
-		if(travel_range)
-			if(get_exact_dist(starting, get_turf(src)) > travel_range)
-				bullet_die()
-				return reference
-		kill_count--
-		if(bump_original_check())
-			return reference
+	var/ray/beam_ray/latest_ray = past_rays[past_rays.len]
 
-		if(linear_movement)
-			update_pixel()
+	//make new ray
+	var/_vector/origin = atom2vector(dest)
+	var/_vector/direction = latest_ray.direction
 
-			//If the icon has not been added yet
-			if( !("[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]" in beam_master))
-				var/image/I = image(icon,"[icon_state]_pixel",13,target_dir) //Generate it.
-				if(beam_color)
-					I.color = beam_color
-				I.transform = turn(I.transform, target_angle+45)
-				I.pixel_x = PixelX
-				I.pixel_y = PixelY
-				I.plane = EFFECTS_PLANE
-				I.layer = PROJECTILE_LAYER
-				beam_master["[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]"] = I //And cache it!
-
-			//Finally add the overlay
-			if(src.loc && target_dir)
-				src.loc.overlays += beam_master["[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]"]
-
-				//Add the turf to a list in the beam master so they can be cleaned up easily.
-				if(reference in beam_master)
-					var/list/turf_master = beam_master[reference]
-					if("[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]" in turf_master)
-						var/list/turfs = turf_master["[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]"]
-						turfs += loc
-					else
-						turf_master["[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]"] = list(loc)
-				else
-					var/list/turfs = list()
-					turfs["[icon_state]_angle[target_angle]_pX[PixelX]_pY[PixelY]_color[beam_color]"] = list(loc)
-					beam_master[reference] = turfs
-		else
-			//If the icon has not been added yet
-			if( !("[icon_state][target_dir]" in beam_master))
-				var/image/I = image(icon,icon_state,10,target_dir) //Generate it.
-				I.plane = EFFECTS_PLANE
-				I.layer = PROJECTILE_LAYER
-				beam_master["[icon_state][target_dir]"] = I //And cache it!
-
-			//Finally add the overlay
-			if(src.loc && target_dir)
-				src.loc.overlays += beam_master["[icon_state][target_dir]"]
-
-				//Add the turf to a list in the beam master so they can be cleaned up easily.
-				if(reference in beam_master)
-					var/list/turf_master = beam_master[reference]
-					if("[icon_state][target_dir]" in turf_master)
-						var/list/turfs = turf_master["[icon_state][target_dir]"]
-						turfs += loc
-					else
-						turf_master["[icon_state][target_dir]"] = list(loc)
-				else
-					var/list/turfs = list()
-					turfs["[icon_state][target_dir]"] = list(loc)
-					beam_master[reference] = turfs
-		if(tS)
-			timestopped = loc.timestopped
-			tS = 0
-		if(wait)
-			sleep(wait)
-			wait = 0
-		while((loc.timestopped || timestopped) && !first)
-			sleep(3)
-		first = 0
-
-
-	return reference
+	fireto(origin, direction)
+	shot_from = dest
 
 
 /obj/item/projectile/beam/dumbfire(var/dir)
-	var/reference = "\ref[src]" // So we do not have to recalculate it a ton.
+	src.dir = dir || src.dir
+	src.starting = starting || loc
 
-	spawn(0)
-		var/target_dir = dir ? dir : src.dir// TODO: remove dir arg. Or don't because the way this was set up without it broke spacepods.
-		var/first = 1
-		var/tS = 0
-		while(loc) // Move until we hit something.
-			if((x == 1 || x == world.maxx || y == 1 || y == world.maxy))
-				returnToPool(src)
-				break
-			if(first && timestopped)
-				tS = 1
-				timestopped = 0
-			step(src, target_dir) // Move.
-			if(tS)
-				tS = 0
-				timestopped = loc.timestopped
-			if(bumped)
-				break
-
-			if(kill_count-- < 1)
-				returnToPool(src)
-				break
-
-			// Add the overlay as we pass over tiles.
-
-			// If the icon has not been added yet.
-			if(!beam_master.Find("[icon_state][target_dir]"))
-				beam_master["[icon_state][target_dir]"] = image(icon, icon_state, 10, target_dir) // Generate, and cache it!
-
-			// Finally add the overlay
-			loc.overlays.Add(beam_master["[icon_state][target_dir]"])
-
-			// Add the turf to a list in the beam master so they can be cleaned up easily.
-			if(beam_master.Find(reference))
-				var/list/turf_master = beam_master[reference]
-
-				if(turf_master.Find("[icon_state][target_dir]"))
-					turf_master["[icon_state][target_dir]"] += loc
-				else
-					turf_master["[icon_state][target_dir]"] = list(loc)
-			else
-				var/list/turfs = new
-				turfs["[icon_state][target_dir]"] = list(loc)
-				beam_master[reference] = turfs
-			while((loc.timestopped || timestopped) && !first)
-				sleep(3)
-			first = 0
-
-
-	cleanup(reference)
-
-/obj/item/projectile/beam/proc/cleanup(const/reference)
-	var/TS
-	var/atom/lastloc
-	var/starttime = world.time
-	var/cleanedup = 0
-	while(world.time - starttime < 3 || TS)
-		if(loc)
-			lastloc = loc
-		TS = lastloc.timestopped
-		if(TS)
-			if(world.time - starttime > 3)
-				if(!cleanedup)
-					var/list/turf_master = beam_master[reference]
-
-					for(var/laser_state in turf_master)
-						var/list/turfs = turf_master[laser_state]
-						for(var/turf/T in turfs)
-							if(!T.timestopped)
-								T.overlays.Remove(beam_master[laser_state])
-					cleanedup = 1
-			sleep(2)
-
-		else
-			sleep(1)
-
-	if(cleanedup)
-		sleep(2)
-	var/list/turf_master = beam_master[reference]
-
-	for(var/laser_state in turf_master)
-		var/list/turfs = turf_master[laser_state]
-
-		for(var/turf/T in turfs)
-			T.overlays.Remove(beam_master[laser_state])
-
-		turfs.len = 0
+	var/_vector/origin = atom2vector(src.starting)
+	var/_vector/direction = dir2vector(src.dir)
+	fireto(origin, direction)
 
 // Special laser the captains gun uses
 /obj/item/projectile/beam/captain
@@ -308,14 +213,17 @@ var/list/beam_master = list()
 	damage = 0
 	icon = 'icons/obj/lightning.dmi'
 	icon_state = "lightning"
+	linear_movement = 1
 	stun = 10
 	weaken = 10
 	stutter = 50
 	eyeblur = 50
 	var/tang = 0
 	layer = PROJECTILE_LAYER
-	var/turf/last = null
 	kill_count = 12
+	var/mob/firer_mob = null
+	var/yellow = 0
+	var/passdense = 0
 
 /obj/item/projectile/beam/lightning/proc/adjustAngle(angle)
 	angle = round(angle) + 45
@@ -332,6 +240,26 @@ var/list/beam_master = list()
 		angle = round(angle) + 45*/
 	return angle
 
+
+/obj/item/projectile/beam/lightning/admin_warn(mob/living/M)
+	if(firer_mob && istype(firer_mob, /mob))
+		if(firer_mob == M)
+			log_attack("<font color='red'>[key_name(firer_mob)] shot himself with a [type].</font>")
+			M.attack_log += "\[[time_stamp()]\] <b>[key_name(firer_mob)]</b> shot himself with a <b>[type]</b>"
+			firer_mob.attack_log += "\[[time_stamp()]\] <b>[key_name(firer_mob)]</b> shot himself with a <b>[type]</b>"
+			if(firer_mob.key || firer_mob.ckey)
+				msg_admin_attack("[key_name(firer_mob)] shot himself with a [type], [pick("top kek!","for shame.","he definitely meant to do that","probably not the last time either.")] (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[firer_mob.x];Y=[firer_mob.y];Z=[firer_mob.z]'>JMP</a>)")
+			M.assaulted_by(firer_mob)
+		else
+			log_attack("<font color='red'>[key_name(firer_mob)] shot [key_name(M)] with a [type]</font>")
+			M.attack_log += "\[[time_stamp()]\] <b>[key_name(firer_mob)]</b> shot <b>[key_name(M)]</b> with a <b>[type]</b>"
+			firer_mob.attack_log += "\[[time_stamp()]\] <b>[key_name(firer_mob)]</b> shot <b>[key_name(M)]</b> with a <b>[type]</b>"
+			if((firer_mob.key || firer_mob.ckey) && (M.key || M.ckey))
+				msg_admin_attack("[key_name(firer_mob)] shot [key_name(M)] with a [type] (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[firer_mob.x];Y=[firer_mob.y];Z=[firer_mob.z]'>JMP</a>)")
+			M.assaulted_by(firer_mob)
+	else
+		..()
+
 /obj/item/projectile/beam/lightning/process()
 	icon_state = "lightning"
 	var/first = 1 //So we don't make the overlay in the same tile as the firer
@@ -339,9 +267,9 @@ var/list/beam_master = list()
 	var/broken
 	var/atom/curr = current
 	var/Angle=round(Get_Angle(firer,curr))
-	var/icon/I=new('icons/obj/lightning.dmi',icon_state)
-	var/icon/Istart=new('icons/obj/lightning.dmi',"[icon_state]start")
-	var/icon/Iend=new('icons/obj/lightning.dmi',"[icon_state]end")
+	var/icon/I=new('icons/obj/lightning.dmi',"[icon_state][yellow ? "_yellow" : ""]")
+	var/icon/Istart=new('icons/obj/lightning.dmi',"[icon_state]start[yellow ? "_yellow" : ""]")
+	var/icon/Iend=new('icons/obj/lightning.dmi',"[icon_state]end[yellow ? "_yellow" : ""]")
 	I.Turn(Angle+45)
 	Istart.Turn(Angle+45)
 	Iend.Turn(Angle+45)
@@ -357,97 +285,64 @@ var/list/beam_master = list()
 		if(count >= kill_count)
 			break
 		count++
-		var/obj/effect/overlay/beam/persist/X=getFromPool(/obj/effect/overlay/beam/persist,T)
-		X.BeamSource=src
-		ouroverlays += X
+		var/obj/effect/overlay/beam/persist/lightning_segment = new /obj/effect/overlay/beam/persist(T)
+		lightning_segment.BeamSource=src
+		ouroverlays += lightning_segment
 		if((N+WORLD_ICON_SIZE*2>length) && (N+WORLD_ICON_SIZE<=length))
-			X.icon=Iend
+			lightning_segment.icon=Iend
 		else if(N==0)
-			X.icon=Istart
+			lightning_segment.icon=Istart
 		else if(N+WORLD_ICON_SIZE>length)
-			X.icon=null
+			lightning_segment.icon=null
 		else
-			X.icon=I
+			lightning_segment.icon=I
 
-		var/Pixel_x=round(sin(Angle)+WORLD_ICON_SIZE*sin(Angle)*(N+WORLD_ICON_SIZE/2)/WORLD_ICON_SIZE/2)
-		var/Pixel_y=round(cos(Angle)+WORLD_ICON_SIZE*cos(Angle)*(N+WORLD_ICON_SIZE/2)/WORLD_ICON_SIZE)
-		if(DX==0)
-			Pixel_x=0
-		if(DY==0)
-			Pixel_y=0
-		if(Pixel_x>WORLD_ICON_SIZE)
-			for(var/a=0, a<=Pixel_x,a+=WORLD_ICON_SIZE)
-				X.x++
-				Pixel_x-=WORLD_ICON_SIZE
-		if(Pixel_x<-WORLD_ICON_SIZE)
-			for(var/a=0, a>=Pixel_x,a-=WORLD_ICON_SIZE)
-				X.x--
-				Pixel_x+=WORLD_ICON_SIZE
-		if(Pixel_y>WORLD_ICON_SIZE)
-			for(var/a=0, a<=Pixel_y,a+=WORLD_ICON_SIZE)
-				X.y++
-				Pixel_y-=WORLD_ICON_SIZE
-		if(Pixel_y<-WORLD_ICON_SIZE)
-			for(var/a=0, a>=Pixel_y,a-=WORLD_ICON_SIZE)
-				X.y--
-				Pixel_y+=WORLD_ICON_SIZE
+		// We set pixel_x to the position it should be based on the angle of the lightning, then we reduce pixel_x by a factor of 32 and add it to the
+		// x position variable instead, resulting in the same overall position. Then, we do the same for y.
+		lightning_segment.pixel_x = round(sin(Angle)+WORLD_ICON_SIZE*sin(Angle)*(N+WORLD_ICON_SIZE)/WORLD_ICON_SIZE)
+		lightning_segment.pixel_y = round(cos(Angle)+WORLD_ICON_SIZE*cos(Angle)*(N+WORLD_ICON_SIZE)/WORLD_ICON_SIZE)
+		if(lightning_segment.pixel_x >= 0)
+			lightning_segment.x += Floor( lightning_segment.pixel_x / WORLD_ICON_SIZE )
+		else
+			lightning_segment.x += Ceiling( lightning_segment.pixel_x / WORLD_ICON_SIZE )
+		if(lightning_segment.pixel_y >= 0)
+			lightning_segment.y += Floor( lightning_segment.pixel_y / WORLD_ICON_SIZE )
+		else
+			lightning_segment.y += Ceiling( lightning_segment.pixel_y / WORLD_ICON_SIZE )
+		lightning_segment.pixel_y %= 32
+		lightning_segment.pixel_x %= 32
 
-		//Now that we've calculated the total offset in pixels, we move each beam parts to their closest corresponding turfs
-		var/x_increm = 0
-		var/y_increm = 0
 
-		while(Pixel_x >= WORLD_ICON_SIZE || Pixel_x <= -WORLD_ICON_SIZE)
-			if(Pixel_x > 0)
-				Pixel_x -= WORLD_ICON_SIZE
-				x_increm++
-			else
-				Pixel_x += WORLD_ICON_SIZE
-				x_increm--
-
-		while(Pixel_y >= WORLD_ICON_SIZE || Pixel_y <= -WORLD_ICON_SIZE)
-			if(Pixel_y > 0)
-				Pixel_y -= WORLD_ICON_SIZE
-				y_increm++
-			else
-				Pixel_y += WORLD_ICON_SIZE
-				y_increm--
-
-		X.x += x_increm
-		X.y += y_increm
-
-		X.pixel_x=Pixel_x
-		X.pixel_y=Pixel_y
-		var/turf/TT = get_turf(X.loc)
-		while((TT.timestopped || timestopped || X.timestopped) && count)
+		var/turf/TT = get_turf(lightning_segment.loc)
+		while((TT.timestopped || timestopped || lightning_segment.timestopped) && count)
 			sleep(2)
+
 		if(TT == firer.loc)
 			continue
 		if(TT.density)
-			qdel(X)
-			X = null
+			QDEL_NULL(lightning_segment)
 			break
 		for(var/atom/movable/O in TT)
 			if(!O.Cross(src))
-				qdel(X)
+				qdel(lightning_segment)
 				broke = 1
 				break
 		for(var/mob/living/O in TT.contents)
 			if(istype(O, /mob/living))
 				if(O.density)
-					qdel(X)
-					X = null
+					QDEL_NULL(lightning_segment)
 					broke = 1
 					break
 		if(broke)
-			if(X)
-				qdel(X)
-				X = null
+			if(lightning_segment)
+				QDEL_NULL(lightning_segment)
 			break
+
 	spawn(10)
 		for(var/atom/thing in ouroverlays)
 			if(!thing.timestopped && thing.loc && !thing.loc.timestopped)
 				ouroverlays -= thing
-				returnToPool(thing)
+				qdel(thing)
 	spawn
 		var/tS = 0
 		while(loc) //Move until we hit something
@@ -503,7 +398,6 @@ var/list/beam_master = list()
 //				to_chat(world, "breaking")
 				break
 			else
-				last = get_turf(src.loc)
 				step_towards(src, current) //Move~
 				if(src.loc != current)
 					tang = adjustAngle(get_angle(src.loc,current))
@@ -512,10 +406,10 @@ var/list/beam_master = list()
 			sleep(10)
 			for(var/atom/thing in ouroverlays)
 				ouroverlays -= thing
-				returnToPool(thing)
+				qdel(thing)
 
 		//del(src)
-		returnToPool(src)
+		qdel(src)
 
 /*cleanup(reference) //Waits .3 seconds then removes the overlay.
 //	to_chat(world, "setting invisibility")
@@ -533,6 +427,8 @@ var/list/beam_master = list()
 	var/spell/lightning/our_spell
 	weaken = 0
 	stun = 0
+	stutter = 0
+	eyeblur = 0
 /obj/item/projectile/beam/lightning/spell/to_bump(atom/A as mob|obj|turf|area)
 	. = ..()
 	if(.)
@@ -542,20 +438,73 @@ var/list/beam_master = list()
 /obj/item/projectile/beam/practice
 	name = "laser"
 	icon_state = "laser"
-	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE
 	damage = 0
-	damage_type = BURN
-	flag = "laser"
 	eyeblur = 2
 
 /obj/item/projectile/beam/practice/stormtrooper
 	fire_sound = "sound/weapons/blaster-storm.ogg"
+	excessive_missing = TRUE
+	projectile_miss_chance = 99999
+	projectile_miss_message_replace = TRUE
 
-/obj/item/projectile/beam/practice/stormtrooper/on_hit(var/atom/target, var/blocked = 0)
-	if(..(target, blocked))
-		var/mob/living/L = target
-		var/message = pick("\the [src] narrowly whizzes past [L]!","\the [src] almost hits [L]!","\the [src] straight up misses its target.","[L]'s hair is singed off by \the [src]!","\the [src] misses [L] by a millimetre!","\the [src] doesn't hit","\the [src] misses its intended target.","[L] has a lucky escape from \the [src]!")
-		target.loc.visible_message("<span class='danger'>[message]</span>")
+/obj/item/projectile/beam/practice/stormtrooper/to_bump(atom/A)
+	var/selected_message = pick("\The [src] narrowly whizzes past [A]!","\The [src] almost hits [A]!",
+								"\The [src] straight up misses [A].","[A]'s hair is singed off by \the [src]!",
+								"\The [src] misses [A] by a millimetre!","\The [src] doesn't hit [A]!",
+								"\The [src] misses [A].","[A] has a lucky escape from \the [src]!")
+	projectile_miss_message = "<span class='danger'>[selected_message]</span>"
+	return ..()
+
+/obj/item/projectile/beam/scorchray
+	name = "scorch ray"
+	icon_state = "scorchray"
+	damage = 30
+	fire_sound = 'sound/weapons/ray1.ogg'
+
+/obj/item/projectile/beam/scorchray/on_hit(var/atom/target, var/blocked = 0)
+	if(!..())
+		return 0
+	var/mob/living/carbon/human/H = target
+	if(!istype(H) || !H.isDead() || !(H.species.anatomy_flags & NO_BLOOD)) //Not human, not dead or doesn't have blood
+		return 1 // This way it should only apply to the more fleshy species (To-Do: Add animations for mushmen, catbeasts, skrell, and unathi)
+	var/lying_animation = "dust-h2-nohead" //Defaults to humanoid ashing sprites if it doesn't get changed
+	var/standing_animation = "dust-h-nohead"
+	if(isgrey(H))
+		lying_animation = "dust-g2-nohead"
+		standing_animation = "dust-g-nohead"
+	else if(isvox(H))
+		lying_animation = "dust-v2-nohead"
+		standing_animation = "dust-v-nohead"
+	else if(isinsectoid(H))
+		lying_animation = "dust-i2-nohead"
+		standing_animation = "dust-i-nohead"
+	H.visible_message("<span class='danger'>[H.name]'s body disintegrates into ash!</span>")
+	playsound(target.loc, 'sound/items/Welder.ogg', 100, 1)
+	H.drop_all() // So their gear doesn't all get deleted
+	var/datum/organ/external/head/head_organ = H.get_organ(LIMB_HEAD)
+	if(head_organ)
+		head_organ.droplimb(1,1) // Their body melts, but the head flies off (so they can be revived)
+	if(H.lying)
+		anim(target = H, a_icon = 'icons/mob/mob.dmi', flick_anim = lying_animation, sleeptime = 15)
+	else
+		anim(target = H, a_icon = 'icons/mob/mob.dmi', flick_anim = standing_animation, sleeptime = 15)
+	new /obj/effect/decal/cleanable/ash(get_turf(target))
+	qdel(H)
+	return 1
+
+/obj/item/projectile/beam/scorchray/immolationray
+	name = "immolation ray"
+	icon_state = "immolationray"
+	damage = 45
+
+/obj/item/projectile/beam/scorchray/immolationray/upgraded // Exclusively used by the hoverdisc drone
+	damage = 55
+	destroy = 1
+
+/obj/item/projectile/beam/scorchray/atomizationray
+	name = "atomization ray"
+	icon_state = "atomray"
+	damage = 40
 
 /obj/item/projectile/beam/lightlaser
 	name = "light laser"
@@ -565,15 +514,36 @@ var/list/beam_master = list()
 	name = "weak laser"
 	damage = 15
 
+/obj/item/projectile/beam/weakerlaser
+	name = "mini laser"
+	damage = 10
+
 /obj/item/projectile/beam/veryweaklaser
-	name = "very weak laser"
+	name = "micro laser"
 	damage = 5
+
+/obj/item/projectile/beam/humanelaser
+	damage = 25
+
+/obj/item/projectile/beam/humanelaser/to_bump(atom/A as mob|obj|turf|area)
+	if(ishuman(A))
+		damage = 10
+	if(istype(A,/obj/effect/blob)) //It will deal half of its damage to a nearby blob tile on hit.
+		var/obj/effect/blob/B = A
+		var/actual_damage = damage/B.fire_resist //More resistant tiles such as strong blobs will cause less damage to be spread
+		for(var/obj/effect/blob/B2 in orange(1,B))
+			B2.bullet_act(src, null, actual_damage)
+			break
+	return ..()
 
 /obj/item/projectile/beam/heavylaser
 	name = "heavy laser"
 	icon_state = "heavylaser"
 	damage = 60
 	fire_sound = 'sound/weapons/lasercannonfire.ogg'
+
+/obj/item/projectile/beam/heavylaser/lawgiver
+	damage = 40
 
 /obj/item/projectile/beam/xray
 	name = "xray beam"
@@ -613,24 +583,55 @@ var/list/beam_master = list()
 	return
 
 ////////Laser Tag////////////////////
+
+var/list/laser_tag_vests = list(/obj/item/clothing/suit/tag/redtag, /obj/item/clothing/suit/tag/bluetag)
+
 /obj/item/projectile/beam/lasertag
 	name = "lasertag beam"
-	pass_flags = PASSTABLE | PASSGLASS | PASSGRILLE
 	damage = 0
-	damage_type = BURN
-	flag = "laser"
 	icon_state = "bluelaser"
 	var/list/enemy_vest_types = list(/obj/item/clothing/suit/tag/redtag)
 
 /obj/item/projectile/beam/lasertag/on_hit(var/atom/target, var/blocked = 0)
 	if(ismob(target))
 		var/mob/M = target
-		if(is_type_in_list(get_tag_armor(M), enemy_vest_types))
-			if(!M.lying) //Kick a man while he's down, will ya
+		var/obj/item/clothing/suit/tag/target_tag = get_tag_armor(M)
+		var/obj/item/clothing/suit/tag/firer_tag = get_tag_armor(firer)
+		if(is_type_in_list(target_tag, laser_tag_vests))
+			var/datum/laser_tag_game/game = firer_tag.my_laser_tag_game
+			if (!game) // No registered game : classic laser tag
+				if (!(is_type_in_list(target_tag, enemy_vest_types)))
+					return 1
+				if(!M.lying) //Kick a man while he's down, will ya
+					var/obj/item/weapon/gun/energy/tag/taggun = shot_from
+					if(istype(taggun))
+						taggun.score()
+				M.Knockdown(2)
+				M.Stun(2)
+			else // We've got a game on the receiver, let's check if we've got a game on the wearer.
+				if (!firer_tag || !firer_tag.my_laser_tag_game || (target_tag.my_laser_tag_game != firer_tag.my_laser_tag_game))
+					return 1
+				if (!target_tag.player || !firer_tag.player)
+					CRASH("A suit has a laser tag game registered, but no players attached.")
+
+				var/datum/laser_tag_participant/target_player = target_tag.player
+				var/datum/laser_tag_participant/firer_player = firer_tag.player
+
+				if (firer_tag.my_laser_tag_game.mode == LT_MODE_TEAM && !(is_type_in_list(target_tag, enemy_vest_types)))
+					return 1
+				if(!M.lying) // Not counting scores if the opponent is lying down.
+					firer_player.total_hits++
+					target_player.total_hit_by++
+					target_player.hit_by[firer_player.nametag]++
+				var/taggun_index = M.find_held_item_by_type(/obj/item/weapon/gun/energy/tag)
+				if (taggun_index)
+					var/obj/item/weapon/gun/energy/tag/their_gun = M.held_items[taggun_index]
+					their_gun.cooldown(target_tag.my_laser_tag_game.disable_time/2)
+				M.Knockdown(target_tag.my_laser_tag_game.stun_time/2)
+				M.Stun(target_tag.my_laser_tag_game.stun_time/2)
 				var/obj/item/weapon/gun/energy/tag/taggun = shot_from
 				if(istype(taggun))
 					taggun.score()
-			M.Knockdown(5)
 	return 1
 
 /obj/item/projectile/beam/lasertag/blue
@@ -658,7 +659,7 @@ var/list/beam_master = list()
 	icon_state = "heatray"
 	animate_movement = 0
 	linear_movement = 0
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING
 	var/drawn = 0
 	var/tang = 0
 	var/turf/last = null
@@ -724,7 +725,7 @@ var/list/beam_master = list()
 			if(kill_count < 1)
 				//del(src)
 				draw_ray(lastposition)
-				returnToPool(src)
+				qdel(src)
 				return
 			kill_count--
 
@@ -761,7 +762,7 @@ var/list/beam_master = list()
 			if(kill_count < 1)
 				//del(src)
 				draw_ray(lastposition)
-				returnToPool(src)
+				qdel(src)
 				return
 			kill_count--
 
@@ -776,6 +777,8 @@ var/list/beam_master = list()
 	..()
 
 /obj/item/projectile/beam/bison/proc/draw_ray(var/turf/lastloc)
+	if (gcDestroyed)
+		return
 	if(drawn)
 		return
 	drawn = 1
@@ -803,7 +806,7 @@ var/list/beam_master = list()
 		if(count >= kill_count)
 			break
 		count++
-		var/obj/effect/overlay/beam/X=getFromPool(/obj/effect/overlay/beam,T,current_timer,1)
+		var/obj/effect/overlay/beam/X=new /obj/effect/overlay/beam(T, current_timer, 1, base_damage = 1)
 		X.BeamSource=src
 		current_timer += increment
 		if((N+64>(length+16)) && (N+WORLD_ICON_SIZE<=(length+16)))
@@ -884,10 +887,7 @@ var/list/beam_master = list()
 			M.attack_log += "\[[time_stamp()]\] <b>[key_name(firer)]</b> shot <b>[key_name(M)]</b> with a <b>[type]</b>"
 			firer.attack_log += "\[[time_stamp()]\] <b>[key_name(firer)]</b> shot <b>[key_name(M)]</b> with a <b>[type]</b>"
 			msg_admin_attack("[key_name(firer)] shot [key_name(M)] with a [type] (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[firer.x];Y=[firer.y];Z=[firer.z]'>JMP</a>)") //BS12 EDIT ALG
-			if(!iscarbon(firer))
-				M.LAssailant = null
-			else
-				M.LAssailant = firer
+			M.assaulted_by(firer)
 		else
 			M.attack_log += "\[[time_stamp()]\] <b>UNKNOWN/(no longer exists)</b> shot <b>[key_name(M)]</b> with a <b>[type]</b>"
 			msg_admin_attack("UNKNOWN/(no longer exists) shot [key_name(M)] with a [type] (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[firer.x];Y=[firer.y];Z=[firer.z]'>JMP</a>)") //BS12 EDIT ALG
@@ -896,8 +896,11 @@ var/list/beam_master = list()
 	else
 		return ..()
 
-/obj/item/projectile/beam/apply_projectile_color(var/color)
-	beam_color = color
+/obj/item/projectile/beam/apply_projectile_color(var/proj_color)
+	beam_color = proj_color
+
+/obj/item/projectile/beam/apply_projectile_color_shift(var/proj_color_shift)
+	beam_shift = proj_color_shift
 
 //Used by the pain mirror spell
 //Damage type and damage done varies
@@ -909,36 +912,15 @@ var/list/beam_master = list()
 /obj/item/projectile/beam/white
 	icon_state = "whitelaser"
 
+/obj/item/projectile/beam/rainbow
+	icon_state = "rainbow"
 
-/obj/item/projectile/beam/bullwhip
-	name = "bullwhip"
-	icon_state = "whip"
-	damage = 0
-	fire_sound = null
-	travel_range = 3
-	bounce_sound = "sound/weapons/whip_crack.ogg"
-	pass_flags = PASSTABLE
-	var/obj/item/weapon/bullwhip/whip = null
-	var/mob/user = null
-	var/has_played_sound = FALSE
-
-/obj/item/projectile/beam/bullwhip/New(atom/A, dir, var/spawning_whip, var/whipper)
-	..(A,dir)
-	whip = spawning_whip
-	user = whipper
-	if(!istype(whip) || !istype(user))
-		spawn()
-			returnToPool(src)
-
-/obj/item/projectile/beam/bullwhip/on_hit(var/atom/atarget)
-	whip.attack(atarget, user)
-	user.delayNextAttack(10)
-	has_played_sound = TRUE
-
-/obj/item/projectile/beam/bullwhip/OnDeath()
-	if(!has_played_sound && get_turf(src))
-		playsound(src, bounce_sound, 30, 1)
-		user.delayNextAttack(2)
+/obj/item/projectile/beam/white/hit_apply(var/mob/living/X, var/blocked)
+	X.reagents.add_reagent(SPACE_DRUGS, 1)
+	X.reagents.add_reagent(HONKSERUM, 10)
+	var/hit_verb = pick("covers","completely soaks","fills","splashes")
+	X.visible_message("<span class='warning'>\The [src] [hit_verb] [X] with love!</span>",
+		"<span class='warning'>\The [src] [hit_verb] you with love!</span>")
 
 /obj/item/projectile/beam/liquid_stream
 	name = "stream of liquid"
@@ -947,43 +929,65 @@ var/list/beam_master = list()
 	fire_sound = null
 	custom_impact = 1
 	penetration = 0
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING
+	luminous = 0
 	var/has_splashed = FALSE
+	var/atom/splashed_atom = null
 
-/obj/item/projectile/beam/liquid_stream/New(atom/A, var/t_range)
+/obj/item/projectile/beam/liquid_stream/New(atom/A, var/t_range=3, var/m_color, var/m_alpha=255)
 	..(A)
-	create_reagents(10)
-	if(t_range)
-		travel_range = t_range
-	else
-		travel_range = 0
+	create_reagents(20)
+	travel_range = t_range
+	beam_color = m_color
+	alpha = m_alpha
 
-/obj/item/projectile/beam/liquid_stream/OnFired()
-	beam_color = mix_color_from_reagents(reagents.reagent_list)
-	alpha = mix_alpha_from_reagents(reagents.reagent_list)
-	..()
-
-/obj/item/projectile/beam/liquid_stream/to_bump(atom/A)
-	if(!A)
-		return
-	..()
-	if(reagents.total_volume)
-		for(var/datum/reagent/R in reagents.reagent_list)
-			reagents.add_reagent(R.id, reagents.get_reagent_amount(R.id))
-		if(istype(A, /mob))
+/obj/item/projectile/beam/liquid_stream/on_hit(var/atom/A, var/blocked = 0)
+	if(reagents.total_volume && istype(A, /mob))
+		if(firer.zone_sel.selecting == TARGET_MOUTH && def_zone == LIMB_HEAD && ishuman(A)) //if aiming at head and is humanoid
+			var/mob/living/carbon/human/victim = A
+			if(!victim.check_body_part_coverage(MOUTH)) //if not covered with mask or something
+				victim.visible_message("<span class='warning'>[A] swallows \the [src]!</span>",
+									"<span class='warning'>You swallow \the [src]!</span>")
+				reagents.trans_to(A, reagents.total_volume)
+				has_splashed = TRUE //guess we arent stacking with the splash
+				qdel(src)
+				return 1
+			else
+				A.visible_message("<span class='warning'>\The [src] gets blocked from [A]'s mouth!</span>",
+								"<span class='warning'>\The [src] gets blocked from your mouth!</span>")//just block mouth, no turf splash
+		else
 			var/splash_verb = pick("douses","completely soaks","drenches","splashes")
 			A.visible_message("<span class='warning'>\The [src] [splash_verb] [A]!</span>",
 								"<span class='warning'>\The [src] [splash_verb] you!</span>")
-			splash_sub(reagents, get_turf(A), reagents.total_volume/2)
-		else
-			splash_sub(reagents, get_turf(src), reagents.total_volume/2)
-		splash_sub(reagents, A, reagents.total_volume)
-		has_splashed = TRUE
-		return 1
 
-/obj/item/projectile/beam/liquid_stream/OnDeath()
-	if(!has_splashed && get_turf(src))
-		splash_sub(reagents, get_turf(src), reagents.total_volume)
+/obj/item/projectile/beam/liquid_stream/to_bump(var/atom/A)
+	splashed_atom = A//doesn't matter if it's actually the atom we end up splashing since we only use that var on bullet_die()
+	. = ..()
+
+/obj/item/projectile/beam/liquid_stream/bullet_die()//splashes reagents on the hit atom, or in front of it in case of turfs and border objects
+	if(reagents && reagents.total_volume && !has_splashed && ((bumped && splashed_atom) || final_turf))
+		if (splashed_atom && !isturf(splashed_atom) && (previous_turf && previous_turf.Adjacent(splashed_atom)))
+			if (splashed_atom.flow_flags & ON_BORDER)
+				loc = previous_turf
+			else
+				loc = get_turf(splashed_atom)
+		else if (isturf(splashed_atom))
+			loc = final_turf
+		else
+			loc = previous_turf
+		playsound(loc, 'sound/effects/slosh.ogg', 20, 1)
+		reagents.splashplosion(0)
+		has_splashed = TRUE
+	..()
+//I never want to deal wity ray casts ever again
+/obj/item/projectile/beam/liquid_stream/fireto(var/_vector/origin, var/_vector/direction)//splashes reagents on the turf if the projectile ran out
+	..()
+	if (reagents && reagents.total_volume && final_turf && !has_splashed)
+		loc = final_turf
+		reagents.splashplosion(0)
+		has_splashed = TRUE
+		qdel(src)
+
 
 /obj/item/projectile/beam/liquid_stream/proc/adjust_strength(var/t_range)
 	if(t_range)
@@ -997,13 +1001,25 @@ var/list/beam_master = list()
 	damage = 0
 	fire_sound = 'sound/weapons/railgun_highpower.ogg'
 
-/obj/item/projectile/beam/combustion/Bump(atom/A)
+/obj/item/projectile/beam/combustion/to_bump(atom/A)
 	if(!A)
 		return
 	..()
 	var/turf/T = get_turf(A)
 	explosion(T,0,0,5)
-	var/datum/effect/effect/system/smoke_spread/smoke = new /datum/effect/effect/system/smoke_spread()
+	var/datum/effect/system/smoke_spread/smoke = new /datum/effect/system/smoke_spread()
 	smoke.set_up(3, 0, T)
 	smoke.start()
 	return 1
+
+/obj/item/projectile/beam/armawhip
+	name = "bullwhip"
+	icon = 'icons/obj/projectiles.dmi'
+	icon_state = "whip"
+	fire_sound = 'sound/weapons/whip_crack.ogg'
+	travel_range = 5
+	damage = 10
+	damage_type = BRUTE
+	pass_flags = PASSTABLE | PASSRAILING
+	eyeblur = 0
+	luminous = 0

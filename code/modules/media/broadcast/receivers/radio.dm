@@ -1,7 +1,7 @@
 /obj/machinery/media/receiver/boombox
 	name = "Boombox"
 	desc = "Tune in and tune out."
-
+	pass_flags = PASSTABLE | PASSRAILING
 	icon='icons/obj/radio.dmi'
 	icon_state="radio"
 
@@ -13,7 +13,7 @@
 	update_icon()
 
 /obj/machinery/media/receiver/boombox/attack_hand(var/mob/user)
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		to_chat(usr, "<span class='warning'>You don't see anything to mess with.</span>")
 		return
 	user.set_machine(src)
@@ -27,7 +27,7 @@
 				Volume: <A href='byond://?src=\ref[src];set_volume=-1'>[volume*100]%</a><BR>
 				"}
 	dat+={"</TT></body></html>"}
-	user << browse(dat, "window=radio-recv")
+	user << browse(HTML_SKELETON(dat), "window=radio-recv")
 	onclose(user, "radio-recv")
 	return
 
@@ -96,7 +96,7 @@
 	icon='icons/obj/radio.dmi'
 	icon_state="wallradio"
 	anchored=1
-	volume=0.25 // 25% of user's set volume.
+	volume=1 // applies a % of the user's media volume pref
 	var/buildstage = 0
 
 /obj/machinery/media/receiver/boombox/wallmount/supports_holomap()
@@ -129,8 +129,10 @@
 /obj/machinery/media/receiver/boombox/wallmount/update_icon()
 	if(buildstage==SYSTEMISDONE && on)
 		icon_state="wallradio-p"
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_wallradio")
 	else
 		icon_state="wallradio"
+		kill_moody_light()
 
 /obj/machinery/media/receiver/boombox/wallmount/attack_hand(var/mob/user)
 	if(buildstage<SYSTEMISDONE)
@@ -152,8 +154,8 @@
 			else
 				return ..()
 		if(SYSTEMISKINDADONE)
-			if(isscrewdriver(W))
-				playsound(src, 'sound/items/Screwdriver.ogg', 50, 1)
+			if(W.is_screwdriver(user))
+				W.playtoolsound(src, 50)
 				if(do_after(user, src, 10) && buildstage==SYSTEMISKINDADONE)
 					on = 1
 					buildstage = SYSTEMISDONE
@@ -161,10 +163,10 @@
 					update_icon()
 					update_on(TRUE)
 				return 1
-			else if(iswirecutter(W))
-				playsound(src, 'sound/items/Wirecutter.ogg', 50, 1)
+			else if(W.is_wirecutter(user))
+				W.playtoolsound(src, 50)
 				if(do_after(user, src, 10) && buildstage==SYSTEMISKINDADONE)
-					getFromPool(/obj/item/stack/cable_coil,get_turf(src),5)
+					new /obj/item/stack/cable_coil(get_turf(src), 5)
 					buildstage = SYSTEMISNOTDONE
 					update_icon()
 
@@ -179,9 +181,9 @@
 					to_chat(user, "<span class='notice'>You wire \the [src]!</span>")
 					buildstage = SYSTEMISKINDADONE
 				return 1
-			if(iswrench(W))
+			if(W.is_wrench(user))
 				to_chat(user, "<span class='notice'>You remove the securing bolts...</span>")
-				playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+				W.playtoolsound(src, 50)
 				if(do_after(user, src, 10) && buildstage==SYSTEMISNOTDONE)
 					new /obj/item/mounted/frame/soundsystem(get_turf(src))
 					to_chat(user, "<span class='notice'>The frame pops off.</span>")

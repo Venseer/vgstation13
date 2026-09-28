@@ -27,31 +27,23 @@
 	var/turf/target
 	var/turf/source
 	var/movetotarget = 1
+	var/moody_icon = 'icons/lighting/moody_lights.dmi'
+
+/obj/effect/accelerated_particle/New()
+	..()
+	update_moody_light(moody_icon, "overlay_particle")
 
 /obj/effect/accelerated_particle/wide
 	icon = 'icons/obj/machines/96x96particles.dmi'
+	moody_icon = 'icons/lighting/moody_lights_96x96.dmi'
 	pixel_x = -WORLD_ICON_SIZE
 	pixel_y = -WORLD_ICON_SIZE
-
-/obj/effect/accelerated_particle/resetVariables()
-	..("movement_range", "target", "ionizing", "particle_type", "source", "movetotarget", args)
-	movement_range = PARTICLE_RANGE
-	target = null
-	ionizing = 0
-	particle_type = null
-	source = null
-	movetotarget = 1
-
+	luminosity = 3
 
 /obj/effect/accelerated_particle/wide/weak
 	movement_range = WEAK_PARTICLE_RANGE
 	energy = WEAK_PARTICLE_ENERGY
 	icon_state="particle0"
-
-/obj/effect/accelerated_particle/wide/weak/resetVariables()
-	..("energy", "movement_range")
-	movement_range = WEAK_PARTICLE_RANGE
-	energy = WEAK_PARTICLE_ENERGY
 
 
 /obj/effect/accelerated_particle/wide/strong
@@ -59,21 +51,10 @@
 	energy = STRONG_PARTICLE_ENERGY
 	icon_state="particle2"
 
-/obj/effect/accelerated_particle/wide/strong/resetVariables()
-	..("energy", "movement_range")
-	energy = STRONG_PARTICLE_ENERGY
-	movement_range = STRONG_PARTICLE_RANGE
-
-
 /obj/effect/accelerated_particle/wide/powerful
 	movement_range = POWERFUL_PARTICLE_RANGE
 	energy = POWERFUL_PARTICLE_ENERGY
 	icon_state="particle3"
-
-/obj/effect/accelerated_particle/wide/powerful/resetVariables()
-	..("energy", "movement_range")
-	energy = POWERFUL_PARTICLE_ENERGY
-	movement_range = POWERFUL_PARTICLE_RANGE
 
 
 /obj/effect/accelerated_particle/New(loc, dir = 2, move = 0)
@@ -101,16 +82,19 @@
 	if (A)
 		if(ismob(A))
 			toxmob(A)
+			return
 		if(istype(A,/obj/machinery/the_singularitygen))
 			var/obj/machinery/the_singularitygen/TSG = A
 			TSG.energy += energy
-		else if( istype(A,/obj/effect/rust_particle_catcher) )
+			return
+		if( istype(A,/obj/effect/rust_particle_catcher) )
 			var/obj/effect/rust_particle_catcher/collided_catcher = A
 			if(particle_type && particle_type != "neutron")
 				if(collided_catcher.AddParticles(particle_type, 1 + additional_particles))
 					collided_catcher.parent.AddEnergy(energy,mega_energy)
 					loc = null
-		else if( istype(A,/obj/machinery/power/rust_core) )
+			return
+		if( istype(A,/obj/machinery/power/rust_core) )
 			var/obj/machinery/power/rust_core/collided_core = A
 			if(particle_type && particle_type != "neutron")
 				if(collided_core.AddParticles(particle_type, 1 + additional_particles))
@@ -118,6 +102,11 @@
 					collided_core.owned_field.mega_energy += mega_energy - mega_energy * energy_loss_ratio
 					collided_core.owned_field.energy += energy - energy * energy_loss_ratio
 					loc = null
+			return
+		if (istype(A,/obj/machinery/power/supermatter/))
+			var/obj/machinery/power/supermatter/collided_SM = A
+			collided_SM.power += energy * 4 //multiplier to make comparable to emitters
+			return
 	return
 
 
@@ -127,7 +116,7 @@
 	return
 
 /obj/effect/accelerated_particle/ex_act(severity)
-	returnToPool(src)
+	qdel(src)
 	return
 
 /obj/effect/accelerated_particle/proc/toxmob(var/mob/living/M)
@@ -140,28 +129,30 @@
 			radiation = round(radiation/2,1)*/
 	M.apply_radiation((radiation*3),RAD_EXTERNAL)
 	M.updatehealth()
-//	to_chat(M, "<span class='warning'>You feel odd.</span>")
 	return
 
 
+//step_x and step_y are passed to forceMove() below because of weird BYOND behavior related to objects with large hitboxes.
+//If more bugs due to this behavior crop up, perhaps forceMove() should be changed so that not changing the step_x/y vars is the default.
+//A better solution here would be to just... make this not work this way at all
 /obj/effect/accelerated_particle/proc/move(var/lag)
 	if(!loc)
 		return 0
 	if(target)
 		if(movetotarget)
 			if(!step_towards(src,target))
-				src.forceMove(get_step(src, get_dir(src,target)))
+				src.forceMove(get_step(src, get_dir(src,target)), step_x, step_y)
 			if(get_dist(src,target) < 1)
 				movetotarget = 0
 		else
 			if(!step(src, get_step_away(src,source)))
-				src.forceMove(get_step(src, get_step_away(src,source)))
+				src.forceMove(get_step(src, get_step_away(src,source)), step_x, step_y)
 	else
 		if(!step(src,dir))
-			src.forceMove(get_step(src,dir))
+			src.forceMove(get_step(src,dir), step_x, step_y)
 	movement_range--
 	if(movement_range <= 0)
-		returnToPool(src)
+		qdel(src)
 		loc = null
 		return 0
 	else
@@ -170,7 +161,7 @@
 
 /obj/effect/accelerated_particle/singularity_act()
 	. = energy
-	returnToPool(src)
+	qdel(src)
 
 #undef PARTICLE_ENERGY
 #undef WEAK_PARTICLE_ENERGY

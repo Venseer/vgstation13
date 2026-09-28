@@ -9,6 +9,11 @@
 	var/override_location = null
 	var/override_monster = null
 
+/datum/event/hostile_infestation/can_start(var/list/active_with_role)
+	if(active_with_role["Security"] > 1)
+		return 25
+	return 0
+
 /datum/event/hostile_infestation/start()
 	var/z_level = 1
 	for(var/mob/M in player_list)
@@ -72,7 +77,7 @@
 			max_number = 6
 			monsterstring = "a synthetic covering"
 		if(MONSTER_ZOMBIE)
-			spawn_monster_type = pick(/mob/living/simple_animal/hostile/necro/zombie, /mob/living/simple_animal/hostile/necromorph, /mob/living/simple_animal/hostile/necromorph/leaper, /mob/living/simple_animal/hostile/necromorph/puker)
+			spawn_monster_type = pick(/mob/living/simple_animal/hostile/necro/zombie, /mob/living/simple_animal/hostile/necro/necromorph, /mob/living/simple_animal/hostile/necro/necromorph/leaper, /mob/living/simple_animal/hostile/necro/necromorph/puker)
 			max_number = 3
 			monsterstring = "extreme decay"
 		if(MONSTER_SKRITE)

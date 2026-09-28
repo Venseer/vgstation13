@@ -40,9 +40,9 @@
 			var/list/pack[prepack.len]
 			for(var/datum/migration/M in newpacks[pkgID])
 				pack[M.id] = M
-				//world.log << "\[Migrations] [pkgID]#[M.id] = [M.type] - [M.name]"
+				log_debug("\[Migrations] [pkgID]#[M.id] = [M.type] - [M.name]")
 			packages[pkgID]=pack
-			world.log << "\[Migrations] Loaded [pack.len] [id] DB migrations from package [pkgID]."
+			log_debug("\[Migrations] Loaded [pack.len] [id] DB migrations from package [pkgID].", FALSE)
 		//VersionCheck()
 		UpdateAll()
 
@@ -97,7 +97,7 @@
 	return TRUE
 
 /datum/migration_controller/proc/query(var/sql)
-	var/DBQuery/query = execute(sql)
+	var/datum/DBQuery/query = execute(sql)
 
 	var/list/rows=list()
 	while(query.NextRow())

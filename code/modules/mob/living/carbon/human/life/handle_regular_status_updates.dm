@@ -15,7 +15,8 @@
 			handle_organs()	//Optimized.
 			handle_blood()
 
-		if(health <= config.health_threshold_dead || !has_brain())
+		if((health <= config.health_threshold_dead || !has_brain()) && !(status_flags & BUDDHAMODE))
+			emote("deathgasp", message = TRUE)
 			death()
 			blinded = 1
 			silent = 0
@@ -25,8 +26,9 @@
 		pain_numb = max(0, pain_numb - 1)
 
 		//UNCONSCIOUS. NO-ONE IS HOME
-		if((getOxyLoss() > 50) || (config.health_threshold_crit > health))
+		if((getOxyLoss() > 50 || config.health_threshold_crit > health) && !(status_flags & BUDDHAMODE))
 			Paralyse(3)
+			species.OnCrit(src)
 
 			/* Done by handle_breath()
 			if( health <= 20 && prob(1) )
@@ -34,6 +36,8 @@
 					emote("gasp")
 			if(!reagents.has_reagent(INAPROVALINE))
 				adjustOxyLoss(1)*/
+		else
+			species.OutOfCrit(src)
 
 		if(hallucination)
 			if(hallucination >= 20 && !handling_hal)
@@ -59,7 +63,7 @@
 		if(paralysis)
 			AdjustParalysis(-1)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if(halloss > 0)
 				adjustHalLoss(-3)
 		else if(sleeping)
@@ -67,21 +71,21 @@
 			adjustHalLoss(-3)
 			sleeping = max(sleeping-1, 0)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if(prob(2) && health && !hal_crit)
 				spawn(0)
 					emote("snore")
-		else if(resting)
-			if(halloss > 0)
-				adjustHalLoss(-3)
 		else if(undergoing_hypothermia() >= SEVERE_HYPOTHERMIA)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 		//CONSCIOUS
 		else
 			stat = CONSCIOUS
 			if(halloss > 0)
 				adjustHalLoss(-1)
+
+		if(resting && halloss > 0)
+			adjustHalLoss(-3)
 
 		//Eyes
 		if(!species.has_organ["eyes"]) //Presumably if a species has no eyes, they see via something else.
@@ -91,16 +95,17 @@
 		else if(!has_eyes())           //Eyes cut out? Permablind.
 			eye_blind =  1
 			blinded =    1
-			eye_blurry = 1
+			eye_blurry = 0
 		else if(sdisabilities & BLIND) //Disabled-blind, doesn't get better on its own
 			blinded =    1
+			eye_blurry = 0
 		else if(eye_blind)		       //Blindness, heals slowly over time
 			eye_blind =  max(eye_blind - 1, 0)
-			blinded =    1
+			//blinded =    1, the blindness here is now handled by get_impaired_vision_range() and enable_nearsightedness()
 		else if(istype(glasses, /obj/item/clothing/glasses/sunglasses/blindfold)) //Resting your eyes with a blindfold heals blurry eyes faster
 			eye_blurry = max(eye_blurry - 3, 0)
 			blinded =    1
-		else if(eye_blurry)	           //Blurry eyes heal slowly
+		else if(eye_blurry)
 			eye_blurry = max(eye_blurry - 1, 0)
 
 		//Ears
@@ -146,6 +151,21 @@
 			druggy = max(druggy - 1, 0)
 			if(!druggy)
 				to_chat(src, "It looks like you are back in Kansas.")
+
+		if(teleportitis)
+			teleportitis = max(teleportitis - 1, 0)
+			if(prob(10))
+				do_teleport(src, get_turf(src), 7)
+		if(timeslip)
+			timeslip = max(timeslip - 1, 0)
+			if(prob(10))
+				switch(pick(list(1,2,3)))
+					if(1)
+						attempt_past_send(5 SECONDS, TRUE)
+					if(2)
+						attempt_future_send(5 SECONDS, TRUE)
+					else
+						timestop(src, 5 SECONDS, 1, TRUE)
 /*
 		// Increase germ_level regularly
 		if(prob(40))

@@ -7,12 +7,9 @@
 
 // This code allows for airlocks to be controlled externally by setting an id_tag and comm frequency (disables ID access)
 /obj/machinery/door/airlock
-	var/id_tag
 	var/frequency
 	var/shockedby = list()
 	var/datum/radio_frequency/radio_connection
-	explosion_resistance = 15
-
 
 /obj/machinery/door/airlock/receive_signal(datum/signal/signal)
 	if(!signal || signal.encryption)
@@ -22,6 +19,12 @@
 		return
 
 	switch(signal.data["command"])
+		if("cycle")
+			if(density)
+				open(1)
+			else
+				close(1)
+
 		if("open")
 			open(1)
 
@@ -30,43 +33,71 @@
 
 		if("unlock")
 			locked = 0
+			playsound(loc, "sound/machines/door_unbolt.ogg", 50, 1, -1)
 			update_icon()
 
 		if("lock")
-			locked = 1
+			locked = boltsDestroyed ? 0 : 1
+			playsound(loc, "sound/machines/door_bolt.ogg", 50, 1, -1)
 			update_icon()
 
 		if("toggle_lock")
-			if(!density)
-				close(1)
-				sleep(2)
-			locked = !locked
+			toggle_bolts()
+			sleep(2)
 			update_icon()
+
+		if("secure_cycle")
+			if(density)
+				if(locked)
+					locked = 0
+					playsound(loc, "sound/machines/door_unbolt.ogg", 50, 1, -1)
+					update_icon()
+					sleep(2)
+				open(1)
+
+				locked =  boltsDestroyed ? 0 : 1
+				playsound(loc, "sound/machines/door_bolt.ogg", 50, 1, -1)
+				update_icon()
+			else
+				if(locked)
+					locked = 0
+					playsound(loc, "sound/machines/door_unbolt.ogg", 50, 1, -1)
+				close(1)
+
+				locked =  boltsDestroyed ? 0 : 1
+				playsound(loc, "sound/machines/door_bolt.ogg", 50, 1, -1)
+				sleep(2)
+				update_icon()
 
 		if("secure_open")
-			locked = 0
-			update_icon()
-
-			sleep(2)
+			if(locked)
+				locked = 0
+				playsound(loc, "sound/machines/door_unbolt.ogg", 50, 1, -1)
+				update_icon()
+				sleep(2)
 			open(1)
 
-			locked = 1
+			locked =  boltsDestroyed ? 0 : 1
+			playsound(loc, "sound/machines/door_bolt.ogg", 50, 1, -1)
 			update_icon()
 
 		if("secure_close")
-			locked = 0
+			if(locked)
+				locked = 0
+				playsound(loc, "sound/machines/door_unbolt.ogg", 50, 1, -1)
 			close(1)
 
-			locked = 1
+			locked =  boltsDestroyed ? 0 : 1
+			playsound(loc, "sound/machines/door_bolt.ogg", 50, 1, -1)
 			sleep(2)
 			update_icon()
 
 	send_status()
 
 
-obj/machinery/door/airlock/proc/send_status()
+/obj/machinery/door/airlock/proc/send_status()
 	if(radio_connection)
-		var/datum/signal/signal = getFromPool(/datum/signal)
+		var/datum/signal/signal = new /datum/signal
 		signal.transmission_method = 1 //radio signal
 		signal.data["tag"] = id_tag
 		signal.data["timestamp"] = world.time
@@ -77,24 +108,24 @@ obj/machinery/door/airlock/proc/send_status()
 		radio_connection.post_signal(src, signal, range = AIRLOCK_CONTROL_RANGE, filter = RADIO_AIRLOCK)
 
 
-obj/machinery/door/airlock/open(surpress_send)
+/obj/machinery/door/airlock/open(surpress_send)
 	. = ..()
 	if(!surpress_send)
 		send_status()
 
 
-obj/machinery/door/airlock/close(surpress_send)
+/obj/machinery/door/airlock/close(surpress_send)
 	. = ..()
 	if(!surpress_send)
 		send_status()
 
 
-obj/machinery/door/airlock/Bumped(atom/AM)
+/obj/machinery/door/airlock/Bumped(atom/AM)
 	..(AM)
 	if(istype(AM, /obj/mecha))
 		var/obj/mecha/mecha = AM
 		if(density && radio_connection && mecha.occupant && (src.allowed(mecha.occupant) || src.check_access_list(mecha.operation_req_access)))
-			var/datum/signal/signal = getFromPool(/datum/signal)
+			var/datum/signal/signal = new /datum/signal
 			signal.transmission_method = 1 //radio signal
 			signal.data["tag"] = id_tag
 			signal.data["timestamp"] = world.time
@@ -107,27 +138,29 @@ obj/machinery/door/airlock/Bumped(atom/AM)
 			radio_connection.post_signal(src, signal, range = AIRLOCK_CONTROL_RANGE, filter = RADIO_AIRLOCK)
 	return
 
-obj/machinery/door/airlock/proc/set_frequency(new_frequency)
+/obj/machinery/door/airlock/proc/set_frequency(new_frequency)
 	radio_controller.remove_object(src, frequency)
 	if(new_frequency)
 		frequency = new_frequency
 		radio_connection = radio_controller.add_object(src, frequency, RADIO_AIRLOCK)
 
 
-obj/machinery/door/airlock/initialize()
+/obj/machinery/door/airlock/initialize()
+	if (!radio_controller)
+		return
 	if(frequency)
 		set_frequency(frequency)
 
 	update_icon()
 
 
-obj/machinery/door/airlock/New()
+/obj/machinery/door/airlock/New()
 	..()
 
-	if(radio_controller)
-		set_frequency(frequency)
+	if(ticker && ticker.current_state == GAME_STATE_PLAYING)
+		initialize()
 
-obj/machinery/airlock_sensor
+/obj/machinery/airlock_sensor
 	icon = 'icons/obj/airlock_machines.dmi'
 	icon_state = "airlock_sensor_off"
 	name = "airlock sensor"
@@ -135,7 +168,7 @@ obj/machinery/airlock_sensor
 	anchored = 1
 	power_channel = ENVIRON
 
-	var/id_tag
+
 	var/master_tag
 	var/frequency = 1449
 	var/command = "cycle"
@@ -151,29 +184,35 @@ obj/machinery/airlock_sensor
 	machine_flags = MULTITOOL_MENU
 
 
-obj/machinery/airlock_sensor/update_icon()
+/obj/machinery/airlock_sensor/update_icon()
 	if(on)
 		if(alert)
 			icon_state = "airlock_sensor_alert"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_airlock_sensor_alert")
 		else
 			icon_state = "airlock_sensor_standby"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_airlock_sensor_standby")
 	else
 		icon_state = "airlock_sensor_off"
+		kill_moody_light()
 
-obj/machinery/airlock_sensor/attack_hand(mob/user)
+/obj/machinery/airlock_sensor/attack_hand(mob/user)
 	if(..())
 		return
-	var/datum/signal/signal = getFromPool(/datum/signal)
+	var/datum/signal/signal = new /datum/signal
 	signal.transmission_method = 1 //radio signal
 	signal.data["tag"] = master_tag
 	signal.data["command"] = command
-
+	playsound(src,'sound/misc/click.ogg',30,0,-1)
 	radio_connection.post_signal(src, signal, range = AIRLOCK_CONTROL_RANGE, filter = RADIO_AIRLOCK)
 	flick("airlock_sensor_cycle", src)
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_airlock_sensor_cycle")
+	spawn(10)
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_[icon_state]")
 
-obj/machinery/airlock_sensor/process()
+/obj/machinery/airlock_sensor/process()
 	if(on)
-		var/datum/signal/signal = getFromPool(/datum/signal)
+		var/datum/signal/signal = new /datum/signal
 		signal.transmission_method = 1 //radio signal
 		signal.data["tag"] = id_tag
 		signal.data["timestamp"] = world.time
@@ -189,24 +228,26 @@ obj/machinery/airlock_sensor/process()
 
 	update_icon()
 
-obj/machinery/airlock_sensor/proc/set_frequency(new_frequency)
+/obj/machinery/airlock_sensor/proc/set_frequency(new_frequency)
 	radio_controller.remove_object(src, frequency)
 	frequency = new_frequency
 	radio_connection = radio_controller.add_object(src, frequency, RADIO_AIRLOCK)
 
-obj/machinery/airlock_sensor/initialize()
+/obj/machinery/airlock_sensor/initialize()
+	if (!radio_controller)
+		return
 	set_frequency(frequency)
 
-obj/machinery/airlock_sensor/New()
+/obj/machinery/airlock_sensor/New()
 	..()
 
-	if(radio_controller)
-		set_frequency(frequency)
+	if (ticker && ticker.current_state == GAME_STATE_PLAYING)
+		initialize()
 
-obj/machinery/airlock_sensor/airlock_interior
+/obj/machinery/airlock_sensor/airlock_interior
 	command = "cycle_interior"
 
-obj/machinery/airlock_sensor/airlock_exterior
+/obj/machinery/airlock_sensor/airlock_exterior
 	command = "cycle_exterior"
 
 /obj/machinery/airlock_sensor/New(turf/loc, var/ndir, var/building=0)
@@ -226,8 +267,9 @@ obj/machinery/airlock_sensor/airlock_exterior
 		//build=0
 		//stat |= MAINT
 		//src.update_icon()
+	update_icon()
 
-obj/machinery/airlock_sensor/multitool_menu(var/mob/user,var/obj/item/device/multitool/P)
+/obj/machinery/airlock_sensor/multitool_menu(var/mob/user,var/obj/item/device/multitool/P)
 	return {"
 		<ul>
 			<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[0]">Reset</a>)</li>
@@ -235,7 +277,7 @@ obj/machinery/airlock_sensor/multitool_menu(var/mob/user,var/obj/item/device/mul
 			[format_tag("Master ID Tag","master_tag")]
 		</ul>"}
 
-obj/machinery/airlock_sensor/Topic(href,href_list)
+/obj/machinery/airlock_sensor/Topic(href,href_list)
 	if(..())
 		return 0
 
@@ -258,18 +300,18 @@ obj/machinery/airlock_sensor/Topic(href,href_list)
 	update_multitool_menu(usr)
 
 
-obj/machinery/airlock_sensor/attackby(var/obj/item/W, var/mob/user)
+/obj/machinery/airlock_sensor/attackby(var/obj/item/W, var/mob/user)
 	. = ..()
 	if(.)
 		return .
-	if(istype(W,/obj/item/weapon/screwdriver))
+	if(W.is_screwdriver(user))
 		to_chat(user, "You begin to pry \the [src] off the wall...")
 		if(do_after(user, src, 50))
 			to_chat(user, "You successfully pry \the [src] off the wall.")
 			new /obj/item/mounted/frame/airlock_sensor(get_turf(src))
 			qdel(src)
 
-obj/machinery/access_button
+/obj/machinery/access_button
 	icon = 'icons/obj/airlock_machines.dmi'
 	icon_state = "access_button_standby"
 	name = "access button"
@@ -289,6 +331,7 @@ obj/machinery/access_button
 	var/datum/radio_frequency/radio_connection
 
 	var/on = 1
+	var/master_active = 1 // Tracks the state of the linked master device
 
 	ghost_read = 0 // Deactivate ghost touching.
 	ghost_write = 0
@@ -311,68 +354,94 @@ obj/machinery/access_button
 		//build=0
 		//stat |= MAINT
 		//src.update_icon()
+	update_icon()
 
 
-obj/machinery/access_button/update_icon()
+/obj/machinery/access_button/update_icon()
 	if(on)
-		icon_state = "access_button_standby"
+		if(master_active)
+			icon_state = "access_button_standby"
+			update_moody_light('icons/lighting/moody_lights.dmi', "overlay_button_standby")
+		else
+			icon_state = "access_button_off"
+			kill_moody_light()
 	else
 		icon_state = "access_button_off"
+		kill_moody_light()
 
 
-obj/machinery/access_button/attack_hand(mob/user)
+/obj/machinery/access_button/attack_hand(mob/user)
 	add_fingerprint(usr)
+	playsound(src,'sound/misc/click.ogg',30,0,-1)
 	if(!allowed(user))
 		to_chat(user, "<span class='warning'>Access Denied.</span>")
+		playsound(src, 'sound/machines/buzz-two.ogg', 20, 0, -1)
+		return
 
-	else if(radio_connection)
-		var/datum/signal/signal = getFromPool(/datum/signal)
+	if(radio_connection)
+		var/datum/signal/signal = new /datum/signal
 		signal.transmission_method = 1 //radio signal
 		signal.data["tag"] = master_tag
 		signal.data["command"] = command
 
 		radio_connection.post_signal(src, signal, range = AIRLOCK_CONTROL_RANGE, filter = customfilter)
+
 	flick("access_button_cycle", src)
+	update_moody_light('icons/lighting/moody_lights.dmi', "overlay_button_cycle")
+	spawn(10)
+		update_icon()
 
 
-obj/machinery/access_button/attackby(var/obj/item/W, var/mob/user)
+
+/obj/machinery/access_button/attackby(var/obj/item/W, var/mob/user)
 	. = ..()
 	if(.)
 		return .
-	if(istype(W,/obj/item/weapon/screwdriver))
+	if(W.is_screwdriver(user))
 		to_chat(user, "You begin to pry \the [src] off the wall...")
 		if(do_after(user, src, 50))
 			to_chat(user, "You successfully pry \the [src] off the wall.")
 			new /obj/item/mounted/frame/access_button(get_turf(src))
 			qdel(src)
 
-obj/machinery/access_button/proc/set_frequency(new_frequency)
+/obj/machinery/access_button/proc/set_frequency(new_frequency)
 	radio_controller.remove_object(src, frequency)
 	frequency = new_frequency
 	radio_connection = radio_controller.add_object(src, frequency, customfilter)
 
 
-obj/machinery/access_button/initialize()
+/obj/machinery/access_button/initialize()
+	if (!radio_controller)
+		return
 	set_frequency(frequency)
 
+/obj/machinery/access_button/receive_signal(datum/signal/signal)
+	if(!signal || signal.encryption)
+		return
+	if(signal.data["tag"] != master_tag)
+		return
+	// Update our state based on the master device's status
+	if("active" in signal.data)
+		master_active = signal.data["active"]
+		update_icon()
 
-obj/machinery/access_button/New()
+/obj/machinery/access_button/New()
 	..()
 
-	if(radio_controller)
-		set_frequency(frequency)
+	if(ticker && ticker.current_state == GAME_STATE_PLAYING)
+		initialize()
 
-obj/machinery/access_button/airlock_interior
+/obj/machinery/access_button/airlock_interior
 	frequency = 1449
 	command = "cycle_interior"
 
-obj/machinery/access_button/airlock_exterior
+/obj/machinery/access_button/airlock_exterior
 	frequency = 1449
 	command = "cycle_exterior"
 
 
 
-obj/machinery/access_button/multitool_menu(var/mob/user,var/obj/item/device/multitool/P)
+/obj/machinery/access_button/multitool_menu(var/mob/user,var/obj/item/device/multitool/P)
 	return {"
 		<ul>
 			<li><b>Frequency:</b> <a href="?src=\ref[src];set_freq=-1">[format_frequency(frequency)] GHz</a> (<a href="?src=\ref[src];set_freq=[0]">Reset</a>)</li>
@@ -381,7 +450,7 @@ obj/machinery/access_button/multitool_menu(var/mob/user,var/obj/item/device/mult
 			<li><b>Filter:</b> <a href="?src=\ref[src];set_filter=-1">[customfilter]</a></li>
 		</ul>"}
 
-obj/machinery/access_button/Topic(href,href_list)
+/obj/machinery/access_button/Topic(href,href_list)
 	if(..())
 		return 1
 
@@ -396,9 +465,9 @@ obj/machinery/access_button/Topic(href,href_list)
 			var/newfilter = input(usr, RADIO_FILTER_EXPLANATION, "Radio Filter", customfilter) as null|anything in radiofilters
 			if (newfilter)
 				if(usr.incapacitated() || (!issilicon(usr) && !Adjacent(usr)))
-					return	
+					return
 				customfilter = newfilter
-			
+
 		if("set_freq" in href_list)
 			var/newfreq=frequency
 			if(href_list["set_freq"]!="-1")
@@ -413,5 +482,5 @@ obj/machinery/access_button/Topic(href,href_list)
 					initialize()
 
 		update_multitool_menu(usr)
-		
+
 #undef RADIO_FILTER_EXPLANATION

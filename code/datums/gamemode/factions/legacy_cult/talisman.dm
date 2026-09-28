@@ -47,7 +47,7 @@
 		to_chat(user, "Something about the blood stains on this paper fills you with uneasiness.")
 
 /obj/item/weapon/paper/talisman/proc/findNullRod(var/atom/target)
-	if(istype(target,/obj/item/weapon/nullrod))
+	if(isholyprotection(target))
 		var/turf/T = get_turf(target)
 		nullblock = 1
 		T.turf_animation('icons/effects/96x96.dmi',"nullding",-WORLD_ICON_SIZE,-WORLD_ICON_SIZE,MOB_LAYER+1,'sound/instruments/piano/Ab7.ogg',anim_plane = EFFECTS_PLANE)
@@ -143,7 +143,7 @@
 <A href='?src=\ref[src];rune=soulstone'>Kal om neth</A> - Summons a soul stone<BR>
 <A href='?src=\ref[src];rune=construct'>Da A'ig Osk</A> - Summons a construct shell for use with captured souls. It is too large to carry on your person.<BR>"}
 //<A href='?src=\ref[src];rune=armor'>Sa tatha najin</A> - Allows you to summon armored robes and an unholy blade<BR> //Kept for reference
-	usr << browse(dat, "window=id_com;size=350x200")
+	usr << browse(HTML_SKELETON(dat), "window=id_com;size=350x200")
 	return
 
 
@@ -178,7 +178,7 @@
 				//var/obj/item/weapon/paper/talisman/T = new /obj/item/weapon/paper/talisman(get_turf(usr))
 				//T.imbue = "armor"
 			if("soulstone")
-				new /obj/item/device/soulstone(get_turf(usr))
+				new /obj/item/soulstone(get_turf(usr))
 			if("construct")
 				new /obj/structure/constructshell/cult(get_turf(usr))
 		src.uses--

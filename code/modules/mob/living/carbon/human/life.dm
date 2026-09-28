@@ -78,7 +78,7 @@ var/global/list/organ_damage_overlays = list(
 	var/fire_alert = 0
 	var/pressure_alert = 0
 	var/prev_gender = null // Debug for plural genders
-	var/temperature_alert = 0
+	var/temperature_alert = TEMP_ALARM_SAFE
 	var/in_stasis = 0
 	var/do_deferred_species_setup=0
 	var/exposedtimenow = 0
@@ -105,7 +105,6 @@ var/global/list/organ_damage_overlays = list(
 
 /mob/living/carbon/human/Life()
 
-	set invisibility = 0
 	//set background = 1
 	if(timestopped)
 		return 0 //under effects of time magick
@@ -125,6 +124,8 @@ var/global/list/organ_damage_overlays = list(
 	//TODO: seperate this out
 	//Update the current life tick, can be used to e.g. only do something every 4 ticks
 	life_tick++
+	if (life_tick % 2)
+		crawlcounter = 1
 
 	var/datum/gas_mixture/environment = loc.return_air()
 	in_stasis = istype(loc, /obj/structure/closet/body_bag/cryobag) && loc:opened == 0 //Nice runtime operator
@@ -144,11 +145,15 @@ var/global/list/organ_damage_overlays = list(
 				var/obj/location_as_object = loc
 				location_as_object.handle_internal_lifeform(src, 0)
 				last_processed = "Interacted with our container"
-		if(check_mutations)
-//			testing("Updating [src.real_name]'s mutations: "+english_list(mutations))
-			domutcheck(src,null,MUTCHK_FORCED)
-			update_mutations()
-			check_mutations = 0
+		switch(check_mutations)
+			if (M_CHECK_ALL)
+				domutcheck(src,null,MUTCHK_FORCED)
+				update_mutations()
+				check_mutations = 0
+			if (M_CHECK_JOB)
+				var/datum/job/J = job_master.GetJob(job)
+				J.post_init(src)
+				check_mutations = 0
 		//Updates the number of stored chemicals for powers
 		//handle_changeling()
 		//Mutations and radiation
@@ -165,18 +170,21 @@ var/global/list/organ_damage_overlays = list(
 		handle_stomach()
 		handle_shock()
 		handle_pain()
-		handle_medical_side_effects()
-		handle_equipment()
+		//handle_medical_side_effects()
 	handle_stasis_bag()
+	if(m_intent == "running") //If running, 10% chance to spill spaghetti -kanef
+		handle_spaghetti(10)
+	else //Otherwise 5% -kanef
+		handle_spaghetti(5)
 	if(life_tick > 5 && timeofdeath && (timeofdeath < 5 || world.time - timeofdeath > 6000)) //We are long dead, or we're junk mobs spawned like the clowns on the clown shuttle
 		cycle = "DEAD"
 		return //We go ahead and process them 5 times for HUD images and other stuff though.
 	handle_environment(environment)
+	handle_weather()
 	handle_fire()
 	handle_regular_status_updates()	//Optimized a bit
 	update_canmove()
 	//Update our name based on whether our face is obscured/disfigured
-	name = get_visible_name()
 	handle_regular_hud_updates()
 	pulse = handle_pulse()
 	for(var/obj/item/weapon/grab/G in src)

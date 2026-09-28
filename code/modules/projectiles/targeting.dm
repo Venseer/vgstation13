@@ -41,8 +41,7 @@
 		for(var/mob/living/M in target)
 			if(M)
 				M.NotTargeted(src) //Untargeting people.
-		qdel(target)
-		target = null
+		QDEL_NULL(target)
 
 //Compute how to fire.....
 /obj/item/weapon/gun/proc/PreFire(atom/A as mob|obj|turf|area, mob/living/user as mob|obj, params, struggle = 0)
@@ -54,7 +53,7 @@
 		Aim(A) 	//Clicked a mob, aim at them
 	else  		//Didn't click someone, check if there is anyone along that guntrace
 		var/mob/living/M = GunTrace(usr.x,usr.y,A.x,A.y,usr.z,usr)  //Find dat mob.
-		if(M && isliving(M) && M in view(user) && !(M in target))
+		if(M && isliving(M) && (M in view(user)) && !(M in target))
 			Aim(M) //Aha!  Aim at them!
 		else if(!ismob(M) || (ismob(M) && !(M in view(user)))) //Nope!  They weren't there!
 			Fire(A,user,params, "struggle" = struggle)  //Fire like normal, then.
@@ -62,35 +61,50 @@
 
 //Aiming at the target mob.
 /obj/item/weapon/gun/proc/Aim(var/mob/living/M)
+	if (M.alpha <= 1)
+		return // no abusing aiming to reveal cloaked individuals. Why do cloaking cloaks set alpha to specifically 1 anyway? The human eye can't see that 'cept maybe on a fully white background.
 	if(!target || !(M in target))
 		lock_time = world.time
 		if(target && !automatic) //If they're targeting someone and they have a non automatic weapon.
 			for(var/mob/living/L in target)
 				if(L)
 					L.NotTargeted(src)
-			qdel(target)
-			target = null
+			QDEL_NULL(target)
 			usr.visible_message("<span class='danger'>[usr] turns \the [src] on [M]!</span>")
 		else
 			usr.visible_message("<span class='danger'>[usr] aims \a [src] at [M]!</span>")
 		M.Targeted(src)
 
 //HE MOVED, SHOOT HIM!
-/obj/item/weapon/gun/proc/TargetActed(var/mob/living/T)
+/obj/item/weapon/gun/proc/TargetMoved(mob/living/mover)
+	TargetActed(mover) //alias just so events work
+
+/obj/item/weapon/gun/proc/TargetActed(mob/living/user,modifiers,atom/target)
+	if(world.time <= lock_time)
+		return
+	if(target && (isturf(target) || istype(target,/obj/abstract/screen))) // these are okay to click
+		return
+	lock_time = world.time + 15
+	//if(last_moved_mob == user) //If they were the last ones to move, give them more of a grace period, so that an automatic weapon can hold down a room better.
+		//lock_time = world.time + 15 //just look at the logic of this... it did nothing!!! uncomment if you want this to work again too. be sure to add the variable back.
 	var/mob/living/M = loc
-	if(M == T)
+	if(M == user || !istype(M))
 		return
-	if(!istype(M))
-		return
-	if(src != M.get_active_hand())
+	if(!M.client || src != M.get_active_hand())
 		stop_aim()
 		return
-	M.last_move_intent = world.time
-	if(can_fire())
-		var/firing_check = can_hit(T,usr) //0 if it cannot hit them, 1 if it is capable of hitting, and 2 if a special check is preventing it from firing.
+	if(M.client.target_can_click && target) // this var only gets filled in from the click event calls, so that's a way of knowing
+		return
+	if(M.client.target_can_move)
+		if(!M.client.target_can_run && !user.locked_to && user.m_intent != "run") // if the user is relaymoving i'm pretty sure that's NOT walking
+			return
+		else if(!target)
+			return
+	if(canbe_fired())
+		var/firing_check = can_hit(user,M) //0 if it cannot hit them, 1 if it is capable of hitting, and 2 if a special check is preventing it from firing.
 		if(firing_check > 0)
 			if(firing_check == 1)
-				Fire(T,usr, reflex = 1)
+				Fire(user,M, reflex = 1)
 		else if(!told_cant_shoot)
 			to_chat(M, "<span class='warning'>They can't be hit from here!</span>")
 			told_cant_shoot = 1
@@ -99,16 +113,12 @@
 	else
 		click_empty(M)
 
-	usr.dir = get_cardinal_dir(src, T)
+	M.dir = get_cardinal_dir(src, user)
 
 	if (!firerate) // If firerate is set to lower aim after one shot, untarget the target
-		T.NotTargeted(src)
+		user.NotTargeted(src)
 
-//Yay, math!
-
-#define SIGN(X) ((X<0)?-1:1)
-
-proc/GunTrace(X1,Y1,X2,Y2,Z=1,exc_obj,PX1=16,PY1=16,PX2=16,PY2=16)
+/proc/GunTrace(X1,Y1,X2,Y2,Z=1,exc_obj,PX1=16,PY1=16,PX2=16,PY2=16)
 //	to_chat(bluh, "Tracin' [X1],[Y1] to [X2],[Y2] on floor [Z].")
 	var/turf/T
 	var/mob/living/M
@@ -130,11 +140,10 @@ proc/GunTrace(X1,Y1,X2,Y2,Z=1,exc_obj,PX1=16,PY1=16,PX2=16,PY2=16)
 					return M
 				Y1+=s
 	else
-		var
-			m=(WORLD_ICON_SIZE*(Y2-Y1)+(PY2-PY1))/(WORLD_ICON_SIZE*(X2-X1)+(PX2-PX1))
-			b=(Y1+PY1/WORLD_ICON_SIZE-0.015625)-m*(X1+PX1/WORLD_ICON_SIZE-0.015625) //In tiles
-			signX = SIGN(X2-X1)
-			signY = SIGN(Y2-Y1)
+		var/m=(WORLD_ICON_SIZE*(Y2-Y1)+(PY2-PY1))/(WORLD_ICON_SIZE*(X2-X1)+(PX2-PX1))
+		var/b=(Y1+PY1/WORLD_ICON_SIZE-0.015625)-m*(X1+PX1/WORLD_ICON_SIZE-0.015625) //In tiles
+		var/signX = SIGN(X2-X1)
+		var/signY = SIGN(Y2-Y1)
 		if(X1<X2)
 			b+=m
 		while(1)
@@ -156,14 +165,11 @@ proc/GunTrace(X1,Y1,X2,Y2,Z=1,exc_obj,PX1=16,PY1=16,PX2=16,PY2=16)
 
 
 //Targeting management procs
-mob/var
-	list/targeted_by
-	target_time = -100
-	last_move_intent = -100
-	last_target_click = -5
-	target_locked = null
+/mob
+	var/list/targeted_by
+	var/target_locked = null
 
-mob/living/proc/Targeted(var/obj/item/weapon/gun/I) //Self explanitory.
+/mob/living/proc/Targeted(var/obj/item/weapon/gun/I) //Self explanitory.
 	if(!I.target)
 		I.target = list(src)
 	else if(I.automatic && I.target.len < 5) //Automatic weapon, they can hold down a room.
@@ -181,10 +187,6 @@ mob/living/proc/Targeted(var/obj/item/weapon/gun/I) //Self explanitory.
 		targeted_by = list()
 	targeted_by += I
 	I.lock_time = world.time + 20 //Target has 2 second to realize they're targeted and stop (or target the opponent).
-	to_chat(src, "((<span class='danger'>Your character is being targeted. They have 2 seconds to stop any click or move actions. </span>While targeted, they may \
-	drag and drop items in or into the map, speak, and click on interface buttons. Clicking on the map objects (floors and walls are fine), their items \
-	 (other than a weapon to de-target), or moving will result in being fired upon. <span class='warning'>The aggressor may also fire manually, </span>\
-	 so try not to get on their bad side.\black ))")
 
 	if(targeted_by.len == 1)
 		spawn(0)
@@ -204,34 +206,37 @@ mob/living/proc/Targeted(var/obj/item/weapon/gun/I) //Self explanitory.
 		else
 			I.lower_aim()
 			return
-		if(m_intent == "run" && T.client.target_can_move == 1 && T.client.target_can_run == 0 && (ishuman(T)))
-			to_chat(src, "<spanclass='warning'>Your captive is allowing you to walk. Make sure to change your move intent to walk before trying to move, or you will be fired upon.</span>")//Self explanitory.
-
+		var/msg = ""
+		if(!T.client.target_can_click)
+			msg += "While targeted, they may drag and drop items in or into the map, speak, and click on interface buttons. \
+					Clicking on the map objects (floors and walls are fine), their items (other than a weapon to de-target) will result in being fired upon.\n"
+		if(!T.client.target_can_move)
+			msg += "Moving will result in being fired upon.\n"
+		else if(m_intent == "run" && !T.client.target_can_run && (ishuman(T))) //Self explanitory.
+			msg += "<span class='warning'>Your captive is allowing you to walk. \
+					Make sure to change your move intent to walk before trying to move, or you will be fired upon.</span>\n"
+		to_chat(src, "<span class='danger'>Your character is being targeted. They have 2 seconds to stop any of the following actions: </span>\n \
+						[msg]\n \
+						<span class='warning'>The aggressor may also fire manually, so try not to get on their bad side.</span>")
+		
 			//set_m_intent("walk") -there's a real fucked up exploit behind this, so it's been removed. Needs testing. -Angelite-
+		
+		if(!T.client.target_can_move || !T.client.target_can_run)
+			register_event(/event/moved, I, nameof(I::TargetMoved()))
+			register_event(/event/relaymoved, I, nameof(I::TargetMoved()))
+		if(!T.client.target_can_click)
+			register_event(/event/clickon, I, nameof(I::TargetActed()))
+		register_event(/event/logout, T, nameof(src::TargeterLogout()))
 
-		//Processing the aiming. Should be probably in separate object with process() but lasy.
-		while(targeted_by && T.client)
-			if((last_move_intent > I.lock_time + 10) && !T.client.target_can_move) //If target moved when not allowed to
-				I.TargetActed(src)
-				if(I.last_moved_mob == src) //If they were the last ones to move, give them more of a grace period, so that an automatic weapon can hold down a room better.
-					I.lock_time = world.time + 5
-				I.lock_time = world.time + 5
-				I.last_moved_mob = src
-			else if((last_move_intent > I.lock_time + 10) && !T.client.target_can_run && m_intent == "run") //If the target ran while targeted
-				I.TargetActed(src)
-				if(I.last_moved_mob == src) //If they were the last ones to move, give them more of a grace period, so that an automatic weapon can hold down a room better.
-					I.lock_time = world.time + 5
-				I.lock_time = world.time + 5
-				I.last_moved_mob = src
-			if((last_target_click > I.lock_time + 10) && !T.client.target_can_click) //If the target clicked the map to pick something up/shoot/etc
-				I.TargetActed(src)
-				if(I.last_moved_mob == src) //If they were the last ones to move, give them more of a grace period, so that an automatic weapon can hold down a room better.
-					I.lock_time = world.time + 5
-				I.lock_time = world.time + 5
-				I.last_moved_mob = src
-			sleep(1)
+/mob/living/proc/TargeterLogout(mob/living/user)
+	for(var/obj/item/weapon/gun/G in user)
+		NotTargeted(G)
+	unregister_event(/event/logout, user, nameof(src::TargeterLogout()))
 
-mob/living/proc/NotTargeted(var/obj/item/weapon/gun/I)
+/mob/living/proc/NotTargeted(var/obj/item/weapon/gun/I)
+	unregister_event(/event/moved, I, nameof(I::TargetMoved()))
+	unregister_event(/event/relaymoved, I, nameof(I::TargetMoved()))
+	unregister_event(/event/clickon, I, nameof(I::TargetActed()))
 	if(!I.silenced)
 		for(var/mob/living/M in viewers(src))
 			M << 'sound/weapons/TargetOff.ogg'
@@ -248,26 +253,26 @@ mob/living/proc/NotTargeted(var/obj/item/weapon/gun/I)
 	spawn(1) update_targeted()
 
 //If you move out of range, it isn't going to still stay locked on you any more.
-client/var
-	target_can_move = 0
-	target_can_run = 0
-	target_can_click = 0
-	gun_mode = 0
+/client
+	var/target_can_move = 0
+	var/target_can_run = 0
+	var/target_can_click = 0
+	var/gun_mode = 0
 
 //These are called by the on-screen buttons, adjusting what the victim can and cannot do.
-client/proc/add_gun_icons()
+/client/proc/add_gun_icons()
 	if (!usr.item_use_icon)
-		usr.item_use_icon = getFromPool(/obj/abstract/screen/gun/item)
+		usr.item_use_icon = new /obj/abstract/screen/gun/item
 		usr.item_use_icon.icon_state = "no_item[target_can_click]"
 		usr.item_use_icon.name = "[target_can_click ? "Disallow" : "Allow"] Item Use"
 
 	if (!usr.gun_move_icon)
-		usr.gun_move_icon = getFromPool(/obj/abstract/screen/gun/move)
+		usr.gun_move_icon = new /obj/abstract/screen/gun/move
 		usr.gun_move_icon.icon_state = "no_walk[target_can_move]"
 		usr.gun_move_icon.name = "[target_can_move ? "Disallow" : "Allow"] Walking"
 
 	if (target_can_move && !usr.gun_run_icon)
-		usr.gun_run_icon = getFromPool(/obj/abstract/screen/gun/run)
+		usr.gun_run_icon = new /obj/abstract/screen/gun/run
 		usr.gun_run_icon.icon_state = "no_run[target_can_run]"
 		usr.gun_run_icon.name = "[target_can_run ? "Disallow" : "Allow"] Running"
 
@@ -276,23 +281,23 @@ client/proc/add_gun_icons()
 	if (target_can_move)
 		screen += usr.gun_run_icon
 
-client/proc/remove_gun_icons()
+/client/proc/remove_gun_icons()
 	if(!usr)
 		return
 	if(usr.gun_move_icon)
-		returnToPool(usr.gun_move_icon)
+		qdel(usr.gun_move_icon)
 		screen -= usr.gun_move_icon
 		usr.gun_move_icon = null
 	if(usr.item_use_icon)
-		returnToPool(usr.item_use_icon)
+		qdel(usr.item_use_icon)
 		screen -= usr.item_use_icon
 		usr.item_use_icon = null
 	if(usr.gun_run_icon)
-		returnToPool(usr.gun_run_icon)
+		qdel(usr.gun_run_icon)
 		screen -= usr.gun_run_icon
 		usr.gun_run_icon = null
 
-client/verb/ToggleGunMode()
+/client/verb/ToggleGunMode()
 	set hidden = 1
 	gun_mode = !gun_mode
 	if(gun_mode)
@@ -307,20 +312,19 @@ client/verb/ToggleGunMode()
 		usr.gun_setting_icon.icon_state = "gun[gun_mode]"
 
 
-client/verb/AllowTargetMove()
+/client/verb/AllowTargetMove()
 	set hidden=1
 
 	//Changing client's permissions
 	target_can_move = !target_can_move
 	if(target_can_move)
 		to_chat(usr, "Target may now walk.")
-		usr.gun_run_icon = getFromPool(/obj/abstract/screen/gun/run)	//adding icon for running permission
+		usr.gun_run_icon = new /obj/abstract/screen/gun/run
 		screen += usr.gun_run_icon
 	else
 		to_chat(usr, "Target may no longer move.")
 		target_can_run = 0
-		qdel(usr.gun_run_icon)	//no need for icon for running permission
-		usr.gun_run_icon = null
+		QDEL_NULL(usr.gun_run_icon)	//no need for icon for running permission
 
 	//Updating walking permission button
 	if(usr.gun_move_icon)
@@ -340,7 +344,7 @@ client/verb/AllowTargetMove()
 				else
 					to_chat(M, "<span class='danger'>Your character will now be shot if they move.</span>")
 
-mob/living/proc/set_m_intent(var/intent)
+/mob/living/proc/set_m_intent(var/intent)
 	if (intent != "walk" && intent != "run")
 		return 0
 	m_intent = intent
@@ -348,7 +352,7 @@ mob/living/proc/set_m_intent(var/intent)
 		if (hud_used.move_intent)
 			hud_used.move_intent.icon_state = intent == "walk" ? "walking" : "running"
 
-client/verb/AllowTargetRun()
+/client/verb/AllowTargetRun()
 	set hidden=1
 
 	//Changing client's permissions
@@ -364,7 +368,7 @@ client/verb/AllowTargetRun()
 		usr.gun_run_icon.name = "[target_can_run ? "Disallow" : "Allow"] Running"
 
 	//Handling change for all the guns on client
-	for(var/obj/item/weapon/gun/G in src)
+	for(var/obj/item/weapon/gun/G in usr)
 		G.lock_time = world.time + 5
 		if(G.target)
 			for(var/mob/living/M in G.target)
@@ -373,7 +377,7 @@ client/verb/AllowTargetRun()
 				else
 					to_chat(M, "<span class='danger'>Your character will now be shot if they run.</span>")
 
-client/verb/AllowTargetClick()
+/client/verb/AllowTargetClick()
 	set hidden=1
 
 	//Changing client's permissions
@@ -388,7 +392,7 @@ client/verb/AllowTargetClick()
 		usr.item_use_icon.name = "[target_can_click ? "Disallow" : "Allow"] Item Use"
 
 	//Handling change for all the guns on client
-	for(var/obj/item/weapon/gun/G in src)
+	for(var/obj/item/weapon/gun/G in usr)
 		G.lock_time = world.time + 5
 		if(G.target)
 			for(var/mob/living/M in G.target)

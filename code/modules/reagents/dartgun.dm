@@ -67,11 +67,8 @@
 /obj/item/weapon/gun/dartgun/examine(mob/user)
 	..()
 	if (beakers.len)
-		to_chat(user, "<span class='info'>[src] contains:</span>")
 		for(var/obj/item/weapon/reagent_containers/glass/beaker/B in beakers)
-			if(B.reagents && B.reagents.reagent_list.len)
-				for(var/datum/reagent/R in B.reagents.reagent_list)
-					to_chat(user, "<span class='info'>[R.volume] units of [R.name]</span>")
+			B.reagents.get_examine(user)
 
 /obj/item/weapon/gun/dartgun/attackby(obj/item/I as obj, mob/user as mob)
 	if(istype(I, /obj/item/weapon/dart_cartridge))
@@ -110,14 +107,14 @@
 			to_chat(user, "<span class='notice'>You slot [B] into [src].</span>")
 			src.updateUsrDialog()
 
-/obj/item/weapon/gun/dartgun/can_fire()
+/obj/item/weapon/gun/dartgun/canbe_fired()
 	if(!cartridge)
 		return 0
 	else
 		return cartridge.darts
 
 /obj/item/weapon/gun/dartgun/can_discharge()
-	return can_fire()
+	return canbe_fired()
 
 /obj/item/weapon/gun/dartgun/proc/has_selected_beaker_reagents()
 	return 0
@@ -147,7 +144,7 @@
 	return dart
 
 /obj/item/weapon/gun/dartgun/process_chambered()
-	if(can_fire())
+	if(canbe_fired())
 		if(!in_chamber)
 			var/obj/item/weapon/reagent_containers/syringe/S = get_mixed_syringe()
 			if(!S)
@@ -163,27 +160,13 @@
 			update_icon()
 		return 1
 
-/obj/item/weapon/gun/dartgun/afterattack(atom/target as mob|obj|turf|area, mob/user , flag)
+/obj/item/weapon/gun/dartgun/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	if(target == user)
 		return
 	..()
 
 /obj/item/weapon/gun/dartgun/can_hit(var/mob/living/target as mob, var/mob/living/user as mob)
 	return 1
-
-/obj/item/weapon/gun/dartgun/updateUsrDialog()
-	if(in_use)
-		var/is_in_use = 0
-		if ((usr.client && usr.machine == src && src.loc == usr))
-			is_in_use = 1
-			src.attack_self(usr)
-		if (isMoMMI(usr))
-			if ((usr.client && usr.machine == src && src.loc == usr)) // && M.machine == src is omitted because if we triggered this by using the dialog, it doesn't matter if our machine changed in between triggering it and this - the dialog is probably still supposed to refresh.
-				is_in_use = 1
-				src.attack_self(usr)
-
-		// check for TK users
-		in_use = is_in_use
 
 /obj/item/weapon/gun/dartgun/attack_self(mob/user)
 	user.set_machine(src)
@@ -215,7 +198,7 @@
 			dat += "<font color='red'>The dart cartridge is empty!</font>"
 		dat += " \[<A href='?src=\ref[src];eject_cart=1'>Eject</A>\]"
 
-	user << browse(dat, "window=dartgun")
+	user << browse(HTML_SKELETON(dat), "window=dartgun")
 	onclose(user, "dartgun", src)
 
 /obj/item/weapon/gun/dartgun/proc/check_beaker_mixing(var/obj/item/B)
@@ -257,7 +240,7 @@
 	src.updateUsrDialog()
 	return
 
-/obj/item/weapon/gun/dartgun/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0)
+/obj/item/weapon/gun/dartgun/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	if(cartridge)
 		..()
 	else

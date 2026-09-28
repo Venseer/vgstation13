@@ -5,45 +5,16 @@
  *		Carpet
  */
 
-/obj/item/stack/tile
-	var/material
-	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/sheets_n_ores.dmi', "right_hand" = 'icons/mob/in-hand/right/sheets_n_ores.dmi')
-
-/obj/item/stack/tile/proc/adjust_slowdown(mob/living/L, current_slowdown)
-	return current_slowdown
-
-/obj/item/stack/tile/ex_act(severity)
-	switch(severity)
-		if(1.0)
-			returnToPool(src)
-			return
-		if(2.0)
-			if (prob(50))
-				returnToPool(src)
-				return
-		if(3.0)
-			if (prob(5))
-				returnToPool(src)
-				return
-		else
-	return
-
-/obj/item/stack/tile/blob_act()
-	returnToPool(src)
-
-/obj/item/stack/tile/singularity_act()
-	returnToPool(src)
-	return 2
-
 /*
  * Grass
  */
 /obj/item/stack/tile/grass
 	name = "grass tile"
 	singular_name = "grass floor tile"
-	desc = "A patch of grass like they often use on golf courses"
+	desc = "A patch of grass, like they often use on golf courses."
 	icon_state = "tile_grass"
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_BIOLOGICAL
 	force = 1.0
 	throwforce = 1.0
 	throw_speed = 5
@@ -52,8 +23,9 @@
 	siemens_coefficient = 0 //no conduct
 	max_amount = 60
 	origin_tech = Tc_BIOTECH + "=1"
-
+	flammable = TRUE
 	material = "grass"
+
 
 /*
  * Wood
@@ -61,9 +33,11 @@
 /obj/item/stack/tile/wood
 	name = "wooden floor tile"
 	singular_name = "wooden floor tile"
-	desc = "an easy to fit wooden floor tile"
+	desc = "An easy to fit wooden floor tile."
 	icon_state = "tile-wood"
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	force = 1.0
 	throwforce = 1.0
 	throw_speed = 5
@@ -74,11 +48,14 @@
 	sheet_type = /obj/item/stack/sheet/wood
 	material = "wood"
 
-/obj/item/stack/tile/wood/proc/build(turf/S as turf)
-	if(istype(S,/turf/unsimulated/floor/asteroid))
-		S.ChangeTurf(/turf/simulated/floor/plating/deck/airless)
-	else
-		S.ChangeTurf(/turf/simulated/floor/plating/deck)
+/obj/item/stack/tile/wood/build(turf/S as turf)
+	if(S.air)
+		var/datum/gas_mixture/GM = S.air
+		if(GM.pressure > HALF_ATM)
+			S.ChangeTurf(/turf/simulated/floor/plating/deck)
+			return
+	S.ChangeTurf(/turf/simulated/floor/plating/deck/airless)
+
 
 /obj/item/stack/tile/wood/afterattack(atom/target, mob/user, adjacent, params)
 	if(adjacent)
@@ -99,9 +76,9 @@
 					qdel(L)
 
 /obj/item/stack/tile/wood/attackby(var/obj/item/weapon/W, var/mob/user)
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		if(use(4))
-			playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+			W.playtoolsound(user, 50)
 			drop_stack(sheet_type, get_turf(user), 1, user)
 		else
 			to_chat(user, "<span class='warning'>You need at least 4 [src]\s to get a wooden plank back!</span>")
@@ -115,9 +92,11 @@
 /obj/item/stack/tile/carpet
 	name = "length of carpet"
 	singular_name = "length of carpet"
-	desc = "A piece of carpet. It is the same size as a floor tile"
+	desc = "A piece of carpet. It is the same size as a floor tile."
 	icon_state = "tile-carpet"
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_FABRIC
+	flammable = TRUE
 	force = 1.0
 	throwforce = 1.0
 	throw_speed = 5
@@ -127,6 +106,12 @@
 	max_amount = 60
 
 	material = "fabric"
+
+/obj/item/stack/tile/carpet/shag
+	name = "length of shag carpet"
+	singular_name = "length of shag carpet"
+	desc = "A shaggy piece of carpet."
+	icon_state = "tile-shag"
 
 /obj/item/stack/tile/arcade
 	name = "length of arcade carpet"
@@ -134,6 +119,8 @@
 	desc = "A piece of arcade carpet. It has a snazzy space theme."
 	icon_state = "tile-arcade"
 	w_class = W_CLASS_MEDIUM
+	w_class = RECYK_FABRIC
+	flammable = TRUE
 	force = 1.0
 	throwforce = 1.0
 	throw_speed = 5
@@ -141,14 +128,15 @@
 	flags = FPRINT
 	siemens_coefficient = 0 //no conduct
 	max_amount = 60
-
 	material = "fabric"
 
-obj/item/stack/tile/slime
+/obj/item/stack/tile/slime
 	name = "tile of slime"
-	desc = "A flat piece of slime made through xenobiology"
+	desc = "A flat piece of slime made through xenobiology."
 	icon_state = "tile-slime"
 	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_BIOLOGICAL
+	flammable = TRUE
 	force = 1
 	throwforce = 1.0
 	throw_speed = 5
@@ -157,7 +145,33 @@ obj/item/stack/tile/slime
 	siemens_coefficient = 1
 	max_amount = 60
 
+
 /obj/item/stack/tile/slime/adjust_slowdown(mob/living/L, current_slowdown)
 	if(isslimeperson(L) || isslime(L))
-		return -1
-	return current_slowdown+5
+		current_slowdown *= 5
+	else
+		current_slowdown *= 0.01
+	..()
+
+/obj/item/stack/tile/plated_catwalk
+	name = "plated catwalk frame"
+	singular_name = "plated catwalk frame"
+	desc = "A frame for a plated catwalk. Add rods after installing."
+	icon_state = "ptile"
+	force = 1.0
+	throwforce = 5
+	throw_speed = 5
+	throw_range = 10
+	material = "metal"
+	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_METAL
+	flags = FPRINT
+	siemens_coefficient = 0
+	max_amount = 60
+	var/catwalk_suffix = ""
+
+/obj/item/stack/tile/plated_catwalk/dark
+	name = "black plated catwalk frame"
+	singular_name = "black plated catwalk frame"
+	desc = "A frame for a black plated catwalk. Add rods after installing."
+	catwalk_suffix = "d"

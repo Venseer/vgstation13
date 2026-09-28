@@ -4,6 +4,7 @@
 	icon_state = "monkeycube"
 	bitesize = 12
 	food_flags = FOOD_MEAT
+	valid_utensils = 0
 	var/contained_mob = /mob/living/carbon/monkey
 
 /obj/item/weapon/reagent_containers/food/snacks/monkeycube/New()
@@ -12,14 +13,13 @@
 
 /obj/item/weapon/reagent_containers/food/snacks/monkeycube/Destroy()
 	if(contained_mob && isdatum(contained_mob))
-		qdel(contained_mob)
-		contained_mob = null
+		QDEL_NULL(contained_mob)
 	..()
 
 /obj/item/weapon/reagent_containers/food/snacks/monkeycube/afterattack(obj/O, mob/user,proximity)
 	if(!proximity)
 		return
-	if(istype(O,/obj/structure/sink) && !wrapped)
+	if(istype(O,/obj/structure/wc/sink) && !wrapped)
 		to_chat(user, "<span class='notice'>You place [src] under a stream of water...</span>")
 		return Expand()
 	..()
@@ -30,6 +30,7 @@
 
 /obj/item/weapon/reagent_containers/food/snacks/monkeycube/after_consume(var/mob/M)
 
+	log_attack("[M]([M.ckey]) ate [src], last touched by [fingerprintslast]")
 	if(!contained_mob)
 		return
 	if(ispath(contained_mob))
@@ -77,11 +78,16 @@
 		to_chat(M, "<span class='warning'>\The [src] expands!</span>")
 	if(!contained_mob)
 		return
+	var/mob/C
 	if(ispath(contained_mob))
-		new contained_mob(get_turf(src))
+		C = new contained_mob(get_turf(src))
 	else if(ismob(contained_mob))
-		var/mob/C = contained_mob
+		C = contained_mob
 		C.forceMove(get_turf(src))
+	if(istype(C,/mob/living/simple_animal/hostile))
+		var/mob/opener = get_mob_by_key(fingerprintslast)
+		log_admin("[key_name(fingerprintslast)] just opened \a [src] containing \a [initial(C.name)] at [src.x],[src.y],[src.z]")
+		message_admins("<span class='danger'>[key_name(fingerprintslast)] just opened \a [src] containing \a [initial(C.name)] at [src.x],[src.y],[src.z][opener ? " [formatJumpTo(opener,"(JMP)")]" : ""]</span>")
 	contained_mob = null
 	qdel(src)
 
@@ -123,7 +129,34 @@
 	name = "neaera cube"
 	contained_mob = /mob/living/carbon/monkey/skrell
 
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/wrapped/isopodcube
+	name = "isopod cube"
+	contained_mob = /mob/living/carbon/monkey/roach
+
 /obj/item/weapon/reagent_containers/food/snacks/monkeycube/humancube
 	name = "humanoid cube"
 	desc = "Freshly compressed. Add water to release the creature within."
 	contained_mob = null
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/mousecube
+	name = "lab mouse cube"
+	contained_mob = /mob/living/simple_animal/mouse/balbc
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/wrapped/mousecube
+	name = "lab mouse cube"
+	contained_mob = /mob/living/simple_animal/mouse/balbc
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/wrapped/spacecarpcube
+	name = "space carp cube"
+	contained_mob = /mob/living/simple_animal/hostile/carp/baby
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/cowcube
+	name = "cow cube"
+	contained_mob = /mob/living/simple_animal/cow
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/chococowcube
+	name = "chocolate cow cube"
+	contained_mob = /mob/living/simple_animal/cow/chocolate
+
+/obj/item/weapon/reagent_containers/food/snacks/monkeycube/cowcube/on_vending_machine_spawn()
+	reagents.chem_temp = FRIDGETEMP_FROZEN

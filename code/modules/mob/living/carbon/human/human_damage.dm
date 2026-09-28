@@ -10,14 +10,15 @@
 		if(O.is_organic() && O.is_existing())
 			total_brute	+= O.brute_dam
 			total_burn	+= O.burn_dam
+	var/prevhealth = health
 	health = maxHealth - getOxyLoss() - getToxLoss() - getCloneLoss() - total_burn - total_brute
-
+	critlog(health,prevhealth)
 	if((maxHealth - total_burn) < config.health_threshold_dead)
 		death(FALSE)
 		ChangeToHusk()
 	return
 
-/mob/living/carbon/human/getBrainLoss()
+/mob/living/carbon/human/getBrainLoss(var/type)
 	var/res = brainloss
 	if(species && species.has_organ["brain"])
 		var/datum/organ/internal/brain/sponge = internal_organs_by_name["brain"]
@@ -29,9 +30,22 @@
 			if (sponge.is_broken())
 				res += 50
 
+		if(type && (type in sponge.specific_damages))
+			res += sponge.specific_damages[type]
 		res = min(res,maxHealth*2)
 		return res
 	return 0
+
+/mob/living/carbon/human/proc/format_brain_issues()
+	var/datum/organ/internal/brain/B = internal_organs_by_name["brain"]
+	if(B)
+		var/list/issues = list()
+		for(var/damage in B.specific_damages)
+			if(B.specific_damages[damage] > 0)
+				issues += get_key_by_element(partstobraindamagetype,damage)
+		if(issues.len)
+			return "Brain cut on [english_list(issues)]"
+	return ""
 
 //These procs fetch a cumulative total damage from all organs
 /mob/living/carbon/human/getBruteLoss(var/ignore_inorganic = FALSE)
@@ -55,7 +69,7 @@
 
 	amount = amount * brute_damage_modifier
 
-	if(INVOKE_EVENT(on_damaged, list("type" = BRUTE, "amount" = amount)))
+	if(INVOKE_EVENT(src, /event/damaged, "kind" = BRUTE, "amount" = amount))
 		return 0
 
 	if(amount > 0)
@@ -67,11 +81,14 @@
 /mob/living/carbon/human/adjustFireLoss(var/amount)
 	amount = amount * burn_damage_modifier
 
-	if(INVOKE_EVENT(on_damaged, list("type" = BURN, "amount" = amount)))
+	if(INVOKE_EVENT(src, /event/damaged, "kind" = BURN, "amount" = amount))
 		return 0
 
 	if(amount > 0)
 		take_overall_damage(0, amount)
+		if(config.burn_damage_ash && amount >= config.burn_damage_ash)
+			dust(TRUE)
+			return
 	else
 		heal_overall_damage(0, -amount)
 	hud_updateflag |= 1 << HEALTH_HUD
@@ -79,7 +96,7 @@
 /mob/living/carbon/human/proc/adjustBruteLossByPart(var/amount, var/organ_name, var/obj/damage_source = null)
 	amount = amount * brute_damage_modifier
 
-	if(INVOKE_EVENT(on_damaged, list("type" = BRUTE, "amount" = amount)))
+	if(INVOKE_EVENT(src, /event/damaged, "kind" = BRUTE, "amount" = amount))
 		return 0
 
 	if (organ_name in organs_by_name)
@@ -96,7 +113,7 @@
 /mob/living/carbon/human/proc/adjustFireLossByPart(var/amount, var/organ_name, var/obj/damage_source = null)
 	amount = amount * burn_damage_modifier
 
-	if(INVOKE_EVENT(on_damaged, list("type" = BURN, "amount" = amount)))
+	if(INVOKE_EVENT(src, /event/damaged, "kind" = BURN, "amount" = amount))
 		return 0
 
 	if (organ_name in organs_by_name)
@@ -118,12 +135,21 @@
 /mob/living/carbon/human/Knockdown(amount)
 	if(M_HULK in mutations)
 		return
+	handle_spaghetti(100)
 	..()
 
 /mob/living/carbon/human/Paralyse(amount)
 	if(M_HULK in mutations)
 		return
 	..()
+
+// the following heals the compartmentalised stuff in surgery
+/*/mob/living/carbon/human/adjustBrainLoss(var/amount)
+	if(..() && amount < 0 && species && species.has_organ["brain"])
+		var/datum/organ/internal/brain/sponge = internal_organs_by_name["brain"]
+		if(sponge)
+			for(var/damage in sponge.specific_damages)
+				sponge.specific_damages[damage] = max(sponge.specific_damages[damage] + (amount * brain_damage_modifier), 0)*/
 
 /mob/living/carbon/human/adjustCloneLoss(var/amount)
 	..()
@@ -132,7 +158,7 @@
 	if(isslimeperson(src))
 		amount = 0
 
-	if(INVOKE_EVENT(on_damaged, list("type" = CLONE, "amount" = amount)))
+	if(INVOKE_EVENT(src, /event/damaged, "kind" = CLONE, "amount" = amount))
 		return 0
 
 	var/heal_prob = max(0, 80 - getCloneLoss())
@@ -141,7 +167,7 @@
 		if (prob(mut_prob))
 			var/list/datum/organ/external/candidates = list()
 			for (var/datum/organ/external/O in organs)
-				if(!(O.status & ORGAN_MUTATED))
+				if(O.is_organic() && O.is_usable())
 					candidates |= O
 			if (candidates.len)
 				var/datum/organ/external/O = pick(candidates)
@@ -151,14 +177,14 @@
 	else
 		if (prob(heal_prob))
 			for (var/datum/organ/external/O in organs)
-				if (O.status & ORGAN_MUTATED)
+				if (O.is_existing() && O.status & ORGAN_MUTATED)
 					O.unmutate()
 					to_chat(src, "<span class = 'notice'>Your [O.display_name] is shaped normally again.</span>")
 					return
 
 	if (getCloneLoss() < 1)
 		for (var/datum/organ/external/O in organs)
-			if (O.status & ORGAN_MUTATED)
+			if (O.is_existing() && O.status & ORGAN_MUTATED)
 				O.unmutate()
 				to_chat(src, "<span class = 'notice'>Your [O.display_name] is shaped normally again.</span>")
 	hud_updateflag |= 1 << HEALTH_HUD
@@ -166,10 +192,10 @@
 ////////////////////////////////////////////
 
 //Returns a list of damaged organs
-/mob/living/carbon/human/proc/get_damaged_organs(var/brute, var/burn)
+/mob/living/carbon/human/proc/get_damaged_organs(var/brute, var/burn, var/ignore_inorganic = FALSE)
 	var/list/datum/organ/external/parts = list()
 	for(var/datum/organ/external/O in organs)
-		if((brute && O.brute_dam) || (burn && O.burn_dam))
+		if(((brute && O.brute_dam) || (burn && O.burn_dam)) && !(ignore_inorganic && !O.is_organic()))
 			parts += O
 	return parts
 
@@ -189,7 +215,7 @@
 //It automatically updates damage overlays if necesary
 //It automatically updates health status
 /mob/living/carbon/human/heal_organ_damage(var/brute, var/burn)
-	var/list/datum/organ/external/parts = get_damaged_organs(brute,burn)
+	var/list/datum/organ/external/parts = get_damaged_organs(brute,burn,TRUE)
 	if(!parts.len)
 		return
 	var/datum/organ/external/picked = pick(parts)
@@ -219,8 +245,11 @@ In most cases it makes more sense to use apply_damage() instead! And make sure t
 
 //Heal MANY external organs, in random order
 /mob/living/carbon/human/heal_overall_damage(var/brute, var/burn)
-	var/list/datum/organ/external/parts = get_damaged_organs(brute,burn)
-
+	var/list/datum/organ/external/parts = get_damaged_organs(brute,burn,TRUE)
+	var/datum/organ/internal/heart/hivelord/H = get_heart()
+	if(istype(H)) // hivelord hearts just heal better
+		brute *= 2
+		burn *= 2
 	var/update = 0
 	while(parts.len && (brute>0 || burn>0) )
 		var/datum/organ/external/picked = pick(parts)
@@ -241,12 +270,7 @@ In most cases it makes more sense to use apply_damage() instead! And make sure t
 		UpdateDamageIcon()
 
 // damage MANY external organs, in random order
-/mob/living/carbon/human/take_overall_damage(var/brute, var/burn, var/sharp = 0, var/edge = 0, var/used_weapon = null)
-	if(species && species.burn_mod)
-		burn = burn*species.burn_mod
-	if(species && species.brute_mod)
-		brute = brute*species.brute_mod
-
+/mob/living/carbon/human/take_overall_damage(var/brute, var/burn, var/sharp = 0, var/edge = 0, var/used_weapon = null, var/no_damage_change = FALSE)
 	if(status_flags & GODMODE)
 		return 0	//godmode
 
@@ -259,11 +283,25 @@ In most cases it makes more sense to use apply_damage() instead! And make sure t
 
 		var/brute_was = picked.brute_dam
 		var/burn_was = picked.burn_dam
-
-		update |= picked.take_damage(brute,burn,sharp,edge,used_weapon)
-		brute	-= (picked.brute_dam - brute_was)
-		burn	-= (picked.burn_dam - burn_was)
-
+		var/damage_cap = picked.max_damage - picked.get_health() //the limb cannot take more than this much damage
+		//Multiplied damage is already handled at the limb level
+		update |= picked.take_damage(brute,burn,sharp,edge,used_weapon, no_damage_modifier = no_damage_change, spread_damage = FALSE)
+		if(!picked.is_existing())
+			//the organ got cut off or removed! the organ takes no damage in these cases for some reason...
+			//So we'll rule in favor of the damage taker and assume the organ took the most it can accept from both
+			brute	-= damage_cap
+			burn	-= damage_cap
+		else if(picked.max_damage - picked.get_health() > 0)
+			//since the damage cannot spread: if we did not max out the limb's damage, then we're done!
+			break
+		else
+			//The organ has taken the maximum damage it's allowed, we will have leftover damage
+			brute	-= (picked.brute_dam - brute_was)
+			burn	-= (picked.burn_dam - burn_was)
+		if(brute < 0)
+			brute = 0
+		if(burn < 0)
+			burn = 0
 		parts -= picked
 	updatehealth()
 	hud_updateflag |= 1 << HEALTH_HUD
@@ -276,7 +314,7 @@ In most cases it makes more sense to use apply_damage() instead! And make sure t
 This function restores the subjects blood to max.
 */
 /mob/living/carbon/human/proc/restore_blood()
-	if(!species.anatomy_flags & NO_BLOOD)
+	if(!(species.anatomy_flags & NO_BLOOD))
 		var/blood_volume = vessel.get_reagent_amount(BLOOD)
 		vessel.add_reagent(BLOOD,560.0-blood_volume)
 
@@ -299,13 +337,20 @@ This function restores all organs.
 	return
 
 
-/mob/living/carbon/human/get_organ(var/zone)
+/mob/living/carbon/human/get_organ(var/zone, cosmetic = FALSE)
+	RETURN_TYPE(/datum/organ/external)
 	if(!zone)
 		zone = LIMB_CHEST
 	if (zone in list( "eyes", "mouth" ))
 		zone = LIMB_HEAD
-	return organs_by_name[zone]
+	var/list/organ_list = organs_by_name.Copy()
+	if(cosmetic)
+		organ_list |= cosmetic_organs_by_name
+	return organ_list[zone]
 
+/mob/living/carbon/human/proc/get_cosmetic_organ(zone)
+	RETURN_TYPE(/datum/organ/external)
+	return cosmetic_organs_by_name[zone]
 
 //Picks a random usable organ from the organs passed to the arguments
 //You can feed organ references, or organ strings into this obj
@@ -353,8 +398,7 @@ This function restores all organs.
 	//visible_message("Hit debug. [damage] | [damagetype] | [def_zone] | [blocked] | [sharp] | [used_weapon]")
 	if((damagetype != BRUTE) && (damagetype != BURN))
 		return ..(damage, damagetype, def_zone, blocked, ignore_events = ignore_events)
-
-	if(blocked >= 2)
+	if(blocked >= 100)
 		return 0
 
 	var/datum/organ/external/organ = null
@@ -368,21 +412,25 @@ This function restores all organs.
 		return 0
 
 	if(blocked)
-		damage = (damage/(blocked+1))
+		damage = (damage/100)*(100-blocked)
 
-	if(!ignore_events && INVOKE_EVENT(on_damaged, list("type" = damagetype, "amount" = damage)))
-		return 0
+	if(!ignore_events && INVOKE_EVENT(src, /event/damaged, "kind" = damagetype, "amount" = damage))
+		return 0 //This event code is also in the mob/living parent which this proc mostly overrides.
 
 	switch(damagetype)
 		if(BRUTE)
-			damageoverlaytemp = 20
 			damage = damage * brute_damage_modifier
+
+			if (damage > 0)
+				damageoverlaytemp = 20
 
 			if(organ.take_damage(damage, 0, sharp, edge, used_weapon))
 				UpdateDamageIcon(1)
 		if(BURN)
-			damageoverlaytemp = 20
 			damage = damage * burn_damage_modifier
+
+			if (damage > 0)
+				damageoverlaytemp = 20
 
 			if(organ.take_damage(0, damage, sharp, edge, used_weapon))
 				UpdateDamageIcon(1)
@@ -474,7 +522,7 @@ This function restores all organs.
 		reagents.clear_reagents()
 	restore_blood()
 	bodytemperature = 310
-	stat = UNCONSCIOUS
+	stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 	regenerate_icons()
 	flash_eyes(visual = 1)
 	apply_effect(10, EYE_BLUR)
@@ -482,10 +530,14 @@ This function restores all organs.
 	update_canmove()
 
 /mob/living/carbon/human/apply_radiation(var/rads, var/application = RAD_EXTERNAL)
+	if(species.flags & RAD_IMMUNE)
+		return
 	if(application == RAD_EXTERNAL)
-		INVOKE_EVENT(on_irradiate, list("user" = src,"rads" = rads))
-
+		INVOKE_EVENT(src, /event/irradiate, "user" = src, "rads" = rads)
 	if(reagents)
 		if(reagents.has_reagent(LITHOTORCRAZINE))
-			rads = rads/2
+			rads /= 2
+	if(species.rad_mod)
+		rads *= species.rad_mod
 	return ..()
+

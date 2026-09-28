@@ -1,4 +1,6 @@
 
+// Tattoos are currently unobtainable and being reworked. Blood Daggers and Cult Chat will be available to cultists in other ways until then.
+
 /datum/cult_tattoo
 	var/name = "cult tattoo"
 	var/desc = ""
@@ -10,12 +12,15 @@
 /datum/cult_tattoo/proc/getTattoo(var/mob/M)
 	bearer = M
 
+/datum/cult_tattoo/proc/Display()
+	return TRUE
+
 /mob/proc/checkTattoo(var/tattoo_name)
 	if (!tattoo_name)
 		return
 	if (!iscultist(src))
 		return
-	var/datum/role/cultist/C = mind.GetRole(CULTIST)
+	var/datum/role/cultist/C = iscultist(src)
 	for (var/tattoo in C.tattoos)
 		var/datum/cult_tattoo/CT = C.tattoos[tattoo]
 		if (CT.name == tattoo_name)
@@ -37,8 +42,15 @@ var/list/blood_communion = list()
 
 /datum/cult_tattoo/bloodpool/getTattoo(var/mob/M)
 	..()
-	if (iscultist(M))
-		blood_communion.Add(M.mind.GetRole(CULTIST))
+	var/datum/role/cultist/C = iscultist(M)
+	if (C)
+		blood_communion.Add(C)
+		C.blood_pool = TRUE
+
+/datum/cult_tattoo/bloodpool/Display()//Since that tattoo is now unlocked fairly early, better let cultists hide it easily by leaving the pool
+	var/datum/role/cultist/C = iscultist(bearer)
+	if (C)
+		return C.blood_pool
 
 /datum/cult_tattoo/silent
 	name = TATTOO_SILENT
@@ -52,35 +64,44 @@ var/list/blood_communion = list()
 	icon_state = "dagger"
 	tier = 1
 
-/datum/cult_tattoo/dagger/getTattoo(var/mob/M)
-	..()
-	if (M.mind && M.mind.GetRole(CULTIST))
-		M.add_spell(new /spell/cult/blood_dagger, "cult_spell_ready", /obj/abstract/screen/movable/spell_master/bloodcult)
-
-
 ///////////////////////////
 //                       //
 //        TIER 2         //
 //                       //
 ///////////////////////////
 
-/datum/cult_tattoo/holy
+/datum/cult_tattoo/holy // doesn't actually do anything right now beside give you a cool tattoo
 	name = TATTOO_HOLY
 	desc = "Holy water will now only slow you down a bit, and no longer prevent you from casting."
 	icon_state = "holy"
 	tier = 2
 
-/datum/cult_tattoo/fast
-	name = TATTOO_FAST
-	desc = "Trace runes 60% faster."
-	icon_state = "fast"
+/datum/cult_tattoo/memorize
+	name = TATTOO_MEMORIZE//Arcane Dimension
+	desc = "Allows you to hide a tome into thin air, and pull it out whenever you want."
+	icon_state = "memorize"
 	tier = 2
 
-/datum/cult_tattoo/chat
+/datum/cult_tattoo/memorize/getTattoo(var/mob/M)
+	..()
+	if (iscultist(M))
+		M.add_spell(new /spell/cult/arcane_dimension, "cult_spell_ready", /obj/abstract/screen/movable/spell_master/bloodcult)
+
+
+/datum/cult_tattoo/rune_store
+	name = TATTOO_RUNESTORE
+	desc = "Allows you to trace a rune onto your skin and activate it at will."
+	icon_state = "rune"
+	tier = 2
+
+// Obsolete - Spire grants :x communication when built.
+/*
+/datum/cult_tattoo/chat // functionality moved to Spires
 	name = TATTOO_CHAT
 	desc = "Chat with the cult using :x."
 	icon_state = "chat"
 	tier = 2
+*/
 
 ///////////////////////////
 //                       //
@@ -94,30 +115,38 @@ var/list/blood_communion = list()
 	icon_state = "manifest"
 	tier = 3
 
+
 /datum/cult_tattoo/manifest/getTattoo(var/mob/M)
 	..()
 	var/mob/living/carbon/human/H = bearer
 	if (!istype(H))
 		return
 	H.set_species("Manifested")
-	H.r_hair = 90
-	H.g_hair = 90
-	H.b_hair = 90
-	H.r_facial = 90
-	H.g_facial = 90
-	H.b_facial = 90
-	H.r_eyes = 255
-	H.g_eyes = 0
-	H.b_eyes = 0
+	H.my_appearance.r_hair = 90
+	H.my_appearance.g_hair = 90
+	H.my_appearance.b_hair = 90
+	H.my_appearance.r_facial = 90
+	H.my_appearance.g_facial = 90
+	H.my_appearance.b_facial = 90
+	H.my_appearance.r_eyes = 255
+	H.my_appearance.g_eyes = 0
+	H.my_appearance.b_eyes = 0
 	H.revive(0)
 	H.status_flags &= ~GODMODE
+	H.status_flags &= ~CANSTUN
+	H.status_flags &= ~CANKNOCKDOWN
+	H.status_flags &= ~CANPARALYSE
 	H.regenerate_icons()
+	H.update_dna_from_appearance()
 
-/datum/cult_tattoo/memorize
-	name = TATTOO_MEMORIZE
-	desc = "Trace complete runes without having to hold an open tome."
-	icon_state = "memorize"
+// Obsolete - Runes are traced instantly now.
+/*
+/datum/cult_tattoo/fast
+	name = TATTOO_FAST
+	desc = "Trace runes 66% faster."
+	icon_state = "fast"
 	tier = 3
+*/
 
 /datum/cult_tattoo/shortcut
 	name = TATTOO_SHORTCUT

@@ -25,16 +25,23 @@
 	melt_temperature		= MELTPOINT_SILICON
 	origin_tech				= Tc_MAGNETS + "=1;" + Tc_ENGINEERING + "=1"
 	// VG: We dun changed dis so we can link simple machines. - N3X
-	var/obj/machinery/buffer // simple machine buffer for device linkage
+	var/datum/weakref/buffer // simple machine buffer for device linkage
 	var/clone				= 0 // If this is on cloning will happen, this is handled in machinery code.
 
 /obj/item/device/multitool/proc/IsBufferA(var/typepath)
-	if(!buffer)
+	var/obj/machinery/bufRef = buffer?.get()
+	if(!bufRef)
 		return 0
-	return istype(buffer,typepath)
+	return istype(bufRef,typepath)
+
+/obj/item/device/multitool/is_multitool(mob/user)
+	return TRUE
 
 /obj/item/device/multitool/attack_self(var/mob/user)
-	if(!buffer && !clone) // Can't enable cloning without buffer.
+	. = ..()
+	if(.)
+		return
+	if(!buffer?.get() && !clone) // Can't enable cloning without buffer.
 		return
 
 	clone = !clone
@@ -45,7 +52,39 @@
 
 /obj/item/device/multitool/examine(var/mob/user)
 	. = ..()
-	to_chat(user, "<span class='notice'>Cloning is [clone ? "enabled" : "disabled"].</span>")
+
+	if (buffer?.get())
+		to_chat(user, "<span class='notice'>Cloning is [clone ? "enabled" : "disabled"].</span>")
+
+/obj/item/device/multitool/proc/setBuffer(var/obj/newBuf)
+	// Combined with the weakref nullcheck in examine(), this implicitly makes it so that cloning is disabled when the object is GC'd.
+	buffer = newBuf == null ? null : makeweakref(newBuf)
+	clone = FALSE
+
+/obj/item/device/multitool/attack(mob/M as mob, mob/user as mob)
+	if(ishuman(M))
+		var/mob/living/carbon/human/H = M
+		var/datum/organ/external/S = H.organs_by_name[user.zone_sel.selecting]
+		if (!S)
+			return
+		if(!(S.is_robotic()) || user.a_intent != I_HELP)
+			return ..()
+		if(S.status & ORGAN_MALFUNCTIONING)
+			if(do_after(user, M, 6 SECONDS))
+				if(user != M)
+					user.visible_message("<span class='attack'>\The [user] uses \the [src] to reboot \the [M]'s [S.display_name].</span>",\
+					"<span class='attack'>You reboot \the [M]'s [S.display_name] with \the [src].</span>",\
+					"You hear beeping.")
+				else
+					user.visible_message("<span class='attack'>\The [user] uses \the [src] to reboot their [S.display_name].</span>",\
+					"<span class='attack'>You reboot your [S.display_name] with \the [src].</span>",\
+					"You hear beeping.")
+				S.status &= ~ORGAN_MALFUNCTIONING
+				return
+		else if(S.is_malfunctioning()) //Not malfunctioning from the flag. Easy mistake to make.
+			to_chat(user, "<span class = 'notice'>\The [S.display_name] is malfunctioning due to damage, not electrical error.</span>")
+			return
+	..()
 
 /////////////////////////
 //Disguised AI detector// - changes color based on proximity to various surveillance devices
@@ -56,6 +95,7 @@
 	var/cooldown = FALSE
 
 /obj/item/device/multitool/ai_detect/New()
+	..()
 	spawn() src.ticker()
 
 /obj/item/device/multitool/ai_detect/proc/ticker()
@@ -68,14 +108,24 @@
 		our_turf = get_turf(src)
 		range = range(8,our_turf)
 
-		//Search for AIs and people looking through sec cams
-		if(cameranet.chunkGenerated(our_turf.x, our_turf.y, our_turf.z))
-			var/datum/camerachunk/chunk = cameranet.getCameraChunk(our_turf.x, our_turf.y, our_turf.z)
-			if(chunk && chunk.seenby.len)
-				for(M in chunk.seenby)
-					if(get_dist(src,M) < 8)
-						src.detected |= DETECT_AI
-						break
+		// Search for people looking at camera monitors
+		for(var/obj/machinery/computer/security/monitor in tv_monitors)
+			// This is greater than 0 if someone is looking at this console
+			if(length(SStgui.open_uis_by_src[ref(monitor)]))
+				// cam_screen.vis_contents contains all turfs the selected camera is currently looking at
+				if(our_turf in monitor.cam_screen.vis_contents)
+					src.detected |= DETECT_AI
+					break
+
+		//Search for AIs
+		if(!(detected & DETECT_AI))
+			if(cameranet.chunkGenerated(our_turf.x, our_turf.y, our_turf.z))
+				var/datum/camerachunk/chunk = cameranet.getCameraChunk(our_turf.x, our_turf.y, our_turf.z)
+				if(chunk && chunk.seenby.len)
+					for(M in chunk.seenby)
+						if(get_dist(src,M) < 8)
+							src.detected |= DETECT_AI
+							break
 
 		for(T in range) //Search for pAIs
 			if(src.findItem(/mob/living/silicon/pai,T))
@@ -118,7 +168,7 @@
 			return 1
 	return 0
 
-obj/item/device/multitool/ai_detect/update_icon()
+/obj/item/device/multitool/ai_detect/update_icon()
 	if(src.detected)
 		if(src.detected & DETECT_AI)
 			src.icon_state = "[initial(src.icon_state)]_red"
@@ -132,7 +182,7 @@ obj/item/device/multitool/ai_detect/update_icon()
 		src.icon_state = initial(src.icon_state)
 	return
 
-obj/item/device/multitool/ai_detect/examine(mob/user)
+/obj/item/device/multitool/ai_detect/examine(mob/user)
 	..()
 	if(src.detected)
 		user << "<span class='info'>The screen displays:</span>"

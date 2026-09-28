@@ -9,15 +9,13 @@
 	siemens_coefficient = 1
 
 /obj/item/assembly/shock_kit/Destroy()
-	qdel(part1)
-	part1 = null
-	qdel(part2)
-	part2 = null
+	QDEL_NULL(part1)
+	QDEL_NULL(part2)
 	..()
 	return
 
 /obj/item/assembly/shock_kit/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		var/turf/T = loc
 		if(ismob(T))
 			T = T.loc

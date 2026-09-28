@@ -10,6 +10,9 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 #define MECH_SCREEN_ROBOT_PARTS		12
 #define	MECH_SCREEN_ROBOT_UPGRADES	13
 
+#define MECH_SCREEN_HARDSUIT_PARTS	51
+#define MECH_SCREEN_HARDSUIT_UPGRADES	52
+
 #define	MECH_SCREEN_EXOSUIT_TOOLS	21
 #define	MECH_SCREEN_EXOSUIT_MODULES	22
 #define	MECH_SCREEN_EXOSUIT_WEAPONS	23
@@ -22,6 +25,7 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 #define	MECH_SCREEN_PHAZON		36
 #define	MECH_SCREEN_NANOTRASEN	37
 #define	MECH_SCREEN_CLARKE		38
+#define	MECH_SCREEN_ROSWELL		39
 
 #define	MECH_SCREEN_MISC		41
 
@@ -69,6 +73,14 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 		{{:helper.link('Upgrades',	 'gear',{'screen':13},(data.screen==13)?'linkOn':'', 'fixedLeft')}}
 	</div>
 	<br>
+	<div class="itemLabel", style = "width: 100%">
+		Hardsuit
+	</div>
+	<div class="line">
+		{{:helper.link('Hardsuit Parts','gear',{'screen':51},(data.screen==51)?'linkOn':'', 'fixedLeft')}}
+		{{:helper.link('Upgrades', 'gear',{'screen':52},(data.screen==52)?'linkOn':'', 'fixedLeft')}}
+	</div>
+	<br>
 	<div class="itemLabel">
 		Exosuit
 	</div>
@@ -89,8 +101,11 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 	</div>
 	<div class="line">
 		{{:helper.link('Phazon',	 'gear',{'screen':36},(data.screen==36)?'linkOn':'', 'fixedLeft')}}
+		{{if data.parts.Roswell.length > 1}}
+			{{:helper.link('Roswell',	 'gear',{'screen':39},(data.screen==39)?'linkOn':'', 'fixedLeft')}}
+		{{/if}}
 	</div>
-	{{if data.parts.Nanotrasen.length > 1}}
+	{{if data.parts.Nanotrasen.length > 0}}
 		<div class="line">
 			{{:helper.link('Nanotrasen', 'gear',{'screen':37},(data.screen==37)?'linkOn':'', 'fixedLeft')}}
 		</div>
@@ -243,6 +258,57 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 		</div>
 	</div>
 {{/if}}
+
+{{if data.screen == 51}}
+	<div class="item">
+		<div class="itemLabel">
+			<h3>Hardsuit Parts</h3>
+		</div>
+	<div class="itemContentWide" style="width:100%;">
+		<div class="statusDisplay">
+			<div class="line">
+					{{for data.parts.Hardsuit_Parts}}
+						<div class="line">
+							<div class="statusValue">
+								{{:helper.link(value.name, 'gear', value.command2, null, null, 'misc')}}
+								{{:helper.link(value.cost, null, null, null, null, 'cost')}}
+								{{:helper.link('Queue', 'gear', value.command1, null, 'fixedLeft')}}
+							</div>
+						</div>
+					{{empty}}
+						<i>No parts in memory</i>
+					{{/for}}
+				</div>
+			</div>
+		</div>
+	</div>
+{{/if}}
+
+{{if data.screen == 52}}
+	<div class="item">
+		<div class="itemLabel">
+			<h3>Hardsuit Upgrades</h3>
+		</div>
+	<div class="itemContentWide" style="width:100%;">
+		<div class="statusDisplay">
+			<div class="line">
+					{{for data.parts.Hardsuit_Upgrades}}
+						<div class="line">
+							<div class="statusValue">
+								{{:helper.link(value.name, 'gear', value.command2, null, null, 'misc')}}
+								{{:helper.link(value.cost, null, null, null, null, 'cost')}}
+								{{:helper.link('Queue', 'gear', value.command1, null, 'fixedLeft')}}
+							</div>
+						</div>
+					{{empty}}
+						<i>No parts in memory</i>
+					{{/for}}
+				</div>
+			</div>
+		</div>
+	</div>
+{{/if}}
+
 
 {{if data.screen == 21}}
 	<div class="item">
@@ -524,6 +590,34 @@ Used In File(s): \code\game\mecha\mech_fabricator.dm
 		<div class="statusDisplay">
 			<div class="line">
 				{{for data.parts.Clarke}}
+					<div class="line">
+						<div class="statusValue">
+							{{:helper.link(value.name, 'gear', value.command2, null, null, 'misc')}}
+							{{:helper.link(value.cost, null, null, null, null, 'cost')}}
+							{{:helper.link('Queue', 'gear', value.command1, null, 'fixedLeft')}}
+						</div>
+					</div>
+				{{empty}}
+					<i>No parts in memory</i>
+				{{/for}}
+				</div>
+			</div>
+		</div>
+	</div>
+{{/if}}
+
+{{if data.screen == 39}}
+	<div class="item">
+		<div class="itemLabel">
+			Roswell Parts
+		</div>
+		<div class="line">
+			{{:helper.link('Quick Roswell', 'gear', {'queue_part_set':'Roswell'}, null, 'fixedLeftWidest')}}
+	</div>
+	<div class="itemContentWide" style="width:100%;">
+		<div class="statusDisplay">
+			<div class="line">
+				{{for data.parts.Roswell}}
 					<div class="line">
 						<div class="statusValue">
 							{{:helper.link(value.name, 'gear', value.command2, null, null, 'misc')}}

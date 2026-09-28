@@ -3,19 +3,20 @@
 	abbreviation = "MM"
 	desc = "This spell fires several, slow moving, magic projectiles at nearby targets."
 	user_type = USER_TYPE_WIZARD
+	specialization = SSOFFENSIVE
 
 	school = "evocation"
-	charge_max = 150
-	spell_flags = NEEDSCLOTHES
+	charge_cooldown_max = 15 SECONDS
+	spell_flags = NEEDSCLOTHES | IS_HARMFUL
 	invocation = "FORTI GY AMA"
-	invocation_type = SpI_SHOUT
+	invocation_type = SP_INV_SHOUT
 	range = 7
-	cooldown_min = 90 //15 deciseconds reduction per rank
+	cooldown_min = 9 SECONDS //1.5 seconds reduction per rank
 
 	max_targets = 0
 
 	proj_type = /obj/item/projectile/spell_projectile/seeking/magic_missile
-	duration = 10
+	duration = 1 SECONDS
 	projectile_speed = 5
 
 	hud_state = "wiz_mm"

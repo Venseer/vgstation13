@@ -4,16 +4,17 @@
 	name = "Forge Arcane Golem"
 	desc = "Creates a fragile construct that follows you around. It knows a basic version of all of your spells, and will cast them simultaneously with you - at the same target. If cast while an arcane golem is already summoned, your arcane golems will be teleported to you instead. It's unable to learn Mind Transfer and Forge Arcane Golem."
 	user_type = USER_TYPE_WIZARD
+	specialization = SSUTILITY
 
-	charge_max = 20 SECONDS
+	charge_cooldown_max = 20 SECONDS
 	cooldown_min = 1 SECONDS
 
-	spell_levels = list(Sp_SPEED = 0, Sp_AMOUNT = 0)
-	level_max = list(Sp_TOTAL = 3, Sp_SPEED = 1, Sp_AMOUNT = 2) //each level of power grants 1 additional target.
+	spell_levels = list(SP_SPEED = 0, SP_AMOUNT = 0)
+	level_max = list(SP_TOTAL = 3, SP_SPEED = 1, SP_AMOUNT = 2) //each level of power grants 1 additional target.
 
-	spell_flags = NEEDSCLOTHES | Z2NOCAST
+	spell_flags = NEEDSCLOTHES | Z2NOCAST | IS_HARMFUL
 	invocation = "ARCANUM VIRIUM CONGREGABO"
-	invocation_type = SpI_SHOUT
+	invocation_type = SP_INV_SHOUT
 	range = 0
 
 	summon_type = list(/mob/living/simple_animal/hostile/arcane_golem)
@@ -32,7 +33,7 @@
 /spell/aoe_turf/conjure/arcane_golem/cast(list/targets, mob/user)
 	//Link the golem to its master
 	newVars = list("master_spell" = src)
-	user.on_spellcast.Add(src, "copy_spellcast")
+	user.register_event(/event/spellcast, src, nameof(src::copy_spellcast()))
 
 	check_golems()
 
@@ -55,13 +56,12 @@
 			golems.Remove(AG)
 
 /spell/aoe_turf/conjure/arcane_golem/on_creation(mob/living/simple_animal/hostile/arcane_golem/AG, mob/user)
-	AG.faction = "\ref[user]"
+	AG.faction = "wizard" // so they get along with other wizard mobs
 	to_chat(user, "<span class='sinister'>You infuse \the [AG] with your mana and knowledge. If it dies, your arcane abilities will be affected.</span>")
 	src.golems.Add(AG)
 
-/spell/aoe_turf/conjure/arcane_golem/proc/copy_spellcast(list/arguments)
-	var/spell/spell_to_copy = arguments["spell"]
-	var/target = arguments["target"]
+/spell/aoe_turf/conjure/arcane_golem/proc/copy_spellcast(spell/spell, mob/user, list/targets)
+	var/spell/spell_to_copy = spell
 
 	if(!istype(spell_to_copy) || !istype(spell_to_copy.holder))
 		return
@@ -75,12 +75,10 @@
 	var/cast_dir = spell_to_copy.holder.dir
 
 	//Convert the target argument to a list of targets
-	var/list/targets
-	if(istype(target, /list))
-		var/list/L = target
-		targets = L.Copy()
-	else if(!isnull(target))
-		targets = list(target)
+	if(islist(targets))
+		targets = targets.Copy()
+	else if(!isnull(targets))
+		targets = list(targets)
 
 	for(var/mob/living/simple_animal/hostile/arcane_golem/AG in golems)
 		var/spell/cast_spell = spell_to_copy
@@ -105,8 +103,8 @@
 //UPGRADES
 /spell/aoe_turf/conjure/arcane_golem/apply_upgrade(upgrade_type)
 	switch(upgrade_type)
-		if(Sp_AMOUNT)
-			spell_levels[Sp_AMOUNT]++
+		if(SP_AMOUNT)
+			spell_levels[SP_AMOUNT]++
 			golem_limit += ADDITIONAL_GOLEMS_PER_UPGRADE_LEVEL
 
 			return "You can now sustain [golem_limit] golems at once."
@@ -117,7 +115,9 @@
 
 /spell/aoe_turf/conjure/arcane_golem/get_upgrade_info(upgrade_type)
 	switch(upgrade_type)
-		if(Sp_AMOUNT)
+		if(SP_AMOUNT)
+			if(spell_levels[SP_AMOUNT] >= level_max[SP_AMOUNT])
+				return "You can already sustain the maximum about of golems!"
 			return "Gain the ability to sustain [golem_limit + ADDITIONAL_GOLEMS_PER_UPGRADE_LEVEL] golems at once."
 
 	return ..()

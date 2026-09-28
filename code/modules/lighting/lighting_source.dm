@@ -1,6 +1,8 @@
 // This is where the fun begins.
 // These are the main datums that emit light.
 
+var/list/all_light_sources = list()
+
 /datum/light_source
 	var/atom/top_atom        // The atom we're emitting light from (for example a mob if we're from a flashlight that's being held).
 	var/atom/source_atom     // The atom that we belong to.
@@ -29,8 +31,12 @@
 	var/needs_update    // Whether we are queued for an update.
 	var/destroyed       // Whether we are destroyed and need to stop emitting light.
 	var/force_update
+	
+	var/lowpriority=FALSE
 
-/datum/light_source/New(var/atom/owner, var/atom/top)
+/datum/light_source/New(var/atom/owner, var/atom/top, var/lowp=FALSE)
+	lowpriority=lowp
+	all_light_sources += src
 	source_atom = owner // Set our new owner.
 	if (!source_atom.light_sources)
 		source_atom.light_sources = list()
@@ -59,12 +65,22 @@
 
 // Kill ourselves.
 /datum/light_source/proc/destroy()
+	if(destroyed)
+		log_debug("[src] had destroy() called after already being destroyed! coords: [get_coordinates_string(src)], area: [get_area(src)]")
+		return
 	destroyed = TRUE
+	all_light_sources -= src
 	force_update()
-	if (source_atom)
+	if(source_atom)
+		if(!source_atom.light_sources)
+			log_debug("[src] was not in its source atom's light_sources when destroy() was called! coords: [get_coordinates_string(src)], area: [get_area(src)]")
+			return
 		source_atom.light_sources -= src
 
-	if (top_atom)
+	if(top_atom)
+		if(!top_atom.light_sources)
+			log_debug("[src] was not in its top atom's light_sources when destroy() was called! coords: [get_coordinates_string(src)], area: [get_area(src)]")
+			return
 		top_atom.light_sources    -= src
 
 #ifdef LIGHTING_INSTANT_UPDATES
@@ -88,7 +104,10 @@
 #define effect_update(BYOND)            \
 	if (!needs_update)                  \
 	{                                   \
-		lighting_update_lights += src;  \
+		if(lowpriority)					\
+			lighting_update_lights_lowpriority+= src;  \
+		else							\
+			lighting_update_lights+= src;  \
 		needs_update            = TRUE; \
 	}
 #endif
@@ -209,10 +228,47 @@
 	applied_lum_g = lum_g
 	applied_lum_b = lum_b
 
-	FOR_DVIEW(var/turf/T, light_range, source_turf, INVISIBILITY_LIGHTING)
-		if (!T.lighting_corners_initialised)
-			T.generate_missing_corners()
 
+	if (sun && (sun.eclipse == ECLIPSE_ONGOING) && (top_atom.z == map.zMainStation))
+		applied_lum_r *= sun.eclipse_color_red
+		applied_lum_g *= sun.eclipse_color_green
+		applied_lum_b *= sun.eclipse_color_blue
+
+	FOR_DVIEW(var/turf/T, light_range, source_turf, INVISIBILITY_LIGHTING)
+		apply_lum_to_turf(T,update_gen)
+
+		if(istype(T,/turf/portal))
+			var/turf/portal/P = T
+			if(P.target_turf)
+				apply_lum_to_turf(P.target_turf,update_gen)
+
+	update_gen++
+
+/datum/light_source/proc/apply_lum_to_turf(var/turf/T,var/update_gen)
+	if (!T.lighting_corners_initialised)
+		T.generate_missing_corners()
+
+	if (sun && (sun.eclipse == ECLIPSE_ONGOING) && (top_atom.z == map.zMainStation) && !source_atom.get_cult_power())
+		for (var/datum/lighting_corner/C in T.get_corners())
+			if (C.update_gen == update_gen)
+				continue
+
+			C.update_gen = update_gen
+			C.affecting += src
+
+			if (!C.active)
+				effect_str[C] = 0
+				continue
+
+			var/old_range = light_range
+			var/old_power = light_power
+			if (light_range > 0)
+				light_range = max(1.4, light_range * sun.eclipse_rate)
+			light_power *= sun.eclipse_rate
+			APPLY_CORNER(C)
+			light_range = old_range
+			light_power = old_power
+	else
 		for (var/datum/lighting_corner/C in T.get_corners())
 			if (C.update_gen == update_gen)
 				continue
@@ -226,13 +282,11 @@
 
 			APPLY_CORNER(C)
 
-		if (!T.affecting_lights)
-			T.affecting_lights = list()
+	if (!T.affecting_lights)
+		T.affecting_lights = list()
 
-		T.affecting_lights += src
-		affecting_turfs    += T
-
-	update_gen++
+	T.affecting_lights += src
+	affecting_turfs    += T
 
 /datum/light_source/proc/remove_lum()
 	applied = FALSE
@@ -247,7 +301,6 @@
 
 	for (var/datum/lighting_corner/C in effect_str)
 		REMOVE_CORNER(C)
-
 		C.affecting -= src
 
 	effect_str.Cut()
@@ -266,6 +319,20 @@
 			T.generate_missing_corners()
 		corners |= T.get_corners()
 		turfs   += T
+		var/turf/portal/P = locate(/turf/portal) in T
+		if(P && isturf(P.loc))
+			var/turf/TP = P.loc
+			if (!TP.lighting_corners_initialised)
+				TP.generate_missing_corners()
+			corners |= TP.get_corners()
+			turfs   += TP
+		P = locate(/turf/portal) in T.vis_locs
+		if(P && isturf(P.loc))
+			var/turf/TP = P.loc
+			if (!TP.lighting_corners_initialised)
+				TP.generate_missing_corners()
+			corners |= TP.get_corners()
+			turfs   += TP
 
 	var/list/L = turfs - affecting_turfs // New turfs, add us to the affecting lights of them.
 	affecting_turfs += L

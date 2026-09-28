@@ -1,6 +1,6 @@
 /mob/living/simple_animal/hostile/slime
 	name = "rabid slime"
-	desc = "you won't be petting that one."
+	desc = "You won't be petting that one."
 	speak_emote = list("angrily chirps")
 	icon = 'icons/mob/slimes.dmi'
 	icon_state = "grey baby slime eat"
@@ -18,10 +18,10 @@
 	attack_sound = 'sound/weapons/welderattack.ogg'
 	faction = "slimesummon"
 	speed = 5
-	can_butcher = 0
-	meat_type = null
+	can_butcher = FALSE
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/slime
 
-	var/colour = "grey"
+	colour = "grey"
 	held_items = list()
 
 /mob/living/simple_animal/hostile/slime/New()
@@ -52,7 +52,7 @@
 		rabid.icon_dead = "[src.colour] baby slime dead"
 		rabid.colour = "[src.colour]"
 		for(var/mob/M in friends)
-			rabid.friends += M
+			rabid.friends += makeweakref(M)
 	qdel(src)
 
 /mob/living/simple_animal/hostile/slime/Life()
@@ -73,25 +73,16 @@
 	..()
 
 /mob/living/simple_animal/hostile/slime/proc/calm()
-	var/calmed_type = /mob/living/carbon/slime
+	var/is_adult = istype(src, /mob/living/simple_animal/hostile/slime/adult)
+	var/calmed_type = is_adult ? /mob/living/carbon/slime/adult : /mob/living/carbon/slime
 	if(colour != "grey")
-		var/path_end = replacetext(colour, " ", "")
-		calmed_type = text2path("/mob/living/carbon/slime/" + path_end)
+		var/path_color = replacetext(colour, " ", "")
+		calmed_type = text2path("/mob/living/carbon/slime/" + path_color + (is_adult ? "/adult" : ""))
 
 	var/mob/living/carbon/slime/calmed = new calmed_type(loc)
-	for(var/mob/M in friends)
-		calmed.Friends += M
-
-	qdel(src)
-
-/mob/living/simple_animal/hostile/slime/adult/calm()
-	var/calmed_type = /mob/living/carbon/slime/adult
-	if(colour != "grey")
-		var/path_end = replacetext(colour, " ", "")
-		calmed_type = text2path("/mob/living/carbon/slime/adult/" + path_end)
-
-	var/mob/living/carbon/slime/calmed = new calmed_type(loc)
-	for(var/mob/M in friends)
-		calmed.Friends += M
+	for(var/datum/weakref/ref in friends)
+		var/mob/M = ref.get()
+		if (istype(M))
+			calmed.Friends = M
 
 	qdel(src)

@@ -1,61 +1,28 @@
 #define HTMLTAB "&nbsp;&nbsp;&nbsp;&nbsp;"
+#define UTF_LIMIT (1 << 20) + (1 << 16) - 1
+#define string2charlist(string) (splittext(string, regex("(.)")) - splittext(string, ""))
 
-//Loops through every line in (text). The 'line' variable holds the current line
-//Example use:
-/*
-var/text = {"Line 1
-Line 2
-Line 3
-"}
-forLineInText(text)
-	world.log << line
-*/
-#define forLineInText(text) for({var/__index=1;var/line=copytext(text, __index, findtext(text, "\n", __index))} ; {__index != 0} ; {__index = findtext(text, "\n", __index+1) ; line = copytext(text, __index+1, findtext(text, "\n", __index+1))})
+#define PREVENT_CHARACTER_TRIM_LOSS(length) (length + 1)
 
 /*
  * Holds procs designed to help with filtering text
  * Contains groups:
- *			SQL sanitization
  *			Text sanitization
  *			Text searches
  *			Text modification
  *			Misc
  */
 
-
-/*
- * SQL sanitization
- */
-
-// Run all strings to be used in an SQL query through this proc first to properly escape out injection attempts.
-/proc/sanitizeSQL(var/t as text)
-	//var/sanitized_text = replacetext(t, "'", "\\'")
-	//sanitized_text = replacetext(sanitized_text, "\"", "\\\"")
-
-	var/sqltext = dbcon.Quote(t)
-	//testing("sanitizeSQL(): BEFORE copytext(): [sqltext]")
-	sqltext = copytext(sqltext, 2, length(sqltext))//Quote() adds quotes around input, we already do that
-	//testing("sanitizeSQL(): AFTER copytext(): [sqltext]")
-	return sqltext
-
-/*
-/mob/verb/SanitizeTest(var/t as text)
-	to_chat(src, "IN: [t]")
-	to_chat(src, "OUT: [sanitizeSQL(t)]")
-*/
 /*
  * Text sanitization
  */
 
 //Simply removes < and > and limits the length of the message
-/proc/strip_html_simple(var/t,var/limit=MAX_MESSAGE_LEN)
+/proc/strip_html_simple(var/t, var/limit=MAX_MESSAGE_LEN)
 	var/list/strip_chars = list("<",">")
-	t = copytext(t,1,limit)
+	t = copytext(t, 1, limit)
 	for(var/char in strip_chars)
-		var/index = findtext(t, char)
-		while(index)
-			t = copytext(t, 1, index) + copytext(t, index+1)
-			index = findtext(t, char)
+		t = replacetext(t, char, "")
 	return t
 
 /proc/strip_html_properly(input = "")
@@ -82,17 +49,22 @@ forLineInText(text)
 		i = findtext(Haystack, Needle, i + 1, End)
 
 //Removes a few problematic characters
-/proc/sanitize_simple(var/t,var/list/repl_chars = list("\n"="#","\t"="#","�"="�"))
+/proc/sanitize_simple(var/t,var/list/repl_chars = list("\n"="#","\t"="#"))
 	for(var/char in repl_chars)
-		var/index = findtext(t, char)
-		while(index)
-			t = copytext(t, 1, index) + repl_chars[char] + copytext(t, index+1)
-			index = findtext(t, char)
+		t = replacetext(t, char, repl_chars[char])
 	return t
 
 //Runs byond's sanitization proc along-side sanitize_simple
 /proc/sanitize(var/t,var/list/repl_chars = null)
 	return html_encode(sanitize_simple(t,repl_chars))
+
+/proc/sanitize_speech(var/t, var/limit = MAX_MESSAGE_LEN)
+	//Currently allowed:
+	//( -~): Printable ASCII
+	//(¡-ÿ): Most of the Latin-1 supplement
+	//(Ѐ-ӿ): The entire Cyrillic block
+	var/static/regex/speech_regex = regex(@"[^ -~¡-ÿЀ-ӿ]", "g") //Matches all characters not in the above allowed ranges. In BYOND, \w doesn't work outside the ASCII range, so it's no help here.
+	return trim(copytext(speech_regex.Replace(t, "*"), 1, limit)) //Note that this does NOT scrub HTML, because this is done in different places in me and say messages.
 
 //Runs sanitize and strip_html_simple
 //I believe strip_html_simple() is required to run first to prevent '<' from displaying as '&lt;' after sanitize() calls byond's html_encode()
@@ -105,10 +77,10 @@ forLineInText(text)
 	return copytext((html_encode(strip_html_simple(t))),1,limit)
 
 /proc/reverse_text(txt)
-  var/i = length(txt)+1
-  . = ""
-  while(--i)
-    . += copytext(txt,i,i+1)
+	var/i = length(txt)+1
+	. = ""
+	while(--i)
+		. += copytext(txt,i,i+1)
 
 /*
  * returns null if there is any bad text in the string
@@ -140,86 +112,138 @@ forLineInText(text)
 // Used to get a sanitized input.
 /proc/stripped_input(var/mob/user, var/message = "", var/title = "", var/default = "", var/max_length=MAX_MESSAGE_LEN)
 	var/name = input(user, message, title, default) as null|text
-	return utf8_sanitize(name, user, max_length)
+	return strip_html_simple(name, max_length)
 
-//Filters out undesirable characters from names
+//As above, but for full-size paragraph textboxes
+/proc/stripped_message(var/mob/user, var/message = "", var/title = "", var/default = "", var/max_length=MAX_MESSAGE_LEN)
+	var/name = input(user, message, title, default) as null|message
+	return strip_html_simple(name, max_length)
+
+/proc/test_ascii(var/text)
+	for(var/i=1, i<=length(text), i++)
+		world.log << text2ascii(text, i)
+
+var/list/whitelist_name_diacritics_cap = list(
+	"À", "Á", "Â", "Ã", "Ä", "Ä", "Æ", "Ç", "È", "É", "Ê", "Ë", "Ì", "Í", "Î", "Ï", "Ð", "Ñ", "Ò", "Ó", "Ô", "Ö", "Ø", "Ù", "Ú", "Û", "Ü", "Ý",
+)
+var/list/whitelist_name_diacritics_min = list(
+	"à", "á", "â", "ã", "ä", "ä", "æ", "ç", "è", "é", "ê", "ë", "ì", "í", "î", "ï", "ð", "ñ", "ò", "ó", "ô", "ö", "ø", "ù", "ú", "û", "ü", "ý",
+)
+
+/proc/stripped_multiline_input(mob/user, message = "", title = "", default = "", max_length=MAX_MESSAGE_LEN, no_trim=FALSE)
+	var/user_input = input(user, message, title, default) as message|null
+	if(isnull(user_input)) // User pressed cancel
+		return
+	if(no_trim)
+		return copytext_char(html_encode(user_input), 1, max_length)
+	else
+		return trim(html_encode(user_input), max_length)
+
 /proc/reject_bad_name(var/t_in, var/allow_numbers=0, var/max_length=MAX_NAME_LEN)
 	if(!t_in || length(t_in) > max_length)
 		return //Rejects the input if it is null or if it is longer then the max length allowed
 
-	var/number_of_alphanumeric	= 0
-	var/last_char_group			= 0
-	var/t_out = ""
+	var/current_space = TRUE
+	var/length = 0
+	var/started = FALSE
 
+	t_in = trim(t_in)
+	var/t_out = ""
 	for(var/i=1, i<=length(t_in), i++)
 		var/ascii_char = text2ascii(t_in,i)
 		switch(ascii_char)
 			// A  .. Z
 			if(65 to 90)			//Uppercase Letters
-				t_out += ascii2text(ascii_char)
-				number_of_alphanumeric++
-				last_char_group = 4
-
+				started = TRUE
+				current_space = FALSE
+				t_out += t_in[i]
+				length++
 			// a  .. z
 			if(97 to 122)			//Lowercase Letters
-				if(last_char_group<2)
-					t_out += ascii2text(ascii_char-32)	//Force uppercase first character
+				started = TRUE
+				if (current_space)
+					current_space = FALSE
+					t_out += ascii2text(ascii_char - 32)
 				else
-					t_out += ascii2text(ascii_char)
-				number_of_alphanumeric++
-				last_char_group = 4
+					current_space = FALSE
+					t_out += t_in[i]
+				length++
 
 			// 0  .. 9
 			if(48 to 57)			//Numbers
-				if(!last_char_group)
-					continue	//suppress at start of string
-				if(!allow_numbers)
+				if(allow_numbers)
+					if (!started)
+						continue
+					current_space = FALSE
+					t_out += t_in[i]
+					length++
+				else
 					continue
-				t_out += ascii2text(ascii_char)
-				number_of_alphanumeric++
-				last_char_group = 3
 
 			// '  -  .
 			if(39,45,46)			//Common name punctuation
-				if(!last_char_group)
+				if (!started)
 					continue
-				t_out += ascii2text(ascii_char)
-				last_char_group = 2
+				current_space = FALSE
+				t_out += t_in[i]
+
 
 			// ~   |   @  :  #  $  %  &  *  +
 			if(126,124,64,58,35,36,37,38,42,43)			//Other symbols that we'll allow (mainly for AI)
-				if(!last_char_group)
-					continue	//suppress at start of string
-				if(!allow_numbers)
+				if(allow_numbers)
+					if (!started)
+						continue
+					current_space = FALSE
+					t_out += t_in[i]
+				else
 					continue
-				t_out += ascii2text(ascii_char)
-				last_char_group = 2
+
 
 			//Space
 			if(32)
-				if(last_char_group <= 1)
-					continue	//suppress double-spaces and spaces at start of string
-				t_out += ascii2text(ascii_char)
-				last_char_group = 1
+				if (current_space)
+					continue
+				else
+					current_space = TRUE
+					t_out += t_in[i]
 			else
-				return
-
-	if(number_of_alphanumeric < 2)
-		return		//protects against tiny names like "A" and also names like "' ' ' ' ' ' ' '"
-
-	if(last_char_group == 1)
-		t_out = copytext(t_out,1,length(t_out))	//removes the last character (in this case a space)
+				if (t_in[i] in whitelist_name_diacritics_cap)
+					started = TRUE
+					t_out += t_in[i]
+					i++ // Those are two-bytes letters
+					length++
+					current_space = FALSE
+				else if (t_in[i] in whitelist_name_diacritics_min)
+					started = TRUE
+					if (current_space)
+						var/index = whitelist_name_diacritics_min.Find(t_in[i])
+						t_out += whitelist_name_diacritics_cap[index]
+						i++ // Those are two-bytes letters
+						length++
+						current_space = FALSE
+					else
+						t_out += t_in[i]
+						i++ // Those are two-bytes letters
+						length++
+						current_space = FALSE
+				else
+					return
 
 	for(var/bad_name in list("space","floor","wall","r-wall","monkey","unknown","inactive ai","plating"))	//prevents these common metagamey names
 		if(cmptext(t_out,bad_name))
 			return	//(not case sensitive)
+
+	t_out = trim(t_out)
+
+	if (length < 2)
+		return
 
 	return t_out
 
 //checks text for html tags
 //if tag is not in whitelist (var/list/paper_tag_whitelist in global.dm)
 //relpaces < with &lt;
-proc/checkhtml(var/t)
+/proc/checkhtml(var/t)
 	t = sanitize_simple(t, list("&#"="."))
 	var/p = findtext(t,"<",1)
 	while (p)	//going through all the tags
@@ -271,11 +295,31 @@ proc/checkhtml(var/t)
  * Text modification
  */
 
-//Adds 'u' number of zeros ahead of the text 't'
-/proc/add_zero(t, u)
-	while (length(t) < u)
-		t = "0[t]"
-	return t
+//example: add_zero(217, 6) = "000217"
+/proc/add_zero(_string, beforeZeroes)
+	var/string = "[_string]"
+	while (length(string) < beforeZeroes)
+		string = "0[string]"
+	return string
+
+//example: add_zero_before_and_after(3.14, 3, 5) = "003.14000"
+/proc/add_zero_before_and_after(_string, beforeZeroes, afterZeroes)
+	var/string = "[_string]"
+	var/dot_pos = findtext(string, ".")
+	if (dot_pos)
+		dot_pos--
+		while (dot_pos < beforeZeroes)
+			string = "0[string]"
+			dot_pos++
+		while (length(string) < (beforeZeroes+afterZeroes+1))
+			string = "[string]0"
+	else
+		while (length(string) < beforeZeroes)
+			string = "0[string]"
+		string = "[string]."
+		while (length(string) < (beforeZeroes+afterZeroes+1))
+			string = "[string]0"
+	return string
 
 //Adds 'u' number of spaces ahead of the text 't'
 /proc/add_lspace(t, u)
@@ -292,14 +336,14 @@ proc/checkhtml(var/t)
 //Returns a string with reserved characters and spaces before the first letter removed
 /proc/trim_left(text)
 	for (var/i = 1 to length(text))
-		if (text2ascii(text, i) > 32)
+		if (text2ascii(text, i) > 32 && text2ascii(text, i) <= UTF_LIMIT)
 			return copytext(text, i)
 	return ""
 
 //Returns a string with reserved characters and spaces after the last letter removed
 /proc/trim_right(text)
 	for (var/i = length(text), i > 0, i--)
-		if (text2ascii(text, i) > 32)
+		if (text2ascii(text, i) > 32 && text2ascii(text, i) <= UTF_LIMIT)
 			return copytext(text, 1, i + 1)
 
 	return ""
@@ -315,14 +359,28 @@ proc/checkhtml(var/t)
 
 //Returns the first word in a string.
 /proc/get_first_word(text)
-	for(var/i = 1 to length(text))
-		if(text2ascii(text, i) == 32)
-			return copytext(text, 1, i)
-	return text
+	var/list/L = splittext(text, " ")
+	return L[1]
+
+//Returns the last word in a string.
+/proc/get_last_word(text)
+	var/list/L = splittext(text, " ")
+	return L[L.len]
 
 //Returns a string with the first element of the string capitalized.
 /proc/capitalize(var/t as text)
-	return uppertext(copytext(t, 1, 2)) + copytext(t, 2)
+	return uppertext(copytext_char(t, 1, 2)) + copytext_char(t, 2)
+
+//Returns only the uppercase letters of a string
+/proc/get_only_uppercase_letters(text)
+	var/result = ""
+	var/start = text2ascii("A")
+	var/stop = 	text2ascii("Z")
+	for(var/i=1 to length(text))
+		var/current_ascii = text2ascii(text, i)
+		if(current_ascii >= start && current_ascii <= stop)
+			result += ascii2text(current_ascii)
+	return result
 
 //Centers text by adding spaces to either side of the string.
 /proc/dd_centertext(message, length)
@@ -407,12 +465,13 @@ proc/checkhtml(var/t)
  */
 var/list/unit_suffixes = list("", "k", "M", "G", "T", "P", "E", "Z", "Y")
 
-/proc/format_units(var/number)
+/proc/format_units(var/number, var/decimals=2)
 	if (number<0)
 		return "-[format_units(abs(number))]"
 	if (number==0)
 		return "0 "
 
+	// Figure out suffix
 	var/max_unit_suffix = unit_suffixes.len
 	var/i=1
 	while (round(number/1000) >= 1)
@@ -420,6 +479,10 @@ var/list/unit_suffixes = list("", "k", "M", "G", "T", "P", "E", "Z", "Y")
 		i++
 		if (i == max_unit_suffix)
 			break
+
+	// Remove excess decimals
+	decimals = 10 ** decimals
+	number = round(number * decimals)/decimals
 
 	return "[format_num(number)] [unit_suffixes[i]]"
 
@@ -435,7 +498,7 @@ var/list/unit_suffixes = list("", "k", "M", "G", "T", "P", "E", "Z", "Y")
 //Example: text_ends_with("Woody got wood", "dy got wood") returns 1
 //         text_ends_with("Woody got wood", "d") returns 1
 //         text_ends_with("Woody got wood", "Wood") returns 0
-proc/text_ends_with(text, suffix)
+/proc/text_ends_with(text, suffix)
 	if(length(suffix) > length(text))
 		return FALSE
 
@@ -545,7 +608,7 @@ var/quote = ascii2text(34)
 //	to_chat(usr, "\"[jointext(num2words(number), " ")]\"")
 
 // Sanitize inputs to avoid SQL injection attacks
-proc/sql_sanitize_text(var/text)
+/proc/sql_sanitize_text(var/text)
 	text = replacetext(text, "'", "''")
 	text = replacetext(text, ";", "")
 	text = replacetext(text, "&", "")
@@ -553,3 +616,235 @@ proc/sql_sanitize_text(var/text)
 
 /proc/is_letter(var/thing) // Thing is an ascii number
     return (thing >= 65 && thing <= 122)
+
+/proc/buttbottify(var/message, var/min = 1, var/max = 3)
+	var/list/split_phrase = splittext(message," ") // Split it up into words.
+
+	var/list/prepared_words = split_phrase.Copy()
+	var/i = rand(min,max)
+	for(,i > 0,i--) //Pick a few words to change.
+
+		if (!prepared_words.len)
+			break
+		var/word = pick(prepared_words)
+		prepared_words -= word //Remove from unstuttered words so we don't stutter it again.
+		var/index = split_phrase.Find(word) //Find the word in the split phrase so we can replace it.
+
+		split_phrase[index] = "butt"
+	return jointext(split_phrase," ") // No longer need to sanitize, speech is automatically html_encoded at render-time.
+
+/proc/tumblrspeech(var/speech)
+	if(!speech)
+		return
+	var/static/regex/hewwo_lowercase = new("l|r", "g")
+	var/static/regex/hewwo_uppercase = new("L|R", "g")
+	speech = hewwo_lowercase.Replace(speech, "w")
+	speech = hewwo_uppercase.Replace(speech, "W")
+	return speech
+
+/proc/piratespeech(var/speech)
+	if(!speech)
+		return
+
+	var/static/regex/cannon_lowercase = new("gun", "g")
+	var/static/regex/cannon_uppercase = new("Gun", "g")
+	var/static/regex/cannon_allcaps = new("GUN", "g")
+
+	var/static/regex/locker_lowercase = new("heaven", "g")
+	var/static/regex/locker_uppercase = new("Heaven", "g")
+	var/static/regex/locker_allcaps = new("HEAVEN", "g")
+
+	var/static/regex/aye_middle = new(" I ", "g")
+	var/static/regex/aye_start = new("I ", "g")
+
+	var/static/regex/aye_lowercase = new("yes", "g")
+	var/static/regex/aye_uppercase = new("Yes", "g")
+	var/static/regex/aye_allcaps = new("YES", "g")
+
+	var/static/regex/argh_lowercase = new("are", "g")
+	var/static/regex/argh_uppercase = new("Are", "g")
+	var/static/regex/argh_allcaps = new("ARE", "g")
+
+	var/static/regex/yarh_lowercase = new("yeah", "g")
+	var/static/regex/yarh_uppercase = new("Yeah", "g")
+	var/static/regex/yarh_allcaps = new("YEAH", "g")
+
+	var/static/regex/cap_lowercase = new("captain", "g")
+	var/static/regex/cap_uppercase = new("Captain", "g")
+	var/static/regex/cap_allcaps = new("CAPTAIN", "g")
+
+	var/static/regex/hos_lowercase = new("hos", "g")
+	var/static/regex/hos_uppercase = new("HoS", "g")
+	var/static/regex/hos_allcaps = new("HOS", "g")
+
+	var/static/regex/hop_lowercase = new("hop", "g")
+	var/static/regex/hop_uppercase = new("HoP", "g")
+	var/static/regex/hop_allcaps = new("HOP", "g")
+
+	var/static/regex/ai_lowercase = new("ai ", "g")
+	var/static/regex/ai_uppercase = new("Ai ", "g")
+	var/static/regex/ai_allcaps = new("AI ", "g")
+
+	var/static/regex/treasure_lowercase = new("money", "g")
+	var/static/regex/treasure_uppercase = new("Money", "g")
+	var/static/regex/treasure_allcaps = new("MONEY", "g")
+
+	var/static/regex/matey_lowercase = new("friend", "g")
+	var/static/regex/matey_uppercase = new("Friend", "g")
+	var/static/regex/matey_allcaps = new("FRIEND", "g")
+
+	var/static/regex/vessel_lowercase = new("station", "g")
+	var/static/regex/vessel_uppercase = new("Station", "g")
+	var/static/regex/vessel_allcaps = new("STATION", "g")
+
+	var/static/regex/rowboat_lowercase = new("shuttle", "g")
+	var/static/regex/rowboat_uppercase = new("Shuttle", "g")
+	var/static/regex/rowboat_allcaps = new("SHUTTLE", "g")
+
+	var/static/regex/sails_lowercase = new("engine", "g")
+	var/static/regex/sails_uppercase = new("Engine", "g")
+	var/static/regex/sails_allcaps = new("ENGINE", "g")
+
+	var/static/regex/sea_lowercase = new("space", "g")
+	var/static/regex/sea_uppercase = new("Space", "g")
+	var/static/regex/sea_allcaps = new("SPACE", "g")
+
+	speech = cannon_lowercase.Replace(speech, "cannon")
+	speech = cannon_uppercase.Replace(speech, "Cannon")
+	speech = cannon_allcaps.Replace(speech, "CANNON")
+
+	speech = locker_lowercase.Replace(speech, "davy jones' locker")
+	speech = locker_uppercase.Replace(speech, "Davy Jones' locker")
+	speech = locker_allcaps.Replace(speech, "DAVY JONES' LOCKER")
+
+	speech = aye_middle.Replace(speech, " aye ")
+	speech = aye_start.Replace(speech, "Aye ")
+
+	speech = aye_lowercase.Replace(speech, "aye")
+	speech = aye_uppercase.Replace(speech, "Aye")
+	speech = aye_allcaps.Replace(speech, "AYE")
+
+	speech = argh_lowercase.Replace(speech, "argh")
+	speech = argh_uppercase.Replace(speech, "Argh")
+	speech = argh_allcaps.Replace(speech, "ARGH")
+
+	speech = yarh_lowercase.Replace(speech, "yarh")
+	speech = yarh_uppercase.Replace(speech, "Yarh")
+	speech = yarh_allcaps.Replace(speech, "YARH")
+
+	speech = cap_lowercase.Replace(speech, "cap'n")
+	speech = cap_uppercase.Replace(speech, "Cap'n")
+	speech = cap_allcaps.Replace(speech, "CAP'N")
+
+	speech = hos_lowercase.Replace(speech, "first mate")
+	speech = hos_uppercase.Replace(speech, "First Mate")
+	speech = hos_allcaps.Replace(speech, "FIRST MATE")
+
+	speech = hop_lowercase.Replace(speech, "crewmaster")
+	speech = hop_uppercase.Replace(speech, "Crewmaster")
+	speech = hop_allcaps.Replace(speech, "CREWMASTER")
+
+	speech = ai_lowercase.Replace(speech, "navigator ")
+	speech = ai_uppercase.Replace(speech, "Navigator ")
+	speech = ai_allcaps.Replace(speech, "NAVIGATOR ")
+
+	speech = treasure_lowercase.Replace(speech, "treasure")
+	speech = treasure_uppercase.Replace(speech, "Treasure")
+	speech = treasure_allcaps.Replace(speech, "TREASURE")
+
+	speech = matey_lowercase.Replace(speech, "matey")
+	speech = matey_uppercase.Replace(speech, "Matey")
+	speech = matey_allcaps.Replace(speech, "MATEY")
+
+	speech = vessel_lowercase.Replace(speech, "vessel")
+	speech = vessel_uppercase.Replace(speech, "Vessel")
+	speech = vessel_allcaps.Replace(speech, "VESSEL")
+
+	speech = rowboat_lowercase.Replace(speech, "rowboat")
+	speech = rowboat_uppercase.Replace(speech, "Rowboat")
+	speech = rowboat_allcaps.Replace(speech, "ROWBOAT")
+
+	speech = sails_lowercase.Replace(speech, "sails")
+	speech = sails_uppercase.Replace(speech, "Sails")
+	speech = sails_allcaps.Replace(speech, "SAILS")
+
+	speech = sea_lowercase.Replace(speech, "sea")
+	speech = sea_uppercase.Replace(speech, "Sea")
+	speech = sea_allcaps.Replace(speech, "SEA")
+
+	return speech
+
+//Removes all the <img> tags from a string, useful for logs.
+/proc/remove_images(var/dat)
+	if(!dat)
+		return
+	var/static/regex/image_finder = new(@"(<img)[^>]*(>)", "g")
+	dat = image_finder.Replace(dat, "")
+	return dat
+
+/proc/nekospeech(var/speech)
+	if(!speech)
+		return
+	var/static/regex/nya_lowercase = new("n(?=\[aeiou])|N(?=\[aeiou])", "g")
+	var/static/regex/nya_uppercase = new("N(?=\[AEIOU])|n(?=\[AEIOU])", "g")
+	var/static/regex/nya_Ny = new("^ny|^NY(?!\[A-Z])") //Thanks, saycode.
+	speech = nya_lowercase.Replace(speech, "ny")
+	speech = nya_uppercase.Replace(speech, "NY")
+	speech = nya_Ny.Replace(speech, "Ny")
+	return speech
+
+/proc/count_matches(haystack, needle)
+	var/last_index = 0
+	var/count = 0
+	do
+		last_index = findtext(haystack, needle, last_index+1)
+		if(last_index)
+			count++
+	while(last_index)
+	return count
+
+/proc/get_reflexive_pronoun(var/gender) //For when \himself won't work.
+	switch(gender)
+		if(MALE)
+			return "himself"
+		if(FEMALE)
+			return "herself"
+		if(PLURAL) //Can be used in conjunction with shift_verb_tense(). eg. "The bees cleans themselves." -> "The bees clean themselves."
+			return "themselves"
+		else
+			return "itself"
+
+/proc/shift_verb_tense(var/input) //Turns "slashes" into "slash" and "hits" into "hit".
+	//Check if there's more than one word in the input, and if so, separate the first word from the rest, eg. "looks over at" separates into "looks" and " over at".
+	var/space = findtext(input, " ")
+	var/fromspace
+	if(space)
+		fromspace = copytext(input, space)
+		input = copytext(input, 1, space)
+	//Check if input ends in "es" or "s" and chop those off if so.
+	var/inputlength = length(input)
+	if(inputlength > 2)
+		if(copytext(input, inputlength - 1, inputlength + 1) == "es") //If it ends in "es"
+			var/third_to_last = copytext(input, inputlength - 2, inputlength - 1)
+			if(findtext("cdefgklmnprstuvxz", third_to_last)) //If the third-to-last letter is any of the given letters, remove only the "s".
+				input = copytext(input, 1, inputlength) //"smiles" becomes "smile"
+			else if(third_to_last == "i")
+				input = copytext(input, 1, inputlength - 2) + "y" //"parries" becomes "parry"
+			else
+				input = copytext(input, 1, inputlength - 1) //Otherwise remove the "es".
+		else if(copytext(input, inputlength, inputlength + 1) == "s") //If the second-to-last letter isn't "e", and the last letter is "s", remove the "s".
+			input = copytext(input, 1, inputlength)	//"gets" becomes "get"
+	return input + fromspace
+
+/proc/get_indefinite_article(input, gender = NEUTER)
+	if (!input)
+		return
+	if (gender == PLURAL)
+		return "some"
+	else
+		var/first = copytext(input, 1, 2)
+		var/upperfirst = uppertext(first)
+		if (first == upperfirst || findtext("AEIOU", upperfirst))
+			return "an"
+		else
+			return "a"

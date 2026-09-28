@@ -10,15 +10,15 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 
 	var/nsplits=1
 
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	anchored = 0
 	density = 1
 
 	var/list/emitted_beams[4] // directions
 
 	machine_flags = WRENCHMOVE | SCREWTOGGLE | CROWDESTROY
-
-	var/list/powerchange_hooks=list()
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
 
 /obj/machinery/mirror/New()
 	..()
@@ -63,33 +63,12 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 	var/obj/structure/mirror_frame/MF = new (src.loc)
 	MF.anchored=anchored
 
-/obj/machinery/mirror/verb/rotate_cw()
-	set name = "Rotate (Clockwise)"
-	set category = "Object"
-	set src in oview(1)
-
-	if (src.anchored)
-		to_chat(usr, "It is fastened to the floor!")
-		return 0
-	src.dir = turn(src.dir, -90)
+/obj/machinery/mirror/change_dir(new_dir, changer)
+	. = ..()
 	kill_all_beams()
 	update_beams()
-	return 1
 
-/obj/machinery/mirror/verb/rotate_ccw()
-	set name = "Rotate (Counter-Clockwise)"
-	set category = "Object"
-	set src in oview(1)
-
-	if (src.anchored)
-		to_chat(usr, "It is fastened to the floor!")
-		return 0
-	src.dir = turn(src.dir, 90)
-	kill_all_beams()
-	update_beams()
-	return 1
-
-/obj/machinery/mirror/wrenchAnchor(var/mob/user)
+/obj/machinery/mirror/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
@@ -103,7 +82,7 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 		if(B.HasSource(src))
 			return // Prevent infinite loops.
 		..()
-		powerchange_hooks[B]=B.power_change.Add(src,"on_power_change")
+		B.register_event(/event/beam_power_change, src, nameof(src::on_power_change()))
 		update_beams()
 
 /obj/machinery/mirror/beam_disconnect(var/obj/effect/beam/emitter/B)
@@ -111,13 +90,11 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 		if(B.HasSource(src))
 			return // Prevent infinite loops.
 		..()
-		B.power_change.Remove(powerchange_hooks[B])
-		powerchange_hooks.Remove(B)
+		B.unregister_event(/event/beam_power_change, src, nameof(src::on_power_change()))
 		update_beams()
 
 // When beam power changes
-/obj/machinery/mirror/proc/on_power_change(var/list/args)
-	//Don't care about args, just update beam.
+/obj/machinery/mirror/proc/on_power_change(obj/effect/beam/beam)
 	update_beams()
 
 /obj/machinery/mirror/proc/kill_all_beams()
@@ -128,10 +105,13 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 		qdel(beam)
 		emitted_beams[i]=null
 		beam=null
+
+	kill_moody_light_all()
 	emitted_beams.len = 4
 
 /obj/machinery/mirror/proc/update_beams()
 	overlays.len = 0
+	kill_moody_light_all()
 
 	var/list/beam_dirs[4] // dir = list(
                         //  type = power
@@ -160,9 +140,10 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 			// For recursion protection
 			spawners |= B.sources
 
-			var/beamdir=get_dir(src,B)
+			var/beamdir = get_dir(src,B)
 
 			overlays += B.get_machine_underlay(beamdir)
+			update_moody_light_index("inbeam_dir[beamdir]",'icons/lighting/moody_lights.dmi', "overlay_emitter_beam_underlay", moody_color = "#66ffff", dir_override = beamdir)
 
 			// Figure out how much power to emit in each direction
 			var/list/deflections = get_deflections(beamdir)
@@ -222,6 +203,7 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 					EB.power = dirdata[beamtype]
 
 				overlays += beam.get_machine_underlay(cdir)
+				update_moody_light_index("outbeam_dir[cdir]",'icons/lighting/moody_lights.dmi', "overlay_emitter_beam_underlay", moody_color = "#66ffff", dir_override = cdir)
 
 				if(newbeam)
 					beam.emit(spawn_by=spawners)
@@ -255,15 +237,15 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 
 /obj/machinery/mirror/bullet_act(var/obj/item/projectile/P, var/def_zone)
 	if(!istype(P, /obj/item/projectile/beam))
-		return
+		return ..()
 	if(P.damage < initial(P.damage)/4)  //Can only be reflected 5 times, let's say
-		return
+		return ..()
 	var/list/deflections = get_deflections(get_dir(src,P))
 	var/turf/T = get_turf(src)
 	for(var/i=1 to nsplits)
 		var/splitdir = deflections[i]
 		var/turf/target = get_edge_target_turf(src, splitdir)
-		var/obj/item/projectile/beam/B = new P.type
+		var/obj/item/projectile/beam/B = new P.type(T)
 		B.original = target
 		B.starting = T
 		B.current = T
@@ -275,3 +257,4 @@ var/global/list/obj/machinery/mirror/mirror_list = list()
 		B.damage = P.damage/2
 		spawn()
 			B.process()
+	return ..()

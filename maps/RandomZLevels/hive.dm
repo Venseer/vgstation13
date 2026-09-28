@@ -58,9 +58,9 @@
 	/obj/item/weapon/gun/stickybomb,
 	/obj/item/weapon/gun/projectile/rocketlauncher/nikita,
 	/obj/item/weapon/cloakingcloak/hive,
-	/obj/item/weapon/invisible_spray,
+	/obj/item/weapon/syndie_spray/invisible_spray,
 	/obj/item/clothing/gloves/powerfist,
-	/obj/item/clothing/glasses/thermal/eyepatch
+	/obj/item/clothing/glasses/hud/thermal/eyepatch
 	)
 
 /datum/map_element/away_mission/hive/pre_load()
@@ -222,7 +222,7 @@
 	..()
 
 	for (var/obj/machinery/computer/communications/comm in machines)
-		if (!(comm.stat & (BROKEN | NOPOWER)) && comm.prints_intercept)
+		if (!(comm.stat & (BROKEN | NOPOWER | FORCEDISABLE)) && comm.prints_intercept)
 			var/obj/item/weapon/paper/intercept = new /obj/item/weapon/paper( comm.loc )
 			intercept.name = "paper- 'Hostile Spaceship Summary'"
 			intercept.info = summary_text
@@ -442,10 +442,11 @@
 
 /turf/unsimulated/floor/evil/breathing/adjust_slowdown(mob/living/L, current_slowdown)
 	if(istype(L, /mob/living/simple_animal/hostile/hive_alien)) //Hive aliens are sped up
-		return -1
-
-	//Everybody else is slowed down
-	return current_slowdown + additional_slowdown
+		current_slowdown *= 0.01
+	else
+		//Everybody else is slowed down
+		current_slowdown *= 4
+	..()
 
 /turf/unsimulated/floor/fake_supermatter/hive
 	carbon_dioxide = EVIL_FLOOR_CO2
@@ -500,7 +501,7 @@
 	anchored = TRUE
 	density = TRUE
 
-	var/health = 10
+	health = 10
 	var/gibtype = /obj/effect/gibspawner/robot
 
 /obj/structure/hive/proc/healthcheck()
@@ -829,19 +830,15 @@ var/list/hive_pylons = list()
 	var/infinite = 0
 
 /obj/item/supermatter_shielding/supermatter_act(atom/source)
-	var/turf/T = get_turf(src)
-
-	if(T)
-		explosion(T, -1, -1, 1)
 
 	if(istype(loc, /mob/living))
 		var/mob/living/L = loc
 		L.Stun(stunforce)
 		L.Knockdown(stunforce)
-		L.apply_effect(STUTTER, stunforce)
+		L.apply_effect(stunforce, STUTTER)
 
 		if(L)
-			to_chat(L, "<span class='userdanger'>As you approach \the [source], your [src] explodes in a burst of energy, knocking you back. Phew, that was close.</span>")
+			to_chat(L, "<span class='userdanger'>As you approach \the [source], your [src.name] explodes in a burst of energy, knocking you back. Phew, that was close.</span>")
 
 	if(!infinite)
 		.=..()

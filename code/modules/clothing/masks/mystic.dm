@@ -3,6 +3,7 @@
 	desc = "<span class=warning>\"I'm happy! I'M HAPPY! SEE! I SAID I'M HAPPY PLEASE DON'T\"<span>"
 	icon_state = "happiest"
 	item_state = "happiest"
+	species_fit = list(INSECT_SHAPED)
 	clothing_flags = MASKINTERNALS
 	body_parts_covered = FACE
 	w_class = W_CLASS_SMALL
@@ -69,7 +70,7 @@ var/list/has_been_shade = list()
 		flick("happiest_flash", src)
 		has_been_shade.Add(M.mind)
 		var/mob/dead/observer/G = M.ghostize(1)
-		var/mob/living/simple_animal/shade/happiest/S = G.transmogrify(/mob/living/simple_animal/shade/happiest, TRUE)
+		var/mob/living/simple_animal/shade/noncult/happiest/S = G.transmogrify(/mob/living/simple_animal/shade/noncult/happiest, TRUE)
 		S.name = "[M.real_name] the Shade"
 		S.real_name = "[M.real_name]"
 		S.cancel_camera()
@@ -77,5 +78,5 @@ var/list/has_been_shade = list()
 		to_chat(H, "<span class='sinister'>Oh joy! [M.real_name]'s decided to join the party!</span>")
 		to_chat(S, "<span class='sinister'>You have been given form by the power of the happiest mask! Go forth and carry out [H.real_name]'s bidding with joy!</span>")
 
-/obj/item/clothing/mask/happy/acidable()
+/obj/item/clothing/mask/happy/dissolvable()
 	return 0

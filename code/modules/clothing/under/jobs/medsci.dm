@@ -9,29 +9,32 @@
 	_color = "director"
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 50
 
 /obj/item/clothing/under/rank/scientist
 	desc = "It's made of a special fiber that provides minor protection against bombs. It has markings that denote the wearer as a scientist."
 	name = "scientist's jumpsuit"
-	icon_state = "toxins"
+	icon_state = "toxinswhite"
 	item_state = "w_suit"
 	_color = "toxinswhite"
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 10, bio = 0, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/chemist
 	desc = "It's made of a special fiber that gives special protection against biohazards. It has a chemist rank stripe on it."
 	name = "chemist's jumpsuit"
-	icon_state = "chemistry"
+	icon_state = "chemistrywhite"
 	item_state = "w_suit"
 	_color = "chemistrywhite"
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/pharma
 	desc = "It's made of a special fiber that gives special protection against biohazards. It has a pharmacist rank stripe on it."
@@ -43,7 +46,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/xenoarch
 	desc = "It's made of a special fiber that provides minor protection against radiation. It has markings that denote the wearer as a xenoarcheologist."
@@ -54,7 +58,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 0, rad = 10)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED, VOX_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/plasmares
 	desc = "It's made of a special fiber that provides minor protection against bombs. It has markings that denote the wearer as a plasma researcher."
@@ -65,7 +70,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 10, bio = 0, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/xenobio
 	desc = "It's made of a special fiber that provides minor protection against biohazards. It has markings that denote the wearer as a xenobiologist."
@@ -76,7 +82,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/anomalist
 	desc = "It's made of a special fiber that provides minor protection against radiation. It has markings that denote the wearer as an anomalist."
@@ -87,7 +94,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 0, rad = 10)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /*
  * Medical
@@ -101,29 +109,32 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 50
 
 /obj/item/clothing/under/rank/geneticist
 	desc = "It's made of a special fiber that gives special protection against biohazards. It has a genetics rank stripe on it."
 	name = "geneticist's jumpsuit"
-	icon_state = "genetics"
+	icon_state = "geneticswhite"
 	item_state = "w_suit"
 	_color = "geneticswhite"
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/virologist
 	desc = "It's made of a special fiber that gives special protection against biohazards. It has a virologist rank stripe on it."
 	name = "virologist's jumpsuit"
-	icon_state = "virology"
+	icon_state = "virologywhite"
 	item_state = "w_suit"
 	_color = "virologywhite"
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 50
 
 /obj/item/clothing/under/rank/nursesuit
 	desc = "It's a jumpsuit commonly worn by nursing staff in the medical department."
@@ -134,7 +145,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/nurse
 	desc = "A dress commonly worn by the nursing staff in the medical department."
@@ -145,7 +157,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/orderly
 	desc = "A white suit to be worn by orderly people who love orderly things."
@@ -156,7 +169,8 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/medical
 	desc = "It's made of a special fiber that provides minor protection against biohazards. It has a cross on the chest denoting that the wearer is trained medical personnel."
@@ -167,31 +181,37 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/medical/blue
 	name = "medical scrubs"
-	desc = "It's made of a special fiber that provides minor protection against biohazards. This one is in baby blue."
+	desc = "They're made of a special fiber that provides minor protection against biohazards. These are in baby blue."
 	icon_state = "scrubsblue"
+	gender = PLURAL
 	_color = "scrubsblue"
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/under/rank/medical/green
 	name = "medical scrubs"
-	desc = "It's made of a special fiber that provides minor protection against biohazards. This one is in dark green."
+	desc = "They're made of a special fiber that provides minor protection against biohazards. These are in dark green."
 	icon_state = "scrubsgreen"
+	gender = PLURAL
 	_color = "scrubsgreen"
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/medical/purple
 	name = "medical scrubs"
-	desc = "It's made of a special fiber that provides minor protection against biohazards. This one is in deep purple."
+	desc = "They're made of a special fiber that provides minor protection against biohazards. These are in deep purple."
 	icon_state = "scrubspurple"
+	gender = PLURAL
 	_color = "scrubspurple"
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 //paramedic
 /obj/item/clothing/under/rank/medical/paramedic
@@ -203,8 +223,20 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 10)
 	clothing_flags = ONESIZEFITSALL
-	species_fit = list(VOX_SHAPED, GREY_SHAPED)
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
+/obj/item/clothing/under/rank/medical/brigmedic
+	desc = "It's made of a special fiber that provides minor protection against biohazards and radiation. It has a cross on the chest denoting that the wearer is trained medical personnel."
+	name = "brig medic's jumpsuit"
+	icon_state = "brigmedic"
+	item_state = "brigmedic"
+	_color = "brigmedic"
+	permeability_coefficient = 0.50
+	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 10)
+	clothing_flags = ONESIZEFITSALL
+	species_fit = list(VOX_SHAPED, GREY_SHAPED, INSECT_SHAPED)
+	sterility = 20
 
 
 
@@ -220,6 +252,7 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	species_fit = list(GREY_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/chemist_new
 	desc = "It's made of a special fiber which provides minor protection against biohazards."
@@ -230,6 +263,7 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	species_fit = list(GREY_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/scientist_new
 	desc = "Made of a special fiber that gives special protection against biohazards and small explosions."
@@ -240,6 +274,7 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 10, bio = 0, rad = 0)
 	species_fit = list(GREY_SHAPED)
+	sterility = 20
 
 /obj/item/clothing/under/rank/virologist_new
 	desc = "Made of a special fiber that gives increased protection against biohazards."
@@ -250,3 +285,4 @@
 	permeability_coefficient = 0.50
 	armor = list(melee = 0, bullet = 0, laser = 0,energy = 0, bomb = 0, bio = 10, rad = 0)
 	species_fit = list(GREY_SHAPED)
+	sterility = 50

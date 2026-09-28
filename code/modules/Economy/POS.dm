@@ -135,6 +135,7 @@ var/const/POS_HEADER = {"<html>
 	density = 0
 	name = "point of sale"
 	desc = "Also known as a cash register, or, more commonly, \"robbery magnet\"."
+	pass_flags = PASSTABLE
 
 	var/id = 0
 	var/sales = 0
@@ -192,6 +193,9 @@ var/const/POS_HEADER = {"<html>
 	line_items.len = 0
 
 /obj/machinery/pos/proc/PrintReceipt(var/order_id)
+	if(!linked_account)
+		// Should not happen, but it happens.
+		linked_account = station_account
 	var/receipt = {"[RECEIPT_HEADER]<div>POINT OF SALE #[id]<br />
 			Paying to: [linked_account.owner_name]<br />
 			Cashier: [logged_in]<br />"}
@@ -242,6 +246,9 @@ var/const/POS_HEADER = {"<html>
 	return "<center><b>Please swipe ID to log in.</b></center>"
 
 /obj/machinery/pos/proc/OrderScreen()
+	if(!linked_account)
+		// Should not happen, but it happens.
+		linked_account = station_account
 	var/receipt = {"<fieldset>
 		<legend>POS Info</legend>
 			POINT OF SALE #[id]<br />
@@ -398,7 +405,7 @@ var/const/POS_HEADER = {"<html>
 
 /obj/machinery/pos/update_icon()
 	overlays = 0
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	if(logged_in)
 		overlays += image(icon = icon, icon_state = "pos-working")
@@ -440,7 +447,7 @@ var/const/POS_HEADER = {"<html>
 			dat += SettingsScreen()
 
 	dat += "</body></html>"
-	user << browse(dat, "window=pos")
+	user << browse(HTML_SKELETON(dat), "window=pos")
 	onclose(user, "pos")
 	return
 
@@ -480,7 +487,7 @@ var/const/POS_HEADER = {"<html>
 		else
 			visible_message("<span class='warning'>The machine buzzes, and flashes \"CARD CAPTURE ERROR\" on the screen.</span>","You hear a buzz.")
 	flick(src,"pos-error")
-	
+
 
 /obj/machinery/pos/Topic(var/href, var/list/href_list)
 	if(..(href,href_list))
@@ -525,7 +532,7 @@ var/const/POS_HEADER = {"<html>
 			if("Add to Order")
 				AddToOrder(href_list["preset"],text2num(href_list["units"]))
 			if("Add Products")
-				for(var/list/line in splittext(href_list["csv"],"\n"))
+				for(var/line in splittext(href_list["csv"],"\n"))
 					var/list/cells = splittext(line,",")
 					if(cells.len<2)
 						to_chat(usr, "<span class='warning'>The CSV must have at least two columns: Product Name, followed by Price (as a number).</span>")

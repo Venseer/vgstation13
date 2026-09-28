@@ -1,241 +1,118 @@
+
 /spell/cult
 	panel = "Cult"
 	override_base = "cult"
 	user_type = USER_TYPE_CULT
 
 
-//SPELL I
-/spell/cult/trace_rune
-	name = "Trace Rune"
-	desc = "(1 BLOOD) Use available blood to write down words. Three words form a rune."
-	hud_state = "cult_word"
+// Not sure what to do with this spell really, it always kinda sucked and tomes as a whole need an overhaul. Runic Skin is a better power.
+var/list/arcane_pockets = list()
 
-	invocation_type = SpI_NONE
-	charge_type = Sp_RECHARGE
-	charge_max = 0
+/spell/cult/arcane_dimension
+	name = "Arcane Dimension (empty)"
+	desc = "Cast while holding an Arcane Tome to discretly store it through the veil."
+	hud_state = "cult_pocket_empty"
+
+	invocation_type = SP_INV_NONE
+	charge_type = SP_RECHARGE
+	charge_cooldown_max = 0
 	range = 0
 	spell_flags = null
-	insufficient_holder_msg = "<span class='warning'>You cannot write another word just yet.</span>"
-	still_recharging_msg = "<span class='warning'>You cannot write another word just yet.</span>"
+	insufficient_holder_msg = ""
+	still_recharging_msg = ""
 
-	cast_delay = 15
+	cast_delay = 0
 
-	var/list/data = list()
-	var/datum/cultword/word = null
-	var/obj/effect/rune/rune = null
-	var/datum/rune_spell/spell = null
-	var/remember = 0
-	var/blood_cost = 1
+	var/obj/item/weapon/tome/stored_tome = null
 
-/spell/cult/trace_rune/choose_targets(var/mob/user = usr)
+/spell/cult/arcane_dimension/New()
+	..()
+	arcane_pockets.Add(src)
+
+/spell/cult/arcane_dimension/Destroy()
+	arcane_pockets.Remove(src)
+	..()
+
+/spell/cult/arcane_dimension/choose_targets(var/mob/user = usr)
 	return list(user)
 
-
-/spell/cult/trace_rune/before_channel(mob/user)
-	if (remember)
-		remember = 0
-	else
-		spell = null//so we're not stuck trying to write the same spell over and over again
-
-	if (user.checkTattoo(TATTOO_FAST))
-		cast_delay = 6
-
-	var/mob/living/carbon/C = user
-	var/muted = C.muted()
-	if (muted)
-		to_chat(user,"<span class='danger'>You find yourself unable to focus your mind on the words of Nar-Sie.</span>")
-	return muted
-
-/spell/cult/trace_rune/spell_do_after(var/mob/user, var/delay, var/numticks = 3)
-
-	if(block)
+/spell/cult/arcane_dimension/cast(var/list/targets, var/mob/living/carbon/user)
+	..()
+	if (user.occult_muted())
+		to_chat(user, "<span class='warning'>You can't seem to remember how to access your arcane dimension right now.</span>")
 		return 0
-
-	block = 1
-	var/tome = ""
-
-	if(!istype(user.loc, /turf))
-		to_chat(user, "<span class='warning'>You do not have enough space to write a proper rune.</span>")
-		return 0
-
-	var/obj/item/weapon/tome/A = null
-	A = user.get_active_hand()
-
-
-	if (user.checkTattoo(TATTOO_MEMORIZE))
-		tome = "Knowledge"
-	if (!tome)
-		tome = (istype(A) && A.state == TOME_OPEN)
-		if (!tome)
-			A = user.get_inactive_hand()
-			tome = (istype(A) && A.state == TOME_OPEN)
-		if (tome)
-			tome = "Tome"
-
-	var/turf/T = get_turf(user)
-	rune = locate() in T
-
-	if (rune)
-		if (rune.invisibility == INVISIBILITY_OBSERVER)
-			to_chat(user, "<span class='warning'>You can feel the presence of a concealed rune here, you have to reveal it before you can add more words to it.</span>")
-			return 0
-		else if (rune.word1 && rune.word2 && rune.word3)
-			to_chat(user, "<span class='warning'>You cannot add more than 3 words to a rune.</span>")
-			return 0
-
-
-	if (spell || tome)
-		if (spell)
-			if (!tome)
-				to_chat(user, "<span class='warning'>Without reading the tome, you have trouble remembering the arcane words.</span>")
-				return 0
+	if (stored_tome)
+		stored_tome.forceMove(get_turf(user))
+		if (user.get_inactive_hand() && user.get_active_hand())//full hands
+			to_chat(user,"<span class='warning'>Your hands being full, your [stored_tome] had nowhere to fall but on the ground.</span>")
 		else
-			var/list/available_runes = list()
-			var/i = 1
-			for(var/subtype in subtypesof(/datum/rune_spell))
-				var/datum/rune_spell/instance = subtype
-				if (initial(instance.Act_restriction) <= veil_thickness)
-					available_runes.Add("\Roman[i]-[initial(instance.name)]")
-					available_runes["\Roman[i]-[initial(instance.name)]"] = instance
-				i++
-			var/spell_name = input(user,"Draw a rune with the help of the Arcane [tome].", "Trace Complete Rune", null) as null|anything in available_runes
-			spell = available_runes[spell_name]
-
-		var/datum/cultword/instance
-		if (!rune)
-			instance = initial(spell.word1)
-		else if (rune.word1.type != initial(spell.word1))
-			to_chat(user, "<span class='warning'>This rune's first word conflicts with the [initial(spell.name)] rune's syntax.</span>")
-			return 0
-		else if (!rune.word2)
-			instance = initial(spell.word2)
-		else if (rune.word2.type != initial(spell.word2))
-			to_chat(user, "<span class='warning'>This rune's second word conflicts with the [initial(spell.name)] rune's syntax.</span>")
-			return 0
-		else if (!rune.word3)
-			instance = initial(spell.word3)
-		else//wtf?
-			to_chat(user, "<span class='warning'>You cannot add more than 3 words to a rune.</span>")
-			return 0
-
-		word = initial(instance.english)
-	else
-
-		word = input(user,"Choose a word to add to the rune.", "Trace Rune Word", null) as null|anything in cultwords
-
-	if (!word)
-		return 0
-
-	data = use_available_blood(user, blood_cost)
-	if (data[BLOODCOST_RESULT] == BLOODCOST_FAILURE)
-		return 0
-
-	if (rune)
-		user.visible_message("<span class='warning'>\The [user] chants and paints more symbols on the floor.</span>",\
-				"<span class='warning'>You add another word to the rune.</span>",\
-				"<span class='warning'>You hear chanting.</span>")
-	else
-		user.visible_message("<span class='warning'>\The [user] begins to chant and paint symbols on the floor.</span>",\
-				"<span class='warning'>You begin drawing a rune on the floor.</span>",\
-				"<span class='warning'>You hear some chanting.</span>")
-
-	var/datum/cultword/r_word = cultwords[word]
-
-	if (user.checkTattoo(TATTOO_SILENT))
-		return ..()
-
-	user.whisper("...[r_word.rune]...")
-	return ..()
-
-/spell/cult/trace_rune/cast(var/list/targets, var/mob/living/carbon/user)
-	..()
-	if (rune && rune.word1 && rune.word2 && rune.word3)
-		to_chat(user, "<span class='warning'>You cannot add more than 3 words to a rune.</span>")
+			to_chat(user,"<span class='notice'>You hold your hand palm up, and your [stored_tome] drops in it from thin air.</span>")
+			user.put_in_hands(stored_tome)
+		stored_tome = null
+		name = "Arcane Dimension (empty)"
+		connected_button.name = name
+		desc = "Cast while holding an Arcane Tome to discretly store it through the veil."
+		hud_state = "cult_pocket_empty"
+		connected_button.overlays.len = 0
+		connected_button.MouseExited()
 		return
-	if (write_rune_word(get_turf(user) ,data["blood"] ,word = cultwords[word]) > 1)
-		remember = 1
-		perform(user)//imediately try writing another word
 
-//SPELL II
-/spell/cult/erase_rune
-	name = "Erase Rune"
-	desc = "Remove the last word written of the rune you're standing above."
-	hud_state = "cult_erase"
+	var/obj/item/weapon/tome/held_tome = locate() in user.held_items
+	if (held_tome)
+		if (held_tome.state == TOME_OPEN)
+			held_tome.icon_state = "tome"
+			held_tome.item_state = "tome"
+			held_tome.state = TOME_CLOSED
+		stored_tome = held_tome
+		user.u_equip(held_tome)
+		held_tome.loc = null
+		to_chat(user,"<span class='notice'>With a swift movement of your arm, you drop \the [held_tome] that disappears into thin air before touching the ground.</span>")
+		name = "Arcane Dimension (full)"
+		connected_button.name = name
+		desc = "Cast to pick up your Arcane Tome back from the veil. You should preferably have a free hand."
+		hud_state = "cult_pocket_full"
+		connected_button.overlays.len = 0
+		connected_button.MouseExited()
 
-	invocation_type = SpI_NONE
-	charge_type = Sp_RECHARGE
-	charge_max = 0
+
+///////////////////////////////ASTRAL PROJECTION SPELLS/////////////////////////////////////
+
+
+/spell/astral_return
+	name = "Re-enter Body"
+	desc = "End your astral projection and re-awaken inside your body. If used while tangible you might spook on-lookers, so be mindful."
+	user_type = USER_TYPE_CULT
+	hud_state = "astral_return"
+	override_base = "cult"
+	charge_cooldown_max = 0
+	spell_flags = 0
 	range = 0
-	spell_flags = null
-	insufficient_holder_msg = ""
-	still_recharging_msg = ""
 
-	cast_delay = 0
-
-/spell/cult/erase_rune/choose_targets(var/mob/user = usr)
+/spell/astral_return/choose_targets(var/mob/user = usr)
 	return list(user)
 
-/spell/cult/erase_rune/cast(var/list/targets, var/mob/living/carbon/user)
-	..()
-	var/turf/T = get_turf(user)
-	var/obj/effect/rune/rune = locate() in T
-	if (rune && rune.invisibility == INVISIBILITY_OBSERVER)
-		to_chat(user, "<span class='warning'>You can feel the presence of a concealed rune here, you have to reveal it before you can erase words from it.</span>")
-		return 0
+/spell/astral_return/cast(var/list/targets, var/mob/user)
+	var/mob/living/simple_animal/astral_projection/astral = user
+	if (istype(astral))
+		astral.death()//pretty straightforward isn't it?
 
-	var/removed_word = erase_rune_word(get_turf(user))
-	if (removed_word)
-		to_chat(user, "<span class='notice'>You retrace your steps, carefully undoing the lines of the [removed_word] rune.</span>")
-	else
-		to_chat(user, "<span class='warning'>There aren't any rune words left to erase.</span>")
-
-
-//SPELL III
-/spell/cult/blood_dagger
-	name = "Blood Dagger"
-	desc = "(5 BLOOD) Solidify some blood into a sharp weapon. Slash at your enemies to steal their blood. Use the dagger to re-absorb the stolen blood."
-	hud_state = "cult_blooddagger"
-
-	invocation_type = SpI_NONE
-	charge_type = Sp_RECHARGE
-	charge_max = 10//don't want people going full dio over knocked down bleeding players, stealing and absorbing their blood.
+/spell/astral_toggle
+	name = "Toggle Tangibility"
+	desc = "Turn into a visible copy of your body, able to speak and bump into doors. But note that the slightest source of damage will dispel your astral projection altogether."
+	user_type = USER_TYPE_CULT
+	charge_cooldown_max = 5 SECONDS//relatively short, but still there to prevent too much spamming in/out of tangibility
+	hud_state = "astral_toggle"
+	override_base = "cult"
+	spell_flags = 0
 	range = 0
-	spell_flags = null
-	insufficient_holder_msg = ""
-	still_recharging_msg = ""
 
-	cast_delay = 0
-
-/spell/cult/blood_dagger/choose_targets(var/mob/user = usr)
+/spell/astral_toggle/choose_targets(var/mob/user = usr)
 	return list(user)
 
-/spell/cult/blood_dagger/cast(var/list/targets, var/mob/living/carbon/user)
-	..()
-	var/mob/living/carbon/human/H = user
-	var/list/data = use_available_blood(user, 5)
-	if (data[BLOODCOST_RESULT] == BLOODCOST_FAILURE)
-		return 0
-	var/dagger_color = DEFAULT_BLOOD
-	var/datum/reagent/blood/source = data["blood"]
-	if (source.data["blood_colour"])
-		dagger_color = source.data["blood_colour"]
-	var/good_hand
-	if(H.can_use_hand(H.active_hand))
-		good_hand = H.active_hand
+/spell/astral_toggle/cast(var/list/targets, var/mob/user)
+	var/mob/living/simple_animal/astral_projection/astral = user
+	astral.toggle_tangibility()
+	if (astral.tangibility)
+		desc = "Turn back into an invisible projection of your soul."
 	else
-		for(var/i = 1 to H.held_items.len)
-			if(H.can_use_hand(i))
-				good_hand = i
-				break
-	if(good_hand)
-		H.drop_item(H.held_items[good_hand], force_drop = 1)
-		var/obj/item/weapon/melee/blood_dagger/BD = new (H)
-		BD.originator = user
-		if (dagger_color != DEFAULT_BLOOD)
-			BD.icon_state += "-color"
-			BD.item_state += "-color"
-			BD.color = dagger_color
-		H.put_in_hand(good_hand, BD)
-		H.visible_message("<span class='warning'>\The [user] squeezes the blood in their hand, and it takes the shape of a dagger!</span>",
-			"<span class='warning'>You squeeze the blood in your hand, and it takes the shape of a dagger.</span>")
-		playsound(H, 'sound/weapons/bloodyslice.ogg', 30, 0,-2)
+		desc = "Turn into a visible copy of your body, able to speak and bump into doors. But note that the slightest source of damage will dispel your astral projection altogether."

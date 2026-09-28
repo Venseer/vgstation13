@@ -15,6 +15,7 @@
 	@max_roles: Integer: How many members this faction is limited to. Set to 0 for no limit
 	@accept_latejoiners: Boolean: Whether or not this faction accepts newspawn latejoiners
 	@objectives: objectives datum: What are the goals of this faction?
+	@faction_scoreboard_data: This is intended to be used on GetScoreboard() to list things like nuclear ops purchases.
 
 	//TODO LATER
 	@faction_icon_state: String: The image name of the icon that appears next to people of this faction
@@ -32,6 +33,8 @@ var/list/factions_with_hud_icons = list()
 	var/required_pref = ""
 	var/list/restricted_species = list()
 	var/list/members = list()
+	var/peak_member_amount = 0
+	var/role_peak_member_typefilter
 	var/max_roles = 0
 	var/accept_latejoiners = FALSE
 	var/datum/objective_holder/objective_holder
@@ -40,6 +43,24 @@ var/list/factions_with_hud_icons = list()
 	var/logo_state = "synd-logo"
 	var/list/hud_icons = list()
 	var/datum/role/leader
+	var/list/faction_scoreboard_data = list()
+	var/stage = FACTION_DORMANT //role_datums_defines.dm
+	var/playlist
+	var/default_admin_voice = "Supreme Leader"
+	var/admin_voice_style = "radio" // check stylesheet.dm for a list of all possible styles
+	var/list/voice_per_admin = list()
+	var/admin_voice_say = "says"
+
+	var/emergency_shuttle_lockdown = null //if a string is set, commms console won't be able to call the shuttle, with that string given as explaination.
+	var/last_security_level_change = SEC_LEVEL_GREEN //the last sec level set by that faction. If the security level should change, it will only do so if no other faction has a higher one
+
+	var/minor_victory = FALSE
+
+	// This datum represents all data that is exported to the statistics file at the end of the round.
+	// If you want to store faction-specific data as statistics, you'll need to define your own datum.
+	// See dynamic_stats.dm
+	var/datum/stat/faction/stat_datum = null
+	var/datum/stat/faction/stat_datum_type = /datum/stat/faction
 
 /datum/faction/New()
 	..()
@@ -49,11 +70,23 @@ var/list/factions_with_hud_icons = list()
 		factions_with_hud_icons.Add(src)
 
 	for (var/datum/faction/F in factions_with_hud_icons)
-		update_hud_icons()
+		F.update_hud_icons()
+
+	stat_datum = new stat_datum_type()
 
 /datum/faction/proc/OnPostSetup()
 	for(var/datum/role/R in members)
 		R.OnPostSetup()
+
+/datum/faction/proc/Dismantle()
+	for(var/datum/role/R in members)
+		var/datum/gamemode/G = ticker.mode
+		G.orphaned_roles += R
+		members -= R
+	qdel(objective_holder)
+	var/datum/gamemode/dynamic/D = ticker.mode
+	D.factions -= src
+	qdel(src)
 
 //Initialization proc, checks if the faction can be made given the current amount of players and/or other possibilites
 /datum/faction/proc/can_setup()
@@ -62,10 +95,15 @@ var/list/factions_with_hud_icons = list()
 //For when you want your faction to have specific objectives (Vampire, suck blood. Cult, sacrifice the head of personnel's dog, etc.)
 /datum/faction/proc/forgeObjectives()
 
+/datum/faction/proc/AnnounceObjectives()
+	for(var/datum/role/R in members)
+		R.AnnounceObjectives()
+
+/datum/faction/proc/ShuttleDocked(state)
+
 /datum/faction/proc/HandleNewMind(var/datum/mind/M) //Used on faction creation
 	for(var/datum/role/R in members)
 		if(R.antag == M)
-			WARNING("Mind was already a role in this faction")
 			return 0
 	if(M.GetRole(initial_role))
 		WARNING("Mind already had a role of [initial_role]!")
@@ -74,17 +112,16 @@ var/list/factions_with_hud_icons = list()
 	if(!newRole.AssignToRole(M))
 		newRole.Drop()
 		return 0
-	return 1
+	return newRole
 
 /datum/faction/proc/HandleRecruitedMind(var/datum/mind/M, var/override = FALSE)
 	for(var/datum/role/R in members)
 		if(R.antag == M)
-			WARNING("Mind was already a role in this faction")
-			return 0
+			return R
 	if(M.GetRole(late_role))
 		WARNING("Mind already had a role of [late_role]!")
-		return 0
-	var/datum/role/R = new roletype(null,src,initial_role) // Add him to our roles
+		return (M.GetRole(late_role))
+	var/datum/role/R = new roletype(null,src,late_role) // Add him to our roles
 	if(!R.AssignToRole(M, override))
 		R.Drop()
 		return 0
@@ -124,27 +161,35 @@ var/list/factions_with_hud_icons = list()
 /datum/faction/proc/CheckObjectives()
 	return objective_holder.GetObjectiveString(check_success = TRUE)
 
+/datum/faction/proc/OnLateArrival(mob/living/carbon/human/character, rank)
+	return
+
 /datum/faction/proc/GetScoreboard()
-	var/win = 1
 	var/count = 1
 	var/score_results = ""
+	var/fully_freeform = TRUE
 	if(objective_holder.objectives.len > 0)
 		score_results += "<ul>"
 		for (var/datum/objective/objective in objective_holder.GetObjectives())
+			var/freeform = objective.flags & FREEFORM_OBJECTIVE
+			if (!freeform)
+				fully_freeform = FALSE
 			var/successful = objective.IsFulfilled()
-			score_results += "<B>Objective #[count]</B>: [objective.explanation_text] [successful ? "<font color='green'><B>Success!</B></font>" : "<font color='red'>Fail.</font>"]"
-			feedback_add_details("[ID]_objective","[objective.type]|[successful ? "SUCCESS" : "FAIL"]")
-			if(!successful) //If one objective fails, then you did not win.
-				win = 0
+			objective.extraInfo()
+			score_results += "<B>Objective #[count]</B>: [objective.explanation_text] [freeform ? "" : "[successful ? "<font color='green'><B>Success!</B></font>" : "<span class='red'>Fail.</span>"]"]"
+			feedback_add_details("[ID]_objective","[objective.type]|[freeform ? "FREEFORM" : "[successful ? "SUCCESS" : "FAIL"]"]")
 			count++
 			if (count <= objective_holder.objectives.len)
 				score_results += "<br>"
-	if (count>1)
-		if (win)
+	if ((count > 1) && !fully_freeform)
+		if (IsSuccessful())
 			score_results += "<br><font color='green'><B>\The [name] was successful!</B></font>"
 			feedback_add_details("[ID]_success","SUCCESS")
+		else if (minor_victory)
+			score_results += "<br><font color='green'><B>\The [name] has achieved a minor victory.</B> [minorVictoryText()]</font>"
+			feedback_add_details("[ID]_success","MINOR_VICTORY")
 		else
-			score_results += "<br><font color='red'><B>\The [name] has failed.</B></font>"
+			score_results += "<br><span class='red'><B>\The [name] has failed.</B></span>"
 			feedback_add_details("[ID]_success","FAIL")
 
 	if(objective_holder.objectives.len > 0)
@@ -160,16 +205,77 @@ var/list/factions_with_hud_icons = list()
 			if (i < members.len)
 				score_results += "<br>"
 		i++
+
+	stat_collection.add_faction(src)
+
 	return score_results
+
+/datum/faction/Topic(href, href_list)
+	..()
+	if(!usr.check_rights(R_ADMIN))
+		message_admins("[usr] tried to access faction Topic() without permissions.")
+		return
+
+	if(href_list["destroyfac"])
+		if(alert(usr, "Are you sure you want to destroy [name]?",  "Destroy Faction" , "Yes" , "No") != "Yes")
+			return
+		message_admins("[key_name(usr)] destroyed faction [name].")
+		Dismantle()
+
+	if (!ismob(usr))
+		return
+	var/mob/user = usr
+
+	if (href_list["faction_speak"])
+		if (!(user.ckey in voice_per_admin))
+			voice_per_admin[user.ckey] = default_admin_voice
+
+		var/message = input("What message shall we send as [voice_per_admin[user.ckey]]?",
+                    "Faction Broadcast",
+                    "")
+		if (!message)
+			return
+		for (var/datum/role/R in members)
+			if (R.antag?.current)
+				to_chat(R.antag.current, "<b>[voice_per_admin[user.ckey]]</b> [admin_voice_say] <span class='[admin_voice_style]'>\"[message]\"</span>")
+
+		for(var/mob/dead/observer/O in player_list)
+			to_chat(O, "<span class='game say'><b>[voice_per_admin[user.ckey]]</b> [admin_voice_say] <span class='[admin_voice_style]'>\"[message]\"</span></span>")
+
+		message_admins("Admin [key_name_admin(usr)] has talked to [name] as [voice_per_admin[user.ckey]].")
+		log_factionspeak("[key_name(usr)] as [voice_per_admin[user.ckey]]: \"[message]\"")
+
+	if (href_list["faction_set_speaker"])
+		if (!(user.ckey in voice_per_admin))
+			voice_per_admin[user.ckey] = default_admin_voice
+
+		var/new_name = input("What should you call yourself when broadcasting to [name]?",
+                    "Change Broadcaster Name",
+                    "[voice_per_admin[user.ckey]]")
+		if (new_name)
+			voice_per_admin[user.ckey] = new_name
+		user.client.holder.check_antagonists()
+
+/datum/faction/proc/IsSuccessful()
+	var/win = TRUE
+	if(objective_holder.objectives.len > 0)
+		for (var/datum/objective/objective in objective_holder.GetObjectives())
+			if(!objective.IsFulfilled())
+				win = FALSE
+	return win
 
 /datum/faction/proc/GetObjectivesMenuHeader() //Returns what will show when the factions objective completion is summarized
 	var/icon/logo = icon('icons/logos.dmi', logo_state)
-	var/header = {"<img src='data:image/png;base64,[icon2base64(logo)]' style='position:relative; top:10px;'> <FONT size = 2><B>[name]</B></FONT> <img src='data:image/png;base64,[icon2base64(logo)]' style='position:relative; top:10px;'><br>"}
+	var/header = {"<img src='data:image/png;base64,[icon2base64(logo)]' style='position:relative; top:10px;'> <FONT size = 2><B>[name]</B></FONT> <img src='data:image/png;base64,[icon2base64(logo)]' style='position:relative; top:10px;'>"}
 	return header
 
 /datum/faction/proc/AdminPanelEntry(var/datum/admins/A)
+	var/mob/user = usr
+	if (!(user.ckey in voice_per_admin))
+		voice_per_admin[user.ckey] = default_admin_voice
 	var/dat = "<br>"
 	dat += GetObjectivesMenuHeader()
+	dat += " <a href='?src=\ref[src];destroyfac=1'>\[Destroy\]</A><br>"
 	dat += "<br><b>Faction objectives</b><br>"
 	dat += objective_holder.GetObjectiveString(0,1,A)
 	dat += "<br> - <b>Members</b> - <br>"
@@ -179,14 +285,62 @@ var/list/factions_with_hud_icons = list()
 		for(var/datum/role/R in members)
 			dat += R.AdminPanelEntry()
 			dat += "<br>"
+	dat += "<br><a href='?src=\ref[src];faction_speak=1'>Message faction as:</a><a href='?src=\ref[src];faction_set_speaker=1'>\[[voice_per_admin[user.ckey]]\]:</a>"
 	return dat
 
 /datum/faction/proc/process()
+	var/total
 	for (var/datum/role/R in members)
 		R.process()
+		if(!role_peak_member_typefilter || istype(R,role_peak_member_typefilter))
+			total++
+	if(total > peak_member_amount)
+		peak_member_amount = total
+
+/datum/faction/proc/stage(var/value)
+	stage = value
+	switch(value)
+		if(FACTION_DEFEATED) //Faction was close to victory, but then lost. Send shuttle and end theme.
+			sleep(5 SECONDS)
+			emergency_shuttle_lockdown = null
+			call_shuttle_proc(null, "The [name] has been defeated. An emergency shuttle has been dispatched")//will only actually occur if nothing else prevents the shuttle call
+			OnPostDefeat()
+			last_security_level_change = SEC_LEVEL_BLUE
+			var/sec_change = TRUE
+			for(var/datum/faction/F in ticker.mode.factions)
+				if (F.last_security_level_change > SEC_LEVEL_BLUE)
+					sec_change = FALSE
+			if (sec_change)
+				set_security_level("blue")//We drop the sec level to blue, but only if no other faction wants it any higher
+				ticker.StopThematic()
+		if(FACTION_ENDGAME) //Faction is nearing victory. Set red alert and play endgame music.
+			last_security_level_change = SEC_LEVEL_RED
+			var/sec_change = TRUE
+			for(var/datum/faction/F in ticker.mode.factions)
+				if (F.last_security_level_change == SEC_LEVEL_DELTA)
+					sec_change = FALSE
+			if (sec_change)
+				if(playlist)
+					ticker.StartThematic(playlist)
+				else
+					ticker.StartThematic("endgame")
+				sleep(2 SECONDS)
+				set_security_level("red")//We raise the sec level to red, unless some malf AI has it set to delta already
+
+/datum/faction/proc/OnPostDefeat()
+	if(emergency_shuttle.location || emergency_shuttle.direction) //If traveling or docked somewhere other than idle at command, don't call.
+		return
+	emergency_shuttle.incall()
+	var/datum/command_alert/emergency_shuttle_called/CA = new /datum/command_alert/emergency_shuttle_called
+	CA.justification = "Recovery of Assets."
+	command_alert(CA)
+
 
 /datum/faction/proc/check_win()
 	return
+
+/datum/faction/proc/minorVictoryText()
+	return ""
 
 //updating every icons at the same time allows their animate() to be sync'd, so we can alternate the one on top without any additional proc calls.
 /proc/update_faction_icons()
@@ -219,9 +373,11 @@ var/list/factions_with_hud_icons = list()
 
 	//then re-add them
 	for(var/datum/role/R in members)
-		if(R.antag && R.antag.current && R.antag.current.client)
+		if(R.antag && R.antag.current && R.antag.current.client && R.antag.GetRole(R.id))//if the mind doesn't have access to the role, they shouldn't see the icons
 			for(var/datum/role/R_target in members)
 				if(R_target.antag && R_target.antag.current)
+					if(R.antag.current.loneliness_affected(R_target.antag.current,TRUE))
+						continue
 					var/imageloc = R_target.antag.current
 					if(istype(R_target.antag.current.loc,/obj/mecha))
 						imageloc = R_target.antag.current.loc
@@ -232,6 +388,7 @@ var/list/factions_with_hud_icons = list()
 					I.pixel_x = 20 * PIXEL_MULTIPLIER
 					I.pixel_y = 20 * PIXEL_MULTIPLIER
 					I.plane = ANTAG_HUD_PLANE
+					I.appearance_flags |= RESET_COLOR|RESET_ALPHA
 					if (factions_with_icons > 1)
 						animate(I, layer = 1, time = 0.1 + offset * HUDICON_BLINKDURATION, loop = -1)
 						animate(layer = 0, time = 0.1)
@@ -319,11 +476,16 @@ var/list/factions_with_hud_icons = list()
 	ID = HIVEMIND
 	initial_role = CHANGELING
 	late_role = CHANGELING
-	required_pref = ROLE_CHANGELING
+	required_pref = CHANGELING
 	desc = "An almost parasitic, shapeshifting entity that assumes the identity of its victims. Commonly used as smart bioweapons by the syndicate,\
 	or simply wandering malignant vagrants happening upon a meal of identity that can carry them to further feeding grounds."
 	roletype = /datum/role/changeling
 	logo_state = "change-logoa"
+	default_admin_voice = "Changeling Hivemind"
+	admin_voice_style = "borer"
+
+	//Hivemind Bank, contains a list of DNA that changelings can share and use.
+	var/list/hivemind_bank = list()
 
 /datum/faction/changeling/GetObjectivesMenuHeader()
 	var/icon/logo_left = icon('icons/logos.dmi', "change-logoa")
@@ -333,116 +495,21 @@ var/list/factions_with_hud_icons = list()
 
 //________________________________________________
 
-/datum/faction/wizard
-	name = "Wizard Federation"
-	ID = WIZFEDERATION
-	initial_role = WIZARD
-	late_role = WIZARD
-	required_pref = ROLE_WIZARD
-	desc = "A conglomeration of magically adept individuals, with no obvious heirachy, instead acting as equal individuals in the pursuit of magic-oriented endeavours.\
-	Their motivations for attacking seemingly peaceful enclaves or operations are as yet unknown, but they do so without respite or remorse.\
-	This has led to them being identified as enemies of humanity, and should be treated as such."
-	initroletype = /datum/role/wizard
-	roletype = /datum/role/wizard
-	logo_state = "wizard-logo"
-	hud_icons = list("wizard-logo","apprentice-logo")
-
-/datum/faction/wizard/HandleNewMind(var/datum/mind/M)
-	..()
-	M.special_role = "Wizard"
-	M.original = M.current
-
-/datum/faction/wizard/OnPostSetup()
-	if(wizardstart.len == 0)
-		for(var/datum/role/wizard in members)
-			to_chat(wizard.antag.current, "<span class='danger'>A starting location for you could not be found, please report this bug!</span>")
-		log_admin("Failed to set-up a round of wizard. Couldn't find any wizard spawn points.")
-		message_admins("Failed to set-up a round of wizard. Couldn't find any wizard spawn points.")
-		return 0 //Critical failure.
-	..()
-
-/datum/faction/wizard/forgeObjectives()
-	for(var/datum/role/R in members)
-		R.ForgeObjectives()
-		R.AnnounceObjectives()
-
-/datum/faction/wizard/ragin
-	accept_latejoiners = TRUE
-	var/max_wizards
-
-/datum/faction/wizard/ragin/check_win()
-	if(members.len == max_roles)
-		return 1
-//________________________________________________
-
-#define ADD_REVOLUTIONARY_FAIL_IS_COMMAND -1
-#define ADD_REVOLUTIONARY_FAIL_IS_JOBBANNED -2
-#define ADD_REVOLUTIONARY_FAIL_IS_IMPLANTED -3
-#define ADD_REVOLUTIONARY_FAIL_IS_REV -4
-
-/datum/faction/revolution
-	name = "Revolutionaries"
-	ID = REVOLUTION
-	required_pref = ROLE_REV
-	initial_role = HEADREV
-	late_role = REV
-	desc = "Viva!"
-	logo_state = "rev-logo"
-	initroletype = /datum/role/revolutionary/leader
-	roletype = /datum/role/revolutionary
-
-/datum/faction/revolution/HandleRecruitedMind(var/datum/mind/M)
-	if(M.assigned_role in command_positions)
-		return ADD_REVOLUTIONARY_FAIL_IS_COMMAND
-
-	var/mob/living/carbon/human/H = M.current
-
-	if(jobban_isbanned(H, "revolutionary"))
-		return ADD_REVOLUTIONARY_FAIL_IS_JOBBANNED
-
-	for(var/obj/item/weapon/implant/loyalty/L in H) // check loyalty implant in the contents
-		if(L.imp_in == H) // a check if it's actually implanted
-			return ADD_REVOLUTIONARY_FAIL_IS_IMPLANTED
-
-	if(isrev(H)) //HOW DO YOU FUCK UP THIS BADLY.
-		return ADD_REVOLUTIONARY_FAIL_IS_REV
-
-	return ..()
-
-/datum/faction/revolution/forgeObjectives()
-	var/list/heads = get_living_heads()
-	for(var/datum/mind/head_mind in heads)
-		var/datum/objective/target/assassinate/A = new(auto_target = FALSE)
-		if(A.set_target(head_mind))
-			AppendObjective(A)
 
 /datum/faction/strike_team
 	name = "Custom Strike Team"//obviously this name is a placeholder getting replaced by the admin setting up the squad
-	required_pref = ROLE_STRIKE
 	ID = CUSTOMSQUAD
 	logo_state = "nano-logo"
+	default_admin_voice = "Commander"
+	admin_voice_style = "secradio"
+
+/datum/faction/strike_team/forgeObjectives(var/mission)
+	var/datum/objective/custom/c = new /datum/objective/custom
+	c.explanation_text = mission
+	AppendObjective(c)
 
 //________________________________________________
 
-/datum/faction/strike_team/ert
-	name = "Emergency Response Team"
-	ID = ERT
-	initroletype = /datum/role/emergency_responder
-	roletype = /datum/role/emergency_responder
-	logo_state = "ert-logo"
-	hud_icons = list("ert-logo")
-
-//________________________________________________
-
-/datum/faction/strike_team/deathsquad
-	name = "Nanotrasen Deathsquad"
-	ID = DEATHSQUAD
-	initroletype = /datum/role/death_commando
-	roletype = /datum/role/death_commando
-	logo_state = "death-logo"
-	hud_icons = list("death-logo","creed-logo")
-
-//________________________________________________
 
 /datum/faction/strike_team/syndiesquad
 	name = "Syndicate Deep-Strike squad"
@@ -450,21 +517,18 @@ var/list/factions_with_hud_icons = list()
 	initroletype = /datum/role/syndicate_elite_commando
 	roletype = /datum/role/syndicate_elite_commando
 	logo_state = "elite-logo"
+	default_admin_voice = "The Syndicate"
+	admin_voice_style = "syndradio"
+
+//________________________________________________
 
 /datum/faction/strike_team/custom
 	name = "Custom Strike Team"
+	default_admin_voice = "Commander"
+	admin_voice_style = "secradio"
 
 /datum/faction/strike_team/custom/New()
 	..()
 	ID = rand(1,999)
-
-//________________________________________________
-
-/datum/faction/blob_conglomerate
-	name = BLOBCONGLOMERATE
-	ID = BLOBCONGLOMERATE
-	logo_state = "blob-logo"
-	roletype = /datum/role/blob_overmind
-	initroletype = /datum/role/blob_overmind
 
 //________________________________________________

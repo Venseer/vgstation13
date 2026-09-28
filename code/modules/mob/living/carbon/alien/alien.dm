@@ -14,16 +14,17 @@
 
 	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/xenomeat
 
+	see_in_dark = 8
+
 	var/plasma = 250
 	var/max_plasma = 500
 	var/neurotoxin_cooldown = 0
 
 	var/obj/item/weapon/card/id/wear_id = null // Fix for station bounced radios -- Skie
-	var/has_fine_manipulation = 0
 
 	var/move_delay_add = 0 // movement delay to add
 
-	status_flags = CANPARALYSE|CANPUSH
+	status_flags = CANPARALYSE|CANPUSH|UNPACIFIABLE
 	var/heal_rate = 2.5
 	var/plasma_rate = 5
 
@@ -33,6 +34,29 @@
 
 	var/heat_protection = 0.5
 	var/list/can_only_pickup = list(/obj/item/clothing/mask/facehugger, /obj/item/weapon/grab) //What types of object can the alien pick up?
+	var/list/xeno_cult_items = list(/obj/item/weapon/melee/blood_dagger)
+
+/mob/living/carbon/alien/New()
+	add_language(LANGUAGE_XENO)
+	default_language = all_languages[LANGUAGE_XENO]
+	init_language = default_language
+	. = ..()
+	change_sight(adding = SEE_MOBS)
+
+/mob/living/carbon/alien/update_perception()
+	if(!client)
+		return
+	if(dark_plane)
+		dark_plane.alphas["alien"] = 200
+		dark_plane.colours = "#8C5E2F"
+		client.color = list(
+					1.2,0,0,0,
+					0,1.3,0,0,
+	 				0,0,1.3,0,
+		 			0,-0.05,-0.1,1,
+		 			0,0,0,0)
+
+	check_dark_vision()
 
 /mob/living/carbon/alien/AdjustPlasma(amount)
 	plasma = min(max(plasma + amount,0),max_plasma) //upper limit of max_plasma, lower limit of 0
@@ -47,16 +71,6 @@
 		hud_used.vampire_blood_display.maptext_height = WORLD_ICON_SIZE
 		hud_used.vampire_blood_display.maptext = "<div align='left' valign='top' style='position:relative; top:0px; left:6px'> P:<font color='#E9DAE9' size='1'>[plasma]</font><br>  / <font color='#BE7DBE' size='1'>[max_plasma]</font></div>"
 	return
-
-/*
-/mob/living/carbon/alien/adjustFireLoss(amount) // Weak to Fire
-	if(amount > 0)
-		..(amount * 2)
-	else
-		..(amount)
-	return
-*/
-//No longer weak to fire
 
 /*Code for aliens attacking aliens. Because aliens act on a hivemind, I don't see them as very aggressive with each other.
 As such, they can either help or harm other aliens. Help works like the human help command while harm is a simple nibble.
@@ -89,8 +103,7 @@ In all, this is a lot like the monkey code. /N
 	var/obj/machinery/bot/mulebot/MB = AM
 	if(istype(MB))
 		MB.RunOverCreature(src,"#00ff00")
-		var/obj/effect/decal/cleanable/blood/xeno/X = getFromPool(/obj/effect/decal/cleanable/blood/xeno, src.loc) //new /obj/effect/decal/cleanable/blood/xeno(src.loc)
-		X.New(src.loc)
+		new /obj/effect/decal/cleanable/blood/xeno(src.loc)
 
 /mob/living/carbon/alien/updatehealth()
 	if(status_flags & GODMODE)
@@ -117,7 +130,8 @@ In all, this is a lot like the monkey code. /N
 		var/turf/heat_turf = get_turf(src)
 		loc_temp = heat_turf.temperature
 	else if(istype(loc, /obj/machinery/atmospherics/unary/cryo_cell))
-		loc_temp = loc:air_contents.temperature
+		var/obj/machinery/atmospherics/unary/cryo_cell/tube = loc
+		loc_temp = tube.air_contents.temperature
 	else
 		loc_temp = environment.temperature
 
@@ -193,8 +207,8 @@ In all, this is a lot like the monkey code. /N
 	bodytemperature += BODYTEMP_HEATING_MAX //If you're on fire, you heat up!
 	return
 
-/mob/living/carbon/alien/IsAdvancedToolUser()
-	return has_fine_manipulation
+/mob/living/carbon/alien/dexterity_check()
+	return FALSE
 
 /mob/living/carbon/alien/Process_Spaceslipping()
 	return 0 // Don't slip in space.
@@ -233,7 +247,7 @@ In all, this is a lot like the monkey code. /N
 
 //This proc is NOT useless, we make it so that aliens have an halved siemens_coeff. Which means they take half damage
 //I will personally find the retard who made all these VARIABLES into FUCKING CONSTANTS. THE FUCKING SOURCE AND THE SHOCK DAMAGE, CONSTANTS ? YOU THINK ?
-/mob/living/carbon/alien/electrocute_act(const/shock_damage, const/obj/source, const/siemens_coeff = 1)
+/mob/living/carbon/alien/electrocute_act(const/shock_damage, const/obj/source, const/siemens_coeff = 1, def_zone = null, incapacitation_duration = 20 SECONDS)
 
 	var/damage = shock_damage * siemens_coeff
 
@@ -248,7 +262,7 @@ In all, this is a lot like the monkey code. /N
 	//src.updatehealth()
 
 	visible_message( \
-		"<span class='warning'>[src] was shocked by the [source]!</span>", \
+		"<span class='warning'>[src] was shocked by \the [source]!</span>", \
 		"<span class='danger'>You feel a powerful shock course through your body!</span>", \
 		"<span class='warning'>You hear a heavy electrical crack.</span>", \
 		"<span class='notice'>[src] starts raving!</span>", \

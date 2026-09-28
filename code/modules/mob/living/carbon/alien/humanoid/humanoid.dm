@@ -5,15 +5,14 @@
 	var/obj/item/weapon/r_store = null
 	var/obj/item/weapon/l_store = null
 	var/caste = ""
+	var/has_fine_manipulation = 0
 	update_icon = TRUE
 
 	species_type = /mob/living/carbon/alien/humanoid
 
 //This is fine right now, if we're adding organ specific damage this needs to be updated
 /mob/living/carbon/alien/humanoid/New()
-	var/datum/reagents/R = new/datum/reagents(100)
-	reagents = R
-	R.my_atom = src
+	create_reagents(100)
 	if(name == "alien")
 		name = text("alien ([rand(1, 1000)])")
 	real_name = name
@@ -26,6 +25,9 @@
 	add_spell(new /spell/targeted/alienwhisper, "alien_spell_ready", /obj/abstract/screen/movable/spell_master/alien)
 	add_spell(new /spell/targeted/alientransferplasma, "alien_spell_ready", /obj/abstract/screen/movable/spell_master/alien)
 
+/mob/living/carbon/alien/humanoid/get_butchering_products()
+	return list(/datum/butchering_product/claws/xeno, /datum/butchering_product/skin/xeno, /datum/butchering_product/teeth/bunch)
+
 /mob/living/carbon/alien/humanoid/emp_act(severity)
 	if(flags & INVULNERABLE)
 		return
@@ -35,7 +37,7 @@
 		l_store.emp_act(severity)
 	..()
 
-/mob/living/carbon/alien/humanoid/ex_act(severity)
+/mob/living/carbon/alien/humanoid/ex_act(severity, var/child=null, var/mob/whodunnit)
 	if(flags & INVULNERABLE)
 		return
 
@@ -46,9 +48,12 @@
 
 	var/b_loss = null
 	var/f_loss = null
+	var/dmg_phrase = ""
+	var/msg_admin = (src.key || src.ckey || (src.mind && src.mind.key)) && whodunnit
 	switch (severity)
 		if(1)
 			b_loss += 500
+			add_attacklogs(src, whodunnit, "got caught in an explosive blast[whodunnit ? " from" : ""]", addition = "Severity: [severity], Gibbed", admin_warn = msg_admin)
 			gib()
 			return
 
@@ -58,6 +63,7 @@
 			f_loss += 60
 			ear_damage += 30
 			ear_deaf += 120
+			dmg_phrase = "Damage: [shielded ? "60" : "120"]"
 
 		if(3)
 			b_loss += 30
@@ -65,6 +71,9 @@
 				Paralyse(TRUE)
 			ear_damage += 15
 			ear_deaf += 60
+			dmg_phrase = "Damage: 30"
+
+	add_attacklogs(src, whodunnit, "got caught in an explosive blast[whodunnit ? " from" : ""]", addition = "Severity: [severity], [dmg_phrase]", admin_warn = msg_admin)
 
 	adjustBruteLoss(b_loss)
 	adjustFireLoss(f_loss)
@@ -153,13 +162,12 @@
 /mob/living/carbon/alien/humanoid/restrained()
 	if(timestopped)
 		return TRUE //under effects of time magick
-	if (handcuffed)
+	if (check_handcuffs())
 		return TRUE
 	return FALSE
 
 
 /mob/living/carbon/alien/humanoid/var/co2overloadtime = null
-/mob/living/carbon/alien/humanoid/var/temperature_resistance = T0C+75
 
 /mob/living/carbon/alien/humanoid/show_inv(mob/user as mob)
 	user.set_machine(src)
@@ -178,7 +186,7 @@
 		dat += " <A href='?src=\ref[src];pockets=right'>[(r_store && !(src.r_store.abstract)) ? "Right (Full)" : "<font color=grey>Right (Empty)</font>"]</A>"
 		dat += "<BR>[HTMLTAB]&#8627;<B>ID:</B> <A href='?src=\ref[src];id=1'>[makeStrippingButton(wear_id)]</A>"
 
-	if(handcuffed)
+	if(handcuffed || mutual_handcuffs)
 		dat += "<BR><B>Handcuffed:</B> <A href='?src=\ref[src];item=[slot_handcuffed]'>Remove</A>"
 
 	dat += {"

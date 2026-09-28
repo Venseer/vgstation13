@@ -13,6 +13,7 @@
 	emote_see = list("clacks")
 	speak_chance = 1
 	turns_per_move = 15//Gotta go fast
+	meat_type = /obj/item/weapon/reagent_containers/food/snacks/meat/crabmeat
 	maxHealth = 300//So they don't die as quickly
 	health = 300
 
@@ -21,3 +22,6 @@
 	melee_damage_upper = 15
 	attacktext = "snips"
 	attack_sound = 'sound/weapons/toolhit.ogg'
+
+/mob/living/simple_animal/hostile/crab/get_butchering_products()
+	return list(/datum/butchering_product/claws/crab/megamad)

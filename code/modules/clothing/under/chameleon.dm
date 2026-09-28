@@ -8,19 +8,17 @@
 	origin_tech = Tc_SYNDICATE + "=3"
 	siemens_coefficient = 0.8
 	permeability_coefficient = 0.90
-	species_fit = list(GREY_SHAPED)
+	species_fit = list(GREY_SHAPED, INSECT_SHAPED)
 	var/list/clothing_choices = list()
 
 /obj/item/clothing/under/chameleon/New()
 	..()
 	verbs += /obj/item/clothing/under/chameleon/proc/Change_Color
-	for(var/U in typesof(/obj/item/clothing/under/color)-(/obj/item/clothing/under/color))
-		var/obj/item/clothing/under/V = new U
-		clothing_choices += V
+	for(var/U in existing_typesof(/obj/item/clothing/under/color))
+		clothing_choices += new U
 
-	for(var/U in typesof(/obj/item/clothing/under/rank)-(/obj/item/clothing/under/rank))
-		var/obj/item/clothing/under/V = new U
-		clothing_choices += V
+	for(var/U in existing_typesof(/obj/item/clothing/under/rank))
+		clothing_choices += new U
 	return
 
 
@@ -66,16 +64,16 @@
 	icon_state = A.icon_state
 	item_state = A.item_state
 	_color = A._color
+	clothing_flags = A.clothing_flags
 	usr.update_inv_w_uniform()	//so our overlays update.
 
 
 /obj/item/clothing/under/chameleon/all/New()
 	..()
-	var/blocked = list(/obj/item/clothing/under/chameleon, /obj/item/clothing/under/chameleon/all, /obj/item/clothing/under)
+	var/blocked = list(/obj/item/clothing/under/chameleon, /obj/item/clothing/under/chameleon/all)
 	//to prevent an infinite loop
-	for(var/U in typesof(/obj/item/clothing/under)-blocked)
-		var/obj/item/clothing/under/V = new U
-		clothing_choices += V
+	for(var/U in existing_typesof(/obj/item/clothing/under)-blocked)
+		clothing_choices += U
 
 /obj/item/clothing/under/chameleon/cold
 	heat_conductivity = 1000

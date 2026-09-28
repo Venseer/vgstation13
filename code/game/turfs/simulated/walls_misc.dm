@@ -1,6 +1,6 @@
 /turf/simulated/wall/cult
 	name = "wall"
-	desc = "The patterns engraved on the wall seem to shift as you try to focus on them. You feel sick"
+	desc = "The patterns engraved on the wall seem to shift as you try to focus on them. You feel sick."
 	icon_state = "cult"
 	walltype = "cult"
 	dismantle_type = /turf/simulated/floor/engine/cult
@@ -8,14 +8,16 @@
 
 /turf/simulated/wall/cult/cultify()
 	return
+/turf/simulated/wall/cult/clockworkify()
+	return
 
 /turf/simulated/wall/cult/dismantle_wall(devastated = 0, explode = 0)
 	if(!devastated)
-		getFromPool(/obj/effect/decal/cleanable/blood, src)
+		new /obj/effect/decal/cleanable/blood(src)
 		new girder_type(src)
 	else
 		if(prob(10))
-			getFromPool(/obj/effect/decal/cleanable/blood, src)
+			new /obj/effect/decal/cleanable/blood(src)
 		//	new /obj/effect/decal/remains/human(src) //Commented out until remains are cleanable
 
 	for(var/obj/O in src.contents) //Eject contents!
@@ -31,3 +33,8 @@
 		dismantle_wall(1)
 		return 1
 	return 0
+
+/turf/simulated/wall/syndicate
+	icon = 'icons/turf/shuttle.dmi'
+	icon_state = "satwall0"
+	walltype = "satwall"

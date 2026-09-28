@@ -32,20 +32,44 @@
 
 			playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
 			add_gamelogs(user, "deconstructed \the [T] with \the [master]", admin = TRUE, tp_link = TRUE, tp_link_short = FALSE, span_class = "danger")
+			T.investigation_log(I_RCD,"was deconstructed by [user]")
 			T.ChangeTurf(T.get_underlying_turf())
 			return 0
 
-	else if(istype(A, /obj/machinery/door/airlock))
-		var/obj/machinery/door/airlock/D = A
-		to_chat(user, "Deconstructing \the [D]...")
-		if(master.delay(user, D, 5 SECONDS))
+	else if(is_type_in_list(A, list(/obj/machinery/door/airlock,/obj/structure/fence)))
+		to_chat(user, "Deconstructing \the [A]...")
+		if(master.delay(user, A, 5 SECONDS))
 			if(master.get_energy(user) < energy_cost)
 				return 1
 
 			playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
-			qdel(D)
+			A.investigation_log(I_RCD,"was deconstructed by [user]")
+			qdel(A)
 			return 0
 
+	else if(istype(A,/obj/structure/window))
+		var/obj/structure/window/W = A
+		if(is_type_in_list(W, list(/obj/structure/window/plasma,/obj/structure/window/reinforced/plasma,/obj/structure/window/full/plasma,/obj/structure/window/full/reinforced/plasma)) && !can_r_wall)
+			return "it cannot deconstruct plasma glass!"
+		to_chat(user, "Deconstructing \the [W]...")
+		if(master.delay(user, W, 5 SECONDS))
+			if(master.get_energy(user) < energy_cost)
+				return 1
+
+			playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+			for(var/obj/structure/grille/G in W.loc)
+				if(!istype(G,/obj/structure/grille/invulnerable)) // No more breaking out in places like lamprey
+					G.investigation_log(I_RCD,"was deconstructed by [user]")
+					qdel(G)
+			for(var/obj/structure/window/WI in W.loc)
+				if(is_type_in_list(W, list(/obj/structure/window/plasma,/obj/structure/window/reinforced/plasma,/obj/structure/window/full/plasma,/obj/structure/window/full/reinforced/plasma)) && !can_r_wall)
+					continue
+				if(WI != W)
+					WI.investigation_log(I_RCD,"was deconstructed by [user]")
+					qdel(WI)
+			W.investigation_log(I_RCD,"was deconstructed by [user]")
+			qdel(W)
+			return 0
 	return 1
 
 /datum/rcd_schematic/con_floors
@@ -65,7 +89,39 @@
 
 	to_chat(user, "Building floor...")
 	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+	S.investigation_log(I_RCD,"was made into a floor by [user]")
 	S.ChangeTurf(/turf/simulated/floor/plating/airless)
+	return 0
+
+/datum/rcd_schematic/con_rfloors
+	name				= "Build reinforced floors"
+	icon				= 'icons/turf/floors.dmi'
+	icon_state			= "engine"
+	category			= "Construction"
+	energy_cost			= 2
+
+	flags		= RCD_GET_TURF
+
+/datum/rcd_schematic/con_rfloors/attack(var/atom/A, var/mob/user)
+	if(!(istype(A,/turf/simulated/floor)))
+		return "it can only create floors on plating!"
+	else
+		var/turf/simulated/floor/F = A
+		if(F.floor_tile)
+			return "it can only create floors on plating!"
+
+	var/turf/T = A
+
+	to_chat(user, "Building floor...")
+	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+	if(master.delay(user, A, 2 SECONDS))
+		if(master.get_energy(user) < energy_cost)
+			return 1
+
+
+		playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+		T.investigation_log(I_RCD,"was made into a reinforced floor by [user]")
+		T.ChangeTurf(/turf/simulated/floor/engine/plated/airless)
 	return 0
 
 /datum/rcd_schematic/con_walls
@@ -80,14 +136,40 @@
 		return 1
 
 	var/turf/simulated/floor/T = A
-	to_chat(user, "Building wall")
+	to_chat(user, "Building wall...")
 	playsound(master, 'sound/machines/click.ogg', 50, 1)
 	if(master.delay(user, A, 2 SECONDS))
 		if(master.get_energy(user) < energy_cost)
 			return 1
 
 		playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+		T.investigation_log(I_RCD,"had a wall built on it by [user]")
 		T.ChangeTurf(/turf/simulated/wall)
+		return 0
+
+	return 1
+
+/datum/rcd_schematic/con_rwalls
+	name				= "Build reinforced walls"
+	icon				= 'icons/turf/walls.dmi'
+	icon_state			= "r_wall"
+	category			= "Construction"
+	energy_cost			= 5
+
+/datum/rcd_schematic/con_rwalls/attack(var/atom/A, var/mob/user)
+	if(A?.type != /turf/simulated/wall) // Only one with strict type like this for now
+		return "it can only reinforce existing walls!"
+
+	var/turf/simulated/floor/T = A
+	to_chat(user, "Building wall...")
+	playsound(master, 'sound/machines/click.ogg', 50, 1)
+	if(master.delay(user, A, 2 SECONDS))
+		if(master.get_energy(user) < energy_cost)
+			return 1
+
+		playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+		T.investigation_log(I_RCD,"had a reinforced wall built on it by [user]")
+		T.ChangeTurf(/turf/simulated/wall/r_wall)
 		return 0
 
 	return 1
@@ -130,6 +212,11 @@
 		schematics += new path(src)
 	schematics += new /datum/selection_schematic/access_schematic(src)
 	selected = schematics[1]
+
+/datum/rcd_schematic/con_airlock/Destroy()
+	for(var/datum/selection_schematic/thing in schematics)
+		QDEL_NULL(thing)
+	..()
 
 /datum/rcd_schematic/con_airlock/select(var/mob/user, var/datum/rcd_schematic/old_schematic)
 	..()
@@ -264,7 +351,7 @@
 
 /datum/rcd_schematic/con_airlock/Topic(var/href, var/href_list)
 	if(href_list["set_selected"])
-		var/idx = Clamp(text2num(href_list["set_selected"]), 1, schematics.len)
+		var/idx = clamp(text2num(href_list["set_selected"]), 1, schematics.len)
 		var/datum/selection_schematic/airlock_schematic/C = schematics[idx]
 
 		selected = C
@@ -353,7 +440,7 @@
 	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
 
 	var/obj/machinery/door/airlock/D = new selected.build_type(A)
-	if(capitalize(selected_name) == selected_name)	//The name inputted is capitalized, so we add \improper.
+	if(selected_name && (capitalize(selected_name) == selected_name))	//The name inputted is capitalized, so we add \improper.
 		D.name	= "\improper [selected_name]"
 	else
 		D.name		= selected_name
@@ -365,11 +452,145 @@
 			D.req_access = selected_access.Copy()
 
 	D.autoclose	= 1
+	A.investigation_log(I_RCD,"had \a [D] built on it by [user]")
+
+/datum/rcd_schematic/con_window
+	name						= "Build window"
+	icon 						= 'icons/obj/window_grille_spawner.dmi'
+	icon_state 					= "rwindowgrille"
+	category					= "Construction"
+	energy_cost					= 2
+
+	var/list/schematics			= list()
+	var/ready
+
+/datum/rcd_schematic/con_window/borg
+	energy_cost					= 20
+
+/datum/rcd_schematic/con_window/show(var/mob/living/user, close = 0)
+	if(!close)
+		user.shown_schematics_background = 1
+		user.hud_used.toggle_show_schematics_display(schematics,1, master)
+	else
+		user.shown_schematics_background = 1
+		user.hud_used.toggle_show_schematics_display(master.schematics["Construction"], 1, master)
+		master.selected = null
+	return 1
+
+/datum/rcd_schematic/con_window/New()
+	. = ..()
+
+	for(var/path in typesof(/datum/selection_schematic/window_schematic))
+		schematics += new path(src)
+	selected = schematics[1]
+
+/datum/rcd_schematic/con_window/Destroy()
+	for(var/datum/selection_schematic/thing in schematics)
+		QDEL_NULL(thing)
+	..()
+
+/datum/rcd_schematic/con_window/select(var/mob/user, var/datum/rcd_schematic/old_schematic)
+	..()
+	show(user)
+/datum/rcd_schematic/con_window/deselect()
+	. = ..()
+	selected = schematics[1]	//Reset the selection.
+
+/*/datum/rcd_schematic/con_window/register_assets()
+	for(var/datum/selection_schematic/airlock_schematic/C in schematics)
+		C.register_icon()
+
+/datum/rcd_schematic/con_window/send_assets(var/client/client)
+	for(var/datum/selection_schematic/airlock_schematic/C in schematics)
+		C.send_icon(client)
+*/
+
+/datum/rcd_schematic/con_window/build_ui()
+	master.interface.updateLayout("<div id='schematic_options'> </div>")
+	master.update_options_menu()
+
+/datum/rcd_schematic/con_window/Topic(var/href, var/href_list)
+	if(href_list["set_selected"])
+		var/idx = clamp(text2num(href_list["set_selected"]), 1, schematics.len)
+		var/datum/selection_schematic/window_schematic/C = schematics[idx]
+
+		selected = C
+
+		master.update_options_menu()
+		return 1
+
+/datum/rcd_schematic/con_window/attack(var/atom/A, var/mob/user)
+	if(!istype(A, /turf))
+		return 1
+
+	to_chat(user, "Building window...")
+
+	if(!master.delay(user, A, 5 SECONDS))
+		return 1
+
+	if(master.get_energy(user) < energy_cost)
+		return 1
+
+	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+
+	new selected.build_type(A)
+	A.investigation_log(I_RCD,"had \a [selected.name] built on it by [user]")
+
+
+/datum/rcd_schematic/con_pwindow
+	name				= "Build plasma window"
+	icon 				= 'icons/obj/window_grille_spawner.dmi'
+	icon_state 			= "rpwindowgrille"
+	category			= "Construction"
+	energy_cost			= 5
+
+/datum/rcd_schematic/con_pwindow/attack(var/atom/A, var/mob/user)
+
+	var/list/obj/structure/window/reinforced/rwindows = list()
+	var/obj/structure/window/full/reinforced/frwindow = null
+	var/turf/simulated/floor/T = get_turf(A)
+	var/founddirs = 0
+	for(var/obj/structure/window/reinforced/R in T)
+		if(istype(R,/obj/structure/window/reinforced/plasma))
+			continue
+		if(R.dir & founddirs)
+			continue
+		rwindows += R
+		founddirs |= R.dir
+	for(var/obj/structure/window/full/reinforced/FR in T)
+		if(istype(FR,/obj/structure/window/full/reinforced/plasma))
+			continue
+		frwindow = FR
+		break
+	if(!rwindows.len && !frwindow)
+		return "no windows on tile to reinforce!"
+	to_chat(user, "Reinforcing windows...")
+	playsound(master, 'sound/machines/click.ogg', 50, 1)
+	if(master.delay(user, A, 2 SECONDS))
+		if(master.get_energy(user) < energy_cost)
+			return 1
+
+		playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
+		T.investigation_log(I_RCD,"had windows plasma reinforced on it by [user]")
+		for(var/obj/structure/window/reinforced/R in rwindows)
+			var/obj/structure/window/reinforced/plasma/P = new(R.loc)
+			P.dir = R.dir
+			P.update_icon()
+			P.update_nearby_tiles()
+			qdel(R)
+		if(frwindow)
+			new /obj/structure/window/full/reinforced/plasma(frwindow.loc)
+			qdel(frwindow)
+		return 0
+
+	return 1
+
 /datum/selection_schematic
 	var/name			= "Selection"
 	var/build_type
 	var/icon_state
 	var/icon
+	var/list/overlays 	= list()
 	var/obj/abstract/screen/ourobj
 	var/datum/rcd_schematic/master
 
@@ -379,13 +600,12 @@
 /datum/selection_schematic/New(var/master)
 	..()
 	src.master = master
-	ourobj = getFromPool(/obj/abstract/screen/schematics, null, src)
+	ourobj = new /obj/abstract/screen/schematics(null, src)
 
 /datum/selection_schematic/Destroy()
 	for(var/client/C in clients)
 		C.screen.Remove(ourobj)
-	returnToPool(ourobj)
-	ourobj = null
+	QDEL_NULL(ourobj)
 	..()
 
 /datum/selection_schematic/access_schematic
@@ -404,13 +624,13 @@
 /datum/selection_schematic/airlock_schematic/clicked(var/mob/user)
 	if(master:selected == src)
 		master:selected_name = copytext(sanitize(input(usr,"What would you like to name this airlock?","Input a name",name) as text|null),1,MAX_NAME_LEN)
-		if(capitalize(master:selected_name) == master:selected_name)
-			master:selected_name = "\improper[master:selected_name]"
+		if(master:selected_name && (capitalize(master:selected_name) == master:selected_name))
+			master:selected_name = "\improper [master:selected_name]"
 	else
 		master.selected = src
 // Schematics for schematics, I know, but it's OOP!
 /datum/selection_schematic/airlock_schematic
-	name			= "airlock"						//Name of the airlock for the tooltip.
+	name			= "Airlock"						//Name of the airlock for the tooltip.
 	build_type		= /obj/machinery/door/airlock	//Type of the airlock.
 	icon_state		= "door_closed"
 	icon			= 'icons/obj/doors/Doorint.dmi'
@@ -423,92 +643,259 @@
 
 // ALL THE AIRLOCK TYPES.
 /datum/selection_schematic/airlock_schematic/engie
-	name			= "\improper Engineering Airlock"
+	name			= "Engineering Airlock"
 	build_type	= /obj/machinery/door/airlock/engineering
 	icon			= 'icons/obj/doors/Dooreng.dmi'
 
 /datum/selection_schematic/airlock_schematic/atmos
-	name			= "\improper Atmospherics Airlock"
+	name			= "Atmospherics Airlock"
 	build_type	= /obj/machinery/door/airlock/atmos
 	icon			= 'icons/obj/doors/Dooratmo.dmi'
 
 /datum/selection_schematic/airlock_schematic/sec
-	name			= "\improper Security Airlock"
+	name			= "Security Airlock"
 	build_type	= /obj/machinery/door/airlock/security
 	icon			= 'icons/obj/doors/Doorsec.dmi'
 
 /datum/selection_schematic/airlock_schematic/command
-	name			= "\improper Command Airlock"
+	name			= "Command Airlock"
 	build_type	= /obj/machinery/door/airlock/command
 	icon			= 'icons/obj/doors/Doorcom.dmi'
 
 /datum/selection_schematic/airlock_schematic/med
-	name			= "\improper Medical Airlock"
+	name			= "Medical Airlock"
 	build_type	= /obj/machinery/door/airlock/medical
 	icon			= 'icons/obj/doors/Doormed.dmi'
 
 /datum/selection_schematic/airlock_schematic/sci
-	name			= "\improper Research Airlock"
+	name			= "Research Airlock"
 	build_type	= /obj/machinery/door/airlock/research
 	icon			= 'icons/obj/doors/doorresearch.dmi'
 
 /datum/selection_schematic/airlock_schematic/mining
-	name			= "\improper Mining Airlock"
+	name			= "Mining Airlock"
 	build_type	= /obj/machinery/door/airlock/mining
 	icon			= 'icons/obj/doors/Doormining.dmi'
 
 /datum/selection_schematic/airlock_schematic/maint
-	name			= "\improper Maintenance Access"
+	name			= "Maintenance Access"
 	build_type	= /obj/machinery/door/airlock/maintenance
 	icon			= 'icons/obj/doors/Doormaint.dmi'
 
 /datum/selection_schematic/airlock_schematic/ext
-	name			= "\improper External Airlock"
+	name			= "External Airlock"
 	build_type	= /obj/machinery/door/airlock/external
 	icon			= 'icons/obj/doors/Doorext.dmi'
 
 /datum/selection_schematic/airlock_schematic/high_sec
-	name			= "\improper High-Tech Security Airlock"
+	name			= "High-Tech Security Airlock"
 	build_type	= /obj/machinery/door/airlock/highsecurity
 	icon			= 'icons/obj/doors/hightechsecurity.dmi'
 
-
 /datum/selection_schematic/airlock_schematic/glass
-	name			= "\improper Glass Airlock"
+	name			= "Glass Airlock"
 	build_type	= /obj/machinery/door/airlock/glass
 	icon			= 'icons/obj/doors/Doorglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_eng
-	name			= "\improper Glass Engineering Airlock"
+	name			= "Glass Engineering Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_engineering
 	icon			= 'icons/obj/doors/Doorengglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_atmos
-	name			= "\improper Glass Atmospherics Airlock"
+	name			= "Glass Atmospherics Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_atmos
 	icon			= 'icons/obj/doors/Dooratmoglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_sec
-	name			= "\improper Glass Security Airlock"
+	name			= "Glass Security Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_security
 	icon			= 'icons/obj/doors/Doorsecglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_command
-	name			= "\improper Glass Command Airlock"
+	name			= "Glass Command Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_command
 	icon			= 'icons/obj/doors/Doorcomglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_med
-	name			= "\improper Glass Medical Airlock"
+	name			= "Glass Medical Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_medical
 	icon			= 'icons/obj/doors/doormedglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_sci
-	name			= "\improper Glass Research Airlock"
+	name			= "Glass Research Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_research
 	icon			= 'icons/obj/doors/doorresearchglass.dmi'
 
 /datum/selection_schematic/airlock_schematic/glass_mining
-	name			= "\improper Glass Mining Airlock"
+	name			= "Glass Mining Airlock"
 	build_type	= /obj/machinery/door/airlock/glass_mining
 	icon			= 'icons/obj/doors/Doorminingglass.dmi'
+
+// ALL THE WINDOW TYPES.
+/datum/selection_schematic/window_schematic
+	name			= "window"						//Name of the window for the tooltip.
+	build_type		= /obj/effect/spawner/window	//Type of the window.
+	icon = 'icons/obj/structures.dmi'
+	icon_state = "grille0"
+	var/list/dirs = list(NORTH,EAST,WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/New()
+	for(var/d in dirs)
+		overlays += image('icons/obj/structures/window.dmi',icon_state="rwindow0",dir=d)
+	..()
+
+/datum/selection_schematic/window_schematic/Destroy()
+	overlays = list()
+	..()
+
+/datum/selection_schematic/window_schematic/clicked(var/mob/user)
+	master.selected = src
+
+/datum/selection_schematic/window_schematic/northend
+	name			= "\improper north window"
+	build_type	= /obj/effect/spawner/window/northend
+	dirs = list(NORTH)
+
+/datum/selection_schematic/window_schematic/eastend
+	name			= "\improper east window"
+	build_type	= /obj/effect/spawner/window/eastend
+	dirs = list(EAST)
+
+/datum/selection_schematic/window_schematic/southend
+	name			= "\improper south window"
+	build_type	= /obj/effect/spawner/window/southend
+	dirs = list(SOUTH)
+
+/datum/selection_schematic/window_schematic/westend
+	name			= "\improper west window"
+	build_type	= /obj/effect/spawner/window/westend
+	dirs = list(WEST)
+
+/datum/selection_schematic/window_schematic/horizontal
+	name			= "\improper horizontal window"
+	build_type	= /obj/effect/spawner/window/horizontal
+	dirs = list(NORTH,SOUTH)
+
+/datum/selection_schematic/window_schematic/vertical
+	name			= "\improper vertical window"
+	build_type	= /obj/effect/spawner/window/vertical
+	dirs = list(EAST,WEST)
+
+/datum/selection_schematic/window_schematic/necorner
+	name			= "\improper northeast window"
+	build_type	= /obj/effect/spawner/window/necorner
+	dirs = list(NORTH,EAST)
+
+/datum/selection_schematic/window_schematic/secorner
+	name			= "\improper southeast window"
+	build_type	= /obj/effect/spawner/window/secorner
+	dirs = list(EAST,SOUTH)
+
+/datum/selection_schematic/window_schematic/swcorner
+	name			= "\improper southwest window"
+	build_type	= /obj/effect/spawner/window/swcorner
+	dirs = list(WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/nwcorner
+	name			= "\improper northwest window"
+	build_type	= /obj/effect/spawner/window/nwcorner
+	dirs = list(NORTH,WEST)
+
+/datum/selection_schematic/window_schematic/northcap
+	name			= "\improper north window cap"
+	build_type	= /obj/effect/spawner/window/northcap
+	dirs = list(NORTH,EAST,WEST)
+
+/datum/selection_schematic/window_schematic/eastcap
+	name			= "\improper east window cap"
+	build_type	= /obj/effect/spawner/window/eastcap
+	dirs = list(NORTH,EAST,SOUTH)
+
+/datum/selection_schematic/window_schematic/southcap
+	name			= "\improper south window cap"
+	build_type	= /obj/effect/spawner/window/southcap
+	dirs = list(EAST,WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/westcap
+	name			= "\improper west window cap"
+	build_type	= /obj/effect/spawner/window/westcap
+	dirs = list(NORTH,WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/full
+	name			= "\improper full window"
+	build_type	= /obj/effect/spawner/window/full
+
+/datum/selection_schematic/window_schematic/full/New()
+	overlays += image('icons/obj/structures/window.dmi',icon_state="frwindow0")
+	..()
+
+/datum/selection_schematic/window_schematic/full/northend
+	name			= "\improper full north window"
+	build_type	= /obj/effect/spawner/window/full/northend
+	dirs = list(NORTH)
+
+/datum/selection_schematic/window_schematic/full/eastend
+	name			= "\improper full east window"
+	build_type	= /obj/effect/spawner/window/full/eastend
+	dirs = list(EAST)
+
+/datum/selection_schematic/window_schematic/full/southend
+	name			= "\improper full south window"
+	build_type	= /obj/effect/spawner/window/full/southend
+	dirs = list(SOUTH)
+
+/datum/selection_schematic/window_schematic/full/westend
+	name			= "\improper full west window"
+	build_type	= /obj/effect/spawner/window/full/westend
+	dirs = list(WEST)
+
+/datum/selection_schematic/window_schematic/full/horizontal
+	name			= "\improper full horizontal window"
+	build_type	= /obj/effect/spawner/window/full/horizontal
+	dirs = list(NORTH,SOUTH)
+
+/datum/selection_schematic/window_schematic/full/vertical
+	name			= "\improper full vertical window"
+	build_type	= /obj/effect/spawner/window/full/vertical
+	dirs = list(EAST,WEST)
+
+/datum/selection_schematic/window_schematic/full/necorner
+	name			= "\improper full northeast window"
+	build_type	= /obj/effect/spawner/window/full/necorner
+	dirs = list(NORTH,EAST)
+
+/datum/selection_schematic/window_schematic/full/secorner
+	name			= "\improper full southeast window"
+	build_type	= /obj/effect/spawner/window/full/secorner
+	dirs = list(EAST,SOUTH)
+
+/datum/selection_schematic/window_schematic/full/swcorner
+	name			= "\improper full southwest window"
+	build_type	= /obj/effect/spawner/window/full/swcorner
+	dirs = list(WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/full/nwcorner
+	name			= "\improper full northwest window"
+	build_type	= /obj/effect/spawner/window/full/nwcorner
+	dirs = list(NORTH,WEST)
+
+/datum/selection_schematic/window_schematic/full/northcap
+	name			= "\improper full north window cap"
+	build_type	= /obj/effect/spawner/window/full/northcap
+	dirs = list(NORTH,EAST,WEST)
+
+/datum/selection_schematic/window_schematic/full/eastcap
+	name			= "\improper full east window cap"
+	build_type	= /obj/effect/spawner/window/full/eastcap
+	dirs = list(NORTH,EAST,SOUTH)
+
+/datum/selection_schematic/window_schematic/full/southcap
+	name			= "\improper full south window cap"
+	build_type	= /obj/effect/spawner/window/full/southcap
+	dirs = list(EAST,WEST,SOUTH)
+
+/datum/selection_schematic/window_schematic/full/westcap
+	name			= "\improper full west window cap"
+	build_type	= /obj/effect/spawner/window/full/westcap
+	dirs = list(NORTH,WEST,SOUTH)

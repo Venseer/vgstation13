@@ -25,15 +25,10 @@ var/prison_shuttle_timeleft = 0
 	if(!..())
 		attack_hand(user)
 
-/obj/machinery/computer/prison_shuttle/attack_ai(var/mob/user as mob)
-	add_hiddenprint(user)
-	return attack_hand(user)
-
-
 /obj/machinery/computer/prison_shuttle/attack_paw(var/mob/user as mob)
 	return attack_hand(user)
 
-/obj/machinery/computer/prison_shuttle/emag(mob/user as mob)
+/obj/machinery/computer/prison_shuttle/emag_act(mob/user as mob)
 	if(!emagged)
 		emagged = TRUE
 		if(user)
@@ -59,7 +54,7 @@ var/prison_shuttle_timeleft = 0
 		[prison_shuttle_moving_to_station || prison_shuttle_moving_to_prison ? "\n*Shuttle already called*<BR>\n<BR>":prison_shuttle_at_station ? "\n<A href='?src=\ref[src];sendtodock=1'>Send to Dock</A><BR>\n<BR>":"\n<A href='?src=\ref[src];sendtostation=1'>Send to station</A><BR>\n<BR>"]
 		\n<A href='?src=\ref[user];mach_close=computer'>Close</A>"}
 
-	user << browse(dat, "window=computer;size=575x450")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=575x450")
 	onclose(user, "computer")
 
 
@@ -135,7 +130,7 @@ var/prison_shuttle_timeleft = 0
 	var/datum/radio_frequency/frequency = radio_controller.return_frequency(1311)
 	if(!frequency)
 		return
-	var/datum/signal/status_signal = getFromPool(/datum/signal)
+	var/datum/signal/status_signal = new /datum/signal
 	status_signal.source = src
 	status_signal.transmission_method = 1
 	status_signal.data["command"] = command
@@ -181,8 +176,7 @@ var/prison_shuttle_timeleft = 0
 			for(var/atom/movable/AM as mob|obj in T)
 				AM.Move(D)
 			if(istype(T, /turf/simulated))
-				qdel(T)
-				T = null
+				QDEL_NULL(T)
 		start_location.move_contents_to(end_location)
 
 	else

@@ -52,8 +52,8 @@ var/list/admin_ranks = list()								//list of all ranks with associated rights
 					rights |= R_POSSESS
 				if("stealth")
 					rights |= R_STEALTH
-				if("rejuv","rejuvinate")
-					rights |= R_REJUVINATE
+				if("rejuv","rejuvenate")
+					rights |= R_REJUVENATE
 				if("varedit")
 					rights |= R_VAREDIT
 				if("everything","host","all")
@@ -131,17 +131,19 @@ var/list/admin_ranks = list()								//list of all ranks with associated rights
 				world.SetConfig("APP/admin", ckey, "role=admin")
 	else
 		//The current admin system uses SQL
-
-		establish_db_connection()
-		if(!dbcon.IsConnected())
+		if(!SSdbcore.Connect())
 			world.log << "Failed to connect to database in load_admins(). Reverting to legacy system."
 			diary << "Failed to connect to database in load_admins(). Reverting to legacy system."
 			config.admin_legacy_system = 1
 			load_admins()
 			return
 
-		var/DBQuery/query = dbcon.NewQuery("SELECT ckey, rank, level, flags FROM erro_admin")
-		query.Execute()
+		var/datum/DBQuery/query = SSdbcore.NewQuery("SELECT `ckey`, `rank`, `level`, `flags` FROM erro_admin")
+		if(!query.Execute(FALSE))
+			message_admins("Error: [query.ErrorMsg()]")
+			log_sql("Error: [query.ErrorMsg()]")
+			qdel(query)
+			return
 		while(query.NextRow())
 			var/ckey = query.item[1]
 			var/rank = query.item[2]
@@ -158,14 +160,13 @@ var/list/admin_ranks = list()								//list of all ranks with associated rights
 
 			if(D.rights & (R_DEBUG|R_SERVER)) // Grant profile/reboot access
 				world.SetConfig("APP/admin", ckey, "role=admin")
-
+		qdel(query)
 		if(!admin_datums)
 			world.log << "The database query in load_admins() resulted in no admins being added to the list. Reverting to legacy system."
 			diary << "The database query in load_admins() resulted in no admins being added to the list. Reverting to legacy system."
 			config.admin_legacy_system = 1
 			load_admins()
 			return
-
 	#ifdef TESTING
 	var/msg = "Admins Built:\n"
 	for(var/ckey in admin_datums)
@@ -174,9 +175,8 @@ var/list/admin_ranks = list()								//list of all ranks with associated rights
 		if(D)
 			rank = D.rank
 		msg += "\t[ckey] - [rank]\n"
-	//testing(msg)
+	testing(msg)
 	#endif
-
 
 #ifdef TESTING
 /client/verb/changerank(newrank in admin_ranks)

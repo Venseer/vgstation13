@@ -8,10 +8,11 @@
 
 	emote_hear = list("hisses")
 
-	pass_flags = PASSTABLE | PASSGRILLE | PASSMACHINE
+	pass_flags = PASSTABLE | PASSGRILLE | PASSMACHINE | PASSRAILING
 
 	speak_chance = 1
 
+	treadmill_speed = 1.2	//They skitter real quick
 	move_to_delay = 4
 
 	maxHealth = 35
@@ -57,6 +58,7 @@
 	melee_damage_lower = 10
 	melee_damage_upper = 25
 
+	treadmill_speed = 2.5
 	move_to_delay = 10
 	turns_per_move = 3
 
@@ -95,14 +97,8 @@
 /mob/living/simple_animal/hostile/bigroach/attackby(obj/item/W, mob/user)
 	if(istype(W, /obj/item/weapon/newspaper))
 		to_chat(user, "<span class='notice'>You're gonna need a bigger newspaper.</span>")
-	else if(istype(W, /obj/item/weapon/plantspray/pests))
-		var/obj/item/weapon/plantspray/pests/P = W
-		if(P.use(1))
-			to_chat(user, "<span class='notice'>\The [P] doesn't seem to be very effective.</span>")
-			playsound(loc, 'sound/effects/spray3.ogg', 50, 1, -6)
 	else
 		return ..()
-
 
 /mob/living/simple_animal/hostile/bigroach/Aggro()
 	..()
@@ -124,3 +120,14 @@
 
 /mob/living/simple_animal/hostile/bigroach/nuke_act()
 	return //Survive nuclear blasts
+
+/mob/living/simple_animal/hostile/bigroach/reagent_act(id, method, volume)
+	if(isDead())
+		return
+
+	.=..()
+
+	switch(id)
+		if(INSECTICIDE)
+			if(method != INGEST)
+				death(FALSE)

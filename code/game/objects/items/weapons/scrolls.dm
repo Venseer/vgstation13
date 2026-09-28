@@ -6,6 +6,8 @@
 	var/uses = 4.0
 	flags = FPRINT
 	w_class = W_CLASS_SMALL
+	w_type = RECYK_WOOD
+	flammable = TRUE //suffer all ye spellcasters
 	item_state = "paper"
 	throw_speed = 4
 	throw_range = 20
@@ -27,7 +29,7 @@
 	dat += "<B>Four uses, use them wisely:</B><BR>"
 	dat += "<A href='byond://?src=\ref[src];spell_teleport=1'>Teleport</A><BR>"
 	dat += "Kind regards,<br>Wizards Federation<br><br>P.S. Don't forget to bring your gear, you'll need it to cast most spells.<HR>"
-	user << browse(dat, "window=scroll")
+	user << browse(HTML_SKELETON(dat), "window=scroll")
 	onclose(user, "scroll")
 	return
 
@@ -48,11 +50,12 @@
 	return
 
 /obj/item/weapon/teleportation_scroll/proc/teleportscroll(var/mob/user)
-
-
 	var/A
+	A = input(user, "Area to jump to", "BOOYEA", A) as null|anything in teleportlocs
 
-	A = input(user, "Area to jump to", "BOOYEA", A) in teleportlocs
+	if(isnull(A))
+		return
+
 	var/area/thearea = teleportlocs[A]
 
 	if (!user || user.stat || user.restrained())
@@ -60,7 +63,7 @@
 	if(!((user == loc || (in_range(src, user) && istype(src.loc, /turf)))))
 		return
 
-	var/datum/effect/effect/system/smoke_spread/smoke = new /datum/effect/effect/system/smoke_spread()
+	var/datum/effect/system/smoke_spread/smoke = new /datum/effect/system/smoke_spread()
 	smoke.set_up(5, 0, user.loc)
 	smoke.attach(user)
 	smoke.start()
@@ -85,19 +88,35 @@
 	var/list/tempL = L
 	var/attempt = null
 	var/success = 0
-	var/prev_z = user.z
+	var/prev_v = user.get_virtual_z()
+	if(istype(thearea,/area/turret_protected/ai) && ishuman(user))
+		var/aifound = FALSE
+		for(var/mob/living/M in player_list)
+			if(isAI(M) || (M.mind && M.mind.assigned_role == "AI"))
+				aifound = TRUE
+				break
+		if(!aifound)
+			aifound = alert(user,"This room has no active AI, become a fake one here?","The wizard of...","Yea","Nay") == "Nay"
+		if(!aifound)
+			var/mob/living/carbon/human/H = user
+			H.make_fake_ai()
+			INVOKE_EVENT(user, /event/v_transition, "user" = user, "to_v" = user.get_virtual_z(), "from_v" = prev_v)
+			smoke.start()
+			src.uses -= 1
+			log_game("[key_name(user)] teleported to [thearea.name] using a scroll.")
+			return
 	while(tempL.len)
 		attempt = pick(tempL)
 		success = user.Move(attempt)
 		if(!success)
 			tempL.Remove(attempt)
 		else
-			INVOKE_EVENT(user.on_z_transition, list("user" = user, "to_z" = user.z, "from_z" = prev_z))
+			INVOKE_EVENT(user, /event/v_transition, "user" = user, "to_v" = user.get_virtual_z(), "from_v" = prev_v)
 			break
 
 	if(!success)
 		user.forceMove(pick(L))
-		INVOKE_EVENT(user.on_z_transition, list("user" = user, "to_z" = user.z, "from_z" = prev_z))
+		INVOKE_EVENT(user, /event/v_transition, "user" = user, "to_v" = user.get_virtual_z(), "from_v" = prev_v)
 
 	smoke.start()
 	src.uses -= 1

@@ -35,6 +35,8 @@
 	var/datum/gas_mixture/air_contents = null
 	var/col = "#FFFFFF"
 
+	blooded = FALSE
+
 /mob/living/simple_animal/hostile/balloon/New(atom/A, var/chosen_col, var/new_icon_state)
 	..(A)
 	if(col)
@@ -54,11 +56,16 @@
 	overlays += shine_overlay
 
 /mob/living/simple_animal/hostile/balloon/CanAttack(var/atom/the_target)
+	var/clumsyfound = FALSE
 	if(isliving(the_target))
 		var/mob/living/L = the_target
 		if(M_CLUMSY in L.mutations)
-			return 0
-	return ..(the_target)
+			clumsyfound = TRUE
+	if(arcanetampered) // tampered ones only go after clowns now!
+		clumsyfound = !clumsyfound
+	if(!clumsyfound)
+		return ..(the_target)
+	return 0
 
 /mob/living/simple_animal/hostile/balloon/FindTarget()
 	. = ..()
@@ -74,7 +81,8 @@
 	if(istype(L))
 		if(prob(15))
 			L.Knockdown(3)
-			L.visible_message("<span class='danger'>\the [src] knocks down \the [L]!</span>")
+			L.Stun(3)
+			L.visible_message("<span class='danger'>\The [src] knocks down \the [L]!</span>")
 
 /mob/living/simple_animal/hostile/balloon/attackby(obj/item/W, mob/user)
 	if(W.sharpness_flags & (SHARP_TIP|HOT_EDGE))

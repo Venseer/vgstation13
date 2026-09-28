@@ -1,4 +1,9 @@
-/mob/living/carbon/monkey/gib()
+/mob/living/carbon/monkey/gib(animation = FALSE, meat = TRUE)
+	if(status_flags & BUDDHAMODE)
+		adjustBruteLoss(200)
+		return
+	if(!isUnconscious())
+		forcesay("-")
 	death(1)
 	monkeyizing = 1
 	canmove = 0
@@ -6,7 +11,7 @@
 	invisibility = 101
 
 	anim(target = src, a_icon = 'icons/mob/mob.dmi', flick_anim = "gibbed-m", sleeptime = 15)
-	gibs(loc, viruses, dna)
+	gibs(loc, virus2, dna)
 
 	qdel(src)
 
@@ -26,17 +31,15 @@
 
 
 /mob/living/carbon/monkey/death(gibbed)
-	if(stat == DEAD)
+	if((status_flags & BUDDHAMODE) || stat == DEAD)
 		return
 	if(healths)
 		healths.icon_state = "health5"
 	if(!gibbed)
-		emote("deathgasp")
+		emote("deathgasp", message = TRUE)
 	stat = DEAD
 
 	update_canmove()
 	update_icons()
-	/*if(ticker.mode) WHY
-		ticker.mode.check_win()*/
 
 	return ..(gibbed)

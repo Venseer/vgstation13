@@ -20,9 +20,14 @@
 	anchored = 1.0
 	layer = TABLE_LAYER
 	throwpass = 1	//You can throw objects over this, despite its density.
+	pass_flags_self = PASSTABLE
 	var/parts = /obj/item/weapon/table_parts
 	var/flipped = 0
-	var/health = 100
+	var/tableform = 0 //Stores last known configuration for this table
+	health = 100
+
+/obj/structure/table/splashable()
+	return FALSE
 
 /obj/structure/table/proc/update_adjacent()
 	for(var/direction in alldirs)
@@ -38,15 +43,19 @@
 
 /obj/structure/table/New()
 	..()
-	for(var/obj/structure/table/T in src.loc)
+	for(var/obj/structure/table/T in loc)
 		if(T != src)
 			qdel(T)
+	for(var/obj/machinery/M in loc)
+		M.table_shift()
 	if(flipped)
 		flip(dir)
 	update_icon()
 	update_adjacent()
 
 /obj/structure/table/Destroy()
+	for(var/obj/machinery/M in loc)
+		M.table_unshift()
 	update_adjacent()
 	..()
 
@@ -60,8 +69,7 @@
 /obj/structure/table/bullet_act(var/obj/item/projectile/Proj)
 	if(Proj.destroy)
 		src.ex_act(1)
-	..()
-	return 0
+	return ..()
 
 /obj/structure/table/proc/destroy()
 	if(parts)
@@ -90,6 +98,10 @@
 				base = "rtable"
 			if (istype(src, /obj/structure/table/glass))
 				base = "glasstable"
+			if (istype(src, /obj/structure/table/glass/plasma))
+				base = "plasma_table"
+			if (istype(src, /obj/structure/table/plastic))
+				base = "plastictable"
 
 			icon_state = "[base]flip[type]"
 			if (type==1)
@@ -97,7 +109,7 @@
 					icon_state = icon_state+"-"
 				if (tabledirs & turn(dir,-90))
 					icon_state = icon_state+"+"
-			return 1
+			return
 
 		var/dir_sum = 0
 		for(var/direction in alldirs)
@@ -130,7 +142,8 @@
 					continue
 			if(!skip_sum) //means there is a window between the two tiles in this direction
 				var/obj/structure/table/T = locate(/obj/structure/table,get_step(src,direction))
-				if(T && !T.flipped)
+				var/obj/machinery/door/table/DT = locate(/obj/machinery/door/table,get_step(src,direction))
+				if((T && !T.flipped) || (DT && DT.density))
 					if(direction <5)
 						dir_sum += direction
 					else
@@ -146,22 +159,22 @@
 							dir_sum += 128
 
 		var/table_type = 0 //stand_alone table
-		if(dir_sum%16 in cardinal)
+		if((dir_sum%16) in cardinal)
 			table_type = 1 //endtable
 			dir_sum %= 16
-		if(dir_sum%16 in list(3,12))
+		if((dir_sum%16) in list(3,12))
 			table_type = 2 //1 tile thick, streight table
 			if(dir_sum%16 == 3) //3 doesn't exist as a dir
 				dir_sum = 2
 			if(dir_sum%16 == 12) //12 doesn't exist as a dir.
 				dir_sum = 4
-		if(dir_sum%16 in list(5,6,9,10))
+		if((dir_sum%16) in list(5,6,9,10))
 			if(locate(/obj/structure/table,get_step(src.loc,dir_sum%16)))
 				table_type = 3 //full table (not the 1 tile thick one, but one of the 'tabledir' tables)
 			else
 				table_type = 2 //1 tile thick, corner table (treated the same as streight tables in code later on)
 			dir_sum %= 16
-		if(dir_sum%16 in list(13,14,7,11)) //Three-way intersection
+		if((dir_sum%16) in list(13,14,7,11)) //Three-way intersection
 			table_type = 5 //full table as three-way intersections are not sprited, would require 64 sprites to handle all combinations.  TOO BAD -- SkyMarshal
 			switch(dir_sum%16)	//Begin computation of the special type tables.  --SkyMarshal
 				if(7)
@@ -214,6 +227,7 @@
 						dir_sum = 2 //These translate the dir_sum to the correct dirs from the 'tabledir' icon_state.
 		if(dir_sum%16 == 15)
 			table_type = 4 //4-way intersection, the 'middle' table sprites will be used.
+		tableform = table_type
 		switch(table_type)
 			if(0)
 				icon_state = "[initial(icon_state)]"
@@ -230,9 +244,9 @@
 			if(6)
 				icon_state = "[initial(icon_state)]_dir3"
 		if (dir_sum in alldirs)
-			dir = dir_sum
+			change_dir(dir_sum)
 		else
-			dir = 2
+			change_dir(SOUTH)
 
 /obj/structure/table/ex_act(severity)
 	switch(severity)
@@ -254,7 +268,12 @@
 
 	if(!usr)
 		return
-	do_flip()
+	if(flipped)
+		if(get_dir(loc, usr) != dir)
+			return
+		do_put()
+	else
+		do_flip()
 
 /obj/structure/table/glass/kick_act()
 	health -= 5
@@ -279,8 +298,8 @@
 	visible_message("<span class='danger'>[user] slices [src] apart!</span>")
 	destroy()
 
-/obj/structure/table/attack_animal(mob/living/simple_animal/user)
-	if(user.environment_smash_flags & SMASH_LIGHT_STRUCTURES)
+/obj/structure/table/attack_animal(var/mob/living/simple_animal/user)
+	if(istype(user,/mob/living/simple_animal) && user.environment_smash_flags & SMASH_LIGHT_STRUCTURES)
 		user.do_attack_animation(src, user)
 		visible_message("<span class='danger'>[user] smashes [src] apart!</span>")
 		destroy()
@@ -298,6 +317,8 @@
 	return
 
 /obj/structure/table/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
+	if(locate(/obj/effect/unwall_field) in loc) //Annoying workaround for this -kanef
+		return 1
 	if(air_group || (height==0))
 		return 1
 	if(istype(mover,/obj/item/projectile))
@@ -306,73 +327,77 @@
 		var/mob/M = mover
 		if(M.flying)
 			return 1
-	if(istype(mover) && mover.checkpass(PASSTABLE))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return 1
 	if(flipped)
-		if(get_dir(loc, target) == dir || get_dir(loc, mover) == dir)
-			return !density
-		else
-			return 1
+		return bounds_dist(border_dummy, mover) >= 0
 	return 0
 
-/obj/structure/table/bumped_by_firebird(obj/structure/stool/bed/chair/vehicle/wizmobile/W)
-	destroy()
+/obj/structure/table/Bumped(atom/movable/AM)
+	..()
+	if(istype(AM, /obj/structure/bed/chair/vehicle/firebird))
+		destroy()
 
 //checks if projectile 'P' from turf 'from' can hit whatever is behind the table. Returns 1 if it can, 0 if bullet stops.
 /obj/structure/table/proc/check_cover(obj/item/projectile/P, turf/from)
-	var/turf/cover = flipped ? get_turf(src) : get_step(loc, get_dir(from, loc))
-	if (get_dist(P.starting, loc) <= 1) //Tables won't help you if people are THIS close
-		return 1
-	if (get_turf(P.original) == cover)
-		var/chance = 20
-		if (ismob(P.original))
+	var/shooting_at_the_table_directly = P.original == src
+	var/chance = 60
+	if(!shooting_at_the_table_directly)
+		if(!flipped || get_dir(loc, from) != dir) // It needs to be flipped and the direction needs to be right
+			return 1
+		if(get_dist(P.starting, loc) <= 1) //Tables won't help you if people are THIS close
+			return 1
+		if(ismob(P.original))
 			var/mob/M = P.original
-			if (M.lying)
-				chance += 20				//Lying down lets you catch less bullets
-		if(flipped)
-			if(get_dir(loc, from) == dir)	//Flipped tables catch mroe bullets
-				chance += 20
-			else
-				return 1					//But only from one side
-		if(prob(chance))
-			health -= P.damage/2
-			if (health > 0)
-				visible_message("<span class='warning'>[P] hits \the [src]!</span>")
-				return 0
-			else
-				visible_message("<span class='warning'>[src] breaks down!</span>")
-				destroy()
-				return 1
-	return 1
-
-/obj/structure/table/Uncross(atom/movable/mover as mob|obj, target as turf)
-	if(istype(mover) && mover.checkpass(PASSTABLE))
-		return 1
-	if(flow_flags & ON_BORDER)
-		if(target) //Are we doing a manual check to see
-			if(get_dir(loc, target) == dir)
-				return !density
-		else if(mover.dir == dir) //Or are we using move code
-			if(density)
-				mover.to_bump(src)
-			return !density
+			if(M.lying)
+				chance += 20 //Lying down lets you catch less bullets
+	if(shooting_at_the_table_directly || prob(chance))
+		health -= P.damage/2
+		if (health > 0)
+			visible_message("<span class='warning'>[P] hits \the [src]!</span>")
+			return 0
+		else
+			visible_message("<span class='warning'>[src] breaks down!</span>")
+			destroy()
+			return 1
 	return 1
 
 /obj/structure/table/MouseDropTo(atom/movable/O,mob/user,src_location,over_location,src_control,over_control,params)
 	if(O == user)
+		if(arcanetampered)
+			if (TryToThrowOnTable(user,user))
+				return
 		if(!ishigherbeing(user) || !Adjacent(user) || user.incapacitated() || user.lying) // Doesn't work if you're not dragging yourself, not a human, not in range or incapacitated
 			return
 		var/mob/living/carbon/M = user
-		M.apply_damage(2, BRUTE, LIMB_HEAD, used_weapon = "[src]")
+		M.apply_damage(2, BRUTE, LIMB_HEAD, used_weapon = name)
 		M.adjustBrainLoss(5)
 		M.Knockdown(1)
-		if (prob(50))
-			playsound(M, 'sound/items/trayhit1.ogg', 50, 1)
-		else
-			playsound(M, 'sound/items/trayhit2.ogg', 50, 1)
+		M.Stun(1)
+		playsound(M, "trayhit", 50, 1)
 		M.visible_message("<span class='danger'>[user] bangs \his head on \the [src].</span>", "<span class='danger'>You bang your head on \the [src].</span>", "You hear a bang.")
 		return
 	return ..()
+
+/obj/proc/TryToThrowOnTable(var/mob/user,var/mob/victim)
+	var/turf/oldloc = get_turf(victim)
+	for (var/atom/A in loc)
+		if (A == src || A == victim || A == user)
+			continue
+		if (!A.Cross(victim,oldloc))
+			to_chat(user, "<span class='warning'>\The [A] prevents you from dragging \the [victim] on top of \the [src]</span>")
+			return FALSE
+	victim.forceMove(loc)
+	if(arcanetampered)
+		var/turf/throwturf = get_turf(src)
+		var/throwdir = get_dir(throwturf,oldloc)
+		while(throwturf.Cross(victim) && throwturf.x < world.maxx && throwturf.y < world.maxy && throwturf.x > 0 & throwturf.y > 0)
+			throwturf = get_step(throwturf,throwdir)
+		to_chat(user, "<span class='sinister'>\The [src] flings you back!</span>")
+		user.Stun(10)
+		user.Knockdown(10)
+		victim.throw_at(throwturf, INFINITY, 10)
+	return TRUE
 
 /obj/structure/table/attackby(obj/item/W as obj, mob/user as mob, params)
 	if (!W)
@@ -384,32 +409,49 @@
 			var/mob/living/M = G.affecting
 			if (G.state < GRAB_AGGRESSIVE)
 				if(user.a_intent == I_HURT)
-					G.affecting.forceMove(loc)
+					if (!TryToThrowOnTable(user,M))
+						return
 					if (prob(15))
 						M.Knockdown(5)
+						M.Stun(5)
 					M.apply_damage(8,def_zone = LIMB_HEAD)
-					visible_message("<span class='warning'>[G.assailant] slams [G.affecting]'s face against \the [src]!</span>")
+					visible_message("<span class='warning'>[user] slams [M]'s face against \the [src]!</span>")
 					playsound(src, 'sound/weapons/tablehit1.ogg', 50, 1)
+					add_attacklogs(user, M, "harmfully tabled", admin_warn = FALSE)
 				else
 					to_chat(user, "<span class='warning'>You need a better grip to do that!</span>")
 					return
 			else
-				G.affecting.forceMove(loc)
-				G.affecting.Knockdown(5)
-				visible_message("<span class='warning'>[G.assailant] puts [G.affecting] on \the [src].</span>")
-			returnToPool(W)
+				if (!TryToThrowOnTable(user,M))
+					return
+				M.Knockdown(5)
+				M.Stun(5)
+				visible_message("<span class='warning'>[user] puts [M] on \the [src].</span>")
+				add_attacklogs(user, M, "harmlessly tabled", admin_warn = FALSE)
+			qdel(W)
 			return
 
-	if (iswrench(W) && can_disassemble())
+	//these should maybe be moved into something like W.table_act()
+	if (W.is_wrench(user) && can_disassemble())
 		to_chat(user, "<span class='notice'>Now disassembling table...</span>")
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+		W.playtoolsound(src, 50)
 		if(do_after(user, src,50))
 			destroy()
 		return
 
-	if(user.drop_item(W, src.loc))
+	if (istype(W, /obj/item/weapon/reagent_containers/pan) && user.a_intent == I_DISARM)
+		var/obj/item/weapon/reagent_containers/pan/P = W
+		if(P.drop_ingredients(src))
+			return
+
+	if (istype(W, /obj/item/weapon/cookiesynth))
+		var/obj/item/weapon/cookiesynth/C = W
+		C.synthesize()
+		return
+
+	if (user.drop_item(W, src.loc))
 		if(W.loc == src.loc && params)
-			W.setPixelOffsetsFromParams(params, user)
+			W.setPixelOffsetsFromParams(params, user, pixel_x, pixel_y)
 			return 1
 
 /obj/structure/table/proc/straight_table_check(var/direction)
@@ -437,6 +479,9 @@
 		return 0
 	return 1
 
+/obj/structure/table/arcane_act(mob/user)
+	..()
+	return "'N S'VIET R'SIA...!"
 
 /obj/structure/table/verb/do_flip()
 	set name = "Flip table"
@@ -447,6 +492,12 @@
 		return
 	if (!can_touch(usr))
 		return
+	if(arcanetampered)
+		var/mob/living/M = usr
+		if(istype(M))
+			to_chat(usr, "<span class='sinister'>[capitalize(name)] flips YOU!</span>")
+			M.Knockdown(10)
+			return
 	if(!flip(get_cardinal_dir(usr,src)))
 		to_chat(usr, "<span class='notice'>It won't budge.</span>")
 	else
@@ -497,15 +548,18 @@
 			spawn(0)
 				A.throw_at(pick(targets),1,1)
 
-	dir = direction
+	change_dir(direction)
 	if(dir != NORTH)
 		plane = ABOVE_HUMAN_PLANE
 	flipped = 1
 	flow_flags |= ON_BORDER
+	setup_border_dummy()
 	for(var/D in list(turn(direction, 90), turn(direction, -90)))
 		var/obj/structure/table/T = locate() in get_step(src,D)
 		if(T && !T.flipped)
 			T.flip(direction)
+	for(var/obj/machinery/M in loc)
+		M.table_unshift()
 	update_icon()
 	update_adjacent()
 
@@ -518,10 +572,13 @@
 	reset_plane_and_layer()
 	flipped = 0
 	flow_flags &= ~ON_BORDER
+	remove_border_dummy()
 	for(var/D in list(turn(dir, 90), turn(dir, -90)))
 		var/obj/structure/table/T = locate() in get_step(src.loc,D)
 		if(T && T.flipped && T.dir == src.dir)
 			T.unflip()
+	for(var/obj/machinery/M in loc)
+		M.table_shift()
 	update_icon()
 	update_adjacent()
 
@@ -547,8 +604,10 @@
 	icon_state = "woodtable"
 	parts = /obj/item/weapon/table_parts/wood
 	health = 50
-	autoignition_temperature = AUTOIGNITION_WOOD // TODO:  Special ash subtype that looks like charred table legs.
-	fire_fuel = 5
+	w_class = W_CLASS_LARGE
+	w_type = RECYK_WOOD
+	flammable = TRUE
+
 
 /obj/structure/table/woodentable/cultify()
 	return
@@ -597,19 +656,20 @@
 				return
 
 	else if (iswelder(W))
-		var/obj/item/weapon/weldingtool/WT = W
-		to_chat(user, "<span class='notice'>Now [status == 2?"weakening":"strenghening"] the reinforced table.</span>")
-		if(WT.do_weld(user, src, 50, 0))
-			if(src.status == 2)
-				if(gcDestroyed)
-					return
-				to_chat(user, "<span class='notice'>Table weakened.</span>")
-				src.status = 1
-			else
-				if(gcDestroyed)
-					return
-				to_chat(user, "<span class='notice'>Table strengthened.</span>")
-				src.status = 2
+		var/obj/item/tool/weldingtool/WT = W
+		if(WT.isOn())
+			to_chat(user, "<span class='notice'>Now [status == 2?"weakening":"strenghening"] the reinforced table.</span>")
+			if(WT.do_weld(user, src, 50, 0))
+				if(src.status == 2)
+					if(gcDestroyed)
+						return
+					to_chat(user, "<span class='notice'>Table weakened.</span>")
+					src.status = 1
+				else
+					if(gcDestroyed)
+						return
+					to_chat(user, "<span class='notice'>Table strengthened.</span>")
+					src.status = 2
 			return
 	return ..()
 
@@ -634,6 +694,7 @@
 					user.do_attack_animation(src, W)
 					if (prob(15))
 						M.Knockdown(5)
+						M.Stun(5)
 					M.apply_damage(15,def_zone = LIMB_HEAD)
 					visible_message("<span class='warning'>[G.assailant] slams [G.affecting]'s face against \the [src]!</span>")
 					playsound(src, 'sound/weapons/tablehit1.ogg', 50, 1)
@@ -645,10 +706,12 @@
 					to_chat(user, "<span class='warning'>You need a better grip to do that!</span>")
 					return
 			else
-				G.affecting.forceMove(loc)
+				if (!TryToThrowOnTable(user,G.affecting))
+					return
 				G.affecting.Knockdown(5)
+				G.affecting.Stun(5)
 				visible_message("<span class='warning'>[G.assailant] puts [G.affecting] on \the [src].</span>")
-			returnToPool(W)
+			qdel(W)
 
 	else if (user.a_intent == I_HURT)
 		user.do_attack_animation(src, W)
@@ -662,6 +725,12 @@
 	else
 		..()
 
+/obj/structure/table/glass/plasma
+	name = "plasma glass table"
+	desc = "A standard table with a reinforced plasma glass finish."
+	icon_state = "plasma_table"
+	parts = /obj/item/weapon/table_parts/glass/plasma
+	health = 150
 
 /*
  * Brass
@@ -681,6 +750,18 @@
 	return
 
 /*
+ * Plastic
+ */
+/obj/structure/table/plastic
+	name = "plastic table"
+	desc = "A plastic table perfect for on a space patio."
+	icon_state = "plastictable"
+	parts = /obj/item/weapon/table_parts/plastic
+	w_class = W_CLASS_LARGE
+	w_type = RECYK_PLASTIC
+	flammable = TRUE
+
+/*
  * Racks
  */
 /obj/structure/rack
@@ -693,9 +774,10 @@
 	anchored = 1.0
 	throwpass = 1	//You can throw objects over this, despite its density.
 	layer = TABLE_LAYER //So items are always layered over it
+	pass_flags_self = PASSTABLE
 	var/parts = /obj/item/weapon/rack_parts
 	var/offset_step = 0
-	var/health = 20
+	health = 20
 
 /obj/structure/rack/proc/destroy(var/dropParts = TRUE)
 	if(parts && dropParts)
@@ -709,8 +791,7 @@
 /obj/structure/rack/bullet_act(var/obj/item/projectile/Proj)
 	if(Proj.destroy)
 		src.ex_act(1)
-	..()
-	return 0
+	return ..()
 
 /obj/structure/rack/ex_act(severity)
 	switch(severity)
@@ -718,14 +799,14 @@
 			destroy(FALSE)
 		if(2.0)
 			if(prob(50))
-				destroy(TRUE)
-			else
 				destroy(FALSE)
+			else
+				destroy(TRUE)
 		if(3.0)
 			if(prob(25))
-				destroy(TRUE)
-			else
 				destroy(FALSE)
+			else
+				destroy(TRUE)
 
 /obj/structure/rack/proc/checkhealth()
 	if(health <= 0)
@@ -748,16 +829,18 @@
 /obj/structure/rack/Cross(atom/movable/mover, turf/target, height=1.5, air_group = 0)
 	if(air_group || (height==0))
 		return 1
-	if(istype(mover) && mover.checkpass(PASSTABLE))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return 1
 	return !density
 
-/obj/structure/rack/bumped_by_firebird(obj/structure/stool/bed/chair/vehicle/wizmobile/W)
-	destroy()
+/obj/structure/rack/Bumped(atom/movable/AM)
+	..()
+	if(istype(AM, /obj/structure/bed/chair/vehicle/firebird))
+		destroy()
 
 /obj/structure/rack/attackby(obj/item/weapon/W as obj, mob/user as mob)
-	if(iswrench(W) && can_disassemble())
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+	if(W.is_wrench(user) && can_disassemble())
+		W.playtoolsound(src, 50)
 		destroy(TRUE)
 		return
 
@@ -777,7 +860,7 @@
 			offset_step++
 			return 1
 
-/obj/structure/table/attack_hand(mob/living/user)
+/obj/structure/rack/attack_hand(mob/living/user)
 	if(M_HULK in user.mutations)
 		user.do_attack_animation(src, user)
 		visible_message("<span class='danger'>[user] smashes [src] apart!</span>")
@@ -796,11 +879,13 @@
 	visible_message("<span class='danger'>[user] slices [src] apart!</span>")
 	destroy()
 
-/obj/structure/rack/attack_animal(mob/living/simple_animal/user)
-	if(user.environment_smash_flags & SMASH_LIGHT_STRUCTURES)
-		user.do_attack_animation(src, user)
-		visible_message("<span class='danger'>[user] smashes [src] apart!</span>")
-		destroy()
+/obj/structure/rack/attack_animal(mob/living/user)
+	if(istype(user,/mob/living/simple_animal))
+		var/mob/living/simple_animal/SA=user
+		if(SA.environment_smash_flags & SMASH_LIGHT_STRUCTURES)
+			user.do_attack_animation(src, user)
+			visible_message("<span class='danger'>[user] smashes [src] apart!</span>")
+			destroy()
 
 /obj/structure/rack/attack_tk() // no telehulk sorry
 	return

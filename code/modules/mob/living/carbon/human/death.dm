@@ -1,34 +1,38 @@
-/mob/living/carbon/human/gib()
+/mob/living/carbon/human/gib(animation = FALSE, meat = TRUE)
+	ASSERT(species)
+	species.gib(src, animation, meat)
+
+/* This will be called if the species datum has not overwritten /datum/species/gib() */
+/mob/living/carbon/human/proc/default_gib(animation, meat)
 	death(1)
-	monkeyizing = 1
-	canmove = 0
-	icon = null
-	invisibility = 101
+	handle_body_destroyed()
 
 	for(var/datum/organ/external/E in src.organs)
 		if(istype(E, /datum/organ/external/chest) || istype(E, /datum/organ/external/groin)) //Really bad stuff happens when either get removed
 			continue
-		//Only make the limb drop if it's not too damaged
-		if(prob(100 - E.get_damage()))
+		//Only make the limb drop if it's not too damaged, or if it's the head
+		if(prob(100 - E.get_damage()) || istype(E, /datum/organ/external/head))
 			//Override the current limb status and don't cause an explosion
 			E.droplimb(1, 1)
-	dropBorers()
+	for(var/datum/organ/external/cosmetic_organ in cosmetic_organs)
+		cosmetic_organ.droplimb(TRUE, TRUE)
 	var/gib_radius = 0
-	if(reagents.has_reagent(LUBE))
+	if(reagents?.has_any_reagents(LUBES))
 		gib_radius = 6 //Your insides are all lubed, so gibs travel much further
 
 	anim(target = src, a_icon = 'icons/mob/mob.dmi', flick_anim = "gibbed-h", sleeptime = 15)
-	hgibs(loc, viruses, dna, species.flesh_color, species.blood_color, gib_radius)
-	qdel(src)
+	hgibs(loc, virus2, dna, species?.flesh_color, species?.blood_color, gib_radius)
+	spawn()
+		qdel(src)
 
-/mob/living/carbon/human/dust()
+/mob/living/carbon/human/dust(var/drop_everything = FALSE)
+	ASSERT(species)
+	species.dust(src, drop_everything)
+
+/* This will be called if the species datum has not overwritten /datum/species/dust() */
+/mob/living/carbon/human/proc/default_dust(drop_everything)
 	death(1)
-	monkeyizing = 1
-	canmove = 0
-	icon = null
-	invisibility = 101
-
-	dropBorers(1)
+	handle_body_destroyed()
 
 	if(istype(src, /mob/living/carbon/human/manifested))
 		anim(target = src, a_icon = 'icons/mob/mob.dmi', flick_anim = "dust-hm", sleeptime = 15)
@@ -40,13 +44,31 @@
 		new /obj/effect/decal/remains/human/noskull(loc)
 	else
 		new /obj/effect/decal/remains/human(loc)
-	qdel(src)
+	if(drop_everything)
+		drop_all()
+	spawn()
+		qdel(src)
+
+/mob/living/carbon/human/proc/handle_body_destroyed()
+	monkeyizing = TRUE
+	canmove = 0
+	icon = null
+	invisibility = 101
+	dropBorers(1)
 
 /mob/living/carbon/human/Destroy()
-	if(client && iscultist(src) && veil_thickness > CULT_PROLOGUE)
+	infected_contact_mobs -= src
+	if (pathogen)
+		for (var/mob/L in science_goggles_wearers)
+			if (L.client)
+				L.client.images -= pathogen
+		pathogen = null
+
+	if(client && iscultist(src) && (timeofdeath == 0 || timeofdeath >= world.time - DEATH_SHADEOUT_TIMER))
 		var/turf/T = get_turf(src)
 		if (T)
 			var/mob/living/simple_animal/shade/shade = new (T)
+			playsound(T, 'sound/hallucinations/growl1.ogg', 50, 1)
 			shade.name = "[real_name] the Shade"
 			shade.real_name = "[real_name]"
 			mind.transfer_to(shade)
@@ -54,27 +76,17 @@
 			to_chat(shade, "<span class='sinister'>Dark energies rip your dying body appart, anchoring your soul inside the form of a Shade. You retain your memories, and devotion to the cult.</span>")
 
 	if(species)
-		qdel(species)
-		species = null
-
-	if(decapitated)
-		decapitated.origin_body = null
-		decapitated = null
+		QDEL_NULL(species)
 
 	if(vessel)
-		qdel(vessel)
-		vessel = null
+		QDEL_NULL(vessel)
 
+	my_appearance = null
 
 	..()
 
-	for(var/obj/abstract/Overlays/O in obj_overlays)
-		returnToPool(O)
-
-	obj_overlays = null
-
 /mob/living/carbon/human/death(gibbed)
-	if(stat == DEAD)
+	if((status_flags & BUDDHAMODE) || stat == DEAD)
 		return
 	if(healths)
 		healths.icon_state = "health7"
@@ -88,49 +100,44 @@
 		to_chat(B.host_brain, "<span class='danger'>Just before your body passes, you feel a brief return of sensation.  You are now in control...  And dead.</span>")
 		do_release_control(0)
 
-	//Check for heist mode kill count.
-	//if(ticker.mode && ( istype( ticker.mode,/datum/game_mode/heist) ) )
-		//Check for last assailant's mutantrace.
-		/*if( LAssailant && ( istype( LAssailant,/mob/living/carbon/human ) ) )
-			var/mob/living/carbon/human/V = LAssailant
-			if (V.dna && (V.dna.mutantrace == "vox"))
-				*/ //Not currently feasible due to terrible LAssailant tracking.
-//		to_chat(world, "Vox kills: [vox_kills]")
-		//vox_kills++ //Bad vox. Shouldn't be killing humans.
-	if(ishuman(LAssailant))
-		var/mob/living/carbon/human/H=LAssailant
-		if(H.mind)
-			H.mind.kills += "[name] ([ckey])"
+	if(lastassailant)
+		var/mob/living/carbon/human/A=lastassailant.get()
+		if(istype(A))
+			//Check if last assailant is a vox raider.
+			//if (isvoxraider(A))
+				//Not currently feasible due to terrible lastassailant tracking, and the inviolate not even being a thing anymore.
+				//vox_kills++ //Bad vox. Shouldn't be killing humans.
+				//to_chat(world, "Vox kills: [vox_kills]")
+			if(A.mind)
+				A.mind.kills += "[name] ([ckey])"
 
 	if(!gibbed)
-		emote("deathgasp") //Let the world KNOW WE ARE DEAD
-
 		update_canmove()
 	stat = DEAD
-	tod = worldtime2text() //Weasellos time of death patch
+	tod = worldtime2text()
 	if(mind)
-		mind.store_memory("Time of death: [tod]", 0)
-		if(!suiciding) //Cowards don't count
-			score["deadcrew"]++ //Someone died at this point, and that's terrible
+		mind.store_memory("Time of death: [tod]", category=MIND_MEMORY_GENERAL, forced=TRUE)
+		if(!(mind && mind.suiciding)) //Cowards don't count
+			score.deadcrew++
+	if (dorfpod)
+		dorfpod.scan_body(src)
 	if(ticker && ticker.mode)
-//		world.log << "k"
 		sql_report_death(src)
-		//ticker.mode.check_win() //Calls the rounds wincheck, mainly for wizard, malf, and changeling now
-	species.handle_death(src)
-	if(become_zombie_after_death && isjusthuman(src)) //2 if they retain their mind, 1 if they don't
-		spawn(30 SECONDS)
+	species.handle_death(src, gibbed)
+	if(become_zombie)
+		spawn(20 SECONDS)
 			if(!gcDestroyed)
-				make_zombie(retain_mind = become_zombie_after_death-1)
+				zombify()
 	return ..(gibbed)
 
 /mob/living/carbon/human/proc/makeSkeleton()
 	if(M_SKELETON in src.mutations)
 		return
 
-	if(f_style)
-		f_style = "Shaved"
-	if(h_style)
-		h_style = "Bald"
+	if(my_appearance.f_style)
+		my_appearance.f_style = "Shaved"
+	if(my_appearance.h_style)
+		my_appearance.h_style = "Bald"
 	update_hair(0)
 
 	mutations.Add(M_SKELETON)
@@ -143,10 +150,10 @@
 /mob/living/carbon/human/proc/ChangeToHusk()
 	if(M_HUSK in mutations)
 		return
-	if(f_style)
-		f_style = "Shaved" //We only change the icon_state of the hair datum, so it doesn't mess up their UI/UE
-	if(h_style)
-		h_style = "Bald"
+	if(my_appearance.f_style)
+		my_appearance.f_style = "Shaved" //We only change the icon_state of the hair datum, so it doesn't mess up their UI/UE
+	if(my_appearance.h_style)
+		my_appearance.h_style = "Bald"
 	update_hair(0)
 
 	mutations.Add(M_HUSK)
@@ -155,9 +162,4 @@
 	update_body(0)
 	update_mutantrace()
 	vessel.remove_reagent(BLOOD,vessel.get_reagent_amount(BLOOD))
-	return
-
-/mob/living/carbon/human/proc/Drain()
-	ChangeToHusk()
-	mutations |= M_NOCLONE
 	return

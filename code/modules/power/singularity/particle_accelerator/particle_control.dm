@@ -8,7 +8,7 @@
 	reference = "control_box"
 	anchored = 0
 	density = 1
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 	idle_power_usage = 500
 	active_power_usage = 10000
 	construction_state = 0
@@ -34,8 +34,7 @@
 		toggle_power()
 
 	if(wires)
-		qdel(wires)
-		wires = null
+		QDEL_NULL(wires)
 
 	..()
 
@@ -46,13 +45,13 @@
 		wires.Interact(user)
 
 /obj/machinery/particle_accelerator/control_box/attackby(var/obj/item/I, var/mob/user)
-	if(istype(I,/obj/item/weapon/wirecutters)||istype(I,/obj/item/device/multitool))
+	if(istype(I,/obj/item/device/multitool))
 		attack_hand(user)
 	..()
 
 /obj/machinery/particle_accelerator/control_box/update_state()
 	if(construction_state < 3)
-		use_power = 0
+		use_power = MACHINE_POWER_USE_NONE
 		assembled = 0
 		active = 0
 		for(var/obj/structure/particle_accelerator/part in connected_parts)
@@ -62,7 +61,7 @@
 		connected_parts = list()
 		return
 	if(!part_scan())
-		use_power = 1
+		use_power = MACHINE_POWER_USE_IDLE
 		active = 0
 		connected_parts = list()
 
@@ -71,13 +70,19 @@
 /obj/machinery/particle_accelerator/control_box/update_icon()
 	if(active)
 		icon_state = "[reference]p[strength]"
+		update_moody_light('icons/lighting/moody_lights.dmi', "overlay_control_box")
+		set_light(2,1)
 	else
-		if(stat & NOPOWER)
+		if(stat & (FORCEDISABLE|NOPOWER))
 			icon_state = "[reference]w"
+			kill_moody_light()
+			set_light(0)
 			return
-		else if(use_power)
+		else if(use_power != MACHINE_POWER_USE_NONE)
 			if(assembled)
 				icon_state = "[reference]p"
+				update_moody_light('icons/lighting/moody_lights.dmi', "overlay_control_box")
+				set_light(2,1)
 		else
 			switch(construction_state)
 				if(0)
@@ -88,7 +93,11 @@
 					icon_state = "[reference]w"
 				else
 					icon_state = "[reference]c"
-	return
+					update_moody_light('icons/lighting/moody_lights.dmi', "overlay_control_box")
+					set_light(2,1)
+					return
+			kill_moody_light()
+			set_light(0)
 
 /obj/machinery/particle_accelerator/control_box/Topic(href, href_list)
 	if(..())
@@ -147,11 +156,11 @@
 
 /obj/machinery/particle_accelerator/control_box/power_change()
 	..()
-	if(stat & NOPOWER)
+	if(stat & (FORCEDISABLE|NOPOWER))
 		active = 0
-		use_power = 0
+		use_power = MACHINE_POWER_USE_NONE
 	else if(!stat && construction_state <= 3)
-		use_power = 1
+		use_power = MACHINE_POWER_USE_IDLE
 	src.update_icon()
 	for(var/obj/structure/particle_accelerator/part in connected_parts)
 		part.strength = null
@@ -231,13 +240,13 @@
 		message_admins("PA Control Computer turned ON by [key_name(usr, usr.client)](<A HREF='?_src_=holder;adminmoreinfo=\ref[usr]'>?</A>) in ([x],[y],[z] - <A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[x];Y=[y];Z=[z]'>JMP</a>)",0,1)
 		log_game("PA Control Computer turned ON by [usr.ckey]([usr]) in ([x],[y],[z])")
 	if(src.active)
-		src.use_power = 2
+		src.use_power = MACHINE_POWER_USE_ACTIVE
 		for(var/obj/structure/particle_accelerator/part in connected_parts)
 			part.strength = src.strength
 			part.powered = 1
 			part.update_icon()
 	else
-		src.use_power = 1
+		src.use_power = MACHINE_POWER_USE_IDLE
 		for(var/obj/structure/particle_accelerator/part in connected_parts)
 			part.strength = null
 			part.powered = 0
@@ -246,7 +255,7 @@
 
 
 /obj/machinery/particle_accelerator/control_box/interact(mob/user)
-	if((get_dist(src, user) > 1) || (stat & (BROKEN|NOPOWER)))
+	if((get_dist(src, user) > 1) || (stat & (FORCEDISABLE|BROKEN|NOPOWER)))
 		if(!istype(user, /mob/living/silicon) && !isAdminGhost(user))
 			if(!user.mutations || user.mutations.len || !(M_TK in user.mutations))
 				user.unset_machine()
@@ -271,7 +280,7 @@
 		dat += "Particle Strength: [src.strength] "
 		dat += "<A href='?src=\ref[src];strengthdown=1'>--</A>|<A href='?src=\ref[src];strengthup=1'>++</A><BR><BR>"
 
-	//user << browse(dat, "window=pacontrol;size=420x500")
+	//user << browse(HTML_SKELETON(dat), "window=pacontrol;size=420x500")
 	//onclose(user, "pacontrol")
 	var/datum/browser/popup = new(user, "pacontrol", name, 420, 500)
 	popup.set_content(dat)

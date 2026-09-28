@@ -7,6 +7,7 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 /spell/targeted //can mean aoe for mobs (limited/unlimited number) or one target mob
 	spell_flags = SELECTABLE
 	user_type = USER_TYPE_NOUSER
+	valid_targets = list()
 	var/max_targets = 1 //leave 0 for unlimited targets in range, more for limited number of casts (can all target one guy, depends on target_ignore_prev) in range
 	var/target_ignore_prev = 1 //only important if max_targets > 1, affects if the spell can be cast multiple times at one person from one cast
 
@@ -24,27 +25,32 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 	var/amt_dam_brute = 0
 	var/amt_dam_oxy = 0
 	var/amt_dam_tox = 0
+	var/amt_dam_brain = 0
 
 	var/amt_eye_blind = 0
 	var/amt_eye_blurry = 0
 	var/mind_affecting = 0 //Determines if it can be blocked by PSY_RESIST or tinfoil hat
 
-	var/list/compatible_mobs = list()
-	var/believed_name
-
-/spell/targeted/is_valid_target(var/target, mob/user, list/options)
+/spell/targeted/is_valid_target(atom/target, mob/user, options, bypass_range = 0)
 	if(!(spell_flags & INCLUDEUSER) && target == user)
 		return 0
-	if(!(range == GLOBALCAST) && !(range == SELFCAST && target == user) && (options && !(target in options))) //Shouldn't be necessary but a good check in case of overrides
+	if(!(range == GLOBALCAST) && !bypass_range && !(range == SELFCAST && target == user) && (options && !(target in options))) //Shouldn't be necessary but a good check in case of overrides
 		return 0
-	return !compatible_mobs.len || is_type_in_list(target, compatible_mobs)
+	if(ismob(target))
+		var/mob/M = target
+		if (mind_affecting && !user.can_mind_interact(M.mind))
+			return 0
+		if(user in M.get_arcane_golems())
+			return 0
+		if(user.shares_arcane_golem_spell(M))
+			return 0
+	return !valid_targets.len || is_type_in_list(target, valid_targets)
 
 /spell/targeted/choose_targets(mob/user = usr)
 	if(mind_affecting && tinfoil_check(user))
 		to_chat(user, "<span class='warning'>Something is interfering with your ability to target minds.</span>")
 		return
 	var/list/targets = list()
-
 	if(max_targets == 0) //unlimited
 		if(range == -2)
 			targets = living_mob_list
@@ -56,10 +62,39 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 		if(spell_flags & TALKED_BEFORE)
 			if(!user || !user.mind || !user.mind.heard_before.len)
 				return
-			var/target_name = input(user, "Choose the target, from those whose voices you've heard before.", "Targeting") in user.mind.heard_before
-			var/mob/temp_target = user.mind.heard_before[target_name]
-			believed_name = target_name
-			targets += temp_target
+			var/list/possible_targets = user.mind.heard_before.Copy()
+			if(ismushroom(user) && istype(src, /spell/targeted/telepathy))
+				possible_targets += "Local"
+				var/spell/targeted/telepathy/telepathy = src
+				telepathy.telepathy_type = SPECIFIC_TELEPATHY
+			possible_targets += "All"
+			if(spell_flags & INCLUDEUSER)
+				possible_targets[user.real_name] = user.mind
+			var/target_name = input(user, "Choose the target, from those whose voices you've heard before.", "Targeting") as null|anything in possible_targets
+			if(isnull(target_name))
+				return
+			var/datum/mind/temp_target
+			if(target_name == "All")
+				if(ismushroom(user) && istype(src, /spell/targeted/telepathy))
+					var/spell/targeted/telepathy/telepathy = src
+					telepathy.telepathy_type = GLOBAL_TELEPATHY
+				for(var/T in possible_targets)
+					if(T == "All" || T == "Local")
+						continue
+					temp_target = possible_targets[T]
+					targets += temp_target.current
+			else if(target_name == "Local")
+				if(ismushroom(user) && istype(src, /spell/targeted/telepathy))
+					var/spell/targeted/telepathy/telepathy = src
+					telepathy.telepathy_type = LOCAL_TELEPATHY
+				for(var/T in possible_targets)
+					if (T == "All" || T == "Local")
+						continue
+					temp_target = possible_targets[T]
+					targets += temp_target.current
+			else
+				temp_target = possible_targets[target_name]
+				targets += temp_target.current
 		else if((range == 0 || range == SELFCAST) && (spell_flags & INCLUDEUSER))
 			targets += user
 		else
@@ -73,15 +108,14 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 			for(var/mob/living/M in starting_targets)
 				if(!(spell_flags & INCLUDEUSER) && M == user)
 					continue
-				if(compatible_mobs && compatible_mobs.len)
-					if(!is_type_in_list(M, compatible_mobs))
+				if(valid_targets && valid_targets.len)
+					if(!is_type_in_list(M, valid_targets))
 						continue
-				if(compatible_mobs && compatible_mobs.len && !is_type_in_list(M, compatible_mobs))
+				if(valid_targets && valid_targets.len && !is_type_in_list(M, valid_targets))
 					continue
 				if(mind_affecting)
 					if(iscarbon(user))
-						var/mob/living/carbon/C = user
-						if(!C.can_mind_interact(M))
+						if(!M.mind || !user.can_mind_interact(M.mind))
 							continue
 				possible_targets += M
 
@@ -107,12 +141,12 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 		for(var/mob/living/target in starting_targets)
 			if(!(spell_flags & INCLUDEUSER) && target == user)
 				continue
-			if(compatible_mobs && !is_type_in_list(target, compatible_mobs))
+			if(valid_targets && !is_type_in_list(target, valid_targets))
 				continue
 			possible_targets += target
 
 		if(spell_flags & SELECTABLE)
-			for(var/i = 1; i<=max_targets, i++)
+			for(var/i = 1; i<=max_targets; i++)
 				if(!possible_targets.len)
 					break
 				var/mob/M = input(user, "Choose the target for the spell.", "Targeting") as null|mob in possible_targets
@@ -137,9 +171,9 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 	if(!(spell_flags & INCLUDEUSER) && (user in targets))
 		targets -= user
 
-	if(compatible_mobs && compatible_mobs.len)
+	if(valid_targets && valid_targets.len)
 		for(var/mob/living/target in targets) //filters out all the non-compatible mobs
-			if(!is_type_in_list(target, compatible_mobs))
+			if(!is_type_in_list(target, valid_targets))
 				targets -= target
 
 	return targets
@@ -157,23 +191,26 @@ Targeted spells have two useful flags: INCLUDEUSER and SELECTABLE. These are exp
 	target.adjustFireLoss(amt_dam_fire)
 	target.adjustToxLoss(amt_dam_tox)
 	target.adjustOxyLoss(amt_dam_oxy)
+	target.adjustBrainLoss(amt_dam_brain)
 	//disabling
-	target.Knockdown(amt_knockdown)
-	target.Paralyse(amt_paralysis)
-	target.Stun(amt_stunned)
+	target.AdjustKnockdown(amt_knockdown)
+	target.AdjustParalysis(amt_paralysis)
+	target.AdjustStunned(amt_stunned)
 	if(amt_knockdown || amt_paralysis || amt_stunned)
 		target.unlock_from()
-	target.eye_blind += amt_eye_blind
+	if (amt_eye_blind > 0)
+		target.instant_blindness(amt_eye_blind)
 	target.eye_blurry += amt_eye_blurry
 	target.dizziness += amt_dizziness
 	target.confused += amt_confused
+	target.confused_intensity = CONFUSED_MAGIC
 	target.stuttering += amt_stuttering
 
 /spell/targeted/proc/tinfoil_check(mob/living/carbon/human/user)
 	if(!istype(user))
 		return 0
 
-	if(user.head && istype(user.head,/obj/item/clothing/head/tinfoil))
+	if(user.is_wearing_any(list(/obj/item/clothing/head/tinfoil,/obj/item/clothing/head/helmet/stun), slot_head))
 		return 1
 
 	return 0

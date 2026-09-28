@@ -33,7 +33,7 @@
 	icon_state = "parrot_fly"
 	icon_living = "parrot_fly"
 	icon_dead = "parrot_dead"
-	pass_flags = PASSTABLE
+	pass_flags = PASSTABLE | PASSRAILING
 	flags = HEAR | PROXMOVE | HEAR_ALWAYS
 
 	speak = list("Hi","Hello!","Cracker?","BAWWWWK george mellons griffing me")
@@ -118,7 +118,6 @@
 
 	var/has_headset = 1 //excluding parrotmorph parrots from gaining headsets when a mob is transformed into a parrot via wizard.
 
-
 /mob/living/simple_animal/parrot/New()
 	..()
 	if(!ears && has_headset)
@@ -149,6 +148,8 @@
 		desc = initial(desc)
 		if(times_examined_while_dead)
 			times_examined_while_dead = 0
+		if(held_item)
+			desc += "<br>It is holding [bicon(held_item)] \a [held_item]"
 	..()
 
 /mob/living/simple_animal/parrot/death(var/gibbed = FALSE)
@@ -212,7 +213,7 @@
 	else
 		dat +=	"<br><b>Headset:</b> <a href='?src=\ref[src];add_inv=ears'>Nothing</a>"
 
-	user << browse(dat, "window=mob[real_name];size=325x500")
+	user << browse(HTML_SKELETON(dat), "window=mob[real_name];size=325x500")
 	onclose(user, "mob[real_name]")
 
 
@@ -303,22 +304,35 @@
 	..()
 	if(client)
 		return
-	if(!stat && M.a_intent == I_HURT)
+	if(!stat)
+		switch(M.a_intent)
+			if(I_DISARM)
+				icon_state = "parrot_fly" //It is going to be flying regardless
 
-		icon_state = "parrot_fly" //It is going to be flying regardless of whether it flees or attacks
+				if(parrot_state == PARROT_PERCH)
+					parrot_sleep_dur = parrot_sleep_max //Reset it's sleep timer if it was perched
 
-		if(parrot_state == PARROT_PERCH)
-			parrot_sleep_dur = parrot_sleep_max //Reset it's sleep timer if it was perched
+				parrot_interest = M
+				parrot_state = PARROT_SWOOP //The parrot just got a disarm, it WILL move, now to pick a direction..
 
-		parrot_interest = M
-		parrot_state = PARROT_SWOOP //The parrot just got hit, it WILL move, now to pick a direction..
+				parrot_state |= PARROT_FLEE	//Don't let the item be caught
+				playsound(M, 'sound/weapons/thudswoosh.ogg', 50, 1, -1)
+				if(prob(50))
+					drop_held_item(pick(0,1)) // May or may not prime grenades
+			if(I_HURT)
+				icon_state = "parrot_fly" //It is going to be flying regardless of whether it flees or attacks
 
-		if(M.health < 50) //Weakened mob? Fight back!
-			parrot_state |= PARROT_ATTACK
-		else
-			parrot_state |= PARROT_FLEE		//Otherwise, fly like a bat out of hell!
-			drop_held_item(0)
-	return
+				if(parrot_state == PARROT_PERCH)
+					parrot_sleep_dur = parrot_sleep_max //Reset it's sleep timer if it was perched
+
+				parrot_interest = M
+				parrot_state = PARROT_SWOOP //The parrot just got hit, it WILL move, now to pick a direction..
+
+				if(M.health < 50) //Weakened mob? Fight back!
+					parrot_state |= PARROT_ATTACK
+				else
+					parrot_state |= PARROT_FLEE	//Otherwise, fly like a bat out of hell!
+					drop_held_item(0)
 
 /mob/living/simple_animal/parrot/attack_paw(mob/living/carbon/monkey/M as mob)
 	attack_hand(M)
@@ -328,7 +342,7 @@
 
 //Simple animals
 /mob/living/simple_animal/parrot/attack_animal(mob/living/simple_animal/M as mob)
-	..() //goodbye immortal parrots
+	. = ..() //goodbye immortal parrots
 
 	if(client)
 		return
@@ -369,7 +383,7 @@
 
 //Bullets
 /mob/living/simple_animal/parrot/bullet_act(var/obj/item/projectile/Proj)
-	..()
+	. = ..()
 	if(!stat && !client)
 		if(parrot_state == PARROT_PERCH)
 			parrot_sleep_dur = parrot_sleep_max //Reset it's sleep timer if it was perched
@@ -494,11 +508,11 @@
 					return
 			return
 
-		if(parrot_interest && parrot_interest in view(src))
+		if(parrot_interest && (parrot_interest in view(src)))
 			parrot_state = PARROT_SWOOP | PARROT_STEAL
 			return
 
-		if(parrot_perch && parrot_perch in view(src))
+		if(parrot_perch && (parrot_perch in view(src)))
 			parrot_state = PARROT_SWOOP | PARROT_RETURN
 			return
 
@@ -527,6 +541,7 @@
 				if(!parrot_perch || parrot_interest.loc != parrot_perch.loc)
 					held_item = parrot_interest
 					parrot_interest.forceMove(src)
+					response_disarm = "tries to remove \the [held_item] from"
 					visible_message("[src] grabs [held_item]!", "<span class='notice'>You grab [held_item]!</span>", "You hear the sounds of wings flapping furiously.")
 
 			parrot_interest = null
@@ -724,6 +739,7 @@
 
 			held_item = I
 			I.forceMove(src)
+			response_disarm = "tries to remove \the [held_item] from"
 			visible_message("[src] grabs [held_item]!", "<span class='notice'>You grab [held_item]!</span>", "You hear the sounds of wings flapping furiously.")
 			return held_item
 
@@ -758,6 +774,7 @@
 			C.u_equip(stolen_item)
 			held_item = stolen_item
 			stolen_item.forceMove(src)
+			response_disarm = "tries to remove \the [held_item] from"
 			visible_message("[src] grabs [held_item] out of [C]'s hand!", "<span class='notice'>You snag [held_item] out of [C]'s hand!</span>", "You hear the sounds of wings flapping furiously.")
 			return held_item
 
@@ -792,8 +809,7 @@
 
 //parrots will eat crackers instead of dropping them
 	if(istype(held_item,/obj/item/weapon/reagent_containers/food/snacks/cracker) && (drop_gently))
-		qdel(held_item)
-		held_item = null
+		QDEL_NULL(held_item)
 		if(health < maxHealth)
 			adjustBruteLoss(-10)
 		emote("me",,"eagerly downs the cracker.")
@@ -805,13 +821,13 @@
 		if(istype(held_item, /obj/item/weapon/grenade))
 			var/obj/item/weapon/grenade/G = held_item
 			G.forceMove(src.loc)
-			G.prime()
+			G.prime(src)
 			to_chat(src, "You let go of [held_item]!")
 			held_item = null
 			return 1
 
-	to_chat(src, "You drop [held_item].")
-
+	visible_message("[src] drops \the [held_item].", "You drop \the [held_item].")
+	response_disarm = "gently pushes aside"
 	held_item.forceMove(src.loc)
 	held_item = null
 	return 1
@@ -858,7 +874,8 @@
 /mob/living/simple_animal/parrot/Poly
 	name = "Poly"
 	desc = "Poly the Parrot. An expert on quantum cracker theory."
-	speak = list("Poly wanna cracker!", ":e Check the singlo, you chucklefucks!",":e Wire the solars, you lazy bums!",":e WHO TOOK THE DAMN HARDSUITS?",":e OH GOD ITS FREE CALL THE SHUTTLE")
+	speak = list("Poly wanna cracker!", ":e Check the singulo, you chucklefucks!",":e Wire the solars, you lazy bums!",":e WHO TOOK THE DAMN HARDSUITS?",":e OH GOD IT'S LOOSE CALL THE SHUTTLE",":e How do I set up the. SHow do I set u p the Singu how do I set up the SCo I do I set up. how I the scrungulartiy????")
+	is_pet = TRUE
 
 /mob/living/simple_animal/parrot/Poly/New()
 	ears = new /obj/item/device/radio/headset/headset_eng(src)

@@ -7,8 +7,8 @@
 
 	var/obj/item/weapon/reagent_containers/container = null
 
-/obj/machinery/computer/curer/attackby(var/obj/I as obj, var/mob/user as mob)
-	if(isscrewdriver(I))
+/obj/machinery/computer/curer/attackby(var/obj/item/I as obj, var/mob/user as mob)
+	if(I.is_screwdriver(user))
 		return ..(I,user)
 	if(istype(I,/obj/item/weapon/reagent_containers))
 		var/mob/living/carbon/C = user
@@ -17,11 +17,11 @@
 				container = I
 	if(istype(I,/obj/item/weapon/virusdish))
 		if(virusing)
-			to_chat(user, "<b>The pathogen materializer is still recharging..")
+			to_chat(user, "<b>The pathogen materializer is still recharging</b>")
 			return
 		var/obj/item/weapon/reagent_containers/glass/beaker/product = new(src.loc)
 
-		var/list/data = list("donor"=null,"viruses"=null,"blood_DNA"=null,"blood_type"=null,"resistances"=null,"trace_chem"=null,"virus2"=list(),"antibodies"=0)
+		var/list/data = list("viruses"=null,"blood_DNA"=null,"blood_type"=null,"resistances"=null,"trace_chem"=null,"virus2"=list(),"antibodies"=0)
 		data["virus2"] |= I:virus2
 		product.reagents.add_reagent(BLOOD,30,data)
 
@@ -32,9 +32,6 @@
 		return
 	src.attack_hand(user)
 	return
-
-/obj/machinery/computer/curer/attack_ai(var/mob/user as mob)
-	return src.attack_hand(user)
 
 /obj/machinery/computer/curer/attack_paw(var/mob/user as mob)
 
@@ -66,14 +63,14 @@
 	else
 		dat = "Please insert a container."
 
-	user << browse(dat, "window=computer;size=400x500")
+	user << browse(HTML_SKELETON(dat), "window=computer;size=400x500")
 	onclose(user, "computer")
 	return
 
 /obj/machinery/computer/curer/process()
 	..()
 
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (NOPOWER|BROKEN|FORCEDISABLE))
 		return
 	use_power(500)
 

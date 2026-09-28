@@ -4,11 +4,16 @@
 	icon_state = "cabinet_closed"
 	icon_closed = "cabinet_closed"
 	icon_opened = "cabinet_open"
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 3
+	is_wooden = TRUE
+	w_class = W_CLASS_HUGE
+	w_type = RECYK_WOOD
+	flammable = TRUE
 
-/obj/structure/closet/cabinet/canweld()
-	return 0
+	starting_materials = list(MAT_WOOD = 2*CC_PER_SHEET_WOOD)
+	w_type = RECYK_WOOD
+
+/obj/structure/closet/cabinet/basic
+	has_lock_type = /obj/structure/closet/secure_closet/cabinet
 
 /obj/structure/closet/cabinet/snow
 	name = "snow gear cabinet"
@@ -33,8 +38,7 @@
 
 /obj/structure/closet/cabinet/snow/Destroy()
 	..()
-	qdel(hanger_rail)
-	hanger_rail = null
+	QDEL_NULL(hanger_rail)
 
 /obj/structure/hanger_rail
 	icon = 'icons/obj/closet.dmi'
@@ -55,9 +59,12 @@
 		to_chat(user,"<span class='notice'>You remove a pair of boots and a coat from the hanger.</span>")
 		add_fingerprint(user)
 		var/winterboots = new /obj/item/clothing/shoes/winterboots(get_turf(src))
-		user.put_in_inactive_hand(winterboots)
-		var/wintercoat = new /obj/item/clothing/suit/wintercoat(get_turf(src))
-		user.put_in_active_hand(wintercoat)
+		user.put_in_hands(winterboots)
+		var/wintercoat = new /obj/item/clothing/suit/storage/wintercoat(get_turf(src))
+		user.put_in_hands(wintercoat)
+		var/scarfcolor = pick(list(/obj/item/clothing/mask/scarf/blue,/obj/item/clothing/mask/scarf/red,/obj/item/clothing/mask/scarf/green))
+		var/scarf = new scarfcolor(get_turf(src))
+		user.put_in_hands(scarf)
 		coats--
 		update_icon()
 

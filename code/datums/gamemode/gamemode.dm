@@ -46,6 +46,12 @@
 	var/RolesSuccess = CreateRoles()
 	return FactionSuccess && RolesSuccess
 
+//1 = station, 2 = centcomm
+/datum/gamemode/proc/ShuttleDocked(var/state)
+	for(var/datum/faction/F in factions)
+		F.ShuttleDocked(state)
+	for(var/datum/role/R in orphaned_roles)
+		R.ShuttleDocked(state)
 
 /*===FACTION RELATED STUFF===*/
 
@@ -178,16 +184,6 @@
 		F.HandleRecruitedMind(mob.mind)
 
 /datum/gamemode/proc/PostSetup()
-	spawn (ROUNDSTART_LOGOUT_REPORT_TIME)
-		display_roundstart_logout_report()
-
-	feedback_set_details("round_start","[time2text(world.realtime)]")
-	if(ticker && ticker.mode)
-		feedback_set_details("game_mode","[ticker.mode]")
-	if(revdata)
-		feedback_set_details("revision","[revdata.revision]")
-	feedback_set_details("server_ip","[world.internet_address]:[world.port]")
-
 	for(var/datum/faction/F in factions)
 		F.forgeObjectives()
 		F.OnPostSetup()
@@ -218,6 +214,9 @@
 		dat += "(none)"
 	return dat
 
+/datum/gamemode/proc/send2servers()
+	return
+
 /datum/gamemode/proc/get_player_count()
 	var/players = 0
 	for(var/mob/new_player/P in player_list)
@@ -243,7 +242,10 @@
 
 /datum/gamemode/proc/check_finished()
 	for(var/datum/faction/F in factions)
-		if(F.check_win())
+		if (F.check_win())
+			return 1
+	for(var/datum/role/R in orphaned_roles)
+		if (R.check_win())
 			return 1
 	if(emergency_shuttle.location==2 || ticker.station_was_nuked)
 		return 1
@@ -252,3 +254,6 @@
 
 /datum/gamemode/proc/declare_completion()
 	return GetScoreboard()
+
+/datum/gamemode/proc/mob_destroyed(var/mob/M)
+	return

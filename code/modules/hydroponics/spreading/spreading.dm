@@ -1,5 +1,5 @@
 #define DEFAULT_SEED "glowshroom"
-#define CREEPER_GROWTH_DISTANCE 4
+#define CREEPER_GROWTH_DISTANCE_LIMIT 4
 
 /obj/effect/plantsegment
 	name = "space vines"
@@ -10,11 +10,11 @@
 	opacity = 0
 	density = 0
 	plane = ABOVE_HUMAN_PLANE
-	pass_flags = PASSTABLE | PASSGRILLE | PASSGIRDER | PASSMACHINE
-	//mouse_opacity = 2
+	pass_flags = PASSTABLE | PASSGRILLE | PASSGIRDER | PASSMACHINE | PASSRAILING
+	mouse_opacity = 1
 
-	var/health = 10
-	var/max_health = 100
+	health = 10
+	maxHealth = 100
 	var/list/turf/simulated/floor/neighbors = list()
 	var/turf/epicenter
 	var/datum/seed/seed
@@ -28,7 +28,6 @@
 	var/age = 0
 	var/limited_growth = 0
 	var/plant_damage_noun = "Thorns"
-	var/tmp/on_resist_key //For resisting out of vines.
 
 /obj/effect/plantsegment/creeper
 	limited_growth = 1
@@ -42,7 +41,21 @@
 	if(is_locking_type(/mob, /datum/locking_category/plantsegment))
 		var/mob/V = locate(/mob) in get_locked(/datum/locking_category/plantsegment)
 		unlock_atom(V)
+
+	unregister_event(/event/before_move, src, /obj/effect/plantsegment/proc/before_moving)
+	unregister_event(/event/after_move, src, /obj/effect/plantsegment/proc/after_moving)
+	before_moving()
 	..()
+
+/obj/effect/plantsegment/proc/before_moving()
+	for(var/direc in cardinal)
+		var/turf/T = get_step(src, direc)
+		T.unregister_event(/event/density_change, src, nameof(src::proxDensityChange()))
+
+/obj/effect/plantsegment/proc/after_moving()
+	for(var/direc in cardinal)
+		var/turf/T = get_step(src, direc)
+		T.register_event(/event/density_change, src, nameof(src::proxDensityChange()))
 
 /obj/effect/plantsegment/New(var/newloc, var/datum/seed/newseed, var/turf/newepicenter, var/start_fully_mature = 0)
 	..()
@@ -64,20 +77,30 @@
 		return
 
 	name = "[seed.seed_name] vines"
-	max_health = round(seed.endurance/2)
+	maxHealth = round(seed.endurance/2)
 	if(seed.spread == 1)
 		limited_growth = 1
+		layer = CREEPER_LAYER
+		plane = ABOVE_TURF_PLANE
 	mature_time = Ceiling(seed.maturation/2)
 	spread_chance = round(40 + triangular_seq(seed.potency*2, 30)) // Diminishing returns formula, see maths.dm
-	spread_distance_limit = limited_growth ? (CREEPER_GROWTH_DISTANCE) : 0
+	if (limited_growth)
+		spread_distance_limit = clamp(ceil((25 - seed.maturation) / 6), 1, CREEPER_GROWTH_DISTANCE_LIMIT)
+	else
+		spread_distance_limit = 0
 	update_icon()
 
 	if(start_fully_mature)
-		health = max_health
+		health = maxHealth
 		mature_time = 0
+
+	register_event(/event/before_move, src, /obj/effect/plantsegment/proc/before_moving)
+	register_event(/event/after_move, src, /obj/effect/plantsegment/proc/after_moving)
+	after_moving()
 
 	spawn(1) // Plants will sometimes be spawned in the turf adjacent to the one they need to end up in, for the sake of correct dir/etc being set.
 		SSplant.add_plant(src)
+		score.kudzugrowth++
 		// Some plants eat through plating.
 		if(seed.chems && !isnull(seed.chems[PHENOL]))
 			var/turf/T = get_turf(src)
@@ -88,7 +111,7 @@
 	if(!seed)
 		return
 	var/traits = ""
-	if(seed.carnivorous == 2)
+	if(seed.voracious == 2)
 		traits += "<span class='alert'>It's quivering viciously.</span> "
 	if(seed.stinging)
 		traits += "<span class='alert'>It's covered in tiny stingers.</span> "
@@ -123,10 +146,18 @@
 		if(at_fringe >= round(spread_distance_limit*0.7))
 			arbitrary_measurement_of_how_lush_I_am_right_now--
 
-	if(health < max_health)
-		arbitrary_measurement_of_how_lush_I_am_right_now -= round(-(health - max_health)/(max_health/3))
+	if(health < maxHealth)
+		arbitrary_measurement_of_how_lush_I_am_right_now -= round(-(health - maxHealth)/(maxHealth/3))
 
 	arbitrary_measurement_of_how_lush_I_am_right_now = max(1, arbitrary_measurement_of_how_lush_I_am_right_now)
+
+	color = null
+	if (seed.hematophage && seed.ligneous)
+		color = "#804040"
+	else if (seed.hematophage)
+		color = "#800000"
+	else if (seed.ligneous)
+		color = "#808080"
 
 	switch(arbitrary_measurement_of_how_lush_I_am_right_now)
 		if(1)
@@ -152,7 +183,7 @@
 		set_light(0)
 
 /obj/effect/plantsegment/attackby(var/obj/item/weapon/W, var/mob/user)
-	if(user.a_intent == I_HELP && is_type_in_list(W, list(/obj/item/weapon/wirecutters, /obj/item/weapon/scalpel)))
+	if(user.a_intent == I_HELP && is_type_in_list(W, list(/obj/item/tool/wirecutters, /obj/item/tool/scalpel)))
 		if(sampled)
 			to_chat(user, "<span class='warning'>\The [src] has already been sampled recently.</span>")
 			return
@@ -167,7 +198,9 @@
 			return
 		if(prob(70))
 			sampled = 1
-		seed.spawn_seed_packet(get_turf(user))
+		var/obj/item/seeds/seeds = seed.spawn_seed_packet(get_turf(user))
+		if(arcanetampered)
+			seeds.arcanetampered = arcanetampered
 		health -= (rand(3,5)*5)
 		sampled = 1
 		SSplant.add_plant(src)
@@ -180,18 +213,11 @@
 			S.handle_item_insertion(G, 1)
 	else
 		..()
-		take_damage(W)
+		if(W.is_hot() || (W.is_sharp() && !seed.ligneous))
+			take_damage(W.force * 4)
+		else
+			take_damage(W.force)
 		user.delayNextAttack(10)
-
-/obj/effect/plantsegment/proc/take_damage(var/obj/item/weapon/W)
-	if(!W.force)
-		return 0
-	var/dmg = W.force
-	if(W.is_hot() || (W.is_sharp() && !seed.ligneous))
-		dmg = dmg*4
-	health -= dmg
-	check_health()
-	update_icon()
 
 /obj/effect/plantsegment/ex_act(severity)
 	switch(severity)
@@ -213,11 +239,14 @@
 /obj/effect/plantsegment/fire_act(null, temp, volume)
 	die_off()
 
-/obj/effect/plantsegment/proc/check_health()
+/obj/effect/plantsegment/damaged_updates()
+	update_icon()
+
+/obj/effect/plantsegment/try_break()
 	if(health <= 0)
 		die_off()
 
 /obj/effect/plantsegment/proc/is_mature()
-	return (health >= (max_health/2) && age > mature_time)
+	return (health >= (maxHealth/2) && age > mature_time)
 
-#undef CREEPER_GROWTH_DISTANCE
+#undef CREEPER_GROWTH_DISTANCE_LIMIT

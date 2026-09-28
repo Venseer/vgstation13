@@ -6,41 +6,56 @@
 	density = 1
 	explosion_block = 2
 	blocks_air = 1
-
+	flags = TIMELESS
+	holomap_draw_override = HOLOMAP_DRAW_FULL
 	var/walltype = "riveted"
+	var/smooths = 1
+
+/turf/unsimulated/wall/isSmoothableNeighbor(atom/A, bordercheck)
+	return smooths && istype(A, src.type)
+
 /turf/unsimulated/wall/canSmoothWith()
-	var/static/list/smoothables = list(/turf/unsimulated/wall)
-	return smoothables
+	return smooths
 
 /turf/unsimulated/wall/fakeglass
 	name = "window"
 	icon_state = "fakewindows"
 	opacity = 0
-/turf/unsimulated/wall/fakeglass/canSmoothWith()
-	return null
+	smooths = 0
 
 /turf/unsimulated/wall/blastdoor
 	name = "Shuttle Bay Blast Door"
 	desc = "Why it no open!"
 	icon = 'icons/obj/doors/rapid_pdoor.dmi'
 	icon_state = "pdoor1"
-/turf/unsimulated/wall/blastdoor/canSmoothWith()
-	return null
+	smooths = 0
 
 /turf/unsimulated/wall/rock
 	name = "unnaturally hard rock wall"
 	icon = 'icons/turf/walls.dmi'
 	icon_state = "rock"
-/turf/unsimulated/wall/rock/canSmoothWith()
-	return null
+	smooths = 0
+
+/turf/unsimulated/wall/rock/ice
+	name = "unnaturally hard ice wall"
+	icon = 'icons/turf/walls.dmi'
+	icon_state = "snow_rock"
+
+/turf/unsimulated/wall/rock/ice/New()
+	..()
+	var/image/img = image('icons/turf/rock_overlay.dmi', "snow_rock_overlay",layer = SIDE_LAYER)
+	img.pixel_x = -4*PIXEL_MULTIPLIER
+	img.pixel_y = -4*PIXEL_MULTIPLIER
+	img.plane = BELOW_TURF_PLANE
+	overlays += img
 
 /turf/unsimulated/wall/attackby(obj/item/weapon/W as obj, mob/user as mob)
 	user.delayNextAttack(8)
 	if (!user.dexterity_check())
 		to_chat(user, "<span class='warning'>You don't have the dexterity to do this!</span>")
 		return
-	if(istype(W,/obj/item/weapon/solder) && bullet_marks)
-		var/obj/item/weapon/solder/S = W
+	if(issolder(W) && bullet_marks)
+		var/obj/item/tool/solder/S = W
 		if(!S.remove_fuel(bullet_marks*2,user))
 			return
 		playsound(loc, 'sound/items/Welder.ogg', 100, 1)
@@ -53,12 +68,17 @@
 	icon = null
 	icon_state = null
 	plane = EFFECTS_PLANE
-/turf/unsimulated/wall/splashscreen/canSmoothWith()
-	return null
+	smooths = 0
+
+// Global var for fade-in
+var/icon/current_round_splashscreen
 
 /turf/unsimulated/wall/splashscreen/New()
 	if(SNOW_THEME)
-		icon = 'icons/snowstation.gif' // not in the splashworks file so it doesn't appear in other cases
+		icon = 'icons/splashworks_alt/snowstation.gif' // uses splashworks_alt folder instead of splashworks so it only appears when we want it to
+		return
+	if(SOCIALISM_WON)
+		icon = 'icons/splashworks_alt/viva.png'
 		return
 	var/path = "icons/splashworks/"
 	var/list/filenames = flist(path)
@@ -66,20 +86,19 @@
 		if(copytext(filename, length(filename)) == "/")
 			filenames -= filename
 	icon = file("[path][pick(filenames)]")
+	current_round_splashscreen = icon
 
 /turf/unsimulated/wall/other
 	icon_state = "r_wall"
-/turf/unsimulated/wall/other/canSmoothWith()
-	return null
+	smooths = 0
 
 /turf/unsimulated/wall/cult
 	name = "wall"
-	desc = "The patterns engraved on the wall seem to shift as you try to focus on them. You feel sick"
+	desc = "The patterns engraved on the wall seem to shift as you try to focus on them. You feel sick."
 	icon_state = "cult0"
 	opacity = 1
 	density = 1
-/turf/unsimulated/wall/cult/canSmoothWith()
-	return null
+	smooths = 0
 
 /turf/unsimulated/wall/cultify()
 	ChangeTurf(/turf/unsimulated/wall/cult)
@@ -95,11 +114,8 @@
 	icon_state = "evilwall_1"
 	opacity = 1
 	density = 1
-/turf/unsimulated/wall/evil/canSmoothWith()
-	return null
-
-/turf/unsimulated/wall/evil/New()
-	..()
-
-	if(prob(80))
-		icon_state = "evilwall_[rand(1,8)]"
+	smooths = 0
+	base_icon_state = "evilwall_"
+	min_icon_states = 2
+	max_icon_states = 8
+	variance = 80

@@ -11,7 +11,7 @@
 			pickfrom += name
 			pickfrom[name] = D
 
-	var/event_type_name = input(user, "Select an event.", "THERE CAN BE ONLY ONE", null) in pickfrom as text|null
+	var/event_type_name = input(user, "Select an event.", "THERE CAN BE ONLY ONE", null) as null|anything in pickfrom
 	if(!event_type_name)
 		return
 	var/event_type = pickfrom[event_type_name]
@@ -67,8 +67,7 @@
 		var/mob/living/silicon/S = M
 		var/mob/living/carbon/human/new_human = new /mob/living/carbon/human(S.loc, delay_ready_dna=1)
 		new_human.setGender(pick(MALE, FEMALE)) //The new human's gender will be random
-		var/datum/preferences/A = new()	//Randomize appearance for the human
-		A.randomize_appearance_for(new_human)
+		new_human.randomise_appearance_for(new_human.gender)
 		new_human.generate_name()
 		new_human.languages |= S.languages
 		if(S.default_language)
@@ -88,13 +87,6 @@
 //The classic.
 /datum/only_one/highlander
 	name = "Highlander"
-
-/datum/only_one/highlander/check_eligibility(var/mob/M)
-	if(!..())
-		return 0
-	//if(is_special_character(M))
-	//	return 0
-	return 1
 
 /datum/only_one/highlander/convert_mob(var/mob/M)
 	var/mob/living/carbon/human/H = ..()
@@ -154,9 +146,7 @@
 		H.equip_to_slot_or_del(new /obj/item/clothing/mask/breath/vox(H), slot_wear_mask)
 		var/obj/item/weapon/tank/nitrogen/T = new(H)
 		H.put_in_hands(T)
-		H.internal = T
-		if(H.internals)
-			H.internals.icon_state = "internal1"
+		H.equip_internals(T)
 
 	H.make_all_robot_parts_organic()
 

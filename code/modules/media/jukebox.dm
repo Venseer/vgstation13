@@ -6,11 +6,12 @@
 
 var/global/global_playlists = list()
 /proc/load_juke_playlists()
+	set waitfor = 0//tentative fix so the proc stops hanging if it takes too long
 	if(!config.media_base_url)
 		return
-	for(var/playlist_id in list("bar", "jazz", "rock", "muzak", "emagged", "endgame", "clockwork", "vidyaone", "vidyatwo", "vidyathree", "vidyafour"))
+	for(var/playlist_id in list("lilslugger", "bar", "jazzswing", "bomberman", "depresso", "echoes", "electronica", "emagged", "endgame", "filk", "funk", "folk", "idm", "malfdelta", "medbay", "metal", "muzakjazz", "nukesquad", "rap", "rock", "shoegaze", "security", "shuttle", "thunderdome", "upbeathypedancejam", "vidya", "SCOTLANDFOREVER", "halloween", "christmas"))
 		var/url="[config.media_base_url]/index.php?playlist=[playlist_id]"
-		//testing("Updating playlist from [url]...")
+		log_debug("Begin updating playlist: [playlist_id]...")
 
 		//  Media Server 2 requires a secret key in order to tell the jukebox
 		// where the music files are. It's set in config with MEDIA_SECRET_KEY
@@ -23,18 +24,23 @@ var/global/global_playlists = list()
 		var/response = world.Export(url)
 		var/list/playlist=list()
 		if(response)
+			log_debug("Received response from media server for [playlist_id], with a length of [length(response)]")
 			var/json = file2text(response["CONTENT"])
-			if("/>" in json)
+			//i don't think this works as a string search
+			//if("/>" in json)
+			if(findtext(json, "/>"))
 				continue
-			var/json_reader/reader = new()
-			reader.tokens = reader.ScanJson(json)
-			reader.i = 1
-			var/songdata = reader.read_value()
+			var/songdata = json_decode(json)
+			log_debug("Successfully decoded media server's response for [playlist_id]")
 			for(var/list/record in songdata)
 				playlist += new /datum/song_info(record)
+			log_debug("Successfully added song data to playlist for [playlist_id]")
 			if(playlist.len==0)
 				continue
 			global_playlists["[playlist_id]"] = playlist.Copy()
+			log_debug("Finished adding [playlist_id] to global playlists")
+		else
+			log_debug("Received no response from media server for [playlist_id]")
 
 /obj/machinery/media/jukebox/proc/retrieve_playlist(var/playlistid = playlist_id)
 	if(!config.media_base_url)
@@ -70,7 +76,20 @@ var/global/global_playlists = list()
 			reader.i = 1
 			var/songdata = reader.read_value()
 			for(var/list/record in songdata)
-				playlist += new /datum/song_info(record)
+				if (("track" in record) && record["track"])
+					//sorted playlist
+					if (playlist == list())
+						var/length = 0
+						for(var/list/entry in songdata)
+							length++
+						var/M[length]
+						playlist = M//turns "playlist" into an empty list of size of the actual playlist
+					var/track = text2num(record["track"])
+					playlist.Insert(track, new /datum/song_info(record))
+				else
+					//unsorted playlist
+					playlist += new /datum/song_info(record)
+
 			if(playlist.len==0)
 				visible_message("<span class='warning'>[bicon(src)] \The [src] buzzes, unable to update its playlist.</span>","<em>You hear a buzz.</em>")
 				stat &= BROKEN
@@ -95,48 +114,57 @@ var/global/global_playlists = list()
 
 	var/url    = ""
 	var/length = 0 // decaseconds
+	var/crossfade_time = 0 // decaseconds, if the song ends up with a decresendo/fadeout so we can crossfade into the next one.
 
 	var/emagged = 0
 
-	New(var/list/json)
-		title  = json["title"]
-		artist = json["artist"]
-		album  = json["album"]
+	var/is_video = 0 //uhh?
 
-		url    = json["url"]
+/datum/song_info/New(var/list/json)
+	title  = json["title"]
+	artist = json["artist"]
+	album  = json["album"]
 
-		length = text2num(json["length"])
+	url    = json["url"]
 
-	proc/display()
-		var/str="\"[title]\""
-		if(artist!="")
-			str += ", by [artist]"
-		if(album!="")
-			str += ", from '[album]'"
-		return str
+	length = text2num(json["length"])
+	crossfade_time = text2num(json["crossfade_time"])
+	if (isnull(crossfade_time))
+		crossfade_time = 0
+	is_video = text2num(json["isvideo"])
+	if(isnull(is_video))
+		is_video = 0
+/datum/song_info/proc/display()
+	var/str="\"[title]\""
+	if(artist!="")
+		str += ", by [artist]"
+	if(album!="")
+		str += ", from '[album]'"
+	return str
 
-	proc/displaytitle()
-		if(artist==""&&title=="")
-			return "\[NO TAGS\]"
-		var/str=""
-		if(artist!="")
-			str += artist+" - "
-		if(title!="")
-			str += "\"[title]\""
-		else
-			str += "Untitled"
-		// Only show album if we have to.
-		if(album!="" && artist == "")
-			str += " ([album])"
-		return str
+/datum/song_info/proc/displaytitle()
+	if(artist==""&&title=="")
+		return "\[NO TAGS\]"
+	var/str=""
+	if(artist!="")
+		str += artist+" - "
+	if(title!="")
+		str += "\"[title]\""
+	else
+		str += "Untitled"
+	// Only show album if we have to.
+	if(album!="" && artist == "")
+		str += " ([album])"
+	return str
 
 
 var/global/list/loopModeNames=list(
-	JUKEMODE_SHUFFLE     = "Shuffle",
-	JUKEMODE_REPEAT_SONG = "Single",
-	JUKEMODE_PLAY_ONCE   = "Once"
+	/*JUKEMODE_SHUFFLE*/ "Shuffle",
+	/*JUKEMODE_REPEAT_SONG*/ "Single",
+	/*JUKEMODE_PLAY_ONCE*/ "Once"
 )
 /obj/machinery/media/jukebox
+
 	name = "Jukebox"
 	desc = "A bastion of goodwill, peace, and hope."
 	icon = 'icons/obj/jukebox.dmi'
@@ -144,7 +172,12 @@ var/global/list/loopModeNames=list(
 	density = 1
 
 	anchored = 1
-	luminosity = 4 // Why was this 16
+	luminosity = 3
+
+	use_auto_lights = 1
+	light_power_on = 1
+	light_range_on = 1
+	light_color = "#FFEE77"
 
 	custom_aghost_alerts=1 // We handle our own logging.
 
@@ -185,6 +218,13 @@ var/global/list/loopModeNames=list(
 	mech_flags = MECH_SCAN_FAIL
 	emag_cost = 0 // because fun/unlimited uses.
 
+	hack_abilities = list(
+		/datum/malfhack_ability/toggle/disable,
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/oneuse/emag
+	)
+	var/list/debug_last_params = new
+	var/list/debug_temp_params = new
 /obj/machinery/media/jukebox/New(loc)
 	..(loc)
 	allowed_modes = loopModeNames.Copy()
@@ -193,15 +233,17 @@ var/global/list/loopModeNames=list(
 		linked_account = department_accounts[department]
 	else
 		linked_account = station_account
+	var/MM = text2num(time2text(world.timeofday, "MM"))
+	if(MM == 10 && !("halloween" in playlists)) //Checking for jukeboxes with it already
+		playlists["halloween"] = "Halloween"
+	if(MM == 12 && !("christmas" in playlists)) //Checking for jukeboxes with it already
+		playlists["christmas"] = "Christmas Jingles"
+	update_icon()
 
 /obj/machinery/media/jukebox/Destroy()
 	if(wires)
-		qdel(wires)
-		wires = null
+		QDEL_NULL(wires)
 	..()
-
-/obj/machinery/media/jukebox/attack_ai(var/mob/user)
-	attack_hand(user)
 
 /obj/machinery/media/jukebox/attack_paw(var/mob/user)
 	if (!user.dexterity_check())
@@ -209,9 +251,23 @@ var/global/list/loopModeNames=list(
 		return
 	attack_hand(user)
 
-/obj/machinery/media/jukebox/power_change()
+/obj/machinery/media/jukebox/examine(mob/user)
 	..()
-	if(emagged && !(stat & (NOPOWER|BROKEN)) && !any_power_cut())
+	if (current_song_info)
+		if (!current_song_info.emagged)
+			to_chat(user, "<span class='info'>It is playing [current_song_info.display()].</span>")
+		else
+			to_chat(user, "<span class='info'>What is that hellish noise?</span>")
+	else
+		to_chat(user, "<span class='info'>It is currently silent.</span>")
+
+/obj/machinery/media/jukebox/power_change()
+	if (emagged)
+		light_color = "#AA0000"
+	else
+		light_color = initial(light_color)
+	..()
+	if(emagged && !(stat & (FORCEDISABLE|NOPOWER|BROKEN)) && !any_power_cut())
 		playing = 1
 		if(current_song)
 			update_music()
@@ -223,13 +279,15 @@ var/global/list/loopModeNames=list(
 
 /obj/machinery/media/jukebox/update_icon()
 	overlays = 0
-	if(stat & (NOPOWER|BROKEN) || !anchored || any_power_cut())
+	if(stat & (FORCEDISABLE|NOPOWER|BROKEN) || !anchored || any_power_cut())
 		if(stat & BROKEN)
 			icon_state = "[state_base]-broken"
 		else
 			icon_state = "[state_base]-nopower"
 		stop_playing()
+		kill_moody_light_all()
 		return
+	update_moody_light_index("main",'icons/lighting/moody_lights.dmi', "overlay_juke")
 	icon_state = state_base
 	if(playing)
 		if(emagged)
@@ -241,7 +299,7 @@ var/global/list/loopModeNames=list(
 	return world.time > last_reload + JUKEBOX_RELOAD_COOLDOWN
 
 /obj/machinery/media/jukebox/attack_hand(var/mob/user)
-	if(stat & NOPOWER || any_power_cut())
+	if(stat & (FORCEDISABLE|NOPOWER) || any_power_cut())
 		to_chat(usr, "<span class='warning'>You don't see anything to mess with.</span>")
 		return
 	if(stat & BROKEN && playlist!=null)
@@ -302,6 +360,7 @@ var/global/list/loopModeNames=list(
 			else if(current_song > playlist.len)
 				current_song = playlist.len
 			var/datum/song_info/song=playlist[current_song]
+			t += "<b>Playlist:<b> [playlists[playlist_id]]<br />"
 			t += "<b>Current song:</b> [song.artist] - [song.title]<br />"
 		if(next_song)
 			var/datum/song_info/song=playlist[next_song]
@@ -382,7 +441,8 @@ var/global/list/loopModeNames=list(
 	return dat
 
 /obj/machinery/media/jukebox/proc/generate_name()
-	return "[get_area(src).name] [name]"
+	var/area/this_area = get_area(src)
+	return "[this_area.name] [name]"
 
 /obj/machinery/media/jukebox/scan_card(var/obj/item/weapon/card/C)
 	var/remaining_credits_needed = credits_needed - credits_held
@@ -428,6 +488,10 @@ var/global/list/loopModeNames=list(
 
 /obj/machinery/media/jukebox/attackby(obj/item/W, mob/user)
 	. = ..()
+	if(ismultitool(W)) //The parent has a multi-tool call that prevents opening the wire panel using a multi-tool. This fixes it.
+		if(panel_open)
+			wires.Interact(user)
+			return
 	if(.)
 		return .
 	if(iswiretool(W))
@@ -464,13 +528,19 @@ var/global/list/loopModeNames=list(
 		attack_hand(user)
 
 
-/obj/machinery/media/jukebox/emag(mob/user)
+/obj/machinery/media/jukebox/emag_act(mob/user)
 	if(!emagged)
 		if(user)
 			user.visible_message("<span class='warning'>[user.name] slides something into the [src.name]'s card-reader.</span>","<span class='warning'>You short out the [src.name].</span>")
 		wires.CutWireIndex(JUKE_CONFIG)
 		short()
 	return
+
+/obj/machinery/media/jukebox/emag_ai(mob/living/silicon/ai/A)
+	to_chat(A, "<span class='warning'>You short out the [src].</span>")
+	wires.CutWireIndex(JUKE_CONFIG)
+	short()
+
 
 /obj/machinery/media/jukebox/proc/short()
 	emagged = !emagged
@@ -484,10 +554,10 @@ var/global/list/loopModeNames=list(
 		playlist_id = playlists[1] //Set to whatever our first is. Usually bar.
 	last_reload=world.time
 	playlist=null
-	update_icon()
+	power_change()
 	update_music()
 
-/obj/machinery/media/jukebox/wrenchAnchor(var/mob/user)
+/obj/machinery/media/jukebox/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
@@ -507,17 +577,20 @@ var/global/list/loopModeNames=list(
 		screen = JUKEBOX_SCREEN_MAIN
 
 /obj/machinery/media/jukebox/proc/rad_pulse() //Called by pulsing the transmit wire
+	emitted_harvestable_radiation(get_turf(src), 20, range = 5)	//Standing by a juke applies a dose of 17 rads to humans so we'll round based on that. 1/5th the power of a freshly born stage 1 singularity.
 	for(var/mob/living/carbon/M in view(src,3))
 		var/rads = 50 * sqrt( 1 / (get_dist(M, src) + 1) ) //It's like a transmitter, but 1/3 as powerful.
 		M.apply_radiation(round(rads/2),RAD_EXTERNAL) //Distance/rads: 1 = 18, 2 = 14, 3 = 12
 
 /obj/machinery/media/jukebox/Topic(href, href_list)
+	if(wires.interference)
+		return
 	if(isobserver(usr) && !isAdminGhost(usr))
 		to_chat(usr, "<span class='warning'>You can't push buttons when your fingers go right through them, dummy.</span>")
 		return
 	if(..())
 		return 1
-	if(emagged)
+	if(emagged && !isAdminGhost(usr))
 		to_chat(usr, "<span class='warning'>You touch the bluescreened menu. Nothing happens. You feel dumber.</span>")
 		return
 
@@ -545,7 +618,7 @@ var/global/list/loopModeNames=list(
 
 				change_cost = max(0,text2num(href_list["set_change_cost"]))
 				linked_account = new_linked_account
-				if("lock" in href_list && href_list["lock"] != "")
+				if(("lock" in href_list) && href_list["lock"] != "")
 					change_access = list(text2num(href_list["lock"]))
 				else
 					change_access = list()
@@ -564,21 +637,52 @@ var/global/list/loopModeNames=list(
 			var/success = 0
 			var/error = 0
 
-			//Loop through each line
-			forLineInText(choice)
+			for(var/line in splittext(choice, "\n"))
 				var/list/L = params2list(line)
+				to_chat(usr,"Params given: [line]")
+				to_chat(usr,"List back to params: [list2params(L)]")
+				debug_last_params = L.Copy()
 				if(L.len >= 3)
 					var/list/params = list()
-					params["url"]   = L[1]
-					params["length"]= text2num(L[2])*10 //The song_info datum stores this value in deciseconds
-					params["title"] = L[3]
-					params["artist"]= ""
-					params["album"] = ""
+					if(!text2num(L[2])) //we caught something other than a length for our second paramter so it was probably an ampersand or semicolon in the url so add it back..
+						var/list/temp_params = list()
+						for(var/p in L)
+							to_chat(usr,"Got param named [p], associated value is ''[L[p]]''")
+							temp_params += p
+						var/url = L[1]
+						var/param_track = 1
+						for(var/i = 1; i <= temp_params.len; i++) //rebuild the url if params2list mangled it
+							param_track = i
+							var/pval = temp_params[i]
+							if(text2num(pval)) break //didn't have to do this if this param is a number.
+							if(L[pval])
+								if(i == 1) //starting url params would be ?param=value
+									url += "[(findtext(L[1],"?") ? "=" : "")][L[pval]]"
+								else //otherwise it's &param=value
+									url += "&[pval]=[L[pval]]"
+						to_chat(usr,"built URL [url]")
+						params["url"] = url
+						params["length"]= text2num(temp_params[param_track])*10 //The song_info datum stores this value in deciseconds
+						params["title"] = temp_params[param_track+1]
+						params["artist"]= ""
+						params["album"] = ""
+						if(temp_params.len >= param_track+2)
+							params["artist"]= param_track+2
+						if(temp_params.len >= param_track+3)
+							params["album"] = param_track+3
+						debug_temp_params = temp_params.Copy()
+						params["isvideo"] = findtext(url,".mp4") || findtext(url,".webm") || findtext(url,".mkv") || findtext(url,".avi") || findtext(url,".m4v") || findtext(url,".mov")
+					else
+						params["url"]   = L[1]
+						params["length"]= text2num(L[2])*10 //The song_info datum stores this value in deciseconds
+						params["title"] = L[3]
+						params["artist"]= ""
+						params["album"] = ""
 
-					if(L.len >= 4)
-						params["artist"]= L[4]
-					if(L.len >= 5)
-						params["album"] = L[5]
+						if(L.len >= 4)
+							params["artist"]= L[4]
+						if(L.len >= 5)
+							params["album"] = L[5]
 
 					//Initialize playlist if needed
 					if(!playlist)
@@ -632,7 +736,7 @@ var/global/list/loopModeNames=list(
 		if(isobserver(usr) && !canGhostWrite(usr,src,""))
 			to_chat(usr, "<span class='warning'>You can't do that.</span>")
 			return
-		selected_song=Clamp(text2num(href_list["song"]),1,playlist.len)
+		selected_song=clamp(text2num(href_list["song"]),1,playlist.len)
 		if(isAdminGhost(usr))
 			var/datum/song_info/song=playlist[selected_song]
 			log_adminghost("[key_name_admin(usr)] changed [src] next song to #[selected_song] ([song.display()]) at [formatJumpTo(src)]")
@@ -663,10 +767,14 @@ var/global/list/loopModeNames=list(
 			return
 	if(playing)
 		var/datum/song_info/song
+		var/datum/song_info/next_song_datum
+		var/fadeout_time = 0
 		if(current_song && playlist.len)
 			song = playlist[current_song]
-		if(!current_song || (song && world.time >= media_start_time + song.length))
-			current_song=1
+		if(next_song && playlist.len)
+			next_song_datum = playlist[next_song]
+			fadeout_time = next_song_datum.crossfade_time
+		if(!current_song || (song && world.time >= media_start_time + song.length - fadeout_time))
 			if(next_song)
 				current_song = next_song
 				next_song = 0
@@ -677,12 +785,15 @@ var/global/list/loopModeNames=list(
 							current_song=rand(1,playlist.len)
 							if(current_song!=last_song || playlist.len<4)
 								break
-					if(JUKEMODE_REPEAT_SONG)
-						current_song=current_song
+					//if(JUKEMODE_REPEAT_SONG)
+					//current_song is what's currently playing, no action needed
 					if(JUKEMODE_PLAY_ONCE)
 						playing=0
 						update_icon()
 						return
+			//If there's no music set after the above, sanity.
+			if(!current_song)
+				current_song = 1
 			update_music()
 
 /obj/machinery/media/jukebox/proc/eject(var/playlist_name)
@@ -713,23 +824,24 @@ var/global/list/loopModeNames=list(
 	if(current_song > playlist.len)
 		current_song = 0
 	if(current_song && playing)
-		var/datum/song_info/song = playlist[current_song]
-		media_url = song.url
+		current_song_info = playlist[current_song]
+		current_song_info.emagged = emagged
+		media_url = current_song_info.url
 		last_song = current_song
 		media_start_time = world.time
-		visible_message("<span class='notice'>[bicon(src)] \The [src] begins to play [song.display()].</span>","<em>You hear music.</em>")
+		media_finish_time = world.time + current_song_info.length
+		visible_message("<span class='notice'>[bicon(src)] \The [src] begins to play [current_song_info.display()].</span>","<em>You hear music.</em>")
 		//visible_message("<span class='notice'>[bicon(src)] \The [src] warbles: [song.length/10]s @ [song.url]</notice>")
 	else
 		media_url=""
 		media_start_time = 0
+		current_song_info = null
 	..()
 
 /obj/machinery/media/jukebox/proc/stop_playing()
 	//current_song=0
 	playing=0
 	update_music()
-	return
-
 
 /obj/machinery/media/jukebox/npc_tamper_act(mob/living/L)
 	if(!panel_open)
@@ -739,7 +851,7 @@ var/global/list/loopModeNames=list(
 
 /obj/machinery/media/jukebox/kick_act(mob/living/H)
 	..()
-	if(stat & NOPOWER || any_power_cut())
+	if(stat & (FORCEDISABLE|NOPOWER) || any_power_cut())
 		return
 	playing=!playing
 	update_music()
@@ -751,7 +863,7 @@ var/global/list/loopModeNames=list(
 	if(istype(user,/mob/living/simple_animal/construct/armoured))
 		playsound(src, 'sound/weapons/heavysmash.ogg', 75, 1)
 		shake(1, 3)
-		if(stat & NOPOWER || any_power_cut())
+		if(stat & (FORCEDISABLE|NOPOWER) || any_power_cut())
 			return
 		playing=!playing
 		update_music()
@@ -766,19 +878,28 @@ var/global/list/loopModeNames=list(
 	playlist_id="bar"
 	// Must be defined on your server.
 	playlists=list(
+		"lilslugger" = "Battle of Lil Slugger",
 		"bar"  = "Bar Mix",
-		"jazz" = "Jazz",
+		"jazzswing" = "Jazz & Swing",
+		"depresso" ="Depresso",
+		"electronica" = "Electronica",
+		"funk" = "Funk",
+		"folk" = "Folk",
+		"medbay" = "Medbay",
+		"metal" = "Heavy Metal",
+		"rap" = "Rap",
 		"rock" = "Rock",
-		"vidyaone" = "Vidya Pt.1",
-		"vidyatwo" = "Vidya Pt.2",
-		"vidyathree" = "Vidya Pt.3",
-		"vidyafour" = "Vidya Pt.4",
+		"shoegaze" = "Shoegaze",
+		"security" = "Security",
+		"vidya" = "Video Games",
+		"upbeathypedancejam" = "Dance"
 	)
+
 
 // Relaxing elevator music~
 /obj/machinery/media/jukebox/dj
 
-	playlist_id="muzak"
+	playlist_id="muzakjazz"
 	autoplay = 1
 	change_cost = 0
 
@@ -787,14 +908,23 @@ var/global/list/loopModeNames=list(
 	// Must be defined on your server.
 	playlists=list(
 		"bar"  = "Bar Mix",
-		"jazz" = "Jazz",
+		"jazzswing" = "Jazz & Swing",
+		"depresso" ="Depresso",
+		"electronica" = "Electronica",
+		"filk" = "Filk",
+		"funk" = "Funk",
+		"folk" = "Folk",
+		"idm" = "90's IDM",
+		"medbay" = "Medbay",
+		"metal" = "Heavy Metal",
+		"muzakjazz" = "Muzak",
+		"rap" = "Rap",
 		"rock" = "Rock",
-		"muzak" = "Muzak",
-		"thunderdome" = "Thunderdome", // For thunderdome I guess
-		"vidyaone" = "Vidya Pt.1",
-		"vidyatwo" = "Vidya Pt.2",
-		"vidyathree" = "Vidya Pt.3",
-		"vidyafour" = "Vidya Pt.4",
+		"shoegaze" = "Shoegaze",
+		"security" = "Security",
+		"upbeathypedancejam" = "Dance",
+		"vidya" = "Video Games",
+		"thunderdome" = "Thunderdome"
 	)
 
 // So I don't have to do all this shit manually every time someone sacrifices pun-pun.
@@ -808,32 +938,57 @@ var/global/list/loopModeNames=list(
 
 	change_cost = 0
 
+	light_power_on = 2
+	light_color = "#3366FF"
+
 	playlist_id="bar"
 	// Must be defined on your server.
 	playlists=list(
+		"lilslugger" = "Battle of Lil' Slugger",
 		"bar"  = "Bar Mix",
-		"jazz" = "Jazz",
+		"jazzswing" = "Jazz & Swing",
+		"depresso" ="Depresso",
+		"electronica" = "Electronica",
+		"filk" = "Filk",
+		"funk" = "Funk",
+		"folk" = "Folk",
+		"idm" = "90's IDM",
+		"medbay" = "Medbay",
+		"metal" = "Heavy Metal",
+		"muzakjazz" = "Muzak",
+		"rap" = "Rap",
 		"rock" = "Rock",
-		"muzak" = "Muzak",
-
-
-		"emagged" = "Syndie Mix",
+		"shoegaze" = "Shoegaze",
 		"shuttle" = "Shuttle",
-
+		"security" = "Security",
+		"upbeathypedancejam" = "Dance",
+		"vidya" = "Video Games",
+		"thunderdome" = "Thunderdome",
+		"emagged" ="Syndicate Mix",
+		"shuttle"= "Shuttle",
+		"halloween" = "Halloween",
+		"christmas" = "Christmas Jingles",
 		"endgame" = "Apocalypse",
-		"clockwork" = "Clockwork", // Unfinished new cult stuff
-		"thunderdome" = "Thunderdome", // For thunderdome I guess
-//Vidya musak
-		"vidyaone" = "Vidya Pt.1",
-		"vidyatwo" = "Vidya Pt.2",
-		"vidyathree" = "Vidya Pt.3",
-		"vidyafour" = "Vidya Pt.4",
+		"nukesquad" = "Syndicate Assault",
+		"malfdelta"= "Silicon Assault",
+		"bomberman" = "Bomberman",
+		"SCOTLANDFOREVER"= "Highlander",
+		"echoes" = "Echoes"
 	)
+
+/obj/machinery/media/jukebox/superjuke/New()
+	..()
+	power_change() //enabling lights when admin spawned
+
+/obj/machinery/media/jukebox/superjuke/update_icon()
+	..()
+	if(!(stat & (FORCEDISABLE|NOPOWER|BROKEN)) && anchored && !any_power_cut())
+		update_moody_light_index("glow",'icons/lighting/moody_lights.dmi', "overlay_juke_glow")
 
 /obj/machinery/media/jukebox/superjuke/attackby(obj/item/W, mob/user)
 	// NO FUN ALLOWED.  Emag list is included, anyway.
-	if(istype(W, /obj/item/weapon/card/emag))
-		to_chat(user, "<span class='warning'>Your [W] refuses to touch \the [src]!</span>")
+	if(isEmag(W))
+		to_chat(user, "<span class='warning'>Your [W.name] refuses to touch \the [src]!</span>")
 		return
 	..()
 
@@ -844,18 +999,22 @@ var/global/list/loopModeNames=list(
 
 /obj/machinery/media/jukebox/superjuke/thematic
 	playlist_id="endgame"
+	use_power = 0
 
 /obj/machinery/media/jukebox/superjuke/thematic/update_music()
 	if(current_song && playing)
-		var/datum/song_info/song = playlist[current_song]
-		media_url = song.url
+		current_song_info = playlist[current_song]
+		current_song_info.emagged = emagged
+		media_url = current_song_info.url
 		last_song = current_song
 		media_start_time = world.time
-		visible_message("<span class='notice'>[bicon(src)] \The [src] begins to play [song.display()].</span>","<em>You hear music.</em>")
+		media_finish_time = world.time + current_song_info.length
+		visible_message("<span class='notice'>[bicon(src)] \The [src] begins to play [current_song_info.display()].</span>","<em>You hear music.</em>")
 		//visible_message("<span class='notice'>[bicon(src)] \The [src] warbles: [song.length/10]s @ [song.url]</notice>")
 	else
 		media_url=""
 		media_start_time = 0
+		current_song_info = null
 
 	// Send update to clients.
 	for(var/mob/M in mob_list)
@@ -869,7 +1028,8 @@ var/global/list/loopModeNames=list(
 	icon_state = ""
 	light_color = LIGHT_COLOR_BLUE
 	luminosity = 0
-	plane = EFFECTS_PLANE
+	plane = ABOVE_HUMAN_PLANE
+	layer = ABOVE_OBJ_LAYER
 	pixel_x = -WORLD_ICON_SIZE
 	pixel_y = -WORLD_ICON_SIZE
 
@@ -913,11 +1073,9 @@ var/global/list/loopModeNames=list(
 	update_icon()
 
 /obj/machinery/media/jukebox/superjuke/adminbus/update_icon()
+	overlays.len = 0
 	if(playing)
 		overlays += image(icon = icon, icon_state = "beats")
-	else
-		overlays = 0
-	return
 
 /obj/machinery/media/jukebox/superjuke/adminbus/ex_act(severity)
 	return
@@ -925,6 +1083,41 @@ var/global/list/loopModeNames=list(
 /obj/machinery/media/jukebox/superjuke/adminbus/cultify()
 	return
 
+/obj/machinery/media/jukebox/superjuke/adminbus/singularity_act()
+	return 0
+
+/obj/machinery/media/jukebox/superjuke/adminbus/singularity_pull()
+	return 0
+
+/obj/machinery/media/jukebox/holyjuke
+	name = "Holyjuke"
+	desc = "The Pastor's jukebox. You feel a weight being lifted simply by basking in its presence."
+
+	state_base = "holyjuke"
+	icon_state = "holyjuke"
+
+	light_power_on = 2
+	light_color = "#EFEFAA"
+
+	change_cost = 0
+
+	playlist_id="holy"
+	// Must be defined on your server.
+	playlists=list(
+		"holy" = "Pastor's Paradise"
+	)
+
+/obj/machinery/media/jukebox/holyjuke/update_icon()
+	..()
+	if(!(stat & (FORCEDISABLE|NOPOWER|BROKEN)) && anchored && !any_power_cut())
+		update_moody_light_index("glow",'icons/lighting/moody_lights.dmi', "overlay_juke_glow")
+
+/obj/machinery/media/jukebox/holyjuke/attackby(obj/item/W, mob/user)
+	// EMAG DOES NOTHING
+	if(isEmag(W))
+		to_chat(user, "<span class='warning'>A guiltiness fills your heart as a higher power pushes away \the [W]!</span>")
+		return
+	..()
 
 /obj/item/weapon/vinyl
 	name = "nanovinyl"
@@ -942,70 +1135,155 @@ var/global/list/loopModeNames=list(
 	attack_verb = list("plays out", "records", "frisbees") //Fuck it, we'll do it live. Fucking thing sucks!
 	var/unformatted
 	var/formatted
+	var/mask = "#FF0000"//red
 
 /obj/item/weapon/vinyl/New(loc,U,F)
 	..(loc)
-	unformatted = U
-	formatted = F
+	if(U)
+		unformatted = U
+	if(F)
+		formatted = F
 	name = "nanovinyl - [formatted]"
+	for (var/vinyl_type in subtypesof(/obj/item/weapon/vinyl))
+		var/obj/item/weapon/vinyl/V = vinyl_type
+		if (initial(V.unformatted) == U)
+			mask = initial(V.mask)
+			break
+
+	var/image/label = image(icon, src, "vinyl-mask")
+	label.icon += mask
+	overlays += label
 
 //Premades
-/obj/item/weapon/vinyl/vidyaone
-	name = "nanovinyl - video games, volume one"
-	unformatted = "vidyaone"
-	formatted = "Vidya Pt.1"
-
-/obj/item/weapon/vinyl/vidyatwo
-	name = "nanovinyl - video games, volume two"
-	unformatted = "vidyatwo"
-	formatted = "Vidya Pt.2"
-
-/obj/item/weapon/vinyl/vidyathree
-	name = "nanovinyl - video games, volume three"
-	unformatted = "vidyathree"
-	formatted = "Vidya Pt.3"
-
-/obj/item/weapon/vinyl/vidyafour
-	name = "nanovinyl - video games, volume four"
-	unformatted = "vidyafour"
-	formatted = "Vidya Pt.4"
-
+/obj/item/weapon/vinyl/bar
+	name = "nanovinyl - bar"
+	unformatted = "bar"
+	formatted = "Bar"
+	mask = "#800000"//maroon
+/obj/item/weapon/vinyl/bomberman
+	name = "nanovinyl - bomberman"
+	unformatted = "bomberman"
+	formatted = "Bomberman"
+	mask = "#00FFFF"//cyan
+/obj/item/weapon/vinyl/depresso
+	name = "nanovinyl - depresso"
+	unformatted = "depresso"
+	formatted = "Depresso"
+	mask = "#000000"//black
+/obj/item/weapon/vinyl/echoes
+	name = "nanovinyl - echoes"
+	unformatted = "echoes"
+	formatted = "Echoes"
+/obj/item/weapon/vinyl/electronica
+	name = "nanovinyl - electronic"
+	unformatted = "electronica"
+	formatted = "Electronic"
+	mask = "#FFFFFF"//white
+/obj/item/weapon/vinyl/emagged
+	name = "nanovinyl - syndicate"
+	unformatted = "emagged"
+	formatted = "Syndicate Mix"
+/obj/item/weapon/vinyl/endgame
+	name = "nanovinyl - apocalypse"
+	unformatted = "endgame"
+	formatted = "Apocalypse"
+/obj/item/weapon/vinyl/filk
+	name = "nanovinyl - filk"
+	unformatted = "filk"
+	formatted = "Filk"
+/obj/item/weapon/vinyl/funk
+	name = "nanovinyl - funk"
+	unformatted = "funk"
+	formatted = "Funk"
+/obj/item/weapon/vinyl/folk
+	name = "nanovinyl - folk"
+	unformatted = "folk"
+	formatted = "Folk"
+/obj/item/weapon/vinyl/idm
+	name = "nanovinyl - 90's IDM"
+	unformatted = "idm"
+	formatted = "90's IDM"
 /obj/item/weapon/vinyl/jazz
-	name = "nanovinyl - jazz"
-	unformatted = "jazz"
-	formatted = "Jazz"
-
+	name = "nanovinyl - jazz & swing"
+	unformatted = "jazzswing"
+	formatted = "Jazz & Swing"
+/obj/item/weapon/vinyl/malf
+	name = "nanovinyl - silicon assault"
+	unformatted = "malfdelta"
+	formatted = "Silicon Assault"
+/obj/item/weapon/vinyl/medbay
+	name = "nanovinyl - medbay"
+	unformatted = "medbay"
+	formatted = "Medbay"
+/obj/item/weapon/vinyl/metal
+	name = "nanovinyl - heavy metal"
+	unformatted = "metal"
+	formatted = "Heavy Metal"
+/obj/item/weapon/vinyl/muzakjazz
+	name = "nanovinyl - jazzy muzak"
+	unformatted = "muzakjazz"
+	formatted = "Muzak"
+/obj/item/weapon/vinyl/syndie_assault
+	name = "nanovinyl - syndicate assault"
+	unformatted = "nukesquad"
+	formatted = "Syndicate Assault"
+/obj/item/weapon/vinyl/rap
+	name = "nanovinyl - rap"
+	unformatted = "rap"
+	formatted = "Rap"
 /obj/item/weapon/vinyl/rock
 	name = "nanovinyl - rock"
 	unformatted = "rock"
 	formatted = "Rock"
-
-/obj/item/weapon/vinyl/muzak
-	name = "nanovinyl - muzak"
-	unformatted = "muzak"
-	formatted = "Muzak"
-
+/obj/item/weapon/vinyl/shoegaze
+	name = "nanovinyl - shoegaze"
+	desc = "More reverb than you can handle."
+	unformatted = "shoegaze"
+	formatted = "Shoegaze"
+	mask = "#FF00FF"//magenta
+/obj/item/weapon/vinyl/security
+	name = "nanovinyl - security"
+	unformatted = "security"
+	formatted = "Security"
 /obj/item/weapon/vinyl/shuttle
 	name = "nanovinyl - shuttle"
 	unformatted = "shuttle"
 	formatted = "Shuttle"
-
-/obj/item/weapon/vinyl/syndie
-	name = "nanovinyl - syndicate"
-	unformatted = "emagged"
-	formatted = "Syndie Mix"
-
-/obj/item/weapon/vinyl/endgame
-	name = "nanovinyl - apocalypse"
-	unformatted = "endgame"
-	formatted =	"Apocalypse"
-
-/obj/item/weapon/vinyl/clockwork
-	name = "nanovinyl - clockwork"
-	unformatted = "clockwork"
-	formatted =	"Clockwork"
-
+	mask = "#000080"//navy
 /obj/item/weapon/vinyl/thunderdome
 	name = "nanovinyl - thunderdome"
 	unformatted = "thunderdome"
 	formatted =	"Thunderdome"
+/obj/item/weapon/vinyl/upbeat_dance
+	name = "nanovinyl - dance"
+	unformatted = "upbeathypedancejam"
+	formatted = "Dance"
+/obj/item/weapon/vinyl/vidya
+	name = "nanovynil - vidya"
+	unformatted = "vidya"
+	formatted = "Video Games"
+	mask = "##0096FF"
+/obj/item/weapon/vinyl/scotland
+	name = "nanovinyl - highlander"
+	desc = "Oh no."
+	unformatted = "SCOTLANDFOREVER"
+	formatted = "Highlander"
+	mask = "#0000FF"//blue
+/obj/item/weapon/vinyl/halloween
+	name = "nanovinyl - halloween"
+	unformatted = "halloween"
+	formatted = "Halloween"
+/obj/item/weapon/vinyl/slugger
+	name = "nanovynil - slugger"
+	desc = "A go-to for bars all over the sector. Every time you walk in one, you can almost bet it's playing."
+	unformatted = "lilslugger"
+	formatted = "Battle of Lil Slugger"
+/obj/item/weapon/vinyl/christmas
+	name = "nanovynil - christmas"
+	unformatted = "christmas"
+	formatted = "Christmas Jingles"
+/obj/item/weapon/vinyl/holy
+	name = "nanovinyl - holy"
+	unformatted = "holy"
+	formatted = "Holy"
+	mask = "#8000FF"//purple

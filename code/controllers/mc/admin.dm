@@ -1,6 +1,7 @@
 // Clickable stat() button.
 /obj/effect/statclick
 	var/target
+	icon = null
 
 /obj/effect/statclick/New(text, target)
 	name = text
@@ -9,6 +10,9 @@
 /obj/effect/statclick/proc/update(text)
 	name = text
 	return src
+
+/obj/effect/statclick/time/Click()
+	to_chat(usr,"<span class='notice'>The server time is [time2text(world.timeofday, "hh:mm:ss")]. The time slot is [getTimeslot()].</span>")
 
 /obj/effect/statclick/debug
 	var/class
@@ -93,10 +97,8 @@
 		if("Cameras")
 			debug_variables(cameranet)
 			feedback_add_details("admin_verb","DCameras")
-		if("Garbage")
-			debug_variables(garbageCollector)
-			feedback_add_details("admin_verb","DGarbage")
 		if("Vote")
 			debug_variables(vote)
 			feedback_add_details("admin_verb","DprocessVote")
+
 	message_admins("Admin [key_name_admin(usr)] is debugging the [controller] controller.")

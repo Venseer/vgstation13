@@ -29,17 +29,15 @@
 	var/list/expected_turfs = list() //Will return if turf type is different from any in the list, good to avoid generator collision with other terrain features
 
 /obj/structure/radial_gen/New()
-
 	..()
-
-	deploy_generator()
+	deploy_generator(get_turf(src))
 	qdel(src) //This is exclusively used to generate other things, delete it once we're done
 
 //Uses modular code structure, so you can define different behaviour
 //We start by initializing shared behavior between all three generator sub-types, then we fire a spawn proc that they will modify
 /obj/structure/radial_gen/proc/deploy_generator()
 
-	for(var/turf/T in spiral_block(get_turf(src), gen_hard_radius, 0))
+	for(var/turf/T in spiral_block(get_turf(src), gen_hard_radius))
 
 		if(expected_turfs.len && !is_type_in_list(T, expected_turfs)) //We are expecting a specific turf type, and it is not this one
 			continue
@@ -80,7 +78,7 @@
 				if(gen_clear_tiles) //We attempt to clear the tile's contents. Hopefully this does not fail, because we won't dabble on it
 					T.clear_contents(list(type))
 
-				var/picked = perform_pick("soft", T)
+				var/picked = perform_pick("hard", T)
 
 				perform_spawn("hard", T, picked)
 
@@ -194,7 +192,8 @@
 	gen_types_movable_hard = list(/obj/structure/flora/tree/pine = 100, \
 								/obj/structure/flora/bush = 100, \
 								/obj/structure/flora/rock/pile/snow = 200, \
-								/obj/structure/flora/grass/white = 1000)
+								/obj/structure/flora/grass/white = 1000,
+								/mob/living/simple_animal/hostile/bear = 120)
 
 //A much more dense forest, with a lot more trees
 /obj/structure/radial_gen/movable/snow_nature/snow_forest/dense
@@ -212,7 +211,8 @@
 	gen_types_movable_hard = list(/obj/structure/flora/tree/pine = 250, \
 								/obj/structure/flora/bush = 100, \
 								/obj/structure/flora/rock/pile/snow = 200, \
-								/obj/structure/flora/grass/white = 1000)
+								/obj/structure/flora/grass/white = 1000,
+								/mob/living/simple_animal/hostile/bear = 120)
 
 
 //A larger thin forest, falls offs slowly at first and after a 15 tile radii down to 0 % chance after 30
@@ -244,7 +244,8 @@
 	gen_types_movable_hard = list(/obj/structure/flora/tree/pine = 250, \
 								/obj/structure/flora/bush = 100, \
 								/obj/structure/flora/rock/pile/snow = 200, \
-								/obj/structure/flora/grass/white = 1000)
+								/obj/structure/flora/grass/white = 1000,
+								/mob/living/simple_animal/hostile/bear = 250)
 
 //A patch of snowy grass, with some rocks and bushes thrown in
 /obj/structure/radial_gen/movable/snow_nature/snow_grass
@@ -268,7 +269,9 @@
 	//Ditto above, but only in hard radius. Obviously, if you want it to spawn in both, add to both lists. OBVIOUSLY
 	gen_types_movable_hard = list(/obj/structure/flora/rock/pile/snow = 50, \
 								/obj/structure/flora/bush = 200, \
-								/obj/structure/flora/grass/white = 1000)
+								/obj/structure/flora/grass/white = 1000,
+								/obj/abstract/map/spawner/mobs/deer = 80,
+								/obj/abstract/map/spawner/mobs/wolf = 40)
 
 //A large patch of snowy grass, with some rocks and bushes thrown in
 /obj/structure/radial_gen/movable/snow_nature/snow_grass/large

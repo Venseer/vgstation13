@@ -4,10 +4,15 @@
 #define COMM_SCREEN_MESSAGES	3
 #define COMM_SCREEN_SECLEVEL	4
 #define COMM_SCREEN_ERT			5
+#define COMM_SCREEN_SHUTTLE_LOG 6
 
 #define UNAUTH 0
 #define AUTH_HEAD 1
 #define AUTH_CAPT 2
+
+#define MEDICAL_SUPPLIES_DEFCON "medical"
+#define ENGINEERING_SUPPLIES_DEFCON "engineering"
+#define WEAPONS_SUPPLIES_DEFCON "weapons"
 
 var/shuttle_call/shuttle_calls[0]
 var/global/ports_open = TRUE
@@ -15,6 +20,8 @@ var/global/ports_open = TRUE
 #define SHUTTLE_RECALL  -1
 #define SHUTTLE_CALL     1
 #define SHUTTLE_TRANSFER 2
+
+var/list/shuttle_log = list()
 
 /shuttle_call
 	var/direction=0
@@ -56,6 +63,24 @@ var/global/ports_open = TRUE
 	var/message_cooldown = 0
 	var/centcomm_message_cooldown = 0
 	var/tmp_alertlevel = 0
+	hack_abilities = list(
+		/datum/malfhack_ability/toggle/disable,
+		/datum/malfhack_ability/oneuse/overload_quiet,
+		/datum/malfhack_ability/fake_announcement,
+		/datum/malfhack_ability/oneuse/emag,
+	)
+
+	// Subtypes (e.g. the Odyssey bridge console) set this to skip the
+	// zMainStation/zCentcomm distance check so they work from anywhere.
+	var/ignore_station_z_check = FALSE
+
+	// Blob stuff
+	var/defcon_1_enabled = FALSE
+	var/last_transfer_time = -1 // Game mechanics
+
+	var/last_shipment_time = "Unknown" // IC message on the NanoUI console
+	var/next_shipment_time = "Unknown"
+	var/blob_transfer_delay = 5 MINUTES
 
 	var/status_display_freq = "1435"
 	var/stat_msg1
@@ -73,7 +98,7 @@ var/global/ports_open = TRUE
 			usr.unset_machine()
 		return 1
 
-	if (!(src.z in list(STATION_Z,CENTCOMM_Z)))
+	if (!ignore_station_z_check && !(src.z in list(map.zMainStation,map.zCentcomm)))
 		to_chat(usr, "<span class='danger'>Unable to establish a connection: </span>You're too far away from the station!")
 		return
 
@@ -87,35 +112,43 @@ var/global/ports_open = TRUE
 			setMenuState(usr,COMM_SCREEN_MAIN)
 		if("login")
 			var/mob/M = usr
-			var/obj/item/weapon/card/id/I = M.get_active_hand()
-			if (istype(I, /obj/item/device/pda))
-				var/obj/item/device/pda/pda = I
-				I = pda.id
-			if (istype(I,/obj/item/weapon/card/emag))
-				emag(usr)
-			if (I && istype(I))
-				if(src.check_access(I))
-					authenticated = AUTH_HEAD
-				if(access_captain in I.access)
+			if(allowed(M))
+				authenticated = AUTH_HEAD
+				if(access_captain in M.GetAccess())
 					authenticated = AUTH_CAPT
+			if(emagged) //Login regardless if you have an ID
+				authenticated = AUTH_CAPT
 		if("logout")
 			authenticated = UNAUTH
 			setMenuState(usr,COMM_SCREEN_MAIN)
+
+		// Blob stuff
+		if ("request_supplies")
+			if (!defcon_1_enabled) // Href exploits
+				return FALSE
+			if (world.time < last_transfer_time + blob_transfer_delay)
+				say("Unable to send more supplies at this time. Telecrystals stil re-aligning.")
+				alert_noise("buzz")
+				return FALSE
+			if (!href_list["supplies"]) // No supplies to send, schade
+				return FALSE
+
+			last_transfer_time = world.time
+			last_shipment_time = worldtime2text()
+			next_shipment_time = add_minutes(last_shipment_time, 5)
+			send_supplies(href_list["supplies"])
+
 		// ALART LAVUL
 		if("changeseclevel")
 			setMenuState(usr,COMM_SCREEN_SECLEVEL)
 
 		if("newalertlevel")
-			if(issilicon(usr))
+			if(issilicon(usr) && !is_malf_owner(usr))
 				return
 			tmp_alertlevel = text2num(href_list["level"])
 			var/mob/M = usr
-			var/obj/item/weapon/card/id/I = M.get_active_hand()
-			if (istype(I, /obj/item/device/pda))
-				var/obj/item/device/pda/pda = I
-				I = pda.id
-			if (isAdminGhost(usr) || (I && istype(I)))
-				if(isAdminGhost(usr) || (access_heads in I.access)) //Let heads change the alert level.
+			if (allowed(M) || emagged)
+				if(isAdminGhost(usr) || (access_heads in M.GetAccess()) || emagged) //Let heads change the alert level. Works while emagged
 					var/old_level = security_level
 					if(!tmp_alertlevel)
 						tmp_alertlevel = SEC_LEVEL_GREEN
@@ -139,19 +172,19 @@ var/global/ports_open = TRUE
 					tmp_alertlevel = 0
 				setMenuState(usr,COMM_SCREEN_MAIN)
 			else
-				to_chat(usr, "You need to swipe your ID.")
+				to_chat(usr, "You need to have a valid ID.")
 
 		if("announce")
-			if(authenticated==AUTH_CAPT && !issilicon(usr))
+			if(authenticated==AUTH_CAPT && !(issilicon(usr) && !is_malf_owner(usr)))
 				if(message_cooldown)
 					return
-				var/input = stripped_input(usr, "Please choose a message to announce to the station crew.", "What?")
-				if(message_cooldown || !input || !usr.Adjacent(src))
+				var/input = stripped_message(usr, "Please choose a message to announce to the station crew.", "Priority Announcement")
+				if(message_cooldown || !input || (!usr.Adjacent(src) && !issilicon(usr)))
 					return
 				captain_announce(input)//This should really tell who is, IE HoP, CE, HoS, RD, Captain
 				var/turf/T = get_turf(usr)
-				log_say("[key_name(usr)] (@[T.x],[T.y],[T.z]) has made a captain announcement: [input]")
-				message_admins("[key_name_admin(usr)] has made a captain announcement.", 1)
+				log_say("[key_name(usr)] (@[T.x],[T.y],[T.z]) has made a Comms Console announcement: [input]")
+				message_admins("[key_name_admin(usr)] has made a Comms Console announcement.", 1)
 				message_cooldown = 1
 				spawn(600)//One minute cooldown
 					message_cooldown = 0
@@ -198,11 +231,10 @@ var/global/ports_open = TRUE
 			if(!ert_reason)
 				to_chat(usr, "<span class='warning'>You are required to give a reason to call an ERT.</span>")
 				return
-			if(!Adjacent(usr) || usr.incapacitated())
+			if(!usr.Adjacent(src) || usr.incapacitated())
 				return
 			var/datum/striketeam/ert/response_team = new()
-			response_team.mission = ert_reason
-			response_team.trigger_strike()
+			response_team.trigger_strike(usr,ert_reason,TRUE)
 			log_game("[key_name(usr)] has called an ERT with reason: [ert_reason]")
 			message_admins("[key_name_admin(usr)] has called an ERT with reason: [ert_reason]")
 			setMenuState(usr,COMM_SCREEN_MAIN)
@@ -228,10 +260,15 @@ var/global/ports_open = TRUE
 				return
 			if(issilicon(usr))
 				return
+			if (istype(usr, /mob/living/simple_animal/hostile/pulse_demon))
+				to_chat(usr, "<span class='warning'>This machinery resists your hijacking attempt!</span>")
+				return FALSE
 			if(authenticated || isAdminGhost(usr))
 				var/response = alert("Are you sure you wish to recall the shuttle?", "Confirm", "Yes", "No")
 				if(response == "Yes")
 					recall_shuttle(usr)
+					if(!isobserver(usr))
+						shuttle_log += "\[[worldtime2text()]] Recalled from [get_area(usr)] ([usr.x-get_world_x_offset(usr.vz())], [usr.y-get_world_y_offset(usr.vz())], [usr.vz()])."
 					if(emergency_shuttle.online)
 						post_status("shuttle")
 			setMenuState(usr,COMM_SCREEN_MAIN)
@@ -290,7 +327,7 @@ var/global/ports_open = TRUE
 					to_chat(usr, "<span class='warning'>Arrays recycling.  Please stand by for a few seconds.</span>")
 					return
 				var/input = stripped_input(usr, "Please choose a message to transmit to Centcomm via quantum entanglement.  Please be aware that this process is very expensive, and abuse will lead to... termination.  Transmission does not guarantee a response. There is a 30 second delay before you may send another message, be clear, full and concise.", "To abort, send an empty message.", "")
-				if(!input || !(usr in view(1,src)))
+				if(!input || (!usr.Adjacent(src) && !issilicon(usr)))
 					return
 				Centcomm_announce(input, usr)
 				to_chat(usr, "<span class='notice'>Message transmitted.</span>")
@@ -330,18 +367,24 @@ var/global/ports_open = TRUE
 			update_icon()
 
 		if("SetPortRestriction")
-			if(issilicon(usr))
+
+			if(issilicon(usr) && !is_malf_owner(usr))
 				return
 			var/mob/M = usr
 			var/obj/item/weapon/card/id/I = M.get_id_card()
-			if (I || isAdminGhost(usr))
-				if(isAdminGhost(usr) || (access_hos in I.access) || (access_heads in I.access && security_level >= SEC_LEVEL_RED))
+			if (I || isAdminGhost(usr) || issilicon(usr))
+				if(isAdminGhost(usr) || issilicon(usr) || (access_hos in I.access) || ((access_heads in I.access) && security_level >= SEC_LEVEL_RED))
 					if(ports_open)
-						var/reason = stripped_input(usr, "Please input a concise justification for port closure. This reason will be transmitted to the trader shuttle.", "Nanotrasen Anti-Comdom Systems") as null|text
-						if(!reason || !(usr in view(1,src)))
+						var/reason = stripped_input(usr, "Please input a concise justification for port closure. This reason will be announced to the crew, as well as transmitted to the trader shuttle.", "Nanotrasen Anti-Comdom Systems")
+						if(!reason)
+							to_chat(usr, "You must provide some reason for closing the docking port.")
 							return
-						log_game("[key_name(usr)] closed the port to traders for [reason].")
-						message_admins("[key_name_admin(usr)] closed the port to traders for [reason].")
+						if(!(usr in view(1,src)) && !issilicon(usr))
+							return
+						command_alert("The trading port is now on lockdown. Third party traders are no longer free to dock their shuttles with the station. Reason given:\n\n[reason]", "Trading Port - Now on Lockdown", 1)
+						world << sound('sound/AI/trading_port_closed.ogg')
+						log_game("[key_name(usr)] closed the port to traders for reason: [reason].")
+						message_admins("[key_name_admin(usr)] closed the port to traders for reason: [reason].")
 						if(trade_shuttle.current_port.areaname == "NanoTrasen Station")
 							var/obj/machinery/computer/shuttle_control/C = trade_shuttle.control_consoles[1] //There should be exactly one
 							if(C)
@@ -351,9 +394,11 @@ var/global/ports_open = TRUE
 						ports_open = FALSE
 						return
 					if(!ports_open)
-						var/response = alert(usr,"Are you sure you wish to open the station to traders?", "Port Opening", "Yes", "No")
+						var/response = alert(usr,"Are you sure you wish to re-open the station to traders?", "Port Opening", "Yes", "No")
 						if(response != "Yes")
 							return
+						command_alert("The trading port lockdown has been lifted. Third party traders are now free to dock their shuttles with the station.", "Trading Port - Open for Business", 1)
+						world << sound('sound/AI/trading_port_open.ogg')
 						log_game("[key_name(usr)] opened the port to traders.")
 						message_admins("[key_name_admin(usr)] opened the port to traders.")
 						trade_shuttle.add_dock(/obj/docking_port/destination/trade/station)
@@ -364,22 +409,30 @@ var/global/ports_open = TRUE
 					to_chat(usr, "<span class='warning'>This action requires either a red alert or head of security authorization.</span>")
 			else
 				to_chat(usr, "<span class='warning'>You must wear an ID for this function.</span>")
-
+		if("ToggleExplorationProgram")
+			if(authenticated == AUTH_CAPT || isAdminGhost(usr))
+				var/action = SSmapping.scanning_disabled ? "reactivate" : "suspend"
+				var/message = SSmapping.scanning_disabled ? "reactivate the exploration program and re-enable deep space scanning?" : "suspend the exploration program? This will recall the exploration shuttle to Central Command and disable deep space scanning!"
+				var/response = alert(usr, "Are you sure you wish to [message]", "[action == "suspend" ? "Suspend" : "Reactivate"] Exploration Program", "Yes", "No")
+				if(response == "Yes")
+					if(!usr.Adjacent(src) && !issilicon(usr) && !isAdminGhost(usr))
+						return
+					toggle_exploration_program(usr)
+			else
+				to_chat(usr, "<span class='warning'>You need Captain-level access to control the exploration program.</span>")
+			setMenuState(usr, COMM_SCREEN_MAIN)
+		if("ViewShuttleLog")
+			setMenuState(usr, COMM_SCREEN_SHUTTLE_LOG)
 	return 1
-
-/obj/machinery/computer/communications/attack_ai(var/mob/user as mob)
-	src.add_hiddenprint(user)
-	return src.attack_hand(user)
 
 /obj/machinery/computer/communications/attack_paw(var/mob/user as mob)
 	return src.attack_hand(user)
-
 
 /obj/machinery/computer/communications/attack_hand(var/mob/user as mob)
 	if(..(user))
 		return
 
-	if (!(src.z in list(STATION_Z, CENTCOMM_Z)))
+	if (!ignore_station_z_check && !(src.z in list(map.zMainStation, map.zCentcomm)))
 		to_chat(user, "<span class='danger'>Unable to establish a connection: </span>You're too far away from the station!")
 		return
 
@@ -397,7 +450,12 @@ var/global/ports_open = TRUE
 	data["menu_state"] = data["is_ai"] ? ai_menu_state : menu_state
 	data["emagged"] = emagged
 	data["authenticated"] = (isAdminGhost(user) ? AUTH_CAPT : authenticated)
-	data["screen"] = getMenuState(usr)
+	var/current_screen = getMenuState(usr)
+	if(current_screen == COMM_SCREEN_SHUTTLE_LOG)
+		data["shuttle_log"] = list()
+		for(var/entry in shuttle_log)
+			data["shuttle_log"] += list(list("text" = entry))
+	data["screen"] = current_screen
 
 	data["stat_display"] = list(
 		"type"=display_type,
@@ -424,6 +482,7 @@ var/global/ports_open = TRUE
 	)
 	data["portopen"] = ports_open
 	data["ert_sent"] = sentStrikeTeams(TEAM_ERT)
+	data["exploration_terminated"] = SSmapping.scanning_disabled
 
 	var/msg_data[0]
 	for(var/i=1;i<=src.messagetext.len;i++)
@@ -442,8 +501,15 @@ var/global/ports_open = TRUE
 		shuttle["eta"]="[timeleft / 60 % 60]:[add_zero(num2text(timeleft % 60), 2)]"
 	shuttle["pos"] = emergency_shuttle.location
 	shuttle["can_recall"]=!(recall_time_limit && world.time >= recall_time_limit)
+	shuttle["call_label"] = map.shuttle_call_label
+	shuttle["cancel_label"] = map.shuttle_cancel_label
 
 	data["shuttle"]=shuttle
+
+	data["is_odyssey"] = (map.nameShort == "odyssey" || map.nameShort == "theseus")
+	data["defcon_1_enabled"] = defcon_1_enabled
+	data["last_shipment_time"] = last_shipment_time
+	data["next_shipment_time"] = next_shipment_time
 
 	// update the ui if it exists, returns null if no ui is passed/found
 	ui = nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
@@ -458,13 +524,12 @@ var/global/ports_open = TRUE
 		// auto update every Master Controller tick
 		ui.set_auto_update(1)
 
-/obj/machinery/computer/communications/emag(mob/user as mob)
+/obj/machinery/computer/communications/emag_act(mob/user as mob)
 	if(!emagged)
 		emagged = 1
 		if(user)
 			to_chat(user, "Syndicate routing data uploaded!")
-		new/obj/effect/effect/sparks(get_turf(src))
-		playsound(loc,"sparks",50,1)
+		spark(src)
 		authenticated = AUTH_CAPT
 		setMenuState(usr,COMM_SCREEN_MAIN)
 		update_icon()
@@ -474,12 +539,9 @@ var/global/ports_open = TRUE
 
 /obj/machinery/computer/communications/update_icon()
 	..()
-	var/initial_icon = initial(icon_state)
-	icon_state = "[emagged ? "[initial_icon]-emag" : "[initial_icon]"]"
-	if(stat & BROKEN)
-		icon_state = "[initial_icon]b"
-	else if(stat & NOPOWER)
-		icon_state = "[initial_icon]0"
+	if(icon_state == initial(icon_state) && emagged)
+		icon_state = "[initial(icon_state)]-emag"
+
 
 
 /obj/machinery/computer/communications/proc/setCurrentMessage(var/mob/user,var/value)
@@ -517,47 +579,76 @@ var/global/ports_open = TRUE
 	if(!universe.OnShuttleCall(user))
 		return
 	if(!map.linked_to_centcomm)
-		to_chat(usr, "<span class='danger'>Error: No connection can be made to central command .</span>")
+		if (user)
+			to_chat(user, "<span class='danger'>Error: No connection can be made to central command .</span>")
 		return
 
-	//if(sent_strike_team == 1)
-	//	to_chat(user, "Centcom will not allow the shuttle to be called. Consider all contracts terminated.")
-	//	return
+	if(emergency_shuttle.shutdown)
+		if (user)
+			to_chat(user, "The emergency shuttle has been disabled.")
+		return
 
-	if(world.time < 6000) // Ten minute grace period to let the game get going without lolmetagaming. -- TLE
-		to_chat(user, "The emergency shuttle is refueling. Please wait another [round((6000-world.time)/600)] minute\s before trying again.")
+	if(ticker && (world.time / 10 < ticker.gamestart_time + SHUTTLEGRACEPERIOD)) // Five minute grace period to let the game get going without lolmetagaming. -- TLE
+		if (user)
+			to_chat(user, "The emergency shuttle is refueling. Please wait another [round((ticker.gamestart_time + SHUTTLEGRACEPERIOD - world.time / 10) / 60, 1)] minute\s before trying again.")
 		return
 
 	if(emergency_shuttle.direction == -1)
-		to_chat(user, "The emergency shuttle may not be called while returning to CentCom.")
+		if (user)
+			to_chat(user, "The emergency shuttle may not be called while returning to CentCom.")
 		return
 
 	if(emergency_shuttle.online)
-		to_chat(user, "The emergency shuttle is already on its way.")
+		if (user)
+			to_chat(user, "The emergency shuttle is already on its way.")
 		return
 
-	if(ticker.mode.name == "blob")
-		to_chat(user, "Under directive 7-10, [station_name()] is quarantined until further notice.")
-		return
+	for(var/datum/faction/F in ticker.mode.factions)
+		if (F.emergency_shuttle_lockdown)
+			if (user)
+				to_chat(user,F.emergency_shuttle_lockdown)
+			return
 
 	emergency_shuttle.incall()
 	if(!justification)
 		justification = "#??!7E/_1$*/ARR-CON�FAIL!!*$^?" //Can happen for reasons, let's deal with it IC
-	log_game("[key_name(user)] has called the shuttle. Justification given : '[justification]'")
-	message_admins("[key_name_admin(user)] has called the shuttle. Justification given : '[justification]'.", 1)
-	captain_announce("The emergency shuttle has been called. It will arrive in [round(emergency_shuttle.timeleft()/60)] minutes. Justification : '[justification]'")
-	world << sound('sound/AI/shuttlecalled.ogg')
+	if(!isobserver(user))
+		if (user)
+			shuttle_log += "\[[worldtime2text()]] Called from [get_area(user)] ([user.x-get_world_x_offset(user.vz())], [user.y-get_world_y_offset(user.vz())], [user.vz()])."
+		else
+			shuttle_log += "\[[worldtime2text()]] Called by game."
+	if (user)
+		log_game("[key_name(user)] has called the shuttle. Justification given : '[justification]'")
+		message_admins("[key_name_admin(user)] has called the shuttle. Justification given : '[justification]'.", 1)
+	else
+		log_game("The shuttle has been called. Justification given : '[justification]'")
+		message_admins("The shuttle has been called. Justification given : '[justification]'.", 1)
+	var/datum/command_alert/emergency_shuttle_called/CA = new /datum/command_alert/emergency_shuttle_called
+	CA.justification = justification
+	command_alert(CA)
 
-	return
+	return 1
 
+// -- Nota Bene: UNUSED, Baycode-era crew transfer vote.
+// Trivia : for how-many-years (at least 12) there was a math error ; the minimal shift length was supposed to be 30 minutes. It was, instead, 90.
 /proc/init_shift_change(var/mob/user, var/force = 0)
-	if ((!( ticker ) || emergency_shuttle.location))
+	if (!ticker)
 		return
-
+	if (emergency_shuttle.direction == -1 && vote.winner ==  "Initiate Crew Transfer")
+		emergency_shuttle.setdirection(1)
+		emergency_shuttle.settimeleft(10)
+		var/reason = pick("is arriving ahead of schedule", "hit the turbo", "has engaged nitro afterburners")
+		captain_announce("The emergency shuttle reversed and [reason]. It will arrive in [emergency_shuttle.timeleft()] seconds.")
+		return
 	if(emergency_shuttle.direction == -1)
 		to_chat(user, "The shuttle may not be called while returning to CentCom.")
 		return
-
+	if (emergency_shuttle.online && vote.winner ==  "Initiate Crew Transfer")
+		if(10 < emergency_shuttle.timeleft())
+			var/reason = pick("is arriving ahead of schedule", "hit the turbo", "has engaged nitro afterburners")
+			emergency_shuttle.settimeleft(10)
+			captain_announce("The emergency shuttle [reason]. It will arrive in [emergency_shuttle.timeleft()] seconds.")
+		return
 	if(emergency_shuttle.online)
 		to_chat(user, "The shuttle is already on its way.")
 		return
@@ -575,8 +666,8 @@ var/global/ports_open = TRUE
 		//	to_chat(user, "Centcom will not allow the shuttle to be called. Consider all contracts terminated.")
 		//	return
 
-		if(world.time < 54000) // 30 minute grace period to let the game get going
-			to_chat(user, "The shuttle is refueling. Please wait another [round((54000-world.time)/600)] minutes before trying again.")//may need to change "/600"
+		if(world.time < 90 MINUTES) // 90 minute grace period to let the game get going
+			to_chat(user, "The shuttle is refueling. Please wait another [round((90 MINUTES-world.time)/(60 SECONDS))] minutes before trying again.")//may need to change "/600"
 
 			return
 
@@ -604,9 +695,52 @@ var/global/ports_open = TRUE
 
 	if(emergency_shuttle.direction != -1 && emergency_shuttle.online) //check that shuttle isn't already heading to centcomm
 		emergency_shuttle.recall()
+		var/datum/gamemode/dynamic/dynamic_mode = ticker.mode
+		if (istype(dynamic_mode))
+			dynamic_mode.update_stillborn_rulesets()
 		log_game("[key_name(user)] has recalled the shuttle.")
 		message_admins("[key_name_admin(user)] has recalled the shuttle - [formatJumpTo(user)].", 1)
 	return
+
+/proc/toggle_exploration_program(var/mob/user, var/bypass_cooldown = FALSE)
+	if(!bypass_cooldown && world.time < (SSmapping.last_lockdown_time + SSmapping.lockdown_duration))
+		var/time_left = (SSmapping.last_lockdown_time + SSmapping.lockdown_duration) - world.time
+		to_chat(user, "<span class='warning'>[SSmapping.scanning_disabled?"Exploration shuttle":"Centcomm shuttle dock"] is undergoing maintenance. [round(time_left/10/60,0.1)] minutes remaining.</span>")
+		return FALSE
+
+	if(SSmapping.scanning_disabled)
+		SSmapping.scanning_disabled = FALSE
+		if(!bypass_cooldown)
+			SSmapping.last_lockdown_time = world.time
+
+		var/obj/docking_port/destination/exploration/station/station_dock = exploration_shuttle.add_dock(/obj/docking_port/destination/exploration/station)
+		if(!station_dock)
+			to_chat(user, "<span class='warning'>Error: Station exploration dock not found!</span>")
+			return FALSE
+
+		if(exploration_shuttle.current_port != station_dock)
+			exploration_shuttle.travel_to(station_dock, null, user)
+			exploration_shuttle.remove_dock(/obj/docking_port/destination/exploration/centcom)
+
+		message_admins("[key_name_admin(user)] has re-enabled planet scanning and recalled the exploration shuttle to the station.")
+		command_alert("The exploration program has been reactivated. The exploration shuttle is returning to the station. Deep space scanning is now available.", "Exploration Program Reactivated")
+		return TRUE
+	else
+		SSmapping.scanning_disabled = TRUE
+		if(!bypass_cooldown)
+			SSmapping.last_lockdown_time = world.time
+
+		var/obj/docking_port/destination/exploration/centcom/centcom_dock = exploration_shuttle.add_dock(/obj/docking_port/destination/exploration/centcom)
+		if(!centcom_dock)
+			to_chat(user, "<span class='warning'>Error: Centcom exploration dock not found!</span>")
+			return FALSE
+
+		if(exploration_shuttle.current_port != centcom_dock)
+			exploration_shuttle.travel_to(centcom_dock, null, user, eject = TRUE)
+
+		message_admins("[key_name_admin(user)] has recalled the exploration shuttle to centcom and disabled planet scanning.")
+		command_alert("The exploration shuttle has been recalled to Central Command. Deep space scanning has been disabled.", "Exploration Program Suspended")
+		return TRUE
 
 /obj/machinery/computer/communications/proc/post_status(var/command, var/data1, var/data2)
 
@@ -616,7 +750,7 @@ var/global/ports_open = TRUE
 	if(!frequency)
 		return
 
-	var/datum/signal/status_signal = getFromPool(/datum/signal)
+	var/datum/signal/status_signal = new /datum/signal
 	status_signal.source = src
 	status_signal.transmission_method = 1
 	status_signal.data["command"] = command
@@ -668,6 +802,84 @@ var/global/ports_open = TRUE
 
 	shuttle_autocall()
 	..()
+
+// -- Blob defcon 1 things
+
+/obj/machinery/computer/communications/proc/send_supplies(var/supplies)
+	// Find a suitable place
+	var/true_dir
+	for (var/direction in cardinal)
+		var/turf/T = get_step(src, dir)
+		if (istype(T, /turf/simulated/floor)) // See if it's an empty space
+			true_dir = T
+			break
+	if (!true_dir)
+		alert_noise("buzz")
+		say("Unable to find suitable place to transfer supplies.")
+		return
+
+	var/turf/T_supplies = get_step(src, true_dir)
+	// Some sparks
+	spark(src, 3)
+	spark(T_supplies, 3)
+
+	switch(supplies)
+		if (MEDICAL_SUPPLIES_DEFCON)
+			new /obj/structure/closet/crate/medical/blob_supplies(T_supplies)
+		if (ENGINEERING_SUPPLIES_DEFCON)
+			new /obj/structure/closet/crate/engi/blob_supplies(T_supplies)
+		if (WEAPONS_SUPPLIES_DEFCON)
+			new /obj/structure/closet/crate/basic/blob_weapons(T_supplies)
+
+// -- Blob supplies crates
+
+/obj/structure/closet/crate/medical/blob_supplies
+	name = "EMERGENCY MEDICAL SUPPLIES"
+	desc = "Not included: field amputations."
+
+/obj/structure/closet/crate/medical/blob_supplies/New()
+	. = ..()
+	var/list/contains = list(/obj/item/weapon/storage/firstaid/regular,
+					/obj/item/weapon/storage/firstaid/fire,
+					/obj/item/weapon/storage/firstaid/toxin,
+					/obj/item/weapon/storage/firstaid/o2,
+					/obj/item/weapon/storage/firstaid/internalbleed,
+					/obj/item/weapon/storage/box/autoinjectors,
+					/obj/item/weapon/storage/box/antiviral_syringes)
+	for (var/item_type in contains)
+		new item_type(src)
+
+/obj/structure/closet/crate/engi/blob_supplies
+	name = "EMERGENCY ENGINEERING SUPPLIES"
+	desc = "Then we will fight it in the dark!"
+
+/obj/structure/closet/crate/engi/blob_supplies/New()
+	. = ..()
+	var/list/contains = list(/obj/item/stack/sheet/metal/bigstack,
+			/obj/item/stack/sheet/glass/glass/bigstack,
+			/obj/item/weapon/storage/toolbox/electrical,
+			/obj/item/weapon/storage/toolbox/mechanical,
+			/obj/item/clothing/gloves/yellow,
+			/obj/item/weapon/cell/high,
+			/obj/item/weapon/cell/high,
+			/obj/item/weapon/cell/high,)
+	for (var/item_type in contains)
+		new item_type(src)
+
+/obj/structure/closet/crate/basic/blob_weapons
+	name = "EMERGENCY WEAPONS SUPPLIES"
+	desc = "Rage, rage against the dying of the light."
+
+/obj/structure/closet/crate/basic/blob_weapons/New()
+	. = ..()
+	var/list/contains = pick(list(/obj/item/weapon/gun/energy/gun,
+			/obj/item/weapon/gun/energy/gun,
+			/obj/item/weapon/gun/energy/gun),
+			list(/obj/item/weapon/gun/energy/gun/nuclear))
+	for (var/item_type in contains)
+		new item_type(src)
+
+// -- Circuit borads
 
 /obj/item/weapon/circuitboard/communications/New()
 	..()

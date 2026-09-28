@@ -1,8 +1,8 @@
-
 /obj/effect/overlay
 	name = "overlay"
 	w_type=NOT_RECYCLABLE
 	plane = ABOVE_HUMAN_PLANE
+	mouse_opacity = 1
 	var/i_attached//Added for possible image attachments to objects. For hallucinations and the like.
 
 /obj/effect/overlay/cultify()
@@ -22,15 +22,26 @@
 	icon='icons/effects/beam.dmi'
 	icon_state="b_beam"
 	mouse_opacity = 0
+	anchored = 1
 	var/tmp/atom/BeamSource
 
-/obj/effect/overlay/beam/New(turf/loc, var/lifetime = 10, var/fade = 0, var/src_icon = 'icons/effects/beam.dmi')
+/obj/effect/overlay/beam/New(var/turf/loc, var/lifetime = 10, var/fade = 0, var/src_icon = 'icons/effects/beam.dmi', var/icon_state = "b_beam", var/base_damage = 30, var/col_override = null, var/col_shift = null)
 	..()
+	if(loc)
+		alpha = round(255*(max(1,loc.last_beam_damage)/max(1,base_damage)))
+	else
+		alpha = round(255*(1/max(1,base_damage)))
 	icon = src_icon
+	src.icon_state = icon_state
+	if (col_override)
+		color = col_override
 	spawn if(fade)
-		animate(src, alpha=0, time=lifetime)
+		if (col_shift)
+			animate(src, alpha=0, color=col_shift, time=lifetime)
+		else
+			animate(src, alpha=0, time=lifetime)
 	spawn(lifetime)
-		returnToPool(src)
+		qdel(src)
 
 /obj/effect/overlay/beam/persist/New()
 	return
@@ -60,16 +71,29 @@
 	name = "Bluespace"
 	icon = 'icons/turf/space.dmi'
 	icon_state = "bluespacify"
-	layer = LIGHTING_LAYER
+	plane = ABOVE_TURF_PLANE
+	layer = ABOVE_TILE_LAYER
 
 /obj/effect/overlay/puddle
 	name = "Puddle"
 	icon = 'icons/effects/water.dmi'
 	icon_state = "wet_floor"
 	anchored = 1
+	plane = ABOVE_TURF_PLANE
 	var/wet = TURF_WET_LUBE
 	var/lifespan
 	mouse_opacity = 0
+
+/obj/effect/overlay/puddle/ice
+	name = "Ice"
+	icon_state = "icy_floor"
+	wet = TURF_WET_ICE
+	var/current_temp
+	var/ice_thickness = 5
+	// Alternative option to use /obj/effect/overlay/puddle's lifespan variable to dictate when the ice puddle is destroyed instead of
+	// the HP system.
+	var/time_based_melt = FALSE
+
 
 /obj/effect/overlay/puddle/New(var/turf/T, var/new_wet, var/new_lifespan)
 	..()
@@ -77,62 +101,68 @@
 	lifespan = world.time + new_lifespan
 	processing_objects.Add(src)
 
+/obj/effect/overlay/puddle/Destroy()
+	processing_objects.Remove(src)
+	..()
+
 /obj/effect/overlay/puddle/process()
 	if(world.time >= lifespan)
 		qdel(src)
 
 /obj/effect/overlay/puddle/Crossed(atom/movable/AM)
-	//Check what can slip
-	if(isliving(AM))
-		var/mob/living/M = AM
-		if(!M.on_foot()) //Checks lying, flying and locked.to
-			return ..()
 
-
-	if(isslime(AM)) //Slimes just don't slip, end of story. Hard to slip when you're a living puddle.
+	if (!isliving(AM))
+		return ..()
+	var/mob/living/L = AM
+	if (!L.ApplySlip(src))
 		return ..()
 
-	if(iscarbon(AM))
-		var/mob/living/carbon/M = AM
-		switch(src.wet)
-			if(1) //Water
-				if (M.Slip(5, 3))
-					step(M, M.dir)
-					M.visible_message("<span class='warning'>[M] slips on the wet floor!</span>", \
-					"<span class='warning'>You slip on the wet floor!</span>")
+/obj/effect/overlay/puddle/ice/New(var/turf/T, var/zone/zone)
+	..()
+	current_temp = T.air.temperature
+	if( zone != null )
+		// Refactor suggestion: zone SHOULD be managing ice_puddle_list, puddle should not have to worry about this at all.
+		zone.ice_puddle_list += src
 
-			if(2) //Lube
-				step(M, M.dir)
-				spawn(1)
-					if(!M.locked_to)
-						step(M, M.dir)
-				spawn(2)
-					if(!M.locked_to)
-						step(M, M.dir)
-				spawn(3)
-					if(!M.locked_to)
-						step(M, M.dir)
-				spawn(4)
-					if(!M.locked_to)
-						step(M, M.dir)
-				M.take_organ_damage(2) // Was 5 -- TLE
-				M.visible_message("<span class='warning'>[M] slips on the floor!</span>", \
-				"<span class='warning'>You slip on the floor!</span>")
-				playsound(src, 'sound/misc/slip.ogg', 50, 1, -3)
-				M.Knockdown(10)
+/obj/effect/overlay/puddle/ice/Destroy()
+	..()
+	var/turf/T = get_turf(src)
+	if(istype(T, /turf/simulated))
+		var/turf/simulated/S = T
+		if(S.zone)
+			S.zone.ice_puddle_list -= src
 
-			if(3) // Ice
-				if(prob(30) && M.Slip(4, 3))
-					step(M, M.dir)
-					M.visible_message("<span class='warning'>[M] slips on the icy floor!</span>", \
-					"<span class='warning'>You slip on the icy floor!</span>")
+/obj/effect/overlay/puddle/ice/process()
+	if(time_based_melt && world.time >= lifespan){
+		qdel(src)
+	}
+	else{
+		var/temp_delta = current_temp - T0C
+		// Increase or decrease HP based on temperature. Scales logarithmically, so ever-hotter temperatures cause it to melt faster.
+		if(temp_delta != 0)
+			ice_thickness = min( 100, ice_thickness + ((temp_delta < 0) ? 1 : -1 * log(8, abs(temp_delta)) / rand(1,3)))
+		if(ice_thickness < 0)
+			new /obj/effect/overlay/puddle(get_turf(src))
+			qdel(src)
+	}
 
-	if(isrobot(AM) && wet == 1) //Only exactly water makes borgs glitch
-		var/mob/living/silicon/robot/R = AM
-		if(R.Slip(5,3))
-			//Don't step forward as a robot, we're not slipping just glitching.
-			R.visible_message("<span class='warning'>[R] short circuits on the water!</span>", \
-					"<span class='warning'>You short circuit on the water!</span>")
+
+/obj/effect/overlay/holywaterpuddle
+	name = "Puddle"
+	icon = 'icons/effects/water.dmi'
+	icon_state = "holy_floor"
+	anchored = 1
+	mouse_opacity = 0
+	var/lifespan
+
+/obj/effect/overlay/holywaterpuddle/New(var/turf/T)
+	. = ..()
+	lifespan = world.time + HOLYWATER_DURATION
+	processing_objects.Add(src)
+
+/obj/effect/overlay/holywaterpuddle/process()
+	if(world.time >= lifespan)
+		qdel(src)
 
 /obj/effect/overlay/wallrot
 	name = "Wallrot"
@@ -146,3 +176,95 @@
 	..()
 	pixel_x += rand(-10, 10) * PIXEL_MULTIPLIER
 	pixel_y += rand(-10, 10) * PIXEL_MULTIPLIER
+
+/obj/effect/overlay/mapped_weather
+	name = "mapped weather effect"
+	anchored = 1
+	mouse_opacity = 0
+
+/obj/effect/overlay/mapped_weather/ash
+	name = "ash"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "ash1"
+
+/obj/effect/overlay/mapped_weather/ash_hard
+	name = "ash"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "ash2"
+
+/obj/effect/overlay/mapped_weather/ash_storm
+	name = "ash storm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "ash_storm1"
+	alpha = 140
+
+/obj/effect/overlay/mapped_weather/rain
+	name = "rain"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rain_average1"
+
+/obj/effect/overlay/mapped_weather/rain_hard
+	name = "rain hard"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rain_hard1"
+
+/obj/effect/overlay/mapped_weather/rain_storm
+	name = "rain storm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rain_storm2"
+
+/obj/effect/overlay/mapped_weather/rain_storm_bright
+	name = "rain storm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rain_storm3"
+
+/obj/effect/overlay/mapped_weather/rads
+	name = "radioactive_ash"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rad1"
+
+/obj/effect/overlay/mapped_weather/rad_storm
+	name = "radstorm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "rad_storm1"
+	alpha = 170
+
+/obj/effect/overlay/mapped_weather/blood
+	name = "blood rain"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "toxic_rain_hard1"
+
+/obj/effect/overlay/mapped_weather/blood_storm
+	name = "blood storm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "toxic_storm1"
+
+/obj/effect/overlay/mapped_weather/acid
+	name = "acid rain"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "acid_rain1"
+
+/obj/effect/overlay/mapped_weather/acid_storm
+	name = "acid storm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "acid_rain_hard1"
+
+/obj/effect/overlay/mapped_weather/dust
+	name = "dust"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "dust1"
+
+/obj/effect/overlay/mapped_weather/dust_storm
+	name = "duststorm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "dust2"
+
+/obj/effect/overlay/mapped_weather/sand
+	name = "dust"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "sand1"
+
+/obj/effect/overlay/mapped_weather/sandstorm
+	name = "duststorm"
+	icon = 'icons/turf/weatherfx.dmi'
+	icon_state = "sand2"

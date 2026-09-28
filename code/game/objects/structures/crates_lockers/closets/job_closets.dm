@@ -20,9 +20,11 @@
 		/obj/item/clothing/head/hairflower,
 		/obj/item/clothing/under/sl_suit = 2,
 		/obj/item/clothing/under/rank/bartender = 2,
+		/obj/item/clothing/under/rank/btc_bartender = 2,
 		/obj/item/clothing/under/dress/dress_saloon,
 		/obj/item/clothing/suit/wcoat = 2,
 		/obj/item/clothing/shoes/black = 2,
+		/obj/item/clothing/shoes/purplepumps = 2,
 		/obj/item/clothing/monkeyclothes = 2,
 		/obj/item/weapon/reagent_containers/food/drinks/coloring,
 	)
@@ -45,6 +47,7 @@
 		/obj/item/weapon/caution = 6,
 		/obj/item/weapon/storage/bag/trash,
 		/obj/item/device/lightreplacer/loaded/mixed,
+		/obj/item/clothing/suit/apron/overalls,
 		/obj/item/clothing/gloves/black,
 		/obj/item/clothing/head/soft/purple,
 		/obj/item/weapon/storage/box/lights/he = 2,
@@ -84,6 +87,7 @@
 /obj/structure/closet/paramedic/atoms_to_spawn()
 	return list(
 		/obj/item/clothing/under/rank/medical/paramedic = 2,
+		/obj/item/clothing/under/rank/medical/brigmedic = 2,
 		/obj/item/device/radio/headset/headset_med = 2,
 		/obj/item/clothing/head/soft/paramedic = 2,
 		/obj/item/clothing/gloves/latex = 2,

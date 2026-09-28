@@ -78,7 +78,8 @@
 	..()
 
 /mob/living/simple_animal/hostile/humanoid/kitchen/meatballer/adjustBruteLoss(var/damage)
-	if(prob(damage*(maxHealth/health)))
+	var/proc_chance = clamp(damage*(maxHealth/max(health,1)),0,100)
+	if(!isDead() && prob(proc_chance))
 		fire_everything()
 	..()
 
@@ -135,7 +136,10 @@
 	melee_damage_upper = 15
 	attacktext = "slaps"
 	attack_sound = 'sound/weapons/punchmiss.ogg'
-	stat_attack = 1
+
+	environment_smash_flags = SMASH_LIGHT_STRUCTURES | SMASH_CONTAINERS | OPEN_DOOR_STRONG | OPEN_DOOR_SMART // Vampeers can smash many things and open doors
+	stat_attack = UNCONSCIOUS // Even if it's unconscious, it still has blood! Blah blah blah!
+
 	var/last_glare
 	var/last_jaunt
 	var/retreating = 0
@@ -151,8 +155,10 @@
 	if(ishuman(target))
 		var/mob/living/carbon/human/H = target
 		if(H.lying && !H.locked_to)
-			visible_message("<span class='danger'>\The [src] bites down into [H]'s neck!</span>")
-			lock_atom(H, /datum/locking_category/vampire_latch)
+			spawn(2 SECONDS) // Wait a second, otherwise the transition is too abrupt
+				if(H.lying && !H.locked_to)
+					visible_message("<span class='danger'>\The [src] bites down into [H]'s neck!</span>")
+					lock_atom(H, /datum/locking_category/vampire_latch)
 		if(H.locked_to == src)
 			if(H.vessel.get_reagent_amount(BLOOD) < 50)
 				unlock_atom(H)
@@ -161,6 +167,36 @@
 				health = max(maxHealth*2, health+=rand(5,10)) //Can overheal
 			return
 	..()
+
+/mob/living/simple_animal/hostile/humanoid/vampire/relaymove(mob/user)// Allows a player to resist out of the vampire's grip. Takes strength from mutations and other sources into account (Copied from grey nurse code)
+	var/mob/living/carbon/human/H = user
+	if(istype(H))
+		if(user.incapacitated()) // Can't resist when stunned or unconscious
+			return
+
+		if(H.get_strength() > 2) // Are we TOO SWOLE TO CONTROL?! Breaking free is guaranteed!
+			to_chat(user, "<span class='warning'>You start to loosen the [src]'s weak grip!</span>")
+			if(do_after(user, src, 10)) // 1 second resist time, 100% chance of success
+				to_chat(user, "<span class='warning'>You force the [src]'s teeth off your neck with minimal effort, freeing yourself!</span>")
+				unlock_atom(H)
+
+		if(H.get_strength() == 2) // Are we stronger than average due to a mutation or other bonus? Boost resistance chance!
+			to_chat(user, "<span class='warning'>You struggle furiously against the [src]'s grip!</span>")
+			if(do_after(user, src, 10)) // 1 second resist time, 60% chance of success
+				if(prob(40))
+					to_chat(user, "<span class='warning'>\The [src] manages to keep their hold on you! Their teeth are still firmly lodged in your neck!</span>")
+				else
+					to_chat(user, "<span class='warning'>You yank \the [src]'s teeth out of your neck with a mighty effort and shove them away, freeing yourself!</span>")
+					unlock_atom(H)
+
+		if(H.get_strength() < 2) // Are we just average strength? We get the lowest chance of successfully escaping
+			to_chat(user, "<span class='warning'>You struggle to get free of the [src]'s bloodsucking latch!</span>")
+			if(do_after(user, src, 10)) // 1 second resist time, 35% chance of success with no other modifiers
+				if(prob(65))
+					to_chat(user, "<span class='warning'>You fail to get free of \the [src]'s grip, and they only bite down on your neck harder!</span>")
+				else
+					to_chat(user, "<span class='warning'>You manage to pry \the [src]'s teeth off your neck, freeing yourself!</span>")
+					unlock_atom(H)
 
 /mob/living/simple_animal/hostile/humanoid/vampire/Life()
 	..()
@@ -188,7 +224,8 @@
 			return unlock_atom(L)
 
 /mob/living/simple_animal/hostile/humanoid/vampire/adjustBruteLoss(var/damage)
-	if(!isDead() && prob(damage*(maxHealth/health)) && world.time > last_jaunt + JAUNT_COOLDOWN)
+	var/proc_chance = clamp(damage*(maxHealth/max(health,1)),0,100)
+	if(!isDead() && prob(proc_chance) && world.time > last_jaunt + JAUNT_COOLDOWN)
 		last_jaunt = world.time
 		jaunt_away()
 	..()
@@ -199,35 +236,31 @@
 	visible_message("<span class='danger'>\The [src]'s eyes emit a blinding flash!</span>")
 	var/list/close_mobs = list()
 	var/list/dist_mobs = list()
-	for(var/mob/living/carbon/C in oview(1, src))
-		if(!C.vampire_affected())
+	for(var/mob/living/carbon/human/H in view(1, src))
+		if((H.vampire_affected() <= 0) || H.is_blind())
 			continue
-		if(istype(C))
-			close_mobs |= C
-	for(var/mob/living/carbon/C in oview(3, src))
-		if(!C.vampire_affected())
+		if(istype(H))
+			close_mobs |= H
+	for(var/mob/living/carbon/human/H in view(3, src))
+		if((H.vampire_affected() <= 0) || H.is_blind())
 			continue
-		if(istype(C))
-			dist_mobs |= C
+		if(istype(H))
+			dist_mobs |= H
 	dist_mobs -= close_mobs
-	for(var/mob/living/carbon/C in close_mobs)
-		C.Stun(8)
-		C.Knockdown(8)
-		C.stuttering += 20
-		if(!C.blinded)
-			C.blinded = 1
-		C.blinded += 5
-	for(var/mob/living/carbon/C in dist_mobs)
-		var/distance_value = max(0, abs((get_dist(C, src)-3)) + 1)
-		C.Stun(distance_value)
+	for(var/mob/living/carbon/human/H in close_mobs)
+		H.Stun(8)
+		H.Knockdown(8)
+		H.stuttering += 20
+		H.flash_eyes()
+	for(var/mob/living/carbon/human/H in dist_mobs)
+		var/distance_value = max(0, abs((get_dist(H, src)-3)) + 1)
+		H.Stun(distance_value)
 		if(distance_value > 1)
-			C.Knockdown(distance_value)
-		C.stuttering += 5+distance_value *2
-		if(!C.blinded)
-			C.blinded = 1
-		C.blinded += max(1, distance_value)
-	to_chat((dist_mobs + close_mobs), "<span class='warning'>You are blinded by \the [src]'s glare</span>")
-
+			H.Knockdown(distance_value)
+			H.Stun(distance_value)
+		H.stuttering += 5+distance_value *2
+		H.flash_eyes()
+	to_chat((dist_mobs + close_mobs), "<span class='warning'>You are blinded by \the [src]'s glare!</span>")
 
 /mob/living/simple_animal/hostile/humanoid/vampire/proc/jaunt_away()
 	update_latch()
@@ -239,24 +272,19 @@
 		retreating = 0
 
 /mob/living/simple_animal/hostile/humanoid/vampire/death(var/gibbed = FALSE)
-	..(TRUE)
 	visible_message("<span class='warning'>\The [src] lets out one last ear piercing shriek, before collapsing into dust!</span>")
-	for(var/mob/living/carbon/C in hearers(4, src))
-		if(ishuman(C))
-			var/mob/living/carbon/human/H = C
-			if(H.earprot())
-				continue
-		if(!C.vampire_affected())
-			continue
-		to_chat(C, "<span class='danger'><font size='3'>You hear a ear piercing shriek and your senses dull!</font></span>")
-		C.Knockdown(8)
-		C.ear_deaf = 20
-		C.stuttering = 20
-		C.Stun(8)
-		C.Jitter(150)
-	for(var/obj/structure/window/W in view(4, src))
-		W.Destroy(brokenup = 1)
 	playsound(src.loc, 'sound/effects/creepyshriek.ogg', 100, 1)
+	for(var/mob/living/carbon/human/H in view(7, src))
+		if((H.vampire_affected() <= 0) || H.earprot())
+			continue
+		to_chat(H, "<span class='danger'><font size='3'>You hear an ear piercing shriek and your senses dull!</font></span>")
+		H.Knockdown(8)
+		H.ear_deaf = 20
+		H.stuttering = 20
+		H.Stun(8)
+		H.Jitter(150)
+	for(var/obj/structure/window/W in view(4, src))
+		W.shatter()
 
 	anim(target = src, a_icon = 'icons/mob/mob.dmi', flick_anim = "dust-h", sleeptime = 15)
 
@@ -324,9 +352,10 @@
 /mob/living/simple_animal/hostile/gremlin/greytide/electrocute_act()
 	return //Gremtide cometh
 
-/mob/living/simple_animal/hostile/gremlin/greytide/adjustBruteLoss()
+/mob/living/simple_animal/hostile/gremlin/greytide/adjustBruteLoss(var/damage)
 	..()
-	if(!isDead() && prob(30*(maxHealth/health)))
+	var/proc_chance = clamp(damage*(maxHealth/max(health,1)),0,100)
+	if(!isDead() && prob(proc_chance))
 		visible_message("<span class = 'warning'>\The [src] looks to be annoyed!</span>")
 		annoyed = 1
 		spawn(rand(15 SECONDS, 45 SECONDS))
@@ -438,14 +467,23 @@
 
 	search_objects = 1
 	var/obj/item/weapon/cell/cell = null
+	var/datum/power_connection/consumer/cable/power_connection = null
 	var/latched = 0
+	var/draining = 0 //How much we're attempting to drain from the powernet
+
+/mob/living/simple_animal/hostile/syphoner/New()
+	. = ..()
+	cell = new /obj/item/weapon/cell/super/empty(src)
+	power_connection = new(src)
+	power_connection.power_priority = POWER_PRIORITY_BYPASS
+
+/mob/living/simple_animal/hostile/syphoner/Destroy()
+	if(power_connection)
+		QDEL_NULL(power_connection)
+	. = ..()
 
 /mob/living/simple_animal/hostile/syphoner/get_cell()
 	return cell
-
-/mob/living/simple_animal/hostile/syphoner/New()
-	..()
-	cell = new /obj/item/weapon/cell/super/empty(src)
 
 /mob/living/simple_animal/hostile/syphoner/update_icon()
 	if(latched)
@@ -493,11 +531,11 @@
 	if(istype(target, /obj/structure/cable))
 		var/obj/structure/cable/C = target
 		if(latched && locked_to && locked_to == C)
-			var/datum/powernet/PN = C.get_powernet()
-			if(PN && PN.avail > 0 && cell.percent() < 100)
-				var/drained = min (rand(500,1500), PN.avail )
-				PN.load += drained
-				cell.give(drained/10)
+			var/datum/powernet/PN = power_connection.get_powernet()
+			if(cell && PN && PN.avail > 0 && cell.percent() < 100)
+				cell.give(draining * power_connection.get_satisfaction()/10)
+				draining = rand(500,1500)
+				power_connection.add_load(draining)
 			else
 				visible_message("<span class = 'notice'>\The [src] detaches from \the [C]</span>")
 				unlatch()
@@ -507,6 +545,7 @@
 		else if (latched)
 			//How did we get here? Let's just quietly unlock and forget all about this
 			unlatch()
+
 	if(istype(target, /obj/item/weapon/cell))
 		var/obj/item/weapon/cell/C = target
 		if(C.percent() < 100)
@@ -516,6 +555,7 @@
 
 /mob/living/simple_animal/hostile/syphoner/proc/unlatch()
 	latched = 0
+	power_connection.disconnect()
 	unlock_from()
 	update_icon()
 
@@ -524,6 +564,8 @@
 		return
 	latched = 1
 	A.lock_atom(src, /datum/locking_category/cable_lock)
+	if (istype(A, /obj/structure/cable))
+		power_connection.connect(A)
 	update_icon()
 
 /mob/living/simple_animal/hostile/syphoner/death(var/gibbed = FALSE)
@@ -589,7 +631,7 @@
 				S.GiveTarget(target)
 
 /mob/living/simple_animal/hostile/humanoid/skellington/lich/Shoot(atom/a, params)
-	var/spell = rand(1,5)
+	var/spell = rand(1,4)
 	var/diceroll = rand(1,20)
 	var/list/victims = list()
 	for(var/mob/living/carbon/human/H in view(src, magic_range))
@@ -600,16 +642,16 @@
 	switch(spell)
 		if(1) //Mass Hallucination
 			for(var/mob/living/carbon/human/H in victims)
-				if(H.head && istype(H.head,/obj/item/clothing/head/tinfoil))
+				if(H.is_wearing_any(list(/obj/item/clothing/head/tinfoil,/obj/item/clothing/head/helmet/stun), slot_head))
 					continue
 				if(M_PSY_RESIST in H.mutations)
 					continue
 				to_chat(H, "<span class = 'warning'>You feel [diceroll>15 ? "incredibly" : ""] disorientated.</span>")
-				H.hallucination += rand(10,20)*diceroll
+				H.hallucination = clamp(rand(10,20)*diceroll, hallucination, 60) //Maximum of 120 seconds
 				if(diceroll > 15)
-					H.confused += rand(15,35)*diceroll
+					H.confused = clamp(rand(15,35)*diceroll, confused, 60) //Maximum of 120 seconds
 				if(diceroll >= 20)
-					H.dizziness += rand(5,25)
+					H.dizziness = clamp(rand(5,25), dizziness, 30) //Maximum of 60 seconds
 		if(2) //Disarm
 			var/number_of_disarmed = min(3, victims.len)
 			for(var/i = 0 to number_of_disarmed)
@@ -621,21 +663,7 @@
 				victims.Remove(H)
 				if(!victims.len)
 					break
-		if(3) //Soul Swarm
-			visible_message("<span class = 'warning'>\The [src] starts to float above the ground!</span>")
-			animate(src, pixel_y = 8, time = 1 SECONDS, easing = ELASTIC_EASING)
-			animate(pixel_y = rand(8,19), pixel_x = rand(-8,8), time = 3 SECONDS, easing = SINE_EASING, loop = 5)
-			for(var/i = 0 to round(diceroll,4))
-				var/mob/living/carbon/human/mtarget = pick(victims)
-				if(mtarget.isDead())
-					continue
-				to_chat(mtarget, "<span class = 'warning'>\The [src] sets its gaze upon you, and fires a soul swarm at you!</span>")
-				var/obj/item/projectile/P = new /obj/item/projectile/soul_swarm(get_turf(src), targetmob = mtarget)
-				spawn()
-					P.OnFired()
-					P.process()
-			animate(src, pixel_y = 0, pixel_x = 0, time = 3 SECONDS, easing = SINE_EASING)
-		if(4) //Raise undead
+		if(3) //Raise undead
 			var/number_of_raised = round(diceroll/3)
 			for(var/mob/living/carbon/human/H in victims)
 				if(!H.isDead())
@@ -652,7 +680,7 @@
 				H.visible_message("<span class = 'warning'>\The [H] raises from the dead!</span>")
 				new /mob/living/simple_animal/hostile/humanoid/skellington(H.loc)
 				qdel(H)
-		if(5) //Fall
+		if(4) //Fall
 			flags |= TIMELESS
 			var/duration = 8*diceroll
 			timestop(src, duration, magic_range, TRUE)
@@ -660,32 +688,14 @@
 				flags &= ~TIMELESS
 
 
-/obj/item/projectile/soul_swarm
-	name = "soul swarm"
-	desc = "It flickers with some rudimentary form of intelligence, but conversation doesn't seem to be the strong point of a magical projectile."
-	icon_state = "soul"
-	damage = 15
-	travel_range = 30
+/mob/living/simple_animal/dracson
+	name = "Young Vampire Bat"
+	desc = "Whatever happened to my Transylvania Twist?"
+	icon = 'icons/mob/animal.dmi'
+	icon_state = "scarybat-dance"
+	mob_property_flags = MOB_UNDEAD | MOB_SUPERNATURAL
 
-	var/mob/mobtarget = null
-
-/obj/item/projectile/soul_swarm/Destroy()
-	mobtarget = null
-	..()
-
-/obj/item/projectile/soul_swarm/New(var/mob/targetmob)
-	..()
-	stun = rand(0,25)
-	weaken = rand(0,25)
-	paralyze = rand(0,25)
-	irradiate = rand(0,25)
-	stutter = rand(0,25)
-	eyeblur = rand(0,25)
-	drowsy = rand(0,25)
-	agony = rand(0,25)
-	jittery = rand(0,25)
-	mobtarget = targetmob
-
-/obj/item/projectile/soul_swarm/process_step()
-	..()
-	original = mobtarget.loc //update the target
+/mob/living/simple_animal/dracson/death(var/gibbed = FALSE)
+	..(TRUE)
+	anim(target = src, a_icon = 'icons/mob/mob.dmi', flick_anim = "batify", sleeptime = 15)
+	qdel(src)

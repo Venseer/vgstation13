@@ -14,7 +14,7 @@
  */
 /obj/structure/closet/emcloset
 	name = "emergency closet"
-	desc = "It's a storage unit for emergency breathmasks and o2/n2 tanks."
+	desc = "It's a storage unit for emergency breathmasks and O2/N2 tanks."
 	icon_state = "emergency"
 	icon_closed = "emergency"
 	icon_opened = "emergencyopen"
@@ -66,10 +66,34 @@
 	icon_opened = "emergencyvoxopen"
 
 /obj/structure/closet/emcloset/vox/atoms_to_spawn()
-	return list(
+	var/static/list/stock = list(
 		/obj/item/weapon/tank/nitrogen = 2,
 		/obj/item/clothing/mask/breath/vox = 2,
 	)
+	var/static/list/aid = list(
+		/obj/item/weapon/tank/nitrogen = 2,
+		/obj/item/clothing/mask/breath/vox = 2,
+		/obj/item/weapon/storage/firstaid/vox,
+	)
+	var/static/list/tank = list(
+		/obj/item/weapon/tank/nitrogen,
+		/obj/item/clothing/mask/breath/vox,
+		/obj/item/weapon/tank/emergency_nitrogen/engi,
+		/obj/item/clothing/mask/breath/vox,
+	)
+	var/static/list/both = list(
+		/obj/item/weapon/tank/nitrogen,
+		/obj/item/clothing/mask/breath/vox,
+		/obj/item/weapon/tank/emergency_nitrogen/engi,
+		/obj/item/clothing/mask/breath/vox,
+		/obj/item/weapon/storage/firstaid/vox,
+	)
+	var/list/choices = list()
+	choices[stock] = 50
+	choices[aid] = 30
+	choices[tank] = 10
+	choices[both] = 10
+	return pickweight(choices)
 
 /*
  * Fire Closet
@@ -93,12 +117,6 @@
 /obj/structure/closet/firecloset/full/atoms_to_spawn()
 	return ..() + /obj/item/device/flashlight
 
-/obj/structure/closet/firecloset/update_icon()
-	if(!opened)
-		icon_state = icon_closed
-	else
-		icon_state = icon_opened
-
 
 /*
  * Tool Closet
@@ -117,15 +135,15 @@
 	if(prob(70))
 		. += /obj/item/device/flashlight
 	if(prob(70))
-		. += /obj/item/weapon/screwdriver
+		. += /obj/item/tool/screwdriver
 	if(prob(70))
-		. += /obj/item/weapon/wrench
+		. += /obj/item/tool/wrench
 	if(prob(70))
-		. += /obj/item/weapon/weldingtool
+		. += /obj/item/tool/weldingtool
 	if(prob(70))
-		. += /obj/item/weapon/crowbar
+		. += /obj/item/tool/crowbar
 	if(prob(70))
-		. += /obj/item/weapon/wirecutters
+		. += /obj/item/tool/wirecutters
 	if(prob(70))
 		. += /obj/item/device/t_scanner
 	if(prob(20))
@@ -170,6 +188,7 @@
 	icon_state = "bombsuit"
 	icon_closed = "bombsuit"
 	icon_opened = "bombsuitopen"
+	holds_armory_items = TRUE
 
 /obj/structure/closet/bombcloset/atoms_to_spawn()
 	return list(

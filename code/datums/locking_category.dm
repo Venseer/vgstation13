@@ -9,6 +9,7 @@
 	var/y_offset = 0
 	var/pixel_x_offset = 0
 	var/pixel_y_offset = 0
+	var/layer_override
 	var/rotate_offsets = FALSE
 
 // Modifies the new atom according to our flags.
@@ -24,11 +25,15 @@
 
 	AM.anchored = TRUE
 
-	if (flags & DENSE_WHEN_LOCKING || AM.lockflags & DENSE_WHEN_LOCKED)
-		owner.setDensity(TRUE)
+	if (!(flags & DONT_MESS_WITH_DENSITY))
+		if (flags & DENSE_WHEN_LOCKING || AM.lockflags & DENSE_WHEN_LOCKED)
+			owner.setDensity(TRUE)
 
 	AM.pixel_x += pixel_x_offset * PIXEL_MULTIPLIER
 	AM.pixel_y += pixel_y_offset * PIXEL_MULTIPLIER
+
+	if(layer_override)
+		AM.layer = layer_override
 
 	update_lock(AM)
 	AM.change_dir(owner.dir, owner)
@@ -39,8 +44,10 @@
 
 // Updates the position for AM.
 /datum/locking_category/proc/update_lock(var/atom/movable/AM)
-	var/new_loc = owner.loc
-
+	if(flags & LOCKED_STAY_INSIDE)
+		if(owner.loc != AM.loc)
+			AM.forceMove(owner)
+		return
 	var/new_x = x_offset
 	var/new_y = y_offset
 
@@ -66,13 +73,13 @@
 				new_x = -y_offset
 				new_y = x_offset
 
-
+	var/new_loc = owner.loc
 	if ((new_x || new_y) && isturf(new_loc))
 		var/newer_loc = locate(owner.x + new_x, owner.y + new_y, owner.z)
 		if (newer_loc) // Edge (no pun intended) case for map borders.
 			new_loc = newer_loc
 
-	AM.forceMove(new_loc, 0, 0, owner.glide_size)
+	AM.forceMove(new_loc, owner.step_x, owner.step_y, glide_size_override = owner.glide_size)
 
 // Modifies the atom to undo changes in lock().
 /datum/locking_category/proc/unlock(var/atom/movable/AM)
@@ -83,21 +90,22 @@
 
 	AM.anchored = initial(AM.anchored)
 
-	// Okay so now we have to loop through ALL of the owner's locked atoms and their categories to see if the owner still needs to be dense.
-	var/found = FALSE
-	if (flags & DENSE_WHEN_LOCKING || AM.lockflags & DENSE_WHEN_LOCKED)
-		for (var/atom/movable/candidate in owner.locked_atoms)
-			if (candidate.lockflags & DENSE_WHEN_LOCKED)
-				found = TRUE
-				break
+	if (!(flags & DONT_MESS_WITH_DENSITY))
+		// Okay so now we have to loop through ALL of the owner's locked atoms and their categories to see if the owner still needs to be dense.
+		var/found = FALSE
+		if (flags & DENSE_WHEN_LOCKING || AM.lockflags & DENSE_WHEN_LOCKED)
+			for (var/atom/movable/candidate in owner.locked_atoms)
+				if (candidate.lockflags & DENSE_WHEN_LOCKED)
+					found = TRUE
+					break
 
-			var/datum/locking_category/cat = owner.locked_atoms[candidate]
-			if (cat.flags & DENSE_WHEN_LOCKING)
-				found = TRUE
-				break
+				var/datum/locking_category/cat = owner.locked_atoms[candidate]
+				if (cat.flags & DENSE_WHEN_LOCKING)
+					found = TRUE
+					break
 
-	if (!found)
-		owner.setDensity(initial(owner.density))
+		if (!found)
+			owner.setDensity(initial(owner.density))
 
 	if (ismob(AM))
 		var/mob/M = AM
@@ -105,6 +113,9 @@
 
 	AM.pixel_x -= pixel_x_offset * PIXEL_MULTIPLIER
 	AM.pixel_y -= pixel_y_offset * PIXEL_MULTIPLIER
+
+	if(layer_override)
+		AM.layer = initial(AM.layer)
 
 /datum/locking_category/New(var/atom/new_owner)
 	locked = list()
@@ -116,7 +127,4 @@
 /datum/locking_category/Destroy()
 	owner  = null
 	locked = null
-
-/datum/locking_category/resetVariables()
 	..()
-	locked = list()

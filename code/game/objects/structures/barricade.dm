@@ -8,18 +8,28 @@
 
 /obj/structure/window/barricade
 	name = "wood barricade"
-	desc = "A barricade made out of wood planks, it looks like it can take a few solid hits."
+	desc = "A barricade made out of wood planks. It looks like it can take a few solid hits."
 	icon = 'icons/obj/barricade.dmi'
 	icon_state = "barricade"
 	anchored = 1
 	opacity = 1 //Wood isn't transparent, the last time I checked
 	health = 60 //Fairly strong
 	layer = ABOVE_DOOR_LAYER
+	pass_flags_self = PASSGLASS
+	sheet_type = /obj/item/stack/sheet/wood
 	var/busy = 0 //Oh god fucking do_after's
-	var/materialtype = /obj/item/stack/sheet/wood
 
 	fire_temp_threshold = 100 //Wooden barricades REALLY don't like fire
 	fire_volume_mod = 10 //They REALLY DON'T
+
+/obj/structure/window/barricade/canSmoothWith()
+	return
+
+/obj/structure/window/barricade/relativewall()
+	return
+
+/obj/structure/window/barricade/isSmoothableNeighbor(atom/A)
+	return
 
 /obj/structure/window/barricade/examine_health(mob/user)
 	//Switch most likely can't take inequalities, so here's that if block
@@ -39,7 +49,7 @@
 /obj/structure/window/barricade/healthcheck(var/mob/M, var/sound = 1)
 
 	if(health <= 0)
-		Destroy()
+		qdel(src)
 
 //Note : We don't want glass knocking sounds to play
 /obj/structure/window/barricade/attack_hand(mob/user as mob)
@@ -69,7 +79,7 @@
 /obj/structure/window/barricade/attackby(obj/item/weapon/W as obj, mob/user as mob)
 
 	if(iscrowbar(W) && user.a_intent == I_HURT && !busy) //Only way to deconstruct, needs harm intent
-		playsound(loc, 'sound/items/Crowbar.ogg', 75, 1)
+		W.playtoolsound(loc, 75)
 		user.visible_message("<span class='warning'>[user] starts struggling to pry \the [src] back into planks.</span>", \
 		"<span class='notice'>You start struggling to pry \the [src] back into planks.</span>")
 		busy = 1
@@ -95,42 +105,36 @@
 		..() //Weapon checks for weapons without brute or burn damage type and grab check
 
 /obj/structure/window/barricade/Cross(atom/movable/mover, turf/target, height = 1.5, air_group = 0)
-
 	if(air_group || !height) //The mover is an airgroup
 		return 1 //We aren't airtight, only exception to PASSGLASS
-	if(istype(mover) && mover.checkpass(PASSGLASS))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return 1
 	if(get_dir(loc, target) == dir || get_dir(loc, mover) == dir)
 		return !density
 	return 1
 
-/obj/structure/window/barricade/Destroy()
+/obj/structure/window/barricade/Destroy(var/brokenup)
 
 	setDensity(FALSE) //Sanity while we do the rest
-	getFromPool(materialtype, loc, sheetamount)
+	new sheet_type(loc, sheetamount)
 
 	..()
-
-//We don't want to update our icon, period
-/obj/structure/window/barricade/update_icon()
-
-	return
 
 /obj/structure/window/barricade/update_nearby_tiles()
 
 	return
 
-/obj/structure/window/barricade/update_nearby_icons()
-
-	return
 
 /obj/structure/window/barricade/full
 	name = "wood barricade"
-	desc = "A barricade made out of wood planks, it is very likely going to be a tough nut to crack"
+	desc = "A barricade made out of wood planks. It's probably going to be a tough nut to crack."
 	icon_state = "barricade_full"
 	health = 150
 	sheetamount = 3
 	layer = ABOVE_DOOR_LAYER
+	is_fulltile = TRUE
+	verb_rotates = FALSE
+	alt_click_rotates = FALSE
 
 //Basically the barricade version of full windows, and inherits the former rather than the later
 /obj/structure/window/barricade/full/New(loc)
@@ -138,25 +142,24 @@
 	..(loc)
 	flow_flags &= ~ON_BORDER
 
-/obj/structure/window/barricade/full/Uncross(atom/movable/O as mob|obj, target as turf)
+/obj/structure/window/barricade/full/setup_border_dummy()
+	return
 
-	return 1
+/obj/structure/window/barricade/full/blocks_doors(var/obj/machinery/door/D)
+	if (istype(D, /obj/machinery/door/firedoor/border_only))
+		return FALSE
+	return TRUE
 
 /obj/structure/window/barricade/full/Cross(atom/movable/mover, turf/target, height = 1.5, air_group = 0)
-
 	if(air_group || !height) //The mover is an airgroup
 		return 1 //We aren't airtight, only exception to PASSGLASS
-	if(istype(mover) && mover.checkpass(PASSGLASS))
+	if(istype(mover) && mover.checkpass(pass_flags_self))
 		return 1
 	return 0
 
 /obj/structure/window/barricade/full/can_be_reached(mob/user)
 
 	return 1 //That about it Captain
-
-/obj/structure/window/barricade/full/is_fulltile()
-
-	return 1
 
 /obj/structure/window/barricade/full/block //Used by the barricade kit when it is placed on airlocks or windows
 

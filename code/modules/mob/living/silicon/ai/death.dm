@@ -1,9 +1,10 @@
 /mob/living/silicon/ai/death(gibbed)
-	if(stat == DEAD)
+	if((status_flags & BUDDHAMODE) || stat == DEAD)
 		return
 	if(!gibbed)
-		emote("deathgasp")
-		playsound(src, 'sound/machines/WXP_shutdown.ogg', 75, FALSE)
+		emote("deathgasp", message = TRUE)
+		if(!explosive)
+			playsound(src, 'sound/machines/WXP_shutdown.ogg', 75, FALSE)
 	stat = DEAD
 	update_icon()
 
@@ -43,9 +44,19 @@
 	if(callshuttle == 3) //if all three conditions are met
 		shuttle_autocall()
 
-	if(explosive)
-		spawn(10)
-			explosion(src.loc, 3, 6, 12, 15)
+	if(explosive && !gibbed && !istype(loc, /obj/machinery/power/apc))
+		visible_message("<span class='danger'>[name] begins to spark violently!</span>")
+		shake_animation(5, 5, 0.2, 15)
+		spark(src)
+		playsound(src, 'sound/machines/Alarm_short.ogg', 100, FALSE)
+		spawn(30)
+			explosion(src.loc, 2, 5, 8, 10, whodunnit = src)
+			gibbed = TRUE
+			gib()
+
+	if(blackout_active)
+		malf_rcd_disable = FALSE
+		malf_radio_blackout = FALSE
 
 	for(var/obj/machinery/ai_status_display/O in machines) //change status
 		spawn( 0 )
@@ -55,8 +66,8 @@
 
 	tod = worldtime2text() //weasellos time of death patch
 	if(mind)
-		mind.store_memory("Time of death: [tod]", 0)
-		if(!suiciding) //Cowards don't count
-			score["deadaipenalty"] += 1
+		mind.store_memory("Time of death: [tod]", category=MIND_MEMORY_GENERAL, forced=TRUE)
+		if(!mind.suiciding) //Cowards don't count
+			score.deadaipenalty += 1
 
 	return ..(gibbed)

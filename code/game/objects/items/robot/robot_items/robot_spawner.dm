@@ -24,6 +24,9 @@
 /obj/item/weapon/robot_spawner/attack_self(mob/user)
 	request_borg(user)
 
+/obj/item/weapon/robot_spawner/check_uplink_validity()
+	return charge > 0 ? TRUE : FALSE
+
 /obj/item/weapon/robot_spawner/attack_ghost(var/mob/dead/observer/O)
 	if(last_ping_time + ping_cooldown <= world.time)
 		last_ping_time = world.time
@@ -48,33 +51,27 @@
 		recruiter.role = role
 		recruiter.jobban_roles = jobban_roles
 
-	recruiter.player_volunteering.Add(src, "recruiter_recruiting")
-	recruiter.player_not_volunteering.Add(src, "recruiter_not_recruiting")
-	recruiter.recruited.Add(src, "recruiter_recruited")
+	recruiter.player_volunteering = new /callback(src, nameof(src::recruiter_recruiting()))
+	recruiter.player_not_volunteering = new /callback(src, nameof(src::recruiter_not_recruiting()))
+	recruiter.recruited = new /callback(src, nameof(src::recruiter_recruited()))
 	recruiter.request_player()
 
-/obj/item/weapon/robot_spawner/proc/recruiter_recruiting(var/list/args)
-	var/mob/dead/observer/O = args["player"]
-	var/controls = args["controls"]
+/obj/item/weapon/robot_spawner/proc/recruiter_recruiting(mob/dead/observer/player, controls)
 	var/area/A = get_area(src)
-	to_chat(O, "<span class='recruit'>\The [name] activated at \the [A.name]. Get ready. ([controls])</span>")
+	to_chat(player, "<span class='recruit'>\The [name] activated at \the [A.name]. Get ready. ([controls])</span>")
 
-/obj/item/weapon/robot_spawner/proc/recruiter_not_recruiting(var/list/args)
-	var/mob/dead/observer/O = args["player"]
-	var/controls = args["controls"]
+/obj/item/weapon/robot_spawner/proc/recruiter_not_recruiting(mob/dead/observer/player, controls)
 	var/area/A = get_area(src)
-	to_chat(O, "<span class='recruit'>\The [name] activated at \the [A.name]. ([controls])</span>")
+	to_chat(player, "<span class='recruit'>\The [name] activated at \the [A.name]. ([controls])</span>")
 
-/obj/item/weapon/robot_spawner/proc/recruiter_recruited(var/list/args)
-	var/mob/dead/observer/O = args["player"]
-	if(O)
-		qdel(recruiter)
-		recruiter = null
+/obj/item/weapon/robot_spawner/proc/recruiter_recruited(mob/dead/observer/player)
+	if(player)
+		QDEL_NULL(recruiter)
 		busy = FALSE
 		charge--
 		spark(src, 4)
 		var/mob/living/silicon/robot/R = new borg_type(get_turf(loc))
-		R.key = O.key
+		R.key = player.key
 		post_recruited(R)
 		if(!charge && autoqdel)
 			qdel(src)
@@ -89,24 +86,23 @@
 		return
 	if(faction)
 		R.faction = faction
+	R.Namepick()
 
 //Syndicate robot spawner
 /obj/item/weapon/robot_spawner/syndicate
 	name = "syndicate robot teleporter"
 	desc = "A single-use teleporter used to deploy a syndicate robot on the field."
 	borg_type = /mob/living/silicon/robot/syndie
-	role = ROLE_OPERATIVE
+	role = NUKE_OP
 	jobban_roles = list("Syndicate", "AI", "Cyborg", "Mobile MMI")
 	faction = "syndicate"
-
-/obj/item/weapon/robot_spawner/syndicate/check_uplink_validity()
-	return charge
 
 /obj/item/weapon/robot_spawner/syndicate/post_recruited(mob/living/silicon/robot/R)
 	..()
 	var/datum/faction/syndicate/nuke_op/nuclear = find_active_faction_by_type(/datum/faction/syndicate/nuke_op)
 	if(nuclear)
 		var/datum/role/nuclear_operative/newCop = new
+		newCop.disallow_job = FALSE
 		newCop.AssignToRole(R.mind,1)
 		nuclear.HandleRecruitedRole(newCop)
 		newCop.Greet(GREET_MIDROUND)

@@ -13,8 +13,10 @@
 	starting_materials = list(MAT_IRON = 1850)
 	w_type = RECYK_METAL
 	level = 2
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
 	var/ptype = 0
-	// 0=straight, 1=bent, 2=junction-j1, 3=junction-j2, 4=junction-y, 5=trunk, 6=disposal bin, 7=outlet, 8=inlet
+	// 0=straight, 1=bent, 2=junction-j1, 3=junction-j2, 4=junction-y, 5=trunk, 6=disposal bin, 7=outlet, 8=inlet, 9=up, 10=down
 
 	var/dpdir = 0	// directions as disposalpipe
 	var/base_state = "pipe-s"
@@ -25,6 +27,10 @@
 		to_chat(user, "<span class='info'>It's bolted down to the floor plating.</span>")
 	else
 		to_chat(user, "<span class='info'>It's currently detached from the floor plating.</span>")
+
+/obj/structure/disposalconstruct/change_dir(new_dir, changer)
+	. = ..()
+	update()
 
 // update iconstate and dpdir due to dir and type
 /obj/structure/disposalconstruct/proc/update()
@@ -66,13 +72,29 @@
 			base_state = "intake"
 			dpdir = dir
 
-		if(9, 11)
+		if(9)
 			base_state = "pipe-j1s"
 			dpdir = dir | right | flip
 
-		if(10, 12)
+		if(10)
 			base_state = "pipe-j2s"
 			dpdir = dir | left | flip
+
+		if(11)
+			base_state = "pipe-j1ms"
+			dpdir = dir | right | flip
+
+		if(12)
+			base_state = "pipe-j2ms"
+			dpdir = dir | left | flip
+
+		if(13)
+			base_state = "pipe-u"
+			dpdir = dir
+
+		if(14)
+			base_state = "pipe-d"
+			dpdir = dir
 
 	if(ptype<6 || ptype>8)
 		icon_state = "con[base_state]"
@@ -86,23 +108,6 @@
 	// change visibility status and force update of icon
 /obj/structure/disposalconstruct/hide(var/intact)
 	invisibility = (intact && level==1) ? 101: 0	// hide if floor is intact
-	update()
-
-
-	// flip and rotate verbs
-/obj/structure/disposalconstruct/verb/rotate()
-	set name = "Rotate Pipe"
-	set category = "Object"
-	set src in view(1)
-
-	if(usr.isUnconscious())
-		return
-
-	if(anchored)
-		to_chat(usr, "You must unfasten the pipe before rotating it.")
-		return
-
-	dir = turn(dir, -90)
 	update()
 
 /obj/structure/disposalconstruct/verb/flip()
@@ -202,7 +207,7 @@
 			nicetype = "pipe"
 			ispipe = 1
 
-	if(iswrench(I))
+	if(I.is_wrench(user))
 		if(anchored) //This the only part where we're DETACHING the pipe, so it doesn't really need to check anything.
 			anchored = 0
 			if(ispipe)
@@ -211,7 +216,7 @@
 			else
 				setDensity(TRUE)
 			to_chat(user, "You detach the [nicetype] from the underfloor.")
-			playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
+			I.playtoolsound(src, 100)
 			update()
 			return
 		else
@@ -231,7 +236,7 @@
 			else
 				setDensity(TRUE) // We don't want disposal bins or outlets to go density 0
 			to_chat(user, "You attach the [nicetype] to the underfloor.")
-			playsound(src, 'sound/items/Ratchet.ogg', 100, 1)
+			I.playtoolsound(src, 100)
 			update()
 
 	else if(iswelder(I))
@@ -248,7 +253,7 @@
 			if(competing_pipe())
 				to_chat(user, "There is already a [nicetype] at that location.")
 				return
-			var/obj/item/weapon/weldingtool/W = I
+			var/obj/item/tool/weldingtool/W = I
 			to_chat(user, "Welding the [nicetype] in place.")
 			if(W.do_weld(user,src,20,0))
 				if(gcDestroyed || !W.isOn())
@@ -269,7 +274,7 @@
 					switch(ptype)
 						if(9, 10)
 							var/obj/structure/disposalpipe/sortjunction/SortP = P
-							SortP.updatedir()
+							SortP.update_dir()
 						if(11, 12)
 							var/obj/structure/disposalpipe/wrapsortjunction/sort_P = P
 							sort_P.update_dir()

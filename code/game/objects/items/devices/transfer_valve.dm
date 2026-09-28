@@ -2,9 +2,9 @@
 	icon = 'icons/obj/assemblies.dmi'
 	name = "tank transfer valve"
 	icon_state = "valve_1"
-	item_state = "ttv"
+	item_state = "ttv_empty"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/tanks.dmi', "right_hand" = 'icons/mob/in-hand/right/tanks.dmi')
-	desc = "Regulates the transfer of air between two tanks"
+	desc = "Regulates the transfer of air between two tanks."
 	var/obj/item/weapon/tank/tank_one
 	var/obj/item/weapon/tank/tank_two
 	var/obj/item/device/attached_device
@@ -94,7 +94,7 @@
 	<BR> <B> Valve attachment:</B> [attached_device ? "<A href='?src=\ref[src];device=1'>[attached_device]</A>" : "None"] [attached_device ? "<A href='?src=\ref[src];rem_device=1'>Remove</A>" : ""]
 	<BR> <B> Valve status: </B> [ valve_open ? "<A href='?src=\ref[src];open=1'>Closed</A> <B>Open</B>" : "<B>Closed</B> <A href='?src=\ref[src];open=1'>Open</A>"]"}
 
-	user << browse(dat, "window=trans_valve;size=600x300")
+	user << browse(HTML_SKELETON(dat), "window=trans_valve;size=600x300")
 	onclose(user, "trans_valve")
 	return
 
@@ -143,24 +143,76 @@
 	underlays = null
 
 	if(!tank_one && !tank_two && !attached_device)
-		icon_state = "valve_1"
+		if (damaged)
+			icon_state = "valve_damaged"
+		else
+			icon_state = "valve_1"
+		item_state = "ttv_empty"
+		if(iscarbon(loc))
+			var/mob/living/carbon/M = loc
+			M.update_inv_hands()
 		return
 	icon_state = "valve"
+	item_state = "ttv_empty"
+	var/list/tank_icons = list()
 
 	if(tank_one)
 		overlays += image(icon = icon, icon_state = "[tank_one.icon_state]")
+		tank_icons += tank_one.icon_state
 	if(tank_two)
 		var/icon/J = new(icon, icon_state = "[tank_two.icon_state]")
+		tank_icons += tank_two.icon_state
 		J.Shift(WEST, 13)
 		underlays += J
 	if(attached_device)
 		overlays += image(icon = icon, icon_state = "device")
+	if (tank_icons.len > 0)
+		if ("plasma" in tank_icons)
+			if ("oxygen" in tank_icons)
+				item_state = "ttv"
+			else
+				item_state = "ttv_plasma"
+		else if ("oxygen" in tank_icons)
+			item_state = "ttv_oxygen"
+	if(iscarbon(loc))
+		var/mob/living/carbon/M = loc
+		M.update_inv_hands()
 
 /obj/item/device/transfer_valve/proc/merge_gases()
 	tank_two.air_contents.volume += tank_one.air_contents.volume
 	var/datum/gas_mixture/temp
 	temp = tank_one.air_contents.remove_ratio(1)
 	tank_two.air_contents.merge(temp)
+
+/obj/item/device/transfer_valve/proc/simulate_merge()
+	//This proc basically reproduces step by step the gas changes that would lead to an explosion
+	//And returns said explosion's Epicenter radius (aka Devastation radius, or "Dev")
+
+	var/datum/gas_mixture/temp_first = new (tank_one.air_contents)
+	var/datum/gas_mixture/temp_second = new (tank_two.air_contents)
+
+	temp_first.volume += temp_second.volume
+
+	temp_first.merge(temp_second)
+
+	temp_first.react()
+
+	var/pressure = temp_first.return_pressure()
+
+	if(pressure <= TANK_FRAGMENT_PRESSURE)
+		return 0
+
+	temp_first.react()
+	temp_first.react()
+	temp_first.react()
+
+	pressure = temp_first.return_pressure()
+
+	var/range = (pressure-TANK_FRAGMENT_PRESSURE)/TANK_FRAGMENT_SCALE
+	var/dev = round(range*0.25)
+
+	return dev
+
 
 /obj/item/device/transfer_valve/proc/split_gases()
 	if (!valve_open || !tank_one || !tank_two)
@@ -225,6 +277,27 @@
 		// Delete ourselves.
 		qdel(src)
 
+/obj/item/device/transfer_valve/suicide_act(var/mob/living/user)
+	if (valve_open || !tank_one || !tank_two || simulate_merge() < 1) //no explosion with no tanks or dev, dummy
+		tank_one.forceMove(get_turf(src))
+		tank_one = null
+		tank_two.forceMove(get_turf(src))
+		tank_two = null
+		update_icon()
+		to_chat(viewers(user), "<span class='danger'>[user] is impaling \himself with the [src]! It looks like \he's trying to commit suicide!</span>")
+		return(SUICIDE_ACT_BRUTELOSS)
+
+	var/message_say = user.handle_suicide_bomb_cause(src)
+	if(!message_say)
+		return
+	to_chat(viewers(user), "<span class='danger'>[user] activates the [src] and holds it above \his head! It looks like \he's going out with a bang!</span>")
+	user.say(message_say)
+	toggle_valve(user)
+	return SUICIDE_ACT_CUSTOM
+
+/obj/item/device/transfer_valve/blob_act()
+	toggle_valve()
+	qdel(src)
 
 // this doesn't do anything but the timer etc. expects it to be here
 // eventually maybe have it update icon to show state (timer, prox etc.) like old bombs

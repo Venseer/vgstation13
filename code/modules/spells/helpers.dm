@@ -18,7 +18,6 @@
 		var/spell/S = type_S
 		if (initial(S.user_type) == type)
 			spellList += S
-
 	return spellList
 
 /proc/getAllWizSpells()
@@ -29,8 +28,12 @@
 	return getAllSpellsByType(USER_TYPE_GENETIC)
 /proc/getAllMalfSpells()
 	return getAllSpellsByType(USER_TYPE_MALFAI)
+/proc/getAllPulseDemonSpells()
+	return getAllSpellsByType(USER_TYPE_PULSEDEMON)
 /proc/getAllXenoSpells()
 	return getAllSpellsByType(USER_TYPE_XENOMORPH)
+/proc/getAllZombieSpells()
+	return getAllSpellsByType(USER_TYPE_ZOMBIE)
 /proc/getAllVampSpells()
 	return getAllSpellsByType(USER_TYPE_VAMPIRE)
 

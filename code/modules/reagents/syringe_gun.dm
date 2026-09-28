@@ -40,22 +40,22 @@
 
 		return 1 // Avoid calling the syringe's afterattack()
 
-/obj/item/weapon/gun/syringe/afterattack(obj/target, mob/user , flag)
+/obj/item/weapon/gun/syringe/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	if(target == user)
 		return
 	..()
 
-/obj/item/weapon/gun/syringe/can_fire()
+/obj/item/weapon/gun/syringe/canbe_fired()
 	return syringes.len
 
 /obj/item/weapon/gun/syringe/can_discharge()
-	return can_fire()
+	return canbe_fired()
 
 /obj/item/weapon/gun/syringe/can_hit(var/mob/living/target as mob, var/mob/living/user as mob)
 	return 1		//SHOOT AND LET THE GOD GUIDE IT (probably will hit a wall anyway)
 
 /obj/item/weapon/gun/syringe/process_chambered()
-	if(can_fire())
+	if(canbe_fired())
 		if(!in_chamber)
 			var/S = syringes[1]
 			in_chamber = new /obj/item/projectile/bullet/syringe(src, S)
@@ -63,7 +63,7 @@
 			qdel(S)
 		return 1
 
-/obj/item/weapon/gun/syringe/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0)
+/obj/item/weapon/gun/syringe/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	if(clumsy_check(user))
 		if(prob(50))
 			to_chat(user, "<span class='warning'>You accidentally shoot yourself!</span>")

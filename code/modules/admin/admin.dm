@@ -16,7 +16,7 @@ var/global/floorIsLava = 0
 	log_adminwarn(rendered)
 	for(var/client/C in admins)
 		if(R_ADMIN & C.holder.rights)
-			if(C.prefs.toggles & CHAT_ATTACKLOGS)
+			if(C.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_ATTACKLOGS)
 				var/msg = rendered
 				to_chat(C, msg)
 
@@ -40,8 +40,6 @@ var/global/floorIsLava = 0
 	if (!istype(src,/datum/admins))
 		to_chat(usr, "Error: you are not an admin!")
 		return
-
-	checkSessionKey()
 	var/body = {"<html><head><title>Options for [M.key]</title></head>
 <body>Options panel for <b>[M]</b>"}
 	var/species_description
@@ -71,12 +69,14 @@ var/global/floorIsLava = 0
 		<A href='?src=\ref[src];newban=\ref[M]'>Ban</A> |
 		<A href='?src=\ref[src];jobban2=\ref[M]'>Jobban</A> |
 		<A href='?src=\ref[src];oocban=\ref[M]'>OOC Ban</A> |
+		<A href='?src=\ref[src];paxban=\ref[M]'>Pax Ban</A> |
 		<A href='?_src_=holder;appearanceban=\ref[M]'>Identity Ban</A> |
 		<A href='?src=\ref[src];notes=show;mob=\ref[M]'>Notes</A>
 	"}
 
 	if(M.client)
 		body += "| <A HREF='?src=\ref[src];sendtoprison=\ref[M]'>Prison</A> | "
+		body += "\ <A href='?src=\ref[src];sendbacktolobby=\ref[M]'>Send back to Lobby</A> | "
 		var/muted = M.client.prefs.muted
 		body += {"<br><b>Mute: </b>
 			\[<A href='?src=\ref[src];mute=\ref[M];mute_type=[MUTE_IC]'><font color='[(muted & MUTE_IC)?"red":"blue"]'>IC</font></a> |
@@ -94,7 +94,8 @@ var/global/floorIsLava = 0
 		<br><br>
 		<A href='?src=\ref[src];traitor=\ref[M]'>Role panel</A> |
 		<A href='?src=\ref[src];narrateto=\ref[M]'>Narrate to</A> |
-		<A href='?src=\ref[src];subtlemessage=\ref[M]'>Subtle message</A>
+		<A href='?src=\ref[src];subtlemessage=\ref[M]'>Subtle message</A> |
+		<A href='?src=\ref[src];sound_reply=\ref[M]'>Direct sound</A>
 	"}
 
 	if(istype(M, /mob/living/carbon/human))
@@ -106,6 +107,7 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];addcancer=\ref[M]'>Inflict Cancer</A> |
 			<A href='?src=\ref[src];makecatbeast=\ref[M]'>Make Catbeast</A> |
 			<A href='?src=\ref[src];makecluwne=\ref[M]'>Make Cluwne</A> |
+			<A href='?src=\ref[src];makebox=\ref[M]'>Make Box</A> |
 			<A href='?src=\ref[src];Assplode=\ref[M]'>Assplode</A> |
 			<A href='?src=\ref[src];DealBrainDam=\ref[M]'>Deal brain damage</A> |
 		"}
@@ -240,7 +242,7 @@ var/global/floorIsLava = 0
 		</body></html>
 	"}
 
-	usr << browse(body, "window=adminplayeropts-\ref[M];size=550x515")
+	usr << browse(HTML_SKELETON(body), "window=adminplayeropts-\ref[M];size=550x515")
 	feedback_add_details("admin_verb","SPP") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 
@@ -272,11 +274,9 @@ var/global/floorIsLava = 0
 	if (!istype(src,/datum/admins))
 		to_chat(usr, "Error: you are not an admin!")
 		return
-	checkSessionKey()
 	var/cid = input("Type computer ID", "CID", 0) as num | null
 	if(cid)
 		usr << link(getVGPanel("rapsheet", admin = 1, query = list("cid" = cid)))
-//	to_chat(usr, link("[config.vgws_base_url]/index.php/rapsheet/?s=[sessKey]&cid=[cid]"))
 	return
 
 /datum/admins/proc/checkCKEY()
@@ -290,10 +290,8 @@ var/global/floorIsLava = 0
 	if (!istype(src,/datum/admins))
 		to_chat(usr, "Error: you are not an admin!")
 		return
-	checkSessionKey()
 	var/ckey = lowertext(input("Type player ckey", "ckey", null) as text | null)
 	usr << link(getVGPanel("rapsheet", admin = 1, query = list("ckey" = ckey)))
-//	usr << link("[config.vgws_base_url]/index.php/rapsheet/?s=[sessKey]&ckey=[ckey]")
 	return
 
 /datum/admins/proc/PlayerNotesPage(page)
@@ -333,7 +331,7 @@ var/global/floorIsLava = 0
 			if(index == page)
 				dat += "</b>"
 
-	usr << browse(dat, "window=player_notes;size=400x400")
+	usr << browse(HTML_SKELETON(dat), "window=player_notes;size=400x400")
 
 
 /datum/admins/proc/player_has_info(var/key as text)
@@ -399,7 +397,7 @@ var/global/floorIsLava = 0
 				I.rank = "N/A"
 				update_file = 1
 			dat += "<font color=#008800>[I.content]</font> <i>by [I.author] ([I.rank])</i> on <i><font color=blue>[I.timestamp]</i></font> "
-			if(I.author == usr.key || check_rights(R_PERMISSIONS, show_msg = 0))
+			if(ckey(I.author) == usr.ckey || check_rights(R_PERMISSIONS, show_msg = 0)) // Older notes stored the key of the banning admin.
 				dat += "<A href='?src=\ref[src];remove_player_info=[key];remove_index=[i]'>Remove</A>"
 			dat += "<br><br>"
 		if(update_file)
@@ -409,7 +407,7 @@ var/global/floorIsLava = 0
 		<A href='?src=\ref[src];add_player_info=[key]'>Add Comment</A><br>
 		</body></html>"}
 
-	usr << browse(dat, "window=adminplayerinfo;size=480x480")
+	usr << browse(HTML_SKELETON(dat), "window=adminplayerinfo;size=480x480")
 
 /datum/admins/proc/access_news_network() //MARKER
 	set category = "Fun"
@@ -458,7 +456,7 @@ var/global/floorIsLava = 0
 					if(CHANNEL.is_admin_channel)
 						dat+="<B><FONT style='BACKGROUND-COLOR: LightGreen'><A href='?src=\ref[src];ac_show_channel=\ref[CHANNEL]'>[CHANNEL.channel_name]</A></FONT></B><BR>"
 					else
-						dat+="<B><A href='?src=\ref[src];ac_show_channel=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ()]<BR></B>"
+						dat+="<B><A href='?src=\ref[src];ac_show_channel=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ""]<BR></B>"
 			dat+={"<BR><HR><A href='?src=\ref[src];ac_refresh=1'>Refresh</A>
 				<BR><A href='?src=\ref[src];ac_setScreen=[0]'>Back</A>
 			"}
@@ -542,7 +540,7 @@ var/global/floorIsLava = 0
 				dat+="<I>No feed channels found active...</I><BR>"
 			else
 				for(var/datum/feed_channel/CHANNEL in news_network.network_channels)
-					dat+="<A href='?src=\ref[src];ac_pick_censor_channel=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ()]<BR>"
+					dat+="<A href='?src=\ref[src];ac_pick_censor_channel=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ""]<BR>"
 			dat+="<BR><A href='?src=\ref[src];ac_setScreen=[0]'>Cancel</A>"
 		if(11)
 			dat+={"
@@ -555,7 +553,7 @@ var/global/floorIsLava = 0
 				dat+="<I>No feed channels found active...</I><BR>"
 			else
 				for(var/datum/feed_channel/CHANNEL in news_network.network_channels)
-					dat+="<A href='?src=\ref[src];ac_pick_d_notice=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ()]<BR>"
+					dat+="<A href='?src=\ref[src];ac_pick_d_notice=\ref[CHANNEL]'>[CHANNEL.channel_name]</A> [(CHANNEL.censored) ? ("<FONT COLOR='red'>***</FONT>") : ""]<BR>"
 
 			dat+="<BR><A href='?src=\ref[src];ac_setScreen=[0]'>Back</A>"
 		if(12)
@@ -652,7 +650,7 @@ var/global/floorIsLava = 0
 
 //	to_chat(world, "Channelname: [src.admincaster_feed_channel.channel_name] [src.admincaster_feed_channel.author]")
 //	to_chat(world, "Msg: [src.admincaster_feed_message.author] [src.admincaster_feed_message.body]")
-	usr << browse(dat, "window=admincaster_main;size=400x600")
+	usr << browse(HTML_SKELETON(dat), "window=admincaster_main;size=400x600")
 	onclose(usr, "admincaster_main")
 
 
@@ -668,7 +666,7 @@ var/global/floorIsLava = 0
 			r = copytext( r, 1, findtext(r,"##") )//removes the description
 		dat += text("<tr><td>[t] (<A href='?src=\ref[src];removejobban=[r]'>unban</A>)</td></tr>")
 	dat += "</table>"
-	usr << browse(dat, "window=ban;size=400x400")
+	usr << browse(HTML_SKELETON(dat), "window=ban;size=400x400")
 
 /datum/admins/proc/Game()
 	if(!check_rights(0))
@@ -683,8 +681,9 @@ var/global/floorIsLava = 0
 	if(master_mode == "Dynamic Mode")
 		if(ticker.current_state == GAME_STATE_PREGAME)
 			dat += "<A href='?src=\ref[src];f_dynamic_roundstart=1'>(Force Roundstart Rulesets)</A><br>"
+			dat += "<A href='?src=\ref[src];f_dynamic_options=1'>(Dynamic mode options)</A><br>"
 			if (forced_roundstart_ruleset.len > 0)
-				for(var/datum/dynamic_ruleset/roundstart/rule in forced_roundstart_ruleset)
+				for(var/datum/forced_ruleset/rule in forced_roundstart_ruleset)
 					dat += {"<A href='?src=\ref[src];f_dynamic_roundstart_remove=\ref[rule]'>-> [rule.name] <-</A><br>"}
 				dat += "<A href='?src=\ref[src];f_dynamic_roundstart_clear=1'>(Clear Rulesets)</A><br>"
 		else
@@ -694,7 +693,9 @@ var/global/floorIsLava = 0
 				if (mode.forced_latejoin_rule)
 					dat += {"<A href='?src=\ref[src];f_dynamic_latejoin_clear=1'>-> [mode.forced_latejoin_rule.name] <-</A><br>"}
 			dat += "<A href='?src=\ref[src];f_dynamic_midround=1'>(Execute Midround Ruleset!)</A><br>"
-
+		dat += "Rulesets are <A href='?src=\ref[src];toggle_rulesets=1'>[admin_disable_rulesets ? "DISABLED" : "ENABLED"]</A><br>"
+		dat += "<hr/>"
+	dat += "Random Events are <A href='?src=\ref[src];toggle_events=1'>[admin_disable_events ? "DISABLED" : "ENABLED"]</A><br>"
 
 	dat += {"
 		<hr />
@@ -715,7 +716,9 @@ var/global/floorIsLava = 0
 		<A href='?src=\ref[src];vsc=airflow'>Edit ZAS Settings</A><br>
 		<A href='?src=\ref[src];vsc=default'>Choose a default ZAS setting</A><br>
 		<A href='?src=\ref[src];xgm_panel=1'>XGM Panel</A><br>
+		<A href='?src=\ref[src];toggle_light=1'>Slow down lighting (Forces MC to crash, do not panic.)</A><br>
 		<hr />
+		<A href='?src=\ref[src];tag_mode=1'>Toggle tag mode! (it is currently [ticker?.tag_mode_enabled ? "On" : "Off"])</A><br>
 		"}
 
 	if(wages_enabled)
@@ -725,8 +728,43 @@ var/global/floorIsLava = 0
 	dat += "<A href ='?src=\ref[src];econ_panel=open'>Manage accounts database</A><br>"
 	dat += "<A href ='?src=\ref[src];religions=1&display=1'>Manage religions</A><br>"
 
-	usr << browse(dat, "window=admin2;size=280x370")
+	usr << browse(HTML_SKELETON(dat), "window=admin2;size=280x370")
 	return
+
+/datum/admins/proc/dynamic_mode_options(mob/user)
+	var/dat = {"
+		<center><B><h2>Dynamic Mode Options</h2></B></center><hr>
+		<br/>
+		<h3>Common options</h3>
+		<i>All these options can be changed midround.</i> <br/>
+		<br/>
+		<b>No stacking:</b> - Option is <a href='?src=\ref[src];no_stacking=1'> <b>[dynamic_no_stacking ? "ON" : "OFF"]</b></a>.
+		<br/>Unless the threat goes above [stacking_limit], only one "round-ender" ruleset will be drafted. <br/>
+		<br/>
+		<b>Classic secret mode:</b> - Option is <a href='?src=\ref[src];classic_secret=1'> <b>[dynamic_classic_secret ? "ON" : "OFF"]</b></a>.
+		<br/>Only one roundstart ruleset will be drafted. Only traitors and minor roles will latespawn. <br/>
+		<br/>
+		<b>High population limit:</b> Current value : <a href='?src=\ref[src];high_pop_limit=1'><b>[dynamic_high_pop_limit]</b></a>.
+		<br/>The threshold at which "high population override" will be in effect. <br/>
+		<br/>
+		<b>Stacking threeshold:</b> Current value : <a href='?src=\ref[src];stacking_limit=1'><b>[stacking_limit]</b></a>.
+		<br/>The threshold at which "round-ender" rulesets will stack. A value higher than 100 ensure this never happens. <br/>
+		<h3>Advanced parameters</h3>
+		The distribution mode is currently : <b>[dynamic_chosen_mode]</b> <br/>
+		Glossary : <br/>
+		<ul>
+			<li> <b>Lorentz distribution</b> : default mode. Heavily weighted towards the chosen centre, but still allows extreme to happen. A wider curve means extreme are more likely.</li>
+			<li> <b>Normal distribution</b> : similar to Lorentz, but extremes are much less likely to happen. </li>
+			<li> <b>Rigged threat number</b> : the threat level will be the chosen centre.</li>
+			<li> <b>Peaceful bias</b> : heavily weighted towards more peaceful rounds. </li>
+			<li> <b>Uniform distribution</b> : a random uniformally distributed number between 1 and 100.</li>
+		</ul>
+		<A href='?src=\ref[src];change_distrib=1'>Change distribution mode</a> <br/>
+		Curve centre: <A href='?src=\ref[src];f_dynamic_roundstart_centre=1'>-> [dynamic_curve_centre] <-</A><br>
+		Curve width: <A href='?src=\ref[src];f_dynamic_roundstart_width=1'>-> [dynamic_curve_width] <-</A><br>
+		"}
+
+	user << browse(HTML_SKELETON(dat), "window=dyn_mode_options;size=900x650")
 
 /datum/admins/proc/Secrets()
 	if(!check_rights(0))
@@ -746,6 +784,7 @@ var/global/floorIsLava = 0
 	if(check_rights(R_FUN,0))
 		dat += {"
 			<A href='?src=\ref[src];secretsfun=spawnselfdummy'>Spawn yourself as a Test Dummy</A><BR>
+			<A href='?src=\ref[src];secretsfun=spawnselfdummyoutfit'>Spawn yourself as a Test Dummy with a Custom Outfit</A><BR>
 			<BR>
 			<BR>
 			"}
@@ -767,6 +806,8 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsadmin=showailaws'>Show AI Laws</A><BR>
 			<A href='?src=\ref[src];secretsadmin=list_lawchanges'>Show last [length(lawchanges)] law changes</A><BR>
 			<BR>
+			<A href='?src=\ref[src];secretsadmin=settime'>Set round time offset</A><BR>
+			<BR>
 			<BR>
 			"}
 
@@ -778,54 +819,44 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=striketeam-deathsquad'>Send in a Death Squad!</A><BR>
 			<A href='?src=\ref[src];secretsfun=striketeam-ert'>Send in an Emergency Response Team!</A><BR>
 			<A href='?src=\ref[src];secretsfun=striketeam-syndi'>Send in a Syndicate Elite Strike Team!</A><BR>
-			<A href='?src=\ref[src];secretsfun=striketeam-custom'>Send in a Custom Strike Team! (Work in Progress!)</A><BR>
+			<A href='?src=\ref[src];secretsfun=striketeam-custom'>Send in a Custom Strike Team!</A><BR>
 			<BR>
 			<BR>
 			"}
 
-
+	/*Anything on this list should have a justifcation to be its own button instead of just the pickevent
+	Parenthesis usually specify the feature that makes this different than just spawning the event
+	Bus Only are events that don't trigger on their own, or were never actually made into event datums
+	*/
 	if(check_rights(R_FUN,0))
 		dat += {"
-			<B>'Random' Events</B><BR>
+			<B>Dynamic Events</B><BR>
+			<a href='?src=\ref[src];secretsfun=pick_event'>Pick a specific Dynamic Event</A><BR>
+			<a href='?src=\ref[src];secretsfun=roll_event'>Roll a random Dynamic Event</A><BR>
 			<BR>
-			<A href='?src=\ref[src];secretsfun=wave'>Spawn a wave of meteors (aka lagocolyptic shower)</A><BR>
-			<A href='?src=\ref[src];secretsfun=silent_meteors'>Spawn a wave of meteors with no warning</A><BR>
+			<A href='?src=\ref[src];secretsfun=vermin_infestation'>Vermin infestation (specify type and location)</A><BR>
+			<A href='?src=\ref[src];secretsfun=hostile_infestation'>Monster infestation (specify type and location)</A><BR>
+			<A href='?src=\ref[src];secretsfun=virus'>Virus Outbreak (lesser, greater, or custom)</A><BR>
+			<A href='?src=\ref[src];secretsfun=comms_blackout'>Communications blackout (silent or announced)</A><BR>
+			<A href='?src=\ref[src];secretsfun=breaklink'>Break the station's link with Central Command (indefinitely)</A><BR>
+			<A href='?src=\ref[src];secretsfun=makelink'>Fix the station's link with Central Command</A><BR>
+			<BR>
+			<B>Bus-Only Events</B>
+			<BR>
 			<A href='?src=\ref[src];secretsfun=gravity'>Toggle station artificial gravity</A><BR>
 			<A href='?src=\ref[src];secretsfun=gravanomalies'>Spawn a gravitational anomaly (aka lagitational anomolag)</A><BR>
 			<A href='?src=\ref[src];secretsfun=timeanomalies'>Spawn wormholes</A><BR>
-			<A href='?src=\ref[src];secretsfun=immovable'>Spawn an Immovable Rod</A><BR>
-			<A href='?src=\ref[src];secretsfun=immovablebig'>Spawn an Immovable Pillar</A><BR>
-			<A href='?src=\ref[src];secretsfun=immovablehyper'>Spawn an Immovable Monolith (highly destructive!)</A><BR>
-			<A href='?src=\ref[src];secretsfun=meaty_gores'>Trigger an Organic Debris Field</A><BR>
-			<A href='?src=\ref[src];secretsfun=fireworks'>Send some fireworks at the station</A><BR>
-			<BR>
-			<A href='?src=\ref[src];secretsfun=blobwave'>Spawn a blob cluster</A><BR>
-			<A href='?src=\ref[src];secretsfun=blobstorm'>Spawn a blob conglomerate</A><BR>
-			<A href='?src=\ref[src];secretsfun=aliens'>Trigger an Alien infestation</A><BR>
-			<A href='?src=\ref[src];secretsfun=alien_silent'>Spawn an Alien silently</A><BR>
-			<A href='?src=\ref[src];secretsfun=spiders'>Trigger a Spider infestation</A><BR>
-			<A href='?src=\ref[src];secretsfun=vermin_infestation'>Spawn a vermin infestation</A><BR>
-			<A href='?src=\ref[src];secretsfun=hostile_infestation'>Spawn a hostile creature infestation</A><BR>
-			<A href='?src=\ref[src];secretsfun=carp'>Trigger a Carp migration</A><BR>
-			<A href='?src=\ref[src];secretsfun=mobswarm'>Trigger mobs of your choice appearing out of thin air</A><BR>
-			<BR>
-			<A href='?src=\ref[src];secretsfun=spacevines'>Spawn Space-Vines</A><BR>
-			<A href='?src=\ref[src];secretsfun=radiation'>Irradiate the station</A><BR>
-			<A href='?src=\ref[src];secretsfun=virus'>Trigger a Virus Outbreak</A><BR>
-			<A href='?src=\ref[src];secretsfun=mass_hallucination'>Cause the crew to hallucinate</A><BR>
-			<BR>
-			<A href='?src=\ref[src];secretsfun=lightsout'>Toggle a "lights out" event</A><BR>
-			<A href='?src=\ref[src];secretsfun=prison_break'>Trigger a Prison Break</A><BR>
-			<A href='?src=\ref[src];secretsfun=ionstorm'>Spawn an Ion Storm</A><BR>
-			<A href='?src=\ref[src];secretsfun=comms_blackout'>Trigger a communication blackout</A><BR>
-			<A href='?src=\ref[src];secretsfun=pda_spam'>Trigger a wave of PDA spams</A><BR>
-			<a href='?src=\ref[src];secretsfun=pick_event'>Pick a random event from all possible random events (WARNING, NOT ALL ARE GUARANTEED TO WORK).</A><BR>
+			<A href='?src=\ref[src];secretsfun=mobswarm'>Any mob infestation (specify type only)</A><BR>
 			<BR>
 			<B>Fun Secrets</B><BR>
 			<BR>
 			<A href='?src=\ref[src];secretsfun=hardcore_mode'>[ticker&&ticker.hardcore_mode ? "Disable" : "Enable"] hardcore mode (makes starvation kill!)</A><BR>
 			<A href='?src=\ref[src];secretsfun=tripleAI'>Triple AI mode (needs to be used in the lobby)</A><BR>
 			<A href='?src=\ref[src];secretsfun=eagles'>Egalitarian Station Mode (removes access on doors except for Command and Security)</A><BR>
+			<A href='?src=\ref[src];secretsfun=RandomizedLawset'>Give the AIs a randomly generated Lawset.</A><BR>
+			<A href='?src=\ref[src];secretsfun=buddha_mode_everyone'>Toggle Buddha Mode on/off for everyone</A><BR>
+			<A href='?src=\ref[src];secretsfun=spawn_custom_turret'>Spawn a customizable turret</A><BR>
+			<A href='?src=\ref[src];secretsfun=spawn_meat_blob'>Spawn a Meat Blob</A><BR>
 			<BR>
 			<A href='?src=\ref[src];secretsfun=power'>Make all areas powered</A><BR>
 			<A href='?src=\ref[src];secretsfun=unpower'>Make all areas unpowered</A><BR>
@@ -834,14 +865,20 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=makelink'>Fix the station's link with Central Command</A><BR>
 			<A href='?src=\ref[src];secretsfun=blackout'>Break all lights</A><BR>
 			<A href='?src=\ref[src];secretsfun=whiteout'>Fix all lights</A><BR>
+			<A href='?src=\ref[src];secretsfun=switchoff'>Flip all (ALL Z-LEVELS) light switches to off</A><BR>
+			<A href='?src=\ref[src];secretsfun=switchon'>Flip all (ALL Z-LEVELS) light switches to on</A><BR>
 			<A href='?src=\ref[src];secretsfun=create_artifact'>Create custom artifact</A><BR>
 			<BR>
+			<A href='?src=\ref[src];secretsfun=athfthrowing'>Toggle thrown items exploding on stop</A><BR>
 			<A href='?src=\ref[src];secretsfun=togglenarsie'>Toggle Nar-Sie's behaviour</A><BR>
 			<BR>
 			<A href='?src=\ref[src];secretsfun=fakealerts'>Trigger a fake alert</A><BR>
-			<A href='?src=\ref[src];secretsfun=fakebooms'>Adds in some Micheal Bay to the shift without major destruction</A><BR>
+			<A href='?src=\ref[src];secretsfun=fakebooms'>Create fake explosions around the station</A><BR>
+			<A href='?src=\ref[src];secretsfun=fakenews'>Create a preset news announcement</A><BR>
 			<BR>
 			<A href='?src=\ref[src];secretsfun=placeturret'>Create a turret</A><BR>
+			<A href='?src=\ref[src];secretsfun=virusdish'>Create a new virus in a dish</A><BR>
+			<A href='?src=\ref[src];secretsfun=bloodstone'>Spawn a cult Blood Stone</A><BR>
 			<BR>
 			<A href='?src=\ref[src];secretsfun=traitor_all'>Make everyone traitors</A><BR>
 			<A href='?src=\ref[src];secretsfun=onlyone'>Highlander/Wizard Wars Mode (There can be only one!)</A><BR>
@@ -849,6 +886,7 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=flicklights'>Ghost Mode</A><BR>
 			<A href='?src=\ref[src];secretsfun=monkey'>Turn all humans into monkeys</A><BR>
 			<BR>
+			<A href='?src=\ref[src];secretsfun=mass_equip_outfit'>Equip outfit on all player humans</A><BR>
 			<A href='?src=\ref[src];secretsfun=sec_all_clothes'>Remove ALL clothing</A><BR>
 			<A href='?src=\ref[src];secretsfun=retardify'>Make all players retarded</A><BR>
 			<A href='?src=\ref[src];secretsfun=fakeguns'>Make all items look like guns (traitor revolvers)</A><BR>
@@ -857,11 +895,20 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=thebees'>Unleash THE BEES onto the crew</A><BR>
 			<A href='?src=\ref[src];secretsfun=floorlava'>The floor is lava! (WARNING: extremely lame and DANGEROUS!)</A><BR>
 			<BR>
+			<A href='?src=\ref[src];secretsfun=togglerunescapepvp'>Toggle Maint-Only PvP</A><BR>
+			<A href='?src=\ref[src];secretsfun=togglerunescapeskull'>Toggle Skull icon appearing over aggressors</A><BR>
+			<BR>
 			<A href='?src=\ref[src];secretsfun=massbomber'>Turn all players into Bomberman</A><BR>
 			<A href='?src=\ref[src];secretsfun=bomberhurt'>Make Bomberman Bombs actually hurt players</A><BR>
 			<A href='?src=\ref[src];secretsfun=bomberdestroy'>Make Bomberman Bombs actually destroy structures</A><BR>
 			<A href='?src=\ref[src];secretsfun=bombernohurt'>Make Bomberman Bombs harmless to players (default)</A><BR>
 			<A href='?src=\ref[src];secretsfun=bombernodestroy'>Make Bomberman Bombs harmless to the environment (default)</A><BR>
+			<BR>
+			<A href='?src=\ref[src];secretsfun=mechanics_motivator'>Incentivize Mechanics to do their job</A><BR>
+			<BR>
+			<B>Major Station Transformations</B><BR>
+			<A href='?src=\ref[src];secretsfun=naturify'>Return the station to nature</A><BR>
+			<A href='?src=\ref[src];secretsfun=christmas_vic'>Make the station christmasy</A><BR>
 			<BR>
 			<B>Final Solutions</B><BR>
 			<I>(Warning, these will end the round!)</I><BR>
@@ -870,7 +917,6 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=supermattercascade'>Start a Supermatter Cascade</A><BR>
 			<A href='?src=\ref[src];secretsfun=meteorstorm'>Trigger an undending Meteor Storm</A><BR>
 			<A href='?src=\ref[src];secretsfun=halloween'>Trigger the blood moon</A><BR>
-			<A href='?src=\ref[src];secretsfun=christmas_vic'>Make the station christmasy</A><BR>
 			"}
 
 	if(check_rights(R_SERVER,0))
@@ -892,7 +938,6 @@ var/global/floorIsLava = 0
 			<A href='?src=\ref[src];secretsfun=maint_access_engiebrig'>Change all maintenance doors to engie/brig access only</A><BR>
 			<A href='?src=\ref[src];secretsfun=maint_access_brig'>Change all maintenance doors to brig access only</A><BR>
 			<A href='?src=\ref[src];secretsfun=infinite_sec'>Remove cap on security officers</A><BR>
-			<a href='?src=\ref[src];secretsfun=virus_custom'>Custom Virus Outbreak</a><BR>
 			<BR>
 			"}
 	dat +=	{"
@@ -904,7 +949,7 @@ var/global/floorIsLava = 0
 		"}
 
 
-	usr << browse(dat, "window=secrets")
+	usr << browse(HTML_SKELETON(dat), "window=secrets")
 	return
 
 /datum/admins/var/datum/shuttle/selected_shuttle
@@ -943,8 +988,103 @@ var/global/floorIsLava = 0
 	<a href='?src=\ref[src];shuttle_add_docking_port=1'>Create a shuttle docking port</a><br>
 	<a href='?src=\ref[src];shuttle_mass_lockdown=1'>Lock down all shuttles</a><br>
 	"}
-	usr << browse(dat, "window=shuttlemagic")
+	usr << browse(HTML_SKELETON(dat), "window=shuttlemagic")
 
+/datum/admins/proc/procedural_generation_panel()
+	set category = "Admin"
+	set name = "Procedural Generation Panel"
+	set desc = "Manage procedurally generated planets and create new ones"
+
+	if(!check_rights(R_ADMIN))
+		return
+
+	if(!SSmapping)
+		to_chat(usr, "<span class='warning'>Mapping subsystem not initialized!</span>")
+		return
+
+	var/dat = "<title>Procedural Generation Panel</title>"
+
+	// Combined planet and discovery data table
+	dat += "<h2>Planet Registry:</h2>"
+	var/has_planets = FALSE
+
+	// Check if we have any planets
+	if(SSmapping.planets.len)
+		has_planets = TRUE
+		dat += "<table border='1' style='width:100%'>"
+		dat += "<tr><th>Planet Name</th><th>Planet Type</th><th>V-Level</th><th>Weather</th><th>Time</th><th>Landing Zone</th><th>Visibility</th><th>Actions</th></tr>"
+
+		// Display existing planets with their virtual z-level data
+		for(var/datum/planet_type/planet in SSmapping.planets)
+			var/planet_name = planet.planet_name
+			var/current_weather = "N/A"
+			var/current_time = "N/A"
+
+			var/datum/virtual_z/vz = planet.v
+
+
+			if(!vz)
+				CRASH("Planet [planet_name] has no virtual z-level!")
+
+			// Get current weather info
+			if(planet.climate && planet.climate.current_weather)
+				current_weather = planet.climate.current_weather.name
+
+			// Get current time of day info for this specific planet
+			if(SSDayNight && vz && (vz in daynight_v_lvls))
+				switch(vz.current_timeOfDay)
+					if(TOD_MORNING) current_time = "Morning"
+					if(TOD_SUNRISE) current_time = "Sunrise"
+					if(TOD_DAYTIME) current_time = "Daytime"
+					if(TOD_AFTERNOON) current_time = "Afternoon"
+					if(TOD_SUNSET) current_time = "Sunset"
+					if(TOD_NIGHTTIME) current_time = "Nighttime"
+
+			// Check landing zone status
+			var/landing_zone_status = ""
+			var/is_generating = SSmapping.generating && (SSmapping.current_planet == planet)
+			var/datum/shuttle/exploration/E
+			for(var/datum/shuttle/S in shuttles)
+				if(istype(S, /datum/shuttle/exploration))
+					E = S
+			if(is_generating)
+				landing_zone_status = "<i>Generating...</i>"
+			else if(E && vz.shuttle_landing_zones[E])
+				landing_zone_status = "Active"
+			else
+				landing_zone_status = "<A href='?_src_=holder;procgen_add_landing_zone=\ref[planet]'>Add Landing Zone</A>"
+
+			// Check visibility status
+			var/visibility_status = planet.hidden ? "<span style='color:red;'>Hidden</span>" : "<span style='color:green;'>Visible</span>"
+			var/visibility_action = planet.hidden ? "Show" : "Hide"
+
+			dat += "<tr>"
+			dat += "<td>[planet_name]</td>"
+			dat += "<td>[planet.name]</td>"
+			dat += "<td>[vz.id]</td>"
+			dat += "<td>[current_weather] <A href='?_src_=holder;procgen_weather=\ref[planet]'>\[Change\]</A></td>"
+			dat += "<td>[current_time] <A href='?_src_=holder;procgen_time=\ref[planet]'>\[Change\]</A></td>"
+			dat += "<td>[landing_zone_status]</td>"
+			dat += "<td>[visibility_status] <A href='?_src_=holder;procgen_toggle_visibility=\ref[planet]'>\[[visibility_action]\]</A></td>"
+			dat += "<td><A href='?_src_=holder;procgen_jump=\ref[planet]'>Jump to Planet</A> | <A href='?_src_=holder;procgen_delete=\ref[planet]'>Destroy</A></td>"
+			dat += "</tr>"
+
+		dat += "</table>"
+
+	if(!has_planets)
+		dat += "<p>No planets currently exist.</p>"
+
+	// Create new planet section
+	dat += "<h2>Create New Planet:</h2>"
+	dat += "<p><A href='?_src_=holder;procgen_create=1'>Generate New Planet</A></p>"
+	if(SSmapping.scanning_disabled)
+		dat += "<p><A href='?_src_=holder;procgen_toggle_exploration=1' style='color:green;'>Enable Planet Generation</A></p>"
+	else
+		dat += "<p><A href='?_src_=holder;procgen_toggle_exploration=1' style='color:red;'>Disable Planet Generation (Recalls Exploration Shuttle)</A></p>"
+
+	var/datum/browser/popup = new(usr, "procgen_panel", "Procedural Generation Panel", 1000, 600)
+	popup.set_content(dat)
+	popup.open()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////admins2.dm merge
 //i.e. buttons/verbs
@@ -969,8 +1109,6 @@ var/global/floorIsLava = 0
 
 		if(blackbox)
 			blackbox.save_all_data_to_sql()
-
-		CallHook("Reboot",list())
 
 		if (watchdog.waiting)
 			to_chat(world, "<span class='notice'><B>Server will shut down for an automatic update in a few seconds.</B></span>")
@@ -1063,11 +1201,11 @@ var/global/floorIsLava = 0
 	if(ticker.current_state == GAME_STATE_PREGAME)
 		ticker.current_state = GAME_STATE_SETTING_UP
 		log_admin("[usr.key] has started the game.")
-		message_admins("<font color='blue'>[usr.key] has started the game.</font>")
+		message_admins("<span class='notice'>[usr.key] has started the game.</span>")
 		feedback_add_details("admin_verb","SN") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 		return 1
 	else
-		to_chat(usr, "<font color='red'>Error: Start Now: Game has already started.</font>")
+		to_chat(usr, "<span class='red'>Error: Start Now: Game has already started.</span>")
 		return 0
 
 /datum/admins/proc/toggleenter()
@@ -1124,8 +1262,6 @@ var/global/floorIsLava = 0
 	message_admins("[key_name_admin(usr)] toggled Aliens [aliens_allowed ? "on" : "off"].", 1)
 	feedback_add_details("admin_verb","TA") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
-#define LOBBY_TICKING_STOPPED 0
-#define LOBBY_TICKING_RESTARTED 2
 /datum/admins/proc/delay()
 	set category = "Server"
 	set desc="Delay the game start/end"
@@ -1159,8 +1295,7 @@ var/global/floorIsLava = 0
 		to_chat(world, "<b>The game start has been delayed.</b>")
 		log_admin("[key_name(usr)] delayed the game.")
 	feedback_add_details("admin_verb","DELAY") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-#undef LOBBY_TICKING_STOPPED
-#undef LOBBY_TICKING_RESTARTED
+
 /datum/admins/proc/adjump()
 	set category = "Server"
 	set desc="Toggle admin jumping"
@@ -1206,8 +1341,6 @@ var/global/floorIsLava = 0
 	if(blackbox)
 		blackbox.save_all_data_to_sql()
 
-	CallHook("Reboot",list())
-
 	if (watchdog.waiting)
 		to_chat(world, "<span class='notice'><B>Server will shut down for an automatic update in a few seconds.</B></span>")
 		watchdog.signal_ready()
@@ -1232,47 +1365,19 @@ var/global/floorIsLava = 0
 
 ////////////////////////////////////////////////////////////////////////////////////////////////ADMIN HELPER PROCS
 
-/proc/is_special_character(mob/M as mob) // returns 1 for special characters
-	if(!ticker || !ticker.mode)
-		return 0
-	if (!istype(M))
-		return 0
-	if(isrev(M) || isrevhead(M))
-		return 1
-	if(isanycultist(M))
-		return 1
-	if(ismalf(M))
-		return 1
-	if(isnukeop(M))
-		return 1
-	if(iswizard(M) || isapprentice(M))
-		return 1
-	if(ischangeling(M))
-		return 1
-	/*if(isborer(M)) //They ain't antags anymore
-		if (ticker.mode.config_tag == "borer")
-			return 2
-		return 1*/
-	if(isbadmonkey(M))
-		return 1
-	if(isrobot(M))
-		var/mob/living/silicon/robot/R = M
-		if(R.emagged)
-			return 1
-	if(isdeathsquad(M))
-		return 1
-	if(M.mind&&M.mind.special_role)//If they have a mind and special role, they are some type of traitor or antagonist.
-		return 1
-	if (M.mind && M.mind.GetRole(CRUSADER))
-		return 1
-	if (M.mind && M.mind.GetRole(SURVIVOR))
-		return 1
-	if (M.mind && M.mind.GetRole(MAGICIAN))
-		return 1
+/proc/is_special_character(mob/M) // returns 1 for special characters
+	var/mob/living/silicon/robot/R = M
+	if (istype(R) && R.emagged)
+		return TRUE
+	return (M.mind ? M.mind.antag_roles.len : null)
 
+/proc/get_afk_admins()
+	var/admin_number_afk = 0
+	for(var/client/X in admins)
+		if(X.is_afk())
+			admin_number_afk++
 
-	return 0
-
+	return admin_number_afk
 /*
 /datum/admins/proc/get_sab_desc(var/target)
 	switch(target)
@@ -1309,35 +1414,38 @@ var/global/floorIsLava = 0
 
 		object = copytext(object, 1, variables_start)
 
-	var/list/matches = get_matching_types(object, /atom)
-
-	if(matches.len==0)
+	var/chosen = filter_typelist_input("Select an atom type", "Spawn Atom", get_matching_types(object, /atom))
+	if(!chosen)
 		return
-
-	var/chosen
-	if(matches.len==1)
-		chosen = matches[1]
-	else
-		chosen = input("Select an atom type", "Spawn Atom", matches[1]) as null|anything in matches
-		if(!chosen)
-			return
-
-	//preloader is hooked to atom/New(), and is automatically deleted once it 'loads' an object
-	_preloader = new(varchanges, chosen)
-
-	if(ispath(chosen,/turf))
-		var/turf/T = get_turf(usr.loc)
-		T.ChangeTurf(chosen)
-	else if(ispath(chosen, /area))
-		var/area/A = locate(chosen)
-		var/turf/T = get_turf(usr.loc)
-
-		T.set_area(A)
-	else
-		new chosen(usr.loc)
+	var/atom/location = usr.loc
+	location.spawn_at(chosen, varchanges)
 
 	log_admin("[key_name(usr)] spawned [chosen] at ([usr.x],[usr.y],[usr.z])")
 	feedback_add_details("admin_verb","SA") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+
+// Helper functions for proc call madness
+/atom/proc/spawn_at(var/type, var/list/varchanges = list())
+	if(!ispath(type))
+		return
+	//preloader is hooked to atom/New(), and is automatically disabled once it 'loads' an object
+	_preloader.setup(varchanges, type)
+
+	if(ispath(type,/turf))
+		var/turf/T = get_turf(src)
+		T.ChangeTurf(type)
+	else if(ispath(type, /area))
+		var/area/A = locate(type)
+		var/turf/T = get_turf(src)
+
+		T.set_area(A)
+	else
+		new type(src)
+
+/atom/proc/spawn_at_turf(var/type, var/list/varchanges = list())
+	if(isarea(src))
+		return
+	var/turf/T = get_turf(src)
+	T.spawn_at(type,varchanges)
 
 /datum/admins/proc/show_role_panel(var/mob/M in mob_list)
 	set category = "Admin"
@@ -1358,7 +1466,7 @@ var/global/floorIsLava = 0
 /datum/admins/proc/toggletintedweldhelmets()
 	set category = "Debug"
 	set desc="Reduces view range when wearing welding helmets"
-	set name="Toggle tinted welding helmes"
+	set name="Toggle tinted welding helmets"
 
 	tinted_weldhelh = !( tinted_weldhelh )
 	if (tinted_weldhelh)
@@ -1429,6 +1537,17 @@ var/global/floorIsLava = 0
 	if(istype(H))
 		H.regenerate_icons()
 
+/datum/admins/proc/ashInvokedEmotions()
+	set category = "Admin"
+	set name = "Ash Invoked Emotions"
+	set desc = "Ashes all paper from the 'invoke emotions' wizard spell. Emergency porn purge."
+	if(alert("Are you sure you want to ash all invoked emotions?", "Invoked Emotions Panic", "Yes", "No") != "No")
+		var/numEmot = 0
+		for(var/obj/item/weapon/paper/emotion_invoker/EI in invoked_emotions)
+			EI.destroyEmotion()
+			numEmot++
+		message_admins("<span class='notice'>[numEmot] invoked emotions ashed.</span>")
+
 //
 //
 //ALL DONE
@@ -1442,7 +1561,7 @@ var/global/floorIsLava = 0
 
 var/admin_shuttle_location = 0 // 0 = centcom 13, 1 = station
 
-proc/move_admin_shuttle()
+/proc/move_admin_shuttle()
 	var/area/fromArea
 	var/area/toArea
 	if (admin_shuttle_location == 1)
@@ -1462,7 +1581,7 @@ proc/move_admin_shuttle()
 
 var/alien_ship_location = 1 // 0 = base , 1 = mine
 
-proc/move_alien_ship()
+/proc/move_alien_ship()
 	var/area/fromArea
 	var/area/toArea
 	if (alien_ship_location == 1)
@@ -1478,7 +1597,7 @@ proc/move_alien_ship()
 		alien_ship_location = 1
 	return
 
-proc/formatJumpTo(location, where = "")
+/proc/formatJumpTo(location, where = "")
 	var/turf/loc
 
 	if (isturf(location))
@@ -1491,7 +1610,7 @@ proc/formatJumpTo(location, where = "")
 
 	return "<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[loc ? loc.x : "mystery"];Y=[loc ? loc.y : "mystery"];Z=[loc ? loc.z : "mystery"]'>[where]</a>"
 
-proc/formatLocation(location)
+/proc/formatLocation(location)
 	var/turf/loc
 
 	if (isturf(location))
@@ -1503,7 +1622,7 @@ proc/formatLocation(location)
 	var/answer = "[istype(A) ? "[A.name]" : "UNKNOWN"] - [istype(loc) ? "[loc.x],[loc.y],[loc.z]" : "UNKNOWN"]"
 	return answer
 
-proc/formatPlayerPanel(var/mob/U,var/text="PP")
+/proc/formatPlayerPanel(var/mob/U,var/text="PP")
 	return "<A HREF='?_src_=holder;adminplayeropts=\ref[U]'>[text]</A>"
 
 //Credit to MrStonedOne from TG for this QoL improvement
@@ -1537,3 +1656,219 @@ proc/formatPlayerPanel(var/mob/U,var/text="PP")
 	tomob.ckey = frommob.ckey
 	qdel(frommob)
 	return 1
+
+/datum/admins/proc/CreditsPanel()
+	if(!check_rights(0))
+		return
+
+	var/dat = "<center><B>Credits Panel</B></center><hr>"
+	dat += "<center><B>Screenshot:</b></center>"
+	dat += "Chosen Screenshot: [end_credits.customized_ss && end_credits.ss] <A href='?src=\ref[src];credits=setss'>(Set Link)</A> "
+	if(end_credits.customized_ss != "" && !end_credits.drafted)
+		dat += "<A href='?src=\ref[src];credits=resetss'>(Reset)</A> "
+	if(!end_credits.drafted)
+		dat += "<span style='color:red'><br>The round isn't over, so the featured screenshot can still be set. Screenshots do not generate automatically.</span>"
+	dat += "<hr>"
+	dat += "<center><B>Star Of The Show:</b></center>"
+	dat += "Chosen Star: [end_credits.customized_star == "" && end_credits.star == "" ? "(Will Select Automatically)" : end_credits.customized_star || end_credits.star] <A href='?src=\ref[src];credits=setstartext'>(Set Plaintext)</A> <A href='?src=\ref[src];credits=setstarmob'>(Set Mob From List)</A> "
+	if(end_credits.customized_star != "" && !end_credits.drafted)
+		dat += "<A href='?src=\ref[src];credits=resetstar'>(Reset)</A> "
+	if(!end_credits.drafted)
+		dat += "<span style='color:red'><br>The round isn't over, so the featured star hasn't been picked yet.<br>You can manually set one now, or whichever human has talked the most this round will automatically be selected as the featured star when the round ends.</span>"
+	dat += "<hr>"
+	dat += "<center><B>Episode Name:</B></center>"
+	dat += "Chosen Name: [end_credits.customized_name == "" && end_credits.episode_name == "" ? "(Will Generate Automatically)" : end_credits.customized_name || end_credits.episode_name] <A href='?src=\ref[src];credits=setname'>(Set)</A> "
+	if(end_credits.customized_name != "" && !end_credits.drafted)
+		dat += "<A href='?src=\ref[src];credits=resetname'>(Reset)</A> "
+	else if(end_credits.drafted)
+		dat += "<A href='?src=\ref[src];credits=rerollname'>(Reroll!)</A> "
+	dat += "<br>"
+	if(!end_credits.drafted)
+		dat += "<span style='color:red'>The round isn't over, so the name possibilities haven't been drafted yet.<br>You can manually write down a set name now, or come back when the round ends.</span>"
+	else
+		dat += "Drafted Name Possibilities: "
+		dat += "<div id='draftednames'>"
+		for(var/datum/episode_name/N in end_credits.episode_names)
+			dat += "[N.make_div(src)]<br>"
+		dat += "</div>"
+	dat += "<hr>"
+	dat += "<center><B>Disclaimers:</B></center>"
+	if(!end_credits.drafted)
+		dat += "<span style='color:red'>The round isn't over, so the disclaimers haven't been generated yet.<br>You can add some now (they will show up at the top), or come back when the round ends.</span>"
+	dat += "<br>Generated Disclaimers: "
+	dat += "<div id='disclaimers'>"
+	dat += "<a href='?src=\ref[src];credits=newdisclaimer'>(Add New)</a></br>"
+	for(var/i = 1; i <= end_credits.disclaimers.len; i++)
+		var/disclaimer = end_credits.disclaimers[i]
+		if(i > 1)
+			dat += "<a href='?src=\ref[src];credits=disclaimerup;disclaimerindex=[i]'>&#8743;</a>"
+		else
+			dat += "&nbsp"
+		if(i < end_credits.disclaimers.len)
+			dat += "<a href='?src=\ref[src];credits=disclaimerdown;disclaimerindex=[i]'>&#8744;</a>"
+		else
+			dat += "&nbsp"
+		dat += "<a href='?src=\ref[src];credits=editdisclaimer;disclaimerindex=[i]'> (Edit) </a>"
+		if(findtext(disclaimer, "<img"))
+			dat += "<span style='background-color: black'>[disclaimer]</span>"
+		else
+			dat += "[html_encode(disclaimer)]"
+		dat += "<br>"
+	dat += "</div>"
+
+	dat += "<hr><br><center>ADVANCED: <a href='?_src_=vars;Vars=\ref[end_credits]'>Debug Credits Datum</A></center>"
+
+	usr << browse(HTML_SKELETON(dat), "window=creditspanel;size=600x800")
+
+/datum/admins/proc/PersistencePanel()
+	if(!check_rights(0))
+		return
+
+	var/dat = "<center><B>Persistence Panel</B></center><hr>"
+
+	dat += "Filth Persistence for this round is: "
+	if(SSpersistence_map.savingFilth)
+		dat += "<b>ACTIVE</b> - Next round will have this round's uncleaned filth."
+	else
+		dat += "<b>INACTIVE</b> - Next round will have a clean station."
+	dat += "<br><A href='?src=\ref[src];persistenceaction=togglesaving'>(Toggle Saving)</a> <A href='?src=\ref[src];persistenceaction=qdelall'>(DELETE EVERYTHING)</a><hr>"
+
+	for(var/index in SSpersistence_map.subdatums)
+		var/datum/map_persistence_type/T = SSpersistence_map.subdatums[index]
+		if(!istype(T))
+			continue
+		dat += "<b>[T.name]</b>: [T.tracking.len] entries - <A href='?src=\ref[src];persistencedatum=\ref[T];persistenceaction=qdelall'>(DELETE)</A><br>"
+		dat += "Max [T.max_per_turf] per turf. Lasts up to [T.max_age] rounds.<hr>"
+
+	usr << browse(HTML_SKELETON(dat), "window=persistencepanel;size=350x600")
+
+/datum/admins/proc/ViewAllRods()
+	if(!check_rights(0))
+		return
+
+	var/dat = "<center><B>View all active rods</B></center><hr>"
+
+	for (var/obj/item/projectile/immovablerod/rod in all_rods)
+		dat += "<b>[rod]</b> in z = [rod.z] (<a href='?_src_=vars;Vars=\ref[rod]'>\[VV\]</A>)"
+		if (rod.tracking)
+			dat += "- <A href='?src=\ref[src];rod_to_untrack=\ref[rod]'>(UNTRACK)</A>"
+		dat += "<br/>"
+
+	usr << browse(HTML_SKELETON(dat), "window=rodswindow;size=350x300")
+
+/datum/admins/proc/beasts_panel()
+
+	var/dat = {"<html>
+		<head>
+		<title>Megabeast Panel</title>
+		<style>
+		table,h2 {
+		font-family: Arial, Helvetica, sans-serif;
+		border-collapse: collapse;
+		}
+		td, th {
+		border: 1px solid #dddddd;
+		padding: 8px;
+		}
+		tr:nth-child(even) {
+		background-color: #dddddd;
+		}
+		</style>
+		</head>
+		<body>
+		<h2 style="text-align:center">Megabeast Panel</h2>
+		<table>
+		<tr>
+		<th style="width:1%">Mob</th>
+		<th style="width:1%">Name</th>
+		<th style="width:1%">Datum Info</th>
+		<th style="width:2%">Ability</th>
+		<th style="width:2%"><a href='?src=\ref[src];create_megabeast=1'>New</a></th><!-- Spawn a random FB -->
+		</tr>
+		"}
+
+	for(var/datum/procedural_mobspawn/ID in procgen_mob_datums)
+		var/projectile_name = ""
+		var/breath_name = ""
+		var/passive_name = ""
+		var/radioactive = ""
+		if(ID.ranged)
+			if(ID.mybreath)
+				projectile_name = "Breath: [ID.mybreath.name]\n"
+			else if(ID.projectiletype)
+				breath_name = "Projectile: [ID.projectiletype.name]\n"
+		if(ID.radioactive)
+			radioactive = "Radiation Pulse"
+		if(ID.vapors)
+			passive_name = "[ID.vapors.name] Smoke"
+
+		dat += {"<tr>
+			<td>[bicon(ID)]</td>
+			<td>[ID.name]</td>
+			<td><a href='?_src_=vars;Vars=\ref[ID]'>\[VV\]</a> <a href='?_src_=vars;mark_object=\ref[ID]'>\[mark datum\]</a></td>
+			<td>[projectile_name][breath_name][radioactive]<br>[passive_name]</br></td>
+			<td><a href='?src=\ref[src];create_megabeast=\ref[ID]'>Spawn</a></td><!-- Spawn this FB specifically.-->
+			</tr>
+			"}
+
+	dat += {"</table>
+		</body>
+		</html>
+		"}
+
+	usr << browse(HTML_SKELETON(dat), "window=beastspanel;size=840x450")
+
+/datum/admins/proc/create_megabeast(var/datum/procedural_mobspawn/add_template)//Since megabeasts are generated on initialize, they may have descriptions that don't match their traits when generated. Good thing admins can varedit the FB datum before spawning it! -Mr. Heavenly
+	if(!check_rights(R_SPAWN))
+		return
+
+	if(!add_template)
+		if(alert(usr, "Create custom megabeast?", "Megabeast panel", "Yes", "No") == "Yes")
+			//your inputs go here
+			var/datum/procedural_mobspawn/my_monster = new()
+			my_monster.name =  input(usr,"Please name your megabeast:","Name your megabeast",null) as text
+			if(!my_monster.name)
+				my_monster.name = "Forgotten Beast"
+			var/mob/living/simple_animal/hostile/mob_type = filter_typelist_input("Please select the base mob.", "Mob selection", typesof(/mob/living/simple_animal/hostile))
+			if(mob_type:icon)
+				my_monster.icon = mob_type:icon
+				my_monster.icon_state = mob_type:icon_state
+			if(alert(usr, "Apply custom attributes?", "Megabeast panel", "Yes", "No") == "Yes")
+				my_monster.maxHealth =  input(usr,"Maximum HP","Megabeast panel",null) as num
+				my_monster.melee_damage_lower =  input(usr,"Minimum Damage","Megabeast panel",null) as num
+				my_monster.melee_damage_upper =  input(usr,"Maximum Damage","Megabeast panel",null) as num
+			if(alert(usr, "Customize appearance modifiers?", "Megabeast panel", "Yes", "No") == "Yes")
+				my_monster.color =  input(usr,"Color (Text):","Megabeast panel",null) as color
+				var/scaling_x =  input(usr,"Size Multiplier - X axis, base 1.00","Megabeast panel",null) as num
+				var/scaling_y =  input(usr,"Size Multiplier - Y axis, base 1.00","Megabeast panel",null) as num
+				my_monster.size_matrix = matrix()
+				my_monster.size_matrix.Scale(scaling_x, scaling_y)
+			if(alert(usr, "Manually assign abilities?", "Megabeast panel", "Yes", "No") == "Yes")
+				if(alert(usr, "Assign projectile attack?", "Megabeast panel", "Yes", "No") == "Yes")
+					my_monster.projectiletype = filter_typelist_input("Please select the projectile.", "Projectile selection", typesof(/obj/item/projectile))
+					my_monster.ranged = TRUE
+				else
+					if(alert(usr, "Assign breath attack?", "Megabeast panel", "Yes", "No") == "Yes")
+						var/list/my_breaths = list()
+						for (var/list/x in breath_list)
+							my_breaths += x[1]
+						var/selection = input("Please select the breath type.", "Breath selection") as null|anything in my_breaths
+
+						for (var/list/x in breath_list)
+							if(selection in x)
+								my_monster.PickBreath(x[1])
+				if(alert(usr, "Make it radioactive?", "Megabeast panel", "Yes", "No") == "Yes")
+					my_monster.radioactive = TRUE
+					return
+				else
+					my_monster.radioactive = FALSE
+
+				if(alert(usr, "Assign vapors?", "Megabeast panel", "Yes", "No") == "Yes")
+					var/datum/reagent/my_chemical = filter_typelist_input("Please select the projectile.", "Projectile selection", typesof(/datum/reagent))
+					my_monster.PickVapors(my_chemical)
+				else
+					my_monster.vapors = FALSE
+		else
+			new /datum/procedural_mobspawn()
+		return
+	new /mob/living/simple_animal/hostile/forgotten_beast(get_turf(usr), add_template)

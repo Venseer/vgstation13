@@ -32,9 +32,11 @@
 	minbodytemp = 0
 	speed = 5
 
-	supernatural = 1
+	supernatural = TRUE
 
 	faction = "faithless"
+
+	blooded = FALSE
 
 /mob/living/simple_animal/hostile/faithless/Process_Spacemove(var/check_drift = 0)
 	return 1
@@ -50,7 +52,8 @@
 	if(istype(L))
 		if(prob(12))
 			L.Knockdown(3)
-			L.visible_message("<span class='danger'>\the [src] knocks down \the [L]!</span>")
+			L.Stun(3)
+			L.visible_message("<span class='danger'>\The [src] knocks down \the [L]!</span>")
 
 /mob/living/simple_animal/hostile/faithless/cult
 	faction = "cult"
@@ -97,7 +100,7 @@
 			var/obj/machinery/door/D = A
 			if(D.density)
 				D.open()
-		else if(istype(A,/obj/structure/cult_legacy/pylon))
+		else if(istype(A,/obj/structure/cult/pylon))
 			A.attack_animal(src)
 		else if(istype(A, /obj/structure/window) || istype(A, /obj/structure/closet) || istype(A, /obj/structure/table) || istype(A, /obj/structure/grille) || istype(A, /obj/structure/rack))
 			A.attack_animal(src)

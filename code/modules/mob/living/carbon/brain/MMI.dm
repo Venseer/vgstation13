@@ -16,6 +16,12 @@
 		/obj/item/robot_parts/l_arm = 1
 	)
 
+	var/list/sammi_assembly_parts = list(
+		/obj/item/weapon/cell = 1,
+		/obj/item/robot_parts/r_arm = 1,
+		/obj/item/robot_parts/l_arm = 1
+	)
+
 	req_access = list(access_robotics)
 
 	//Revised. Brainmob is now contained directly within object of transfer. MMI in this case.
@@ -25,23 +31,21 @@
 	var/mob/living/silicon/robot = null//Appears unused.
 	var/obj/mecha = null//This does not appear to be used outside of reference in mecha.dm.
 
-obj/item/device/mmi/Destroy()
+/obj/item/device/mmi/Destroy()
 	if(brainmob)
-		qdel(brainmob)
-		brainmob = null
+		QDEL_NULL(brainmob)
 	..()
 
 	// Return true if handled
 /obj/item/device/mmi/proc/try_handling_mommi_construction(var/obj/item/O as obj, var/mob/user as mob)
-	if(istype(O,/obj/item/weapon/screwdriver))
+	if(O.is_screwdriver(user))
 		for(var/t in mommi_assembly_parts)
 			var/cc=contents_count(t)
 			var/req=mommi_assembly_parts[t]
 			if(cc<req)
 				var/temppart = new t(src)
 				to_chat(user, "<span class='warning'>You're short [req-cc] [temppart]\s.</span>")
-				qdel(temppart)
-				temppart = null
+				QDEL_NULL(temppart)
 				return TRUE
 		if(!istype(loc,/turf))
 			to_chat(user, "<span class='warning'>You can't assemble the MoMMI, \the [src] has to be standing on the ground (or a table) to be perfectly precise.</span>")
@@ -64,8 +68,6 @@ obj/item/device/mmi/Destroy()
 			to_chat(user, "<span class='warning'>This brain does not seem to fit.</span>")
 			return TRUE
 		//canmove = 0
-		icon = null
-		invisibility = 101
 		var/mob/living/silicon/robot/mommi/M = new /mob/living/silicon/robot/mommi/nt(get_turf(loc))
 		if(!M)
 			return
@@ -73,18 +75,18 @@ obj/item/device/mmi/Destroy()
 		//M.custom_name = created_name
 
 		brainmob.mind.transfer_to(M)
-		M.Namepick()
-		M.updatename()
+		var/obj/item/weapon/cell/ourcell = locate(/obj/item/weapon/cell) in contents
+		ourcell.forceMove(M)
+		M.add_cell(ourcell)
+		src.forceMove(M)//Should fix cybros run time erroring when blown up. It got deleted before, along with the frame.
+		M.mmi = src
 
 		if(M.mind && M.mind.special_role)
 			M.mind.store_memory("In case you look at this after being borged, the objectives are only here until I find a way to make them not show up for you, as I can't simply delete them without screwing up round-end reporting. --NeoFite")
 
 		M.job = "MoMMI"
 
-		M.cell = locate(/obj/item/weapon/cell) in contents
-		M.cell.forceMove(M)
-		src.forceMove(M)//Should fix cybros run time erroring when blown up. It got deleted before, along with the frame.
-		M.mmi = src
+		M.Namepick() //this delays the return until after you're done namepicking so it may still cause nervegas further down the line
 		return TRUE
 	for(var/t in mommi_assembly_parts)
 		if(istype(O,t))
@@ -93,21 +95,54 @@ obj/item/device/mmi/Destroy()
 				if(!brainmob)
 					to_chat(user, "<span class='warning'>Why are you sticking robot legs on an empty [src], you idiot?</span>")
 					return TRUE
-				if(!user.drop_item(O, src))
-					to_chat(user, "<span class='warning'>You can't let go of \the [src]!</span>")
+				if(!user.drop_item(O, src, failmsg = TRUE))
 					return FALSE
 
 				contents += O
-				to_chat(user, "<span class='notice'>You successfully add \the [O] to the contraption,</span>")
+				to_chat(user, "<span class='notice'>You successfully add \the [O] to the contraption.</span>")
 				return TRUE
 			else if(cc==mommi_assembly_parts[t])
 				to_chat(user, "<span class='warning'>You have enough of these.</span>")
 				return TRUE
 	return FALSE
 
+/obj/item/device/mmi/proc/try_handling_sammi_construction(var/obj/item/O as obj, var/mob/user as mob)
+	if(O.is_wrench(user))
+		for(var/t in sammi_assembly_parts)
+			var/cc=contents_count(t)
+			var/req=sammi_assembly_parts[t]
+			if(cc<req)
+				to_chat(user, "<span class='warning'>You're short [req-cc] [t]\s.</span>")
+				return TRUE
+		if(!istype(loc,/turf))
+			to_chat(user, "<span class='warning'>You can't assemble the SAMMI, \the [src] has to be standing on the ground (or a table) to be perfectly precise.</span>")
+			return TRUE
+		new /mob/living/silicon/robot/mommi/sammi(get_turf(loc))
+		qdel(src)
+		return TRUE
+
+	for(var/t in sammi_assembly_parts)
+		if(istype(O,t))
+			var/cc=contents_count(t)
+			if(cc<sammi_assembly_parts[t])
+				if(!user.drop_item(O, src, failmsg = TRUE))
+					return FALSE
+
+				contents += O
+				to_chat(user, "<span class='notice'>You successfully add \the [O] to the contraption,</span>")
+				return TRUE
+			else if(cc==sammi_assembly_parts[t])
+				to_chat(user, "<span class='warning'>You have enough of these.</span>")
+				return TRUE
+	return FALSE
+
 /obj/item/device/mmi/attackby(var/obj/item/O as obj, var/mob/user as mob)
-	if(try_handling_mommi_construction(O,user))
-		return
+	if(!brainmob)
+		if(try_handling_sammi_construction(O,user))
+			return
+	else
+		if(try_handling_mommi_construction(O,user))
+			return
 	if(istype(O,/obj/item/organ/internal/brain) && !brainmob) //Time to stick a brain in it --NEO
 		// MaMIs inherit from brain, but they shouldn't be insertable into a MMI
 		if (istype(O, /obj/item/organ/internal/brain/mami))
@@ -121,19 +156,9 @@ obj/item/device/mmi/Destroy()
 		// Checking to see if the ghost has been moused/borer'd/etc since death.
 		var/mob/living/carbon/brain/BM = BO.brainmob
 		if(!BM.client)
-			var/mob/dead/observer/ghost = mind_can_reenter(BM.mind)
-			if(ghost)
-				var/mob/ghostmob = ghost.get_top_transmogrification()
-				if(ghostmob)
-					to_chat(user, "<span class='warning'>\The [src] indicates that \the [O] seems slow to respond. Try again in a few seconds.</span>")
-					ghostmob << 'sound/effects/adminhelp.ogg'
-					to_chat(ghostmob, "<span class='interface big'><span class='bold'>Someone is trying to put your brain in a MMI. Return to your body if you want to be resurrected!</span> \
-						(Verbs -> Ghost -> Re-enter corpse, or <a href='?src=\ref[ghost];reentercorpse=1'>click here!</a>)</span>")
-					return TRUE
-			to_chat(user, "<span class='warning'>\The [src] indicates that \the [O] is completely unresponsive; there's no point.</span>")
+			to_chat(user, "<span class='warning'>\The [src] indicates that \the [O] [BM.ghost_reenter_alert("Someone is trying to put your brain in a MMI. Return to your body if you want to be resurrected!") ? "seems slow to respond. Try again in a few seconds" : "is completely unresponsive; there's no point"].</span>")
 			return TRUE
-		if(!user.drop_item(O))
-			to_chat(user, "<span class='warning'>You can't let go of \the [O]!</span>")
+		if(!user.drop_item(O, failmsg = TRUE))
 			return TRUE
 
 		src.visible_message("<span class='notice'>[user] sticks \a [O] into \the [src].</span>")
@@ -145,11 +170,14 @@ obj/item/device/mmi/Destroy()
 		brainmob.stat = 0
 		brainmob.resurrect()
 
-		qdel(O)
-		O = null
+		QDEL_NULL(O)
 
 		name = "[initial(name)]: [brainmob.real_name]"
 		icon_state = "mmi_full"
+
+		if (isrev(brainmob))
+			var/datum/role/revolutionary/R = brainmob.mind.GetRole(REV)
+			R.Drop(TRUE)
 
 		locked = 1
 
@@ -180,8 +208,7 @@ obj/item/device/mmi/Destroy()
 		to_chat(user, "<span class='notice'>You upend \the [src], spilling the brain onto the floor.</span>")
 		var/obj/item/organ/internal/brain/brain = new(user.loc)
 		brain.transfer_identity(brainmob)
-		qdel(brainmob)
-		brainmob = null//Set mmi brainmob var to null
+		QDEL_NULL(brainmob)//Set mmi brainmob var to null
 
 		icon_state = "mmi_empty"
 		name = initial(name)
@@ -194,10 +221,36 @@ obj/item/device/mmi/Destroy()
 		brainmob.dna = H.dna.Clone()
 	brainmob.container = src
 
+	if (isbrain(H))
+		var/mob/living/carbon/brain/otherbrain = H
+		brainmob.timeofhostdeath = otherbrain.timeofhostdeath
+	else if (H.timeofdeath == 0)//happens when the human gets decapitated while still alive
+		brainmob.timeofhostdeath = world.time
+	else
+		brainmob.timeofhostdeath = H.timeofdeath
+
 	name = "Man-Machine Interface: [brainmob.real_name]"
 	icon_state = "mmi_full"
 	locked = 1
 	return
+
+/obj/item/device/mmi/proc/create_identity(var/datum/preferences/P)
+	brainmob = new(src)
+	brainmob.dna = new()
+	brainmob.dna.ResetUI()
+	brainmob.dna.ResetSE()
+	var/datum/preference_setting/name_pref = P.get_pref_datum(/datum/preference_setting/string/real_name)
+	var/species = P.get_pref(/datum/preference_setting/string/species)
+	var/gender = P.get_pref(/datum/preference_setting/enum/gender)
+	if(P.get_pref(/datum/preference_setting/toggle/be_random_name))
+		name_pref.setting = random_name(gender, species)
+	brainmob.name = name_pref.setting
+	brainmob.real_name = name_pref.setting
+	brainmob.container = src
+
+	name = "Man-Machine Interface: [brainmob.real_name]"
+	icon_state = "mmi_full"
+	locked = 1
 
 /obj/item/device/mmi/radio_enabled
 	name = "Radio-enabled Man-Machine Interface"
@@ -213,8 +266,7 @@ obj/item/device/mmi/Destroy()
 
 /obj/item/device/mmi/radio_enabled/Destroy()
 	..()
-	qdel(radio)
-	radio = null
+	QDEL_NULL(radio)
 
 /obj/item/device/mmi/radio_enabled/verb/Toggle_Broadcasting()
 	set name = "Toggle Broadcasting"
@@ -227,7 +279,7 @@ obj/item/device/mmi/Destroy()
 		to_chat(brainmob, "Can't do that while incapacitated or dead.")
 
 	radio.broadcasting = radio.broadcasting==1 ? 0 : 1
-	to_chat(brainmob, "<<span class='notice'>Radio is [radio.broadcasting==1 ? "now" : "no longer"] broadcasting.</span>")
+	to_chat(brainmob, "<span class='notice'>Radio is [radio.broadcasting==1 ? "now" : "no longer"] broadcasting.</span>")
 
 /obj/item/device/mmi/radio_enabled/verb/Toggle_Listening()
 	set name = "Toggle Listening"

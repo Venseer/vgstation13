@@ -1,55 +1,16 @@
-//This file was auto-corrected by findeclaration.exe on 25.5.2012 20:42:33
-
-/* new portable generator - work in progress
-
-/obj/machinery/power/port_gen
-	name = "portable generator"
-	desc = "A portable generator used for emergency backup power."
-	icon = 'generator.dmi'
-	icon_state = "off"
-	density = 1
-	anchored = 0
-	var/t_status = 0
-	var/t_per = 5000
-	var/filter = 1
-	var/tank = null
-	var/turf/inturf
-	var/starter = 0
-	var/rpm = 0
-	var/rpmtarget = 0
-	var/capacity = 1e6
-	var/turf/outturf
-	var/lastgen
-
-
-/obj/machinery/power/port_gen/process()
-ideally we're looking to generate 5000
-
-/obj/machinery/power/port_gen/attackby(obj/item/weapon/W, mob/user)
-tank [un]loading stuff
-
-/obj/machinery/power/port_gen/attack_hand(mob/user)
-turn on/off
-
-/obj/machinery/power/port_gen/examine()
-display round(lastgen) and plasmatank amount
-
-*/
-
-//Previous code been here forever, adding new framework for portable generators
-
-
 //Baseline portable generator. Has all the default handling. Not intended to be used on it's own (since it generates unlimited power).
 /obj/machinery/power/port_gen
 	name = "Portable Generator"
-	desc = "A portable generator for emergency backup power"
+	desc = "A portable generator for emergency backup power."
 	icon = 'icons/obj/power.dmi'
 	icon_state = "portgen1"
 	density = 1
 	anchored = 0
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
+	slimeadd_message = "You add the slime extract to the fuel port"
+	slimes_accepted = SLIME_GREY
 
-	machine_flags = SCREWTOGGLE | CROWDESTROY | WRENCHMOVE | FIXED2WORK
+	machine_flags = SCREWTOGGLE | CROWDESTROY | WRENCHMOVE | FIXED2WORK | EMAGGABLE
 
 	var/active = 0
 	var/power_gen = 5000
@@ -69,15 +30,25 @@ display round(lastgen) and plasmatank amount
 	return
 
 /obj/machinery/power/port_gen/process()
-	if(active && HasFuel() && !crit_fail && anchored && powernet)
-		add_avail(power_gen * power_output)
-		UseFuel()
+	if(active && !crit_fail && anchored && powernet)
+		if(HasFuel())
+			add_avail(power_gen * power_output)
+			UseFuel()
+		if(has_slimes & slimes_accepted)
+			add_avail(power_gen)
 		src.updateDialog()
 
 	else
 		active = 0
 		update_icon()
 		handleInactive()
+
+/obj/machinery/power/port_gen/slime_act(primarytype, mob/user)
+	if((slimes_accepted&(has_slimes|primarytype)) == slimes_accepted)
+		slimeadd_success_message = "It churns comfortably"
+	else if(slimes_accepted & primarytype)
+		slimeadd_success_message = "It begins to [pick("nudge","budge","rumble")] slightly"
+	. = ..()
 
 /obj/machinery/power/port_gen/attack_hand(mob/user as mob)
 	if(..())
@@ -94,10 +65,11 @@ display round(lastgen) and plasmatank amount
 
 /obj/machinery/power/port_gen/pacman
 	name = "P.A.C.M.A.N.-type Portable Generator"
+	slimes_accepted = SLIME_DARKPURPLE
 	var/sheets = 0
 	var/max_sheets = 100
 	var/sheet_name = ""
-	var/sheet_path = /obj/item/stack/sheet/mineral/plasma
+	var/obj/sheet_path = /obj/item/stack/sheet/mineral/plasma
 	var/board_path = "/obj/item/weapon/circuitboard/pacman"
 	var/sheet_left = 0 // How much is left of the sheet
 	var/time_per_sheet = 40
@@ -120,8 +92,7 @@ display round(lastgen) and plasmatank amount
 		board_path
 	)
 
-	var/obj/sheet = new sheet_path(null)
-	sheet_name = sheet.name
+	sheet_name = initial(sheet_path.name)
 	RefreshParts()
 
 /obj/machinery/power/port_gen/pacman/Destroy()
@@ -203,12 +174,12 @@ display round(lastgen) and plasmatank amount
 /obj/machinery/power/port_gen/pacman/proc/overheat()
 	explosion(src.loc, 2, 5, 2, -1)
 
-/obj/machinery/power/port_gen/pacman/emag(mob/user)
+/obj/machinery/power/port_gen/pacman/emag_act(mob/user)
 	emagged = 1
 	emp_act(1)
 	return 1
 
-/obj/machinery/power/port_gen/pacman/crowbarDestroy(mob/user) //don't like the copy/paste, but the proc has special handling in the middle so we need it
+/obj/machinery/power/port_gen/pacman/crowbarDestroy(mob/user, obj/item/tool/crowbar/I) //don't like the copy/paste, but the proc has special handling in the middle so we need it
 	if(..())
 		while ( sheets > 0 )
 			var/obj/item/stack/sheet/G = new sheet_path(src.loc)
@@ -217,10 +188,10 @@ display round(lastgen) and plasmatank amount
 			else
 				G.amount = sheets
 			sheets -= G.amount
-		return 1
-	return -1
+		return TRUE
+	return FALSE
 
-/obj/machinery/power/port_gen/pacman/wrenchAnchor(var/mob/user)
+/obj/machinery/power/port_gen/pacman/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
@@ -245,15 +216,25 @@ display round(lastgen) and plasmatank amount
 		if( ..() )
 			return 1
 
+/obj/machinery/power/port_gen/pacman/conveyor_act(var/atom/movable/AM, var/obj/machinery/conveyor/CB)
+	if(istype(AM, sheet_path))
+		var/obj/item/stack/addstack = AM
+		var/amount = min((max_sheets - sheets), addstack.amount)
+		if(amount < 1)
+			return FALSE
+		sheets += amount
+		addstack.use(amount)
+		return TRUE
+	else if(!active)
+		if( ..() )
+			return FALSE
+	return FALSE
+
 /obj/machinery/power/port_gen/pacman/attack_hand(mob/user as mob)
 	..()
 	if (!anchored)
 		return
 
-	interact(user)
-
-/obj/machinery/power/port_gen/pacman/attack_ai(mob/user as mob)
-	src.add_hiddenprint(user)
 	interact(user)
 
 /obj/machinery/power/port_gen/pacman/attack_paw(mob/user as mob)
@@ -280,7 +261,7 @@ display round(lastgen) and plasmatank amount
 	dat += text("Power current: [(powernet == null ? "Unconnected" : "[avail()]")]<br>")
 	dat += text("Heat: [heat]<br>")
 	dat += "<br><A href='?src=\ref[src];action=close'>Close</A>"
-	user << browse("[dat]", "window=port_gen")
+	user << browse(HTML_SKELETON(dat), "window=port_gen")
 	onclose(user, "port_gen")
 
 /obj/machinery/power/port_gen/pacman/Topic(href, href_list)
@@ -334,8 +315,10 @@ display round(lastgen) and plasmatank amount
 	power_gen = 15000
 	time_per_sheet = 65
 	board_path = "/obj/item/weapon/circuitboard/pacman/super"
-	overheat()
-		explosion(src.loc, 3, 3, 3, -1)
+	slimes_accepted = SLIME_DARKPURPLE|SLIME_METAL
+
+/obj/machinery/power/port_gen/pacman/super/overheat()
+	explosion(src.loc, 3, 3, 3, -1)
 
 /obj/machinery/power/port_gen/pacman/mrs
 	name = "M.R.S.P.A.C.M.A.N.-type Portable Generator"
@@ -344,5 +327,33 @@ display round(lastgen) and plasmatank amount
 	power_gen = 40000
 	time_per_sheet = 80
 	board_path = "/obj/item/weapon/circuitboard/pacman/mrs"
-	overheat()
-		explosion(src.loc, 4, 4, 4, -1)
+	slimes_accepted = SLIME_DARKPURPLE|SLIME_METAL|SLIME_ADAMANTINE
+
+/obj/machinery/power/port_gen/pacman/mrs/overheat()
+	explosion(src.loc, 4, 4, 4, -1)
+
+/obj/machinery/power/port_gen/pacman/baby
+	name = "B.A.B.Y.P.A.C.M.A.N.-type Portable Generator"
+	desc = "Clown planet's official source of power."
+	icon_state = "portgen3"
+	sheet_path = /obj/item/stack/sheet/mineral/clown //can still be made semi-reliably stationside, assuming you got some phazon and bananas to make more
+	power_gen = 100000
+	time_per_sheet = 100
+	board_path = "/obj/item/weapon/circuitboard/pacman/baby"
+	slimes_accepted = SLIME_DARKPURPLE|SLIME_METAL|SLIME_ADAMANTINE|SLIME_PYRITE
+
+/obj/machinery/power/port_gen/pacman/baby/overheat()
+	explosion(src.loc, 5, 5, 5, -1)
+
+/obj/machinery/power/port_gen/pacman/professor
+	name = "P.R.O.F.E.S.S.O.R.P.A.C.M.A.N.-type Portable Generator"
+	desc = "The most expensive-to-run portable engine ever devised."
+	icon_state = "portgen4"
+	sheet_path = /obj/item/stack/sheet/mineral/phazon //if you somehow manage to get enough phazon fuel this shit you deserve whatever unholy engineering bullshit you're making here.
+	power_gen = 250000 //you're burning phazon here, you madman
+	time_per_sheet = 250
+	board_path = "/obj/item/weapon/circuitboard/pacman/professor"
+	slimes_accepted = SLIME_DARKPURPLE|SLIME_METAL|SLIME_ADAMANTINE|SLIME_PYRITE|SLIME_BLACK
+
+/obj/machinery/power/port_gen/pacman/professor/overheat()
+	explosion(src.loc, 6, 6, 6, -1)

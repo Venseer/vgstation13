@@ -14,6 +14,7 @@
 	melee_damage_upper = 7
 	attacktext = "punches"
 	a_intent = I_HURT
+	treadmill_speed = 1	//Same as player humanoids
 
 	min_oxy = 5
 	max_oxy = 0
@@ -23,7 +24,7 @@
 	max_co2 = 5
 	min_n2 = 0
 	max_n2 = 0
-	unsuitable_atoms_damage = 15
+	unsuitable_atmos_damage = 15
 
 	status_flags = CANPUSH
 

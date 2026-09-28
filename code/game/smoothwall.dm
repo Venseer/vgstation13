@@ -2,39 +2,67 @@
 // FUCK YOU MYSTERY CODERS
 // FOR THIS SHIT I'M GOING TO MAKE ALL MY COMMENTS IN CAPS
 
-/atom/proc/canSmoothWith() // TYPE PATHS I CAN SMOOTH WITH~~~~~
+/atom
+	var/junction = 0 // THIS USED TO BE DEFINED TO THE TURF LEVEL BUT IT'S HERE NOW IN CASE ANYTHING ELSE (LIKE STRUCTURES) NEED IT, ALSO COMMENT IN CAPS IN THEME WITH THIS FILE
+	var/bordersmooth_override = 0 // SOME ON_BORDER ITEMS PREFER FULL TILE SMOOTHING OKAY?
+
+/atom/proc/canSmoothWith() // TYPE PATHS I CAN SMOOTH WITH~~~~~ (HAS TO BE THIS FUNCTION OR ELSE OBJECT INIT IS WAY WAY SLOWER)
+
+/atom/proc/cannotSmoothWith() // TYPE PATHS I CANNOT SMOOTH WITH~~~~~ (HAS TO BE THIS FUNCTION OR ELSE OBJECT INIT IS WAY WAY SLOWER)
 
 // MOVED INTO UTILITY FUNCTION FOR LESS DUPLICATED CODE.
 /atom/proc/findSmoothingNeighbors()
 	// THIS IS A BITMAP BECAUSE NORTH/SOUTH/ETC ARE ALL BITFLAGS BECAUSE BYOND IS DUMB AND
 	// DOESN'T FUCKING MAKE SENSE, BUT IT WORKS TO OUR ADVANTAGE
-	var/J = 0
+	. = 0
 	for(var/cdir in cardinal)
+		if((flow_flags & ON_BORDER) && !bordersmooth_override && (dir == cdir || opposite_dirs[dir] == cdir))
+			continue
 		var/turf/T = get_step(src,cdir)
 		if(isSmoothableNeighbor(T))
-			J |= cdir
+			. |= cdir
 			continue // NO NEED FOR FURTHER SEARCHING IN THIS TILE
 		for(var/atom/A in T)
 			if(isSmoothableNeighbor(A))
-				J |= cdir
+				. |= cdir
 				break // NO NEED FOR FURTHER SEARCHING IN THIS TILE
 
-	return J
+// OTHER FUNCTION SOME BORDER ITEMS MIGHT LIKE TO USE
+/atom/proc/findSmoothingOnTurf()
+	. = 0
+	var/turf/T = get_turf(src)
+	if(!T)
+		return 0
+	for(var/cdir in cardinal)
+		if((flow_flags & ON_BORDER) && !bordersmooth_override && (dir == cdir || opposite_dirs[dir] == cdir))
+			continue
+		if(T.dir == cdir && isSmoothableNeighbor(T,0))
+			. |= cdir
+			continue // NO NEED FOR FURTHER SEARCHING IN THIS TILE
+		for(var/atom/A in T)
+			if(A.dir == cdir && isSmoothableNeighbor(A,0))
+				. |= cdir
+				break // NO NEED FOR FURTHER SEARCHING IN THIS TILE
 
-/atom/proc/isSmoothableNeighbor(atom/A)
+/atom/proc/isSmoothableNeighbor(atom/A, bordercheck = TRUE)
 	if(!A)
 		return 0
-	return is_type_in_list(A, canSmoothWith())
+	if(bordercheck && (flow_flags & ON_BORDER) && (A.flow_flags & ON_BORDER) && !bordersmooth_override && A.dir != dir)
+		return 0
+	return is_type_in_list(A, canSmoothWith()) && !(cannotSmoothWith() && (is_type_in_list(A, cannotSmoothWith())))
 
+// METAL AND PLASTEEL COUNT AS THE SAME MINERAL HERE SO REGULAR WALLS AND REINFORCED WALLS KEEP SMOOTHING TOGETHER
 /turf/simulated/wall/isSmoothableNeighbor(atom/A)
 	if(!A)
 		return 0
-	if(is_type_in_list(A, canSmoothWith()))
-		// COLON OPERATORS ARE TERRIBLE BUT I HAVE NO CHOICE
-		if(src.mineral == A:mineral)
-			return 1
+	if(istype(A, /turf/simulated/wall))
+		var/turf/simulated/wall/W = A
+		var/mineral_match = src.mineral == W.mineral
+		if(!mineral_match && (src.mineral == "metal" || src.mineral == "plasteel") && (W.mineral == "metal" || W.mineral == "plasteel"))
+			mineral_match = TRUE
+		return mineral_match && !(cannotSmoothWith() && is_type_in_list(A, cannotSmoothWith()))
+	return is_type_in_list(A, canSmoothWith()) && !(cannotSmoothWith() && (is_type_in_list(A, cannotSmoothWith())))
 
-	return 0
 
 /**
  * WALL SMOOTHING SHIT
@@ -46,7 +74,11 @@
  * SHITTY FUNCTIONAL PROGRAMMER, WE WILL BE COOL AND MODERN AND USE INHERITANCE.
  */
 /atom/proc/relativewall()
-	return // DOES JACK SHIT BY DEFAULT. OLD BEHAVIOR WAS TO SPAM LOOPS ANYWAY.
+	if(canSmoothWith())
+		junction = findSmoothingNeighbors()
+	else
+		junction = 0
+	return junction // PREVIOUSLY DID NOTHING, NOW INHERITS THIS FOR COMMON BEHAVIOUR.
 
 /*
  * SEE?  NOW WE ONLY HAVE TO PROGRAM THIS SHIT INTO WHAT WE WANT TO SMOOTH
@@ -57,8 +89,8 @@
  * WE COULD STANDARDIZE THIS BUT EVERYONE'S A FUCKING SNOWFLAKE
  */
 /turf/simulated/wall/relativewall()
-	junction = findSmoothingNeighbors()
-	icon_state = "[walltype][junction]" // WHY ISN'T THIS IN UPDATE_ICON OR SIMILAR
+	icon_state = "[walltype][..()]" // WHY ISN'T THIS IN UPDATE_ICON OR SIMILAR
+	update_paint_overlay()
 
 // AND NOW WE HAVE TO YELL AT THE NEIGHBORS FOR BEING LOUD AND NOT PAINTING WITH HOA-APPROVED COLORS
 /atom/proc/relativewall_neighbours(var/at=null)
@@ -66,6 +98,13 @@
 		at = get_turf(src)
 	// OPTIMIZE BY NOT CHECKING FOR NEIGHBORS IF WE DON'T FUCKING SMOOTH
 	if(canSmoothWith())
+		if((flow_flags & ON_BORDER) && !bordersmooth_override)
+			var/turf/OT = get_turf(src)
+			if(isSmoothableNeighbor(OT,0) && OT.canSmoothWith())
+				OT.relativewall()
+			for(var/atom/A in OT)
+				if(isSmoothableNeighbor(A,0))
+					A.relativewall()
 		for(var/cdir in cardinal)
 			var/turf/T = get_step(src,cdir)
 			if(isSmoothableNeighbor(T) && T.canSmoothWith())
@@ -85,16 +124,8 @@
 			for(var/atom/A in T)
 				A.relativewall()
 
-/turf/simulated/wall/New()
-	..()
-
-	// SMOOTH US WITH OUR NEIGHBORS
-	relativewall()
-
-	// WE NEED TO TELL ALL OUR FRIENDS ABOUT THIS SCANDAL
-	relativewall_neighbours()
-
 /turf/simulated/wall/Destroy()
+	remove_rot()
 	var/temploc = src.loc
 
 	if(!del_suppress_resmoothing)
@@ -118,14 +149,15 @@
 
 var/list/smoothable_unsims = list(
 	"riveted",
+	"alloy",
+	"rock_rf",
 	)
 
-/turf/unsimulated/wall/New()
-	..()
+/turf/unsimulated/wall/initialize()
 	if(icon_state in smoothable_unsims)
 		relativewall()
-		relativewall_neighbours()
 
 /turf/unsimulated/wall/relativewall()
-	junction = findSmoothingNeighbors()
-	icon_state = "[walltype][junction]"
+	if(icon_state in smoothable_unsims)
+		icon_state = "[walltype][..()]"
+		update_paint_overlay()

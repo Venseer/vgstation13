@@ -1,5 +1,4 @@
 /obj/abstract/screen/draggable
-	icon = 'icons/mob/screen_draggable.dmi'
 	icon_state = "blank"
 	var/mob/attachedmob
 	var/obj/attachedobject
@@ -7,6 +6,7 @@
 	screen_loc = ui_entire_screen
 	var/centerdist_x
 	var/centerdist_y
+	var/turf/last_turf_affected
 
 //Necessary because we have no way to detect if someone does a single click
 //So we put a temporary screen object to catch clicks until someone tries dragging
@@ -15,7 +15,6 @@
 	var/obj/abstract/screen/fuckbyond
 
 /obj/abstract/screen/fuckbyond
-	icon = 'icons/mob/screen_draggable.dmi'
 	icon_state = "blank"
 	mouse_opacity = 0
 	screen_loc = ui_entire_screen
@@ -31,14 +30,14 @@
 	draggable = null
 
 /obj/abstract/screen/fuckbyond/MouseUp()
-	returnToPool(draggable)
+	qdel(draggable)
 ///////////////////////////////////////////////
 
 
 /obj/abstract/screen/draggable/New(loc, mob/user)
 	..()
 //But no seriously, fuck byond
-	fuckbyond = getFromPool(/obj/abstract/screen/fuckbyond, src)
+	fuckbyond = new /obj/abstract/screen/fuckbyond(src)
 
 //References to the object/user
 	attachedobject = loc
@@ -48,6 +47,7 @@
 
 //Copy over the icon state to the draggable screen objects.dmi for this to function
 	name = "[capitalize(attachedobject.name)] Construction"
+	icon = attachedobject.icon
 	mouse_over_pointer = "[attachedobject.icon_state]"
 	mouse_drag_pointer = "[attachedobject.icon_state]"
 
@@ -61,8 +61,7 @@
 		attachedmob.client.screen -= fuckbyond
 	attachedmob = null
 	if(fuckbyond)
-		returnToPool(fuckbyond)
-		fuckbyond = null
+		QDEL_NULL(fuckbyond)
 
 /obj/abstract/screen/draggable/MouseDown(turf/location,control,params)
 	mouse_opacity = 0 //Because dragging wont occur when you are inside of your own src, we hide the src to mouses
@@ -80,24 +79,24 @@
 	while(attachedmob && attachedmob.client)
 		if(isnum(centerdist_x)) //prevent automatically laying down rods below us if we have no centerdist
 			var/turf/T = locate(attachedmob.x + centerdist_x, attachedmob.y + centerdist_y, attachedmob.z)
-			if(T && attachedobject.can_drag_use(attachedmob, T))
+			if(T && last_turf_affected != T && attachedobject.can_drag_use(attachedmob, T))
+				last_turf_affected = T
 				if(attachedobject.drag_use(attachedmob, T)) //cancel our continuous use
-					returnToPool(src)
+					qdel(src)
 					break
-		sleep(world.tick_lag)
+		stoplag()
 
 /obj/abstract/screen/draggable/MouseDrag(over_object,src_location,turf/over_location,src_control,over_control,params)
 	if(istype(over_location) && attachedmob) //null when over black space
 		centerdist_x = over_location.x - attachedmob.x //maintains distance from usr in case usr moves
 		centerdist_y = over_location.y - attachedmob.y
 	if(fuckbyond) //This isn't a single click, therefore we can remove the FUCK BYOND object
-		returnToPool(fuckbyond)
-		fuckbyond = null
+		QDEL_NULL(fuckbyond)
 
 /obj/abstract/screen/draggable/MouseDrop(over_object,src_location,over_location,src_control,over_control,params)
 	if(attachedobject)
 		attachedobject.drag_success(attachedmob, over_location)
-	returnToPool(src) //releasing the drag ends the usage
+	qdel(src) //releasing the drag ends the usage
 
 /obj/proc/drag_mousedown()
 

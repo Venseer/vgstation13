@@ -2,11 +2,13 @@
 	name = "Vampire Lords"
 	desc = "Hailing from Space Transylvania."
 	ID = VAMPIRELORDS
-	required_pref = ROLE_VAMPIRE
+	required_pref = VAMPIRE
 	initial_role = VAMPIRE
 	late_role = VAMPIRE // Vampires do not change their role.
 	roletype = /datum/role/vampire
 	initroletype = /datum/role/vampire
+	default_admin_voice = "Vampire Overlord"
+	admin_voice_style = "danger"
 	logo_state = "vampire-logo"
 	hud_icons = list("vampire-logo", "thrall-logo")
 
@@ -14,6 +16,15 @@
 	if (!leader)
 		leader = V
 		V.faction = src
+
+/datum/faction/vampire/proc/name_clan(var/datum/role/vampire/V)
+	set waitfor = FALSE
+	var/newname = copytext(sanitize(input(V.antag.current,"You are the Master Vampire of this new clan. Please choose a name for your clan.", "Name change","")),1,MAX_NAME_LEN)
+	if(newname)
+		if (newname == "Unknown" || newname == "floor" || newname == "wall" || newname == "rwall" || newname == "_")
+			to_chat(V.antag.current, "That name is reserved.")
+		name = "The [newname] Vampire Clan"
+
 
 /datum/faction/vampire/OnPostSetup()
 	leader.OnPostSetup()

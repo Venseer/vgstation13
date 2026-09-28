@@ -14,6 +14,7 @@
 	melee_damage_lower = 5
 	melee_damage_upper = 15
 
+	treadmill_speed = 2.5
 	minbodytemp = 200
 
 /mob/living/simple_animal/hostile/deer/GiveTarget(var/new_target)
@@ -27,8 +28,9 @@
 				D.get_spooked(new_target)
 
 /mob/living/simple_animal/hostile/deer/proc/is_spooked(var/mob/living/target)
-	if(friends.Find(target))
-		return 0
+	for(var/datum/weakref/ref in friends)
+		if (ref.get() == target)
+			return 0
 	if(ishuman(target))
 	/*
 	Making it so that there is some tactics to hunting deer
@@ -64,6 +66,9 @@
 	retreat_distance = 25
 	minimum_distance = 25
 
+/mob/living/simple_animal/hostile/deer/get_butchering_products()
+	return list(/datum/butchering_product/skin/deer, /datum/butchering_product/deer_head)
+
 /mob/living/simple_animal/hostile/deer/Life()
 	..()
 	if(isDead())
@@ -91,7 +96,7 @@
 	if(!isDead() && (istype(W, /obj/item/weapon/reagent_containers/food/snacks/grown/apple) || (istype (W, /obj/item/weapon/reagent_containers/food/snacks/grown/goldapple))))
 		var/obj/item/weapon/reagent_containers/food/snacks/grown/apple/A = W
 
-		playsound(get_turf(src),'sound/items/eatfood.ogg', rand(10,50), 1)
+		playsound(src,'sound/items/eatfood.ogg', rand(10,50), 1)
 		visible_message("<span class='info'>\The [src] gobbles up \the [W]!")
 		//user.drop_item(A, force_drop = 1)
 
@@ -101,8 +106,12 @@
 			icon_state = "deer_flower"
 
 		if(prob(25))
-			if(!friends.Find(user))
-				friends.Add(user)
+			var/already_friend = FALSE
+			for(var/datum/weakref/ref in friends)
+				if (ref.get() == user)
+					already_friend = TRUE
+			if (!already_friend)
+				friends += makeweakref(user)
 				to_chat(user, "<span class='info'>You have gained \the [src]'s trust.</span>")
 			name_mob(user)
 		qdel(A)
@@ -122,7 +131,8 @@
 			icon_state = "[icon_dead][(our_head.amount) ? "" : "_headless"]"
 
 /mob/living/simple_animal/hostile/deer/cultify()
-	new /mob/living/simple_animal/hostile/deer/flesh(get_turf(src))
+	var/mob/living/simple_animal/hostile/deer/flesh/fleshy_deer = new(get_turf(src))
+	fleshy_deer.dir = dir
 	qdel(src)
 
 /mob/living/simple_animal/hostile/deer/flesh
@@ -130,9 +140,13 @@
 	icon_living = "fleshdeer"
 	icon_dead = "fleshdeer_dead"
 
+	supernatural = TRUE
 	canRegenerate = 1
 	maxRegenTime = 150
 	minRegenTime = 60
+
+/mob/living/simple_animal/hostile/deer/flesh/get_butchering_products()
+	return list(/datum/butchering_product/deer_head)
 
 /mob/living/simple_animal/hostile/deer/flesh/cultify()
 	return

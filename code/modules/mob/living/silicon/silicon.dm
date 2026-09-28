@@ -3,9 +3,14 @@
 	voice_name = "synthesized voice"
 	can_butcher = 0
 	mob_property_flags = MOB_ROBOTIC
+	meat_type = null
+	standard_dizzy_reduce = 2 //This literally only exists because it was reworked a little and it keeps them behaving the same as before, set to 1 if you don't want that
+	rested_dizzy_reduce = 2 //They don't use this
+	rested_jitter_reduce = 1 //Likewise
 
 	var/flashed = 0
 	var/syndicate = 0
+	var/cult_permitted = 0 //For use in some special items to allow silicons to be converted
 	var/datum/ai_laws/laws = null//Now... THEY ALL CAN ALL HAVE LAWS
 	var/list/alarms_to_show = list()
 	var/list/alarms_to_clear = list()
@@ -21,6 +26,11 @@
 	var/global/list/vision_types_list = list("Security Hud","Medical Hud", "Meson Vision", "Night Vision", "Thermal Vision")
 	var/list/alarm_types_show = list("Motion" = 0, "Fire" = 0, "Atmosphere" = 0, "Power" = 0, "Camera" = 0)
 	var/list/alarm_types_clear = list("Motion" = 0, "Fire" = 0, "Atmosphere" = 0, "Power" = 0, "Camera" = 0)
+
+	var/datum/state_laws_ui/state_laws_ui = new() //holds the UI state for the State Laws verb. See: state_laws.dm
+
+	var/stored_freqs = 0
+	var/time_last_speech = 0 // Used to prevent spam, put here so silicons can properly talk.
 
 /mob/living/silicon/hasFullAccess()
 	return 1
@@ -118,16 +128,13 @@
 			for(var/i = 1; i < alarm_types_clear.len; i++)
 				alarm_types_clear[i] = 0
 
-/mob/living/silicon/drop_item(var/obj/item/to_drop, var/atom/Target, force_drop = 0)
+/mob/living/silicon/drop_item(var/obj/item/to_drop, var/atom/Target, force_drop = 0, failmsg)
 	return 1
-
-/mob/living/silicon/generate_static_overlay()
-	return
 
 /mob/living/silicon/emp_act(severity)
 	for(var/obj/item/stickybomb/B in src)
 		if(B.stuck_to)
-			visible_message("<span class='warning'>\the [B] stuck on \the [src] suddenly deactivates itself and falls to the ground.</span>")
+			visible_message("<span class='warning'>\The [B] stuck on \the [src] suddenly deactivates itself and falls to the ground.</span>")
 			B.deactivate()
 			B.unstick()
 
@@ -149,14 +156,11 @@
 /mob/living/silicon/proc/damage_mob(var/brute = 0, var/fire = 0, var/tox = 0)
 	return
 
-/mob/living/silicon/IsAdvancedToolUser()
-	return 1
-
 /mob/living/silicon/bullet_act(var/obj/item/projectile/Proj)
 	if(!Proj.nodamage)
 		adjustBruteLoss(Proj.damage)
-	Proj.on_hit(src,2)
-	return 2
+	Proj.robot_on_hit(src,100) //Unique variant of on_hit
+	return PROJECTILE_COLLISION_DEFAULT
 
 /mob/living/silicon/apply_effect(var/effect = 0,var/effecttype = STUN, var/blocked = 0)
 	return 0//The only effect that can hit them atm is flashes and they still directly edit so this works for now
@@ -235,7 +239,7 @@
 	if(data_core)
 		dat += data_core.get_manifest(1) // make it monochrome
 	dat += "<br>"
-	src << browse(dat, "window=airoster")
+	src << browse(HTML_SKELETON(dat), "window=airoster")
 	onclose(src, "airoster")
 
 /mob/living/silicon/electrocute_act(const/shock_damage, const/obj/source, const/siemens_coeff = 1.0)
@@ -249,7 +253,7 @@
 			return 0
 
 		visible_message( \
-			"<span class='warning'>[src] was shocked by the [source]!</span>", \
+			"<span class='warning'>[src] was shocked by \the [source]!</span>", \
 			"<span class='danger'>Energy pulse detected, system damaged!</span>", \
 			"<span class='warning'>You hear a heavy electrical crack.</span>" \
 		)
@@ -273,7 +277,7 @@
 	return universal_speak || (speaking in src.speech_synthesizer_langs)	//need speech synthesizer support to vocalize a language
 
 /mob/living/silicon/add_language(var/language_name, var/can_speak=1)
-	var/var/datum/language/added_language = all_languages[language_name]
+	var/datum/language/added_language = all_languages[language_name]
 	if(!added_language) //Are you trying to pull my leg? This language does not exist.
 		return
 
@@ -283,7 +287,7 @@
 		return 1
 
 /mob/living/silicon/remove_language(var/rem_language, var/can_understand=0)
-	var/var/datum/language/removed_language = all_languages[rem_language]
+	var/datum/language/removed_language = all_languages[rem_language]
 	if(!removed_language) //Oh, look. Now you're trying to remove what does not exist.
 		return
 
@@ -311,11 +315,11 @@
 		var/synth = (L in speech_synthesizer_langs)
 		dat += "<b>[L.name] (:[L.key])</b>[synth ? default_str : null]<br/>Speech Synthesizer: <i>[synth ? "YES" : "NOT SUPPORTED"]</i><br/>[L.desc]<br/><br/>"
 
-	src << browse(dat, "window=checklanguage")
+	src << browse(HTML_SKELETON(dat), "window=checklanguage")
 	return
 
 /mob/living/silicon/dexterity_check()
-	return 1
+	return TRUE
 
 /mob/living/silicon/html_mob_check(var/typepath)
 	for(var/atom/movable/AM in html_machines)
@@ -349,3 +353,24 @@
 
 /mob/living/silicon/get_survive_objective()
 	return new /datum/objective/siliconsurvive
+
+/mob/living/silicon/Topic(href, href_list)
+	. = ..()
+	if(usr && (src != usr))
+		return
+	if(href_list["ui_key"] == "state_laws")
+		return state_laws_Topic(href, href_list) //state_laws.dm
+
+/mob/living/silicon/ui_interact(mob/user, ui_key, datum/nanoui/ui = null, force_open = 1)
+	if(..())
+		return
+	if(ui_key == "state_laws")
+		return state_laws_ui_interact(user, ui_key, ui, force_open) //state_laws.dm
+
+//A separate check from attacked_by (a carbon-level proc), with only a fragment in order to play hitsounds
+/mob/living/silicon/attacked_by(var/obj/item/I, var/mob/living/user, def_zone, originator, crit, flavor, force)
+	if(!..())
+		return FALSE
+	if(I.hitsound)
+		playsound(loc, I.hitsound, 50, 1, -1)
+	return TRUE

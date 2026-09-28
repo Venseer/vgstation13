@@ -10,21 +10,38 @@ var/global/list/obj/item/beacon/beacons = list()
 	var/frequency = 1459
 	origin_tech = Tc_BLUESPACE + "=1"
 	flags = FPRINT
+	w_type = RECYK_PLASTIC
+	flammable = FALSE
 
 /obj/item/beacon/New()
 	..()
+	frequency = format_frequency(sanitize_frequency(frequency))
 	beacons += src
 
 /obj/item/beacon/Destroy()
 	..()
 	beacons -= src
 
+/obj/item/beacon/examine(mob/user)
+	..()
+	to_chat(user,"<span class='notice'>The frequency of the [src] is set to [frequency].</span>")
+
 /obj/item/beacon/attack_self(mob/user as mob)
 	..()
-	var/newfreq = input(user, "Input a new frequency for the beacon", "Frequency", null) as num
+	var/newfreq = input(user, "Input a new frequency for the beacon", "Frequency", null) as null|num
+	if(!src.Adjacent(user))
+		return
+	if(usr.restrained() || usr.lying || usr.stat)
+		return 0
 	if(!newfreq)
 		return
 	frequency = format_frequency(sanitize_frequency(newfreq))
+
+/obj/item/beacon/emag_act(mob/user)
+	if(!emagged)
+		spark(src)
+		emagged = 1
+		to_chat(user,"<span class='warning'>Teleportation collision safety protocols disabled.</span>")
 
 /obj/item/beacon/verb/alter_signal(t as text)
 	set name = "Alter Beacon's Signal"
@@ -44,6 +61,7 @@ var/global/list/obj/item/beacon/beacons = list()
 	name = "suspicious beacon"
 	desc = "A label on it reads: <i>Activate to have a singularity beacon teleported to your location</i>."
 	origin_tech = Tc_BLUESPACE + "=1;" + Tc_SYNDICATE + "=7"
+	emagged = 1
 
 /obj/item/beacon/syndicate/attack_self(mob/user as mob)
 	if(user)
@@ -84,3 +102,20 @@ var/global/list/obj/item/beacon/beacons = list()
 /obj/item/beacon/bluespace_beacon/singularity_pull()
 	return
 
+var/global/list/emergency_beacons = list()
+
+/obj/item/beacon/bluespace_beacon/emergency/New()
+	..()
+	emergency_beacons += src
+
+/obj/item/beacon/bluespace_beacon/emergency/Destroy()
+	emergency_beacons -= src
+	..()
+
+/obj/item/beacon/bacon //shouldn't be visible unless manually spawned by an admeme
+	name = "Tracking Bacon"
+	desc = "A bacon used by a teleporter."
+
+/obj/item/beacon/bacon/Destroy()
+	verbs -= /obj/item/beacon/verb/alter_signal
+	..()

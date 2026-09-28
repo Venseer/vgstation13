@@ -5,10 +5,15 @@
 	icon_state = "secure_vial"
 	flags = FPRINT
 	w_class = 1
+	mech_flags = MECH_SCAN_FAIL
 	var/genomes_to_give = 10 //seeing as the new changeling won't have had a whole round to prepare, they get some genomes free
 
+/obj/item/changeling_vial/Destroy()
+	new /datum/artifact_postmortem_data(src)
+	..()
+
 /obj/item/changeling_vial/attack_self(mob/user as mob)
-	if(ishuman(user) && !(jobban_isbanned(user, "Syndicate") || jobban_isbanned(user, "changeling")))
+	if(ishuman(user) && !(isantagbanned(user) || jobban_isbanned(user, CHANGELING)))
 		var/mob/living/carbon/human/H = user
 		if(H.mind)
 			var/datum/mind/M = H.mind
@@ -18,14 +23,19 @@
 				qdel(src)
 				H.sleeping += 10
 				sleep(100)
-				to_chat(H, "You feel your consciousness slipping away...")
+				to_chat(H, "<span class='sinister'>You feel your consciousness slipping away...</span>")
 				sleep(100)
 				var/datum/role/changeling/C = new(M)
 				if(C)
-					C.geneticpoints = Clamp(genomes_to_give, 0, 100)
+					C.powerpoints = clamp(genomes_to_give, 0, 100)
 					C.OnPostSetup()
-				to_chat(H, "<B><font color='red'>Finally, we once again have a suitable body. We are once again a proper changeling!</font></B>")
-				var/wikiroute = role_wiki[ROLE_CHANGELING]
+				var/datum/faction/changeling/hivemind = find_active_faction_by_type(/datum/faction/changeling)
+				if(!hivemind)
+					hivemind = ticker.mode.CreateFaction(/datum/faction/changeling)
+					hivemind.OnPostSetup()
+				hivemind?.HandleRecruitedRole(C) 
+				to_chat(H, "<B><span class='red'>Finally, we once again have a suitable body. We are once again a proper changeling!</span></B>")
+				var/wikiroute = role_wiki[CHANGELING]
 				to_chat(H, "<span class='info'><a HREF='?src=\ref[H];getwiki=[wikiroute]'>(Wiki Guide)</a></span>")
 				log_admin("[H] has become a changeling using a changeling vial.")
 			else
@@ -34,5 +44,5 @@
 	else
 		to_chat(user, "<span class='notice'>You try to remove \the [src]'s cap, but it won't budge.</span>")
 
-/obj/item/changeling_vial/acidable()
+/obj/item/changeling_vial/dissolvable()
 	return 0

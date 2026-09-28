@@ -4,6 +4,8 @@
 #define PIPE_TRINARY 3
 #define PIPE_TRIN_M  4
 #define PIPE_UNARY   5
+#define PIPE_Z_UP_BINARY   6
+#define PIPE_Z_DOWN_BINARY   7
 
 //UTILITIES.
 
@@ -32,9 +34,17 @@
 	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
 
 	if(istype(AM, /obj/item/pipe))
-		returnToPool(A)
+		qdel(A)
 	else
 		qdel(AM)
+
+	AM.investigation_log(I_RCD,"was deconstructed by [user]")
+
+
+/datum/rcd_schematic/decon_pipes/send_list_assets(var/client/client)
+	register_asset("RPD_ICON_[name].png", new/icon('icons/effects/condecon.dmi', "decon" ))
+	send_asset(client, "RPD_ICON_[name].png")
+	list_icon="RPD_ICON_[name].png"
 
 /datum/rcd_schematic/paint_pipes
 	name     = "Paint pipes"
@@ -101,7 +111,7 @@
 	var/mass_colour_on = mass_colour ? "On" : "Off"
 	. += {" <br>
 			<h4>Mass Colour:</h4>
-			Mass Colouration: <b><A href='?src=\ref[master.interface];set_mass_colour=1'>[mass_colour_on]</a></b>"}
+			Mass Colouration: <b><A  href='?src=\ref[master.interface];set_mass_colour=1'><span class='[mass_colour? "schem_selected" : "schem"]'>[mass_colour_on]</span></a></b>"}
 
 /datum/rcd_schematic/paint_pipes/attack(var/atom/A, var/mob/user)
 	if(!istype(A, /obj/machinery/atmospherics))
@@ -109,16 +119,33 @@
 
 	var/obj/machinery/atmospherics/O = A
 
+	if(!O.can_be_coloured)
+		to_chat(user, "<span class='danger'>\The [O] cannot be painted.</span>")
+		return 1
+
 	playsound(master, 'sound/machines/click.ogg', 50, 1)
 	if (selected_color in available_colors)
 		selected_color = available_colors[selected_color]
 	if(mass_colour && world.timeofday < last_colouration + colouring_delay)
 		return "We aren't ready to mass paint again; please wait [(last_colouration+colouring_delay)-world.timeofday] more seconds!"
-	if(mass_colour && istype(O, /obj/machinery/atmospherics/pipe))
+	if(mass_colour && istype(O, /obj/machinery/atmospherics/unary/cap))
+		var/obj/machinery/atmospherics/unary/cap/cap = O
+		var/obj/machinery/atmospherics/pipe/maybe_pipe_to_colour = cap.node1
+		if (istype(maybe_pipe_to_colour))
+			var/datum/pipeline/pipe_line = maybe_pipe_to_colour.parent
+			var/list/pipeline_members = pipe_line.members
+			if(pipeline_members.len < 500)
+				last_colouration = world.timeofday
+				colouring_delay = (pipeline_members.len)/2
+				O.color = selected_color
+				maybe_pipe_to_colour.mass_colouration(selected_color)
+			else
+				return "That pipe network is simply too big to paint!"
+	else if(mass_colour && istype(O, /obj/machinery/atmospherics/pipe))
 		var/obj/machinery/atmospherics/pipe/pipe_to_colour = O
 		var/datum/pipeline/pipe_line = pipe_to_colour.parent
 		var/list/pipeline_members = pipe_line.members
-		if (pipeline_members.len < 500)
+		if(pipeline_members.len < 500)
 			last_colouration = world.timeofday
 			colouring_delay = (pipeline_members.len)/2
 			O.color = selected_color
@@ -129,6 +156,7 @@
 		O.color = selected_color
 		O.update_icon()
 	user.visible_message("<span class='notice'>[user] paints \the [O] [selected_color].</span>","<span class='notice'>You paint \the [O] [selected_color].</span>")
+	// is pipe painting really worth logging? cmon now
 
 /datum/rcd_schematic/paint_pipes/Topic(var/href, var/list/href_list)
 	if(href_list["set_color"])
@@ -140,6 +168,11 @@
 		master.update_options_menu()
 	return 1
 
+/datum/rcd_schematic/paint_pipes/send_list_assets(var/client/client)
+	register_asset("RPD_ICON_[name].png", new/icon('icons/obj/painting_items.dmi', "paint_roller" ))
+	send_asset(client, "RPD_ICON_[name].png")
+	list_icon="RPD_ICON_[name].png"
+
 //METERS AND SENSORS.
 
 /datum/rcd_schematic/gsensor
@@ -147,7 +180,7 @@
 	category = "Devices"
 	flags    = RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH
 
-/datum/rcd_schematic/gsensor/attack(var/atom/A, var/mob/user)
+/datum/rcd_schematic/gsensor/attack(var/atom/A, var/mob/user, frequency, id)
 	if(!isturf(A))
 		return
 
@@ -157,14 +190,21 @@
 		return 1
 
 	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
-	new /obj/item/pipe_gsensor(A)
+	new /obj/item/pipe_gsensor(A, frequency, id)
+
+
+/datum/rcd_schematic/gsensor/send_list_assets(var/client/client)
+	register_asset("RPD_ICON_[name].png", new/icon('icons/obj/stationobjs.dmi', "gsensor0" ))
+	send_asset(client, "RPD_ICON_[name].png")
+	list_icon="RPD_ICON_[name].png"
+
 
 /datum/rcd_schematic/pmeter
 	name     = "Pipe meter"
 	category = "Devices"
 	flags    = RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH
 
-/datum/rcd_schematic/pmeter/attack(var/atom/A, var/mob/user)
+/datum/rcd_schematic/pmeter/attack(var/atom/A, var/mob/user, frequency, id)
 	if(!isturf(A))
 		return
 
@@ -174,7 +214,13 @@
 		return 1
 
 	playsound(master, 'sound/items/Deconstruct.ogg', 50, 1)
-	new /obj/item/pipe_meter(A)
+	new /obj/item/pipe_meter(A, frequency, id)
+
+
+/datum/rcd_schematic/pmeter/send_list_assets(var/client/client)
+	register_asset("RPD_ICON_[name].png", new/icon('icons/obj/pipe-item.dmi', "meter" ))
+	send_asset(client, "RPD_ICON_[name].png")
+	list_icon="RPD_ICON_[name].png"
 
 //ACTUAL PIPES.
 
@@ -187,6 +233,9 @@
 	var/pipe_type    = PIPE_BINARY
 	var/selected_dir = NORTH
 	var/layer        = PIPING_LAYER_DEFAULT //Layer selected, at 0, no layer picker will be available (disposals).
+	list_icon="RPD_ICON_0.png" //i would like to have placed this in the schematic_list_line proc, but it won't render.
+	//pipe_id constants are defined in /code/ATMOSPHERICS/pipe/construction.dm, by the way.
+	//"do NOT hardcode these, use the defines" - unfortunately we don't have the luxury because you can only do constant statements in defines.
 
 /datum/rcd_schematic/pipe/New(var/obj/item/device/rcd/n_master)
 	. = ..()
@@ -222,7 +271,7 @@
 // Rule of thumb: scrolling is clockwise.
 /datum/rcd_schematic/pipe/proc/get_dirs()
 	switch(pipe_type)
-		if(PIPE_UNARY)
+		if(PIPE_UNARY, PIPE_Z_UP_BINARY, PIPE_Z_DOWN_BINARY)
 			. = list(NORTH, EAST, SOUTH, WEST)
 
 		if(PIPE_TRINARY)
@@ -248,7 +297,7 @@
 
 /datum/rcd_schematic/pipe/get_HTML()
 	. += "<h4>Directions & layers</h4>"
-	. += "<div id='dir_holder'>"
+	. += "<span id='dir_holder'>"
 
 	switch(pipe_type)
 		if(PIPE_BINARY)
@@ -288,24 +337,53 @@
 			. += render_dir_image(NORTHWEST, "East North West")
 			. += render_dir_image(SOUTHWEST, "South East North")
 
-	. += "</div>"
+		if(PIPE_Z_UP_BINARY)
+			. += render_dir_image(NORTH, "North to Up")
+			. += render_dir_image(EAST, "East to Up")
+			. += "<br/>"
+			. += render_dir_image(SOUTH, "South to Up")
+			. += render_dir_image(WEST, "West to Up")
+
+		if(PIPE_Z_DOWN_BINARY)
+			. += render_dir_image(NORTH, "North to Down")
+			. += render_dir_image(EAST, "East to Down")
+			. += "<br/>"
+			. += render_dir_image(SOUTH, "South to Down")
+			. += render_dir_image(WEST, "West to Down")
+
+	. += "</span>"
 
 	if(layer)
-		. += {"
-		<div class="layer_holder">
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=1"><div class="layer vertical one   [layer == 1 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=2"><div class="layer vertical two   [layer == 2 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=3"><div class="layer vertical three [layer == 3 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=4"><div class="layer vertical four  [layer == 4 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=5"><div class="layer vertical five  [layer == 5 ? "selected" : ""]"></div></a>
-		</div>
+	
+		. += {"<span id="layersholder">
+		<table class="layer">
+			<tr>
+			<td class="layergradv" id="[layer==1 ? "layer_selected" : "layer" ]"> <a class="layer_v" href="?src=\ref[master.interface];set_layer=1"> </a></td>
+			<td class="layergradv" id="[layer==2 ? "layer_selected" : "layer" ]"> <a class="layer_v" href="?src=\ref[master.interface];set_layer=2"> </a></td>
+			<td class="layergradv" id="[layer==3 ? "layer_center_selected" : "layer_center" ]"> <a class="layer_v" href="?src=\ref[master.interface];set_layer=3"> </a></td> 
+			<td class="layergradv" id="[layer==4 ? "layer_selected" : "layer" ]"> <a class="layer_v" href="?src=\ref[master.interface];set_layer=4"> </a></td> 
+			<td class="layergradv" id="[layer==5 ? "layer_selected" : "layer" ]"> <a class="layer_v" href="?src=\ref[master.interface];set_layer=5"> </a></td>
+			</tr>
+		</table>
+		
+		<table class="layer">
+		
+			<tr><td class="layergradh" id="[layer==1 ? "layer_selected" : "layer" ]"><a class="layer_h" href="?src=\ref[master.interface];set_layer=1">  </a></td></tr>
+			<tr><td class="layergradh" id="[layer==2 ? "layer_selected" : "layer" ]"><a class="layer_h" href="?src=\ref[master.interface];set_layer=2">  </a></td></tr>
+			<tr><td class="layergradh" id="[layer==3 ? "layer_center_selected" : "layer_center" ]"><a class="layer_h" href="?src=\ref[master.interface];set_layer=3">  </a></td></tr>
+			<tr><td class="layergradh" id="[layer==4 ? "layer_selected" : "layer" ]"><a class="layer_h" href="?src=\ref[master.interface];set_layer=4">  </a></td></tr>
+			<tr><td class="layergradh" id="[layer==5 ? "layer_selected" : "layer" ]"><a class="layer_h" href="?src=\ref[master.interface];set_layer=5">  </a></td></tr>
+		
+	
+		</table></span>
+	"}
+	
+	
 
-		<div class="layer_holder" style="left: 200px;">
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=1"><div class="layer horizontal one   [layer == 1 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=2"><div class="layer horizontal two   [layer == 2 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=3"><div class="layer horizontal three [layer == 3 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=4"><div class="layer horizontal four  [layer == 4 ? "selected" : ""]"></div></a>
-			<a class="no_dec" href="?src=\ref[master.interface];set_layer=5"><div class="layer horizontal five  [layer == 5 ? "selected" : ""]"></div></a>
+	. += {"
+		<div>
+			<b>Frequency:</b> <a  href="?src=\ref[master.interface];set_freq=-1"><span class='schem'>[format_frequency(master.frequency)] GHz</span></a> <a href="?src=\ref[master.interface];set_freq=[1439]"><span class='schem'>Reset</span></a>
+			<b>ID:</b> <a href="?src=\ref[master.interface];set_id=-1"><span class='schem'>[master.id ? master.id : "-----"]</span></a> <a href="?src=\ref[master.interface];set_id=null"><span class='schem'>Reset</span></a>
 		</div>
 	"}
 
@@ -327,11 +405,38 @@
 		return 1
 
 	if(href_list["set_layer"] && layer) //Only handle this is layer is nonzero.
-		var/n_layer = Clamp(round(text2num(href_list["set_layer"])), PIPING_LAYER_MIN, PIPING_LAYER_MAX)
+		var/n_layer = clamp(round(text2num(href_list["set_layer"])), PIPING_LAYER_MIN, PIPING_LAYER_MAX)
 		if(layer == n_layer) //No point doing anything.
 			return 1
 
 		set_layer(n_layer)
+
+		return 1
+		
+	if("set_freq" in href_list)
+		var/newfreq=master.frequency
+		if(href_list["set_freq"]!="-1")
+			newfreq=text2num(href_list["set_freq"])
+		else
+			newfreq = input(usr, "Specify a new frequency (GHz). Decimals assigned automatically.", src, master.frequency) as null|num
+		if(newfreq)
+			if(findtext(num2text(newfreq), "."))
+				newfreq *= 10 // shift the decimal one place
+			if(newfreq < 10000)
+				master.frequency = newfreq
+			master.rebuild_ui()
+			
+		return 1
+		
+	if("set_id" in href_list)
+		var/newid=master.id
+		if(href_list["set_id"]!="-1")
+			master.id = null
+		else
+			newid = copytext(reject_bad_text(input(usr, "Specify the new ID tag for this machine", src, master.id) as null|text),1,MAX_MESSAGE_LEN)
+			if(newid)
+				master.id = newid
+		master.rebuild_ui()
 
 		return 1
 
@@ -371,8 +476,8 @@
 
 		set_dir(dirs[index])
 
-/datum/rcd_schematic/pipe/attack(var/atom/A, var/mob/user)
-	to_chat(user, "Building Pipes ...")
+/datum/rcd_schematic/pipe/attack(var/atom/A, var/mob/user, frequency, id)
+	to_chat(user, "Building Pipes...")
 	playsound(user, 'sound/machines/click.ogg', 50, 1)
 	var/thislayer = layer
 	var/thisdir = selected_dir
@@ -381,10 +486,13 @@
 
 	playsound(user, 'sound/items/Deconstruct.ogg', 50, 1)
 
-	var/obj/item/pipe/P = getFromPool(/obj/item/pipe, A, pipe_id, thisdir)
+	var/obj/item/pipe/P = new /obj/item/pipe(A, pipe_id, thisdir, null, frequency, id)
 	P.setPipingLayer(thislayer)
 	P.update()
 	P.add_fingerprint(user)
+	var/obj/item/device/rcd/rpd/ourmaster = master
+	if(ourmaster.autowrench)
+		P.attackby(ourmaster.internal_wrench, user)
 
 /datum/rcd_schematic/pipe/select(var/mob/user, var/datum/rcd_schematic/old_schematic)
 	if(!istype(old_schematic, /datum/rcd_schematic/pipe))
@@ -395,6 +503,14 @@
 
 	return ..()
 
+/datum/rcd_schematic/pipe/send_list_assets(var/client/client)
+	var/list/dirs=get_dirs()
+	if(!dirs || dirs.len==0)
+		return ..() //if there's no dirs, we can't really display that, now can we?
+	register_asset("RPD_ICON_[pipe_id].png", new/icon('icons/obj/pipe-item.dmi', pipeID2State[pipe_id + 1], dirs[2]))
+	send_asset(client, "RPD_ICON_[pipe_id].png") // [pipe_id]
+	list_icon="RPD_ICON_[pipe_id].png"
+
 //Disposal piping.
 /datum/rcd_schematic/pipe/disposal
 	category      = "Disposal Pipes"
@@ -402,6 +518,16 @@
 	layer         = 0 // Set to 0 to disable layer selection.
 	pipe_id       = DISP_PIPE_STRAIGHT
 	var/actual_id = 0 // This is needed because disposals construction code is a shit.
+
+
+/datum/rcd_schematic/pipe/disposal/send_list_assets(var/client/client)
+	var/list/dirs=get_dirs()
+	if(!dirs || dirs.len==0)
+		return ..()
+	register_asset("RPD_ICON_D_[pipe_id].png", new/icon('icons/obj/pipes/disposal.dmi', disposalpipeID2State[pipe_id + 1], dirs[2]))
+	send_asset(client, "RPD_ICON_D_[pipe_id].png")
+	list_icon="RPD_ICON_D_[pipe_id].png"
+
 
 /datum/rcd_schematic/pipe/disposal/register_icon(var/dir)
 	register_asset("RPD_D_[pipe_id]_[dir].png", new/icon('icons/obj/pipes/disposal.dmi', disposalpipeID2State[pipe_id + 1], dir))
@@ -417,7 +543,7 @@
 	return "<a href='?src=\ref[master.interface];set_dir=[dir]'[selected] title='[title]'><img src='RPD_D_[pipe_id]_[dir].png'/></a>"
 
 /datum/rcd_schematic/pipe/disposal/attack(var/atom/A, var/mob/user)
-	to_chat(user, "Building Pipes ...")
+	to_chat(user, "Building Pipes...")
 	playsound(user, 'sound/machines/click.ogg', 50, 1)
 	var/thisdir = selected_dir
 	if(!master.delay(user, A, 2 SECONDS))
@@ -443,6 +569,8 @@ var/global/list/disposalpipeID2State = list(
 	"intake",
 	"pipe-j1s",
 	"pipe-j1s",
+	"pipe-u",
+	"pipe-d"
 )
 
 //This is a meta thing to send a blended pipe sprite to clients, basically the default straight pipe, but blended blue.
@@ -467,6 +595,20 @@ var/global/list/disposalpipeID2State = list(
 	pipe_id		= PIPE_SIMPLE_BENT
 	pipe_type	= PIPE_BENT
 
+/datum/rcd_schematic/pipe/z_up
+	name		= "Up Pipe"
+
+	pipe_id		= PIPE_Z_UP
+	pipe_type	= PIPE_Z_UP_BINARY
+	flags 		= RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH | RCD_Z_UP
+
+/datum/rcd_schematic/pipe/z_down
+	name		= "Down Pipe"
+
+	pipe_id		= PIPE_Z_DOWN
+	pipe_type	= PIPE_Z_DOWN_BINARY
+	flags 		= RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH | RCD_Z_DOWN
+
 /datum/rcd_schematic/pipe/manifold
 	name		= "Manifold"
 
@@ -484,6 +626,18 @@ var/global/list/disposalpipeID2State = list(
 
 	pipe_id		= PIPE_DVALVE
 	pipe_type	= PIPE_BINARY
+
+/datum/rcd_schematic/pipe/mpvalve
+	name		= "Manual Conditional Valve"
+
+	pipe_id		= PIPE_MPVALVE
+	pipe_type	= PIPE_TRINARY
+
+/datum/rcd_schematic/pipe/dpvalve
+	name		= "Digital Conditional Valve"
+
+	pipe_id		= PIPE_DPVALVE
+	pipe_type	= PIPE_TRINARY
 
 /datum/rcd_schematic/pipe/cap
 	name		= "Pipe Cap"
@@ -521,6 +675,14 @@ var/global/list/disposalpipeID2State = list(
 
 	pipe_id		= PIPE_LAYER_ADAPTER
 	pipe_type	= PIPE_UNARY
+
+/datum/rcd_schematic/pipe/layer_adapter/send_list_assets(var/client/client)
+	var/list/dirs=get_dirs()
+	if(!dirs || dirs.len==0)
+		return ..()
+	register_asset("RPD_ICON_[pipe_id].png", new/icon('icons/obj/atmospherics/pipe_adapter.dmi', "adapter_5", dirs[2]))
+	send_asset(client, "RPD_ICON_[pipe_id].png")
+	list_icon="RPD_ICON_[pipe_id].png"
 
 /datum/rcd_schematic/pipe/layer_adapter/register_icon(var/dir)
 	for(var/layer = PIPING_LAYER_MIN to PIPING_LAYER_MAX)
@@ -611,6 +773,13 @@ var/global/list/disposalpipeID2State = list(
 	pipe_id		= PIPE_THERMAL_PLATE
 	pipe_type	= PIPE_UNARY
 
+/datum/rcd_schematic/pipe/heat_pump
+	name		= "Thermoelectric Cooler"
+	category	= "Devices"
+
+	pipe_id		= PIPE_HEAT_PUMP
+	pipe_type	= PIPE_UNARY
+
 /datum/rcd_schematic/pipe/injector
 	name		= "Injector"
 	category	= "Devices"
@@ -668,6 +837,13 @@ var/global/list/disposalpipeID2State = list(
 
 	pipe_id		= PIPE_HE_MANIFOLD4W
 	pipe_type	= PIPE_BINARY
+
+/datum/rcd_schematic/pipe/he_cap
+	name		= "Pipe Cap"
+	category	= "Heat Exchange"
+
+	pipe_id		= PIPE_HE_CAP
+	pipe_type	= PIPE_UNARY
 
 //INSULATED PIPES.
 
@@ -737,6 +913,11 @@ var/global/list/disposalpipeID2State = list(
 	actual_id	= 6
 	pipe_type	= PIPE_NONE //Will disable the icon.
 
+/datum/rcd_schematic/pipe/disposal/bin/send_list_assets(var/client/client)
+	register_asset("RPD_ICON_D_[pipe_id].png", new/icon('icons/obj/pipes/disposal.dmi', "condisposal"))
+	send_asset(client, "RPD_ICON_D_[pipe_id].png")
+	list_icon="RPD_ICON_D_[pipe_id].png"
+
 /datum/rcd_schematic/pipe/disposal/outlet
 	name		= "Outlet"
 
@@ -764,3 +945,19 @@ var/global/list/disposalpipeID2State = list(
 	pipe_id		= DISP_SORT_WRAP_JUNCTION
 	actual_id	= 11
 	pipe_type	= PIPE_TRINARY
+
+/datum/rcd_schematic/pipe/disposal/up
+	name		= "Up Pipe"
+
+	pipe_id		= DISP_PIPE_UP
+	actual_id	= 13
+	pipe_type	= PIPE_Z_UP_BINARY
+	flags 		= RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH | RCD_Z_UP
+
+/datum/rcd_schematic/pipe/disposal/down
+	name		= "Down Pipe"
+
+	pipe_id		= DISP_PIPE_DOWN
+	actual_id	= 14
+	pipe_type	= PIPE_Z_DOWN_BINARY
+	flags 		= RCD_RANGE | RCD_GET_TURF | RCD_ALLOW_SWITCH | RCD_Z_DOWN

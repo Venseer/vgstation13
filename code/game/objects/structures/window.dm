@@ -12,14 +12,14 @@ var/list/one_way_windows
 /obj/structure/window
 	name = "window"
 	desc = "A silicate barrier, used to keep things out and in sight. Fragile."
-	icon = 'icons/obj/structures.dmi'
-	icon_state = "window"
+	icon = 'icons/obj/structures/window.dmi'
+	icon_state = "window0"
+	var/base_state = "window" //Base icon for update_icon
 	density = 1
 	layer = SIDE_WINDOW_LAYER
 	pressure_resistance = 4*ONE_ATMOSPHERE
 	anchored = 1
-	var/health = 10 //This window is so bad blowing on it would break it, sucks for it
-	var/ini_dir = null //This really shouldn't exist, but it does and I don't want to risk deleting it because it's likely mapping-related
+	health = 10 //This window is so bad blowing on it would break it, sucks for it
 	var/d_state = WINDOWLOOSEFRAME //Normal windows have one step (unanchor), reinforced windows have three
 	var/shardtype = /obj/item/weapon/shard
 	var/reinforcetype = /obj/item/stack/rods
@@ -27,30 +27,60 @@ var/list/one_way_windows
 	var/sheetamount = 1 //Number of sheets needed to build this window (determines how much shit is spawned via Destroy())
 	var/reinforced = 0 //Used for deconstruction steps
 	penetration_dampening = 1
-
-	var/obj/abstract/Overlays/damage_overlay
+	pass_flags_self = PASSGLASS
+	verb_rotates = TRUE
+	alt_click_rotates = TRUE
+	rotate_type = /obj/structure/window
+	var/mutable_appearance/damage_overlay
 	var/image/oneway_overlay
 	var/cracked_base = "crack"
 
 	var/fire_temp_threshold = 800
 	var/fire_volume_mod = 100
+	var/dmg_threshold = 0 //Minimum amount of item damage to start damaging window
 
 	var/one_way = 0 //If set to 1, it will act as a one-way window.
 	var/obj/machinery/smartglass_electronics/smartwindow //holds internal machinery
+	var/is_fulltile = FALSE
 
 /obj/structure/window/New(loc)
-
 	..(loc)
-	flow_flags |= ON_BORDER
-	ini_dir = dir
+	flow_flags |= ON_BORDER | KEEP_DIR
+	setup_border_dummy()
 
 	update_nearby_tiles()
-	update_nearby_icons()
-	update_icon()
-	oneway_overlay = image('icons/obj/structures.dmi', src, "one_way_overlay")
+	oneway_overlay = image('icons/obj/structures/window.dmi', src, "one_way_overlay")
 	if(one_way)
 		one_way = !one_way
 		toggle_one_way()
+
+/obj/structure/window/canSmoothWith()
+	var/static/list/smoothables = list(/obj/structure/window)
+	return smoothables
+
+/obj/structure/window/cannotSmoothWith()
+	var/static/list/unsmoothables = list(/obj/structure/window/full)
+	return unsmoothables
+
+/obj/structure/window/isSmoothableNeighbor(atom/A)
+	if(A?.density && ismovable(A))
+		var/atom/movable/O = A
+		return O.anchored && ..()
+
+/obj/structure/window/relativewall()
+	if(anchored && density)
+		icon_state = "[base_state][..()]"
+		if(!is_fulltile)
+			var/icon/I = new('icons/obj/structures/window.dmi', icon_state, dir)
+			var/cmasknumber = findSmoothingOnTurf()
+			if(cmasknumber)
+				var/icon/mask = new('icons/obj/structures/window.dmi', "cmask[cmasknumber]", dir)
+				I.Blend(mask, ICON_OVERLAY)
+				I.SwapColor(rgb(0, 255, 0, 255), rgb(0, 0, 0, 0))
+			icon = I
+	else
+		icon_state = initial(icon_state)
+		icon = initial(icon) // this just werks for some reason
 
 /obj/structure/window/proc/update_oneway_nearby_clients()
 	for(var/client/C in clients)
@@ -64,11 +94,6 @@ var/list/one_way_windows
 /obj/structure/window/examine(mob/user)
 	..()
 	examine_health(user)
-
-/obj/structure/window/AltClick(mob/user)
-	if(user.incapacitated() || !Adjacent(user))
-		return
-	rotate()
 
 /obj/structure/window/proc/examine_health(mob/user)
 	if(!anchored)
@@ -103,59 +128,105 @@ var/list/one_way_windows
 
 	if(health <= 0)
 		if(M) //Did someone pass a mob ? If so, perform a pressure check
-			var/pdiff = performWallPressureCheck(src.loc)
+			var/pdiff = 0
+			if(flow_flags & ON_BORDER)
+				pdiff = performWallPressureCheckFromTurfList(list(get_step(loc, dir), loc))
+			else
+				pdiff = performWallPressureCheck(loc)
 			if(pdiff > 0)
 				investigation_log(I_ATMOS, "with a pdiff of [pdiff] has been destroyed by [M.real_name] ([formatPlayerPanel(M, M.ckey)]) at [formatJumpTo(get_turf(src))]!")
 				if(M.ckey) //Only send an admin message if it's an actual players, admins don't need to know what the carps are doing
 					message_admins("\The [src] with a pdiff of [pdiff] has been destroyed by [M.real_name] ([formatPlayerPanel(M, M.ckey)]) at [formatJumpTo(get_turf(src))]!")
-		Destroy(brokenup = 1)
+		shatter()
 	else
 		if(sound)
 			playsound(loc, 'sound/effects/Glasshit.ogg', 100, 1)
 		if(!damage_overlay)
-			damage_overlay = new(src)
-			damage_overlay.icon = icon('icons/obj/structures.dmi')
+			damage_overlay = mutable_appearance(src)
+			damage_overlay.icon = icon('icons/obj/structures/window.dmi')
 			damage_overlay.dir = src.dir
+			damage_overlay.layer = OBJ_LAYER
+			damage_overlay.blend_mode = BLEND_ADD
 
 		overlays -= damage_overlay
 
 		if(health < initial(health))
-			var/damage_fraction = Clamp(round((initial(health) - health) / initial(health) * 5) + 1, 1, 5) //gives a number, 1-5, based on damagedness
+			var/damage_fraction = clamp(round((initial(health) - health) / initial(health) * 5) + 1, 1, 5) //gives a number, 1-5, based on damagedness
 			damage_overlay.icon_state = "[cracked_base][damage_fraction]"
 			overlays += damage_overlay
 
+/obj/structure/window/proc/adjustHealthLoss(var/amount = 0, var/atom/movable/W = null)
+	if(amount < dmg_threshold)
+		if(W && !istype(W,/obj/item/projectile/fire_breath))
+			visible_message("<span class='warning'>\The [W] [pick("bounces","gleams")] off \the [src] harmlessly.</span>")
+		return FALSE
+	health -= amount
+	return TRUE
+
+/obj/structure/window/silicate_act(var/obj/item/device/silicate_sprayer/S, var/mob/user)
+	if(!S.get_amount())
+		to_chat(user, "<span class='notice'>\The [S] is out of silicate!</span>")
+		return 1
+	var/mode = MODE_REPAIR
+	if(istype(S,/obj/item/device/silicate_sprayer/advanced))
+		var/obj/item/device/silicate_sprayer/advanced/SA = S
+		mode = SA.mode
+
+	var/diff = initial(health) - health
+	if(!diff && (mode == MODE_REPAIR)) // Not damaged.
+		to_chat(user, "<span class='notice'>\The [src] is already in perfect condition!</span>")
+		return 1
+
+	if(diff > 0)
+		diff = min(diff, S.get_amount() / SILICATE_PER_DAMAGE)
+
+		health += diff
+		healthcheck(user, FALSE)
+
+		user.visible_message("<span class='notice'>[user] repairs \the [src] with their [S]!</span>", "<span class='notice'>You repair \the [src] with your [S.name].</span>")
+
+	else // No diff, but we didn't exit earlier, so mode must be reinforce
+		var/extra_health = health - initial(health)
+		if(health >= initial(health) * MAX_WINDOW_HEALTH_MULTIPLIER)
+			to_chat(user, "<span class='notice'>You can't reinforce \the [src] any further!</span>")
+			return 1
+		diff = min(S.get_amount() / SILICATE_PER_REINFORCE, (initial(health) * MAX_WINDOW_HEALTH_MULTIPLIER) - (initial(health) + extra_health))
+		health += diff
+		healthcheck(user)
+		user.visible_message("<span class='notice'>[user] reinforced \the [src] with their [S]!</span>", "<span class='notice'>You reinforce \the [src] with your [S.name].</span>")
+
+	playsound(src, 'sound/effects/refill.ogg', 10, 1, -6)
+	S.remove_silicate(diff * SILICATE_PER_DAMAGE)
+	return 1
+
 /obj/structure/window/bullet_act(var/obj/item/projectile/Proj)
-
-	health -= Proj.damage
-	..()
+	if(Proj.destroy)
+		ex_act(1)
+		return ..()
+	adjustHealthLoss(Proj.damage,Proj)
+	. = ..()
 	healthcheck(Proj.firer)
-	return
-
-/obj/structure/window/proc/is_fulltile()
-
-
-	return 0
 
 //This ex_act just removes health to be fully modular with "bomb-proof" windows
 /obj/structure/window/ex_act(severity)
 
 	switch(severity)
 		if(1.0)
-			health -= rand(100, 150)
+			adjustHealthLoss(rand(100, 150))
 			healthcheck()
 			return
 		if(2.0)
-			health -= rand(20, 50)
+			adjustHealthLoss(rand(20, 50))
 			healthcheck()
 			return
 		if(3.0)
-			health -= rand(5, 15)
+			adjustHealthLoss(rand(5, 15))
 			healthcheck()
 			return
 
 /obj/structure/window/blob_act()
 	anim(target = loc, a_icon = 'icons/mob/blob/blob.dmi', flick_anim = "blob_act", sleeptime = 15, lay = 12)
-	health -= rand(30, 50)
+	adjustHealthLoss(rand(30, 50))
 	healthcheck()
 
 /obj/structure/window/kick_act(mob/living/carbon/human/H)
@@ -176,45 +247,68 @@ var/list/one_way_windows
 		damage += S.bonus_kick_damage //Unless they're wearing heavy boots
 
 	if(damage > 0)
-		health -= damage
+		if(!adjustHealthLoss(damage))
+			H.visible_message("<span class='danger'>\The [H]'s kick [pick("bounces","gleams")] off \the [src] harmlessly.</span>", \
+			"<span class='danger'>Your kick [pick("bounces","gleams")] off \the [src] harmlessly.</span>")
 		healthcheck()
 
-/obj/structure/window/Uncross(var/atom/movable/mover, var/turf/target)
-	if(istype(mover) && mover.checkpass(PASSGLASS))
-		return 1
-	if(flow_flags & ON_BORDER)
-		if(target) //Are we doing a manual check to see
-			if(get_dir(loc, target) == dir)
-				return !density
-		else if(mover.dir == dir) //Or are we using move code
-			if(density)
-				mover.to_bump(src)
-			return !density
-	return 1
-
 /obj/structure/window/Cross(atom/movable/mover, turf/target, height = 0)
-	if(istype(mover) && mover.checkpass(PASSGLASS))
-		return 1
-	if(get_dir(loc, target) == dir || get_dir(loc, mover) == dir)
-		return !density
-	return 1
+	if(locate(/obj/effect/unwall_field) in loc) //Annoying workaround for this
+		return TRUE
+	if(istype(mover) && mover.checkpass(pass_flags_self))//checking for beam dispersion both in and out, since beams do not trigger Uncross.
+		if((get_dir(loc, target) | get_dir(loc, mover)) & (dir | opposite_dirs[dir]))
+			dim_beam(mover)
+		return TRUE
+	if(!density)
+		return TRUE
+	if(istype(mover, /obj/item/projectile/beam))
+		var/obj/item/projectile/beam/B = mover
+		return bounds_dist(border_dummy, B.previous_turf) >= 0
+	else if(istype(mover))
+		return bounds_dist(border_dummy, mover) >= 0
+	else if(get_dir(loc, target) == dir)
+		return FALSE
+	return TRUE
+
+// A directional pane blocks only the edge it faces; a full-tile window blocks all four.
+/obj/structure/window/CanPathPass(var/obj/item/weapon/card/id/ID, var/to_dir, var/atom/movable/path_caller)
+	if(istype(path_caller) && (path_caller.pass_flags & pass_flags_self))
+		return TRUE
+	if(!density)
+		return TRUE
+	if(is_fulltile)
+		return FALSE
+	return dir != to_dir
+
+/obj/structure/window/proc/dim_beam(var/obj/item/projectile/beam/B)
+	if(istype(B))
+		B.damage *= disperse_coeff
+		if(B.damage <= 1)
+			B.bullet_die()
+
+/obj/structure/window/suicide_act(var/mob/living/user)
+	to_chat(viewers(user), "<span class='danger'>[user] is smashing \his head against \the [src]! It looks like \he's trying to commit suicide.</span>")
+	attack_generic(user,10)
+	return(SUICIDE_ACT_BRUTELOSS)
 
 //Someone threw something at us, please advise
-/obj/structure/window/hitby(AM as mob|obj)
+/obj/structure/window/hitby(var/atom/movable/AM)
 	. = ..()
 	if(.)
 		return
 	if(ismob(AM))
 		var/mob/M = AM //Duh
-		health -= 10 //We estimate just above a slam but under a crush, since mobs can't carry a throwforce variable
+		if (AM.invisibility < 101)
+			visible_message("<span class='danger'>\The [M] slams into \the [src].</span>", \
+			"<span class='danger'>You slam into \the [src].</span>")
+		adjustHealthLoss(10,AM) //We estimate just above a slam but under a crush, since mobs can't carry a throwforce variable
 		healthcheck(M)
-		visible_message("<span class='danger'>\The [M] slams into \the [src].</span>", \
-		"<span class='danger'>You slam into \the [src].</span>")
 	else if(isobj(AM))
 		var/obj/item/I = AM
-		health -= I.throwforce
+		if (AM.invisibility < 101)
+			visible_message("<span class='danger'>\The [I] slams into \the [src].</span>")
+		adjustHealthLoss(I.throwforce,AM)
 		healthcheck()
-		visible_message("<span class='danger'>\The [I] slams into \the [src].</span>")
 
 /obj/structure/window/attack_hand(mob/living/user as mob)
 
@@ -222,12 +316,13 @@ var/list/one_way_windows
 		user.do_attack_animation(src, user)
 		user.say(pick(";RAAAAAAAARGH!", ";HNNNNNNNNNGGGGGGH!", ";GWAAAAAAAARRRHHH!", "NNNNNNNNGGGGGGGGHH!", ";AAAAAAARRRGH!"))
 		user.visible_message("<span class='danger'>[user] smashes \the [src]!</span>")
-		health -= 25
+		if(!adjustHealthLoss(25))
+			user.visible_message("<span class='danger'>[user]'s punch [pick("bounces","gleams")] off \the [src] harmlessly.</span>")
 		healthcheck()
 		user.delayNextAttack(8)
 
 	//Bang against the window
-	else if(usr.a_intent == I_HURT)
+	else if(user.a_intent == I_HURT)
 		user.do_attack_animation(src, user)
 		user.delayNextAttack(10)
 		playsound(src, 'sound/effects/glassknock.ogg', 100, 1)
@@ -252,9 +347,11 @@ var/list/one_way_windows
 
 	user.do_attack_animation(src, user)
 	user.delayNextAttack(10)
-	health -= damage
 	user.visible_message("<span class='danger'>\The [user] smashes into \the [src]!</span>", \
 	"<span class='danger'>You smash into \the [src]!</span>")
+	if(!adjustHealthLoss(damage))
+		user.visible_message("<span class='danger'>\The [user]'s attack [pick("bounces","gleams")] off \the [src] harmlessly.</span>", \
+		"<span class='danger'>Your attack [pick("bounces","gleams")] off \the [src] harmlessly.</span>")
 	healthcheck(user)
 
 /obj/structure/window/attack_alien(mob/user as mob)
@@ -265,10 +362,11 @@ var/list/one_way_windows
 
 /obj/structure/window/attack_animal(mob/user as mob)
 
-	var/mob/living/simple_animal/M = user
-	if(M.melee_damage_upper <= 0)
-		return
-	attack_generic(M, M.melee_damage_upper)
+	if(istype(user,/mob/living/simple_animal))
+		var/mob/living/simple_animal/M = user
+		if(M.melee_damage_upper <= 0)
+			return
+		attack_generic(M, M.melee_damage_upper)
 
 /obj/structure/window/attack_slime(mob/user as mob)
 
@@ -306,7 +404,7 @@ var/list/one_way_windows
 		if(istype(G.affecting, /mob/living))
 			var/mob/living/M = G.affecting
 			var/gstate = G.state
-			returnToPool(W)	//Gotta delete it here because if window breaks, it won't get deleted
+			qdel(W)	//Gotta delete it here because if window breaks, it won't get deleted
 			user.do_attack_animation(src, W)
 			switch(gstate)
 				if(GRAB_PASSIVE)
@@ -315,15 +413,16 @@ var/list/one_way_windows
 					"<span class='warning'>You shove \the [M] into \the [src]!</span>")
 				if(GRAB_AGGRESSIVE)
 					M.apply_damage(10) //Nasty, but dazed and concussed at worst
-					health -= 5
 					visible_message("<span class='danger'>\The [user] slams \the [M] into \the [src]!</span>", \
 					"<span class='danger'>You slam \the [M] into \the [src]!</span>")
+					adjustHealthLoss(5,M)
 				if(GRAB_NECK to GRAB_KILL)
+					M.Stun(3)
 					M.Knockdown(3) //Almost certainly shoved head or face-first, you're going to need a bit for the lights to come back on
 					M.apply_damage(20) //That got to fucking hurt, you were basically flung into a window, most likely a shattered one at that
-					health -= 20 //Window won't like that
 					visible_message("<span class='danger'>\The [user] crushes \the [M] into \the [src]!</span>", \
 					"<span class='danger'>You crush \the [M] into \the [src]!</span>")
+					adjustHealthLoss(20,M) //Window won't like that
 			healthcheck(user)
 			M.attack_log += text("\[[time_stamp()]\] <font color='orange'>Has been window slammed by [user.name] ([user.ckey]) ([gstate]).</font>")
 			user.attack_log += text("\[[time_stamp()]\] <font color='red'>Window slammed [M.name] ([gstate]).</font>")
@@ -331,20 +430,20 @@ var/list/one_way_windows
 			log_attack("[user.name] ([user.ckey]) window slammed [M.name] ([M.ckey]) ([gstate]) (<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[user.x];Y=[user.y];Z=[user.z]'>JMP</a>)")
 			return
 
+    /* One-way windows have serious performance issues - N3X
 	if(iscrowbar(W) && one_way)
-		if(!is_fulltile() && get_turf(user) != get_turf(src))
+		if(!is_fulltile && get_turf(user) != get_turf(src))
 			to_chat(user, "<span class='warning'>You can't pry the sheet of plastic off from this side of \the [src]!</span>")
 		else
 			to_chat(user, "<span class='notice'>You pry the sheet of plastic off \the [src].</span>")
 			toggle_one_way()
 			drop_stack(/obj/item/stack/sheet/mineral/plastic, get_turf(user), 1, user)
 			return
-    /* One-way windows have serious performance issues - N3X
 	if(istype(W, /obj/item/stack/sheet/mineral/plastic))
 		if(one_way)
 			to_chat(user, "<span class='notice'>This window already has one-way tint on it.</span>")
 			return
-		if(is_fulltile())
+		if(is_fulltile)
 			update_nearby_tiles()
 			change_dir(turn(get_dir(get_turf(user),get_turf(src)),180))
 			if(!test_bitflag(dir))	//if its direction is diagonal
@@ -353,7 +452,6 @@ var/list/one_way_windows
 				else
 					change_dir(turn(dir,315))
 			update_nearby_tiles()
-			ini_dir = dir
 		var/obj/item/stack/sheet/mineral/plastic/P = W
 		toggle_one_way()
 		P.use(1)
@@ -377,7 +475,7 @@ var/list/one_way_windows
 		return 1
 
 
-	if(ismultitool(W) && smartwindow)
+	if(W.is_multitool(user) && smartwindow)
 		smartwindow.update_multitool_menu(user)
 		return
 
@@ -389,8 +487,8 @@ var/list/one_way_windows
 
 			if(WINDOWSECURE) //Reinforced, fully secured
 
-				if(isscrewdriver(W))
-					playsound(loc, 'sound/items/Screwdriver.ogg', 75, 1)
+				if(W.is_screwdriver(user))
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='warning'>[user] unfastens \the [src] from its frame.</span>", \
 					"<span class='notice'>You unfasten \the [src] from its frame.</span>")
 					d_state = WINDOWUNSECUREFRAME
@@ -398,15 +496,15 @@ var/list/one_way_windows
 
 			if(WINDOWUNSECUREFRAME)
 
-				if(isscrewdriver(W))
-					playsound(loc, 'sound/items/Screwdriver.ogg', 75, 1)
+				if(W.is_screwdriver(user))
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='notice'>[user] fastens \the [src] to its frame.</span>", \
 					"<span class='notice'>You fasten \the [src] to its frame.</span>")
 					d_state = WINDOWSECURE
 					return
 
 				if(iscrowbar(W))
-					playsound(loc, 'sound/items/Crowbar.ogg', 75, 1)
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='warning'>[user] pries \the [src] from its frame.</span>", \
 					"<span class='notice'>You pry \the [src] from its frame.</span>")
 					d_state = WINDOWLOOSEFRAME
@@ -415,29 +513,32 @@ var/list/one_way_windows
 			if(WINDOWLOOSEFRAME)
 
 				if(iscrowbar(W))
-					playsound(loc, 'sound/items/Crowbar.ogg', 75, 1)
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='notice'>[user] pries \the [src] into its frame.</span>", \
 					"<span class='notice'>You pry \the [src] into its frame.</span>")
 					d_state = WINDOWUNSECUREFRAME
 					return
 
-				if(isscrewdriver(W))
-					playsound(loc, 'sound/items/Screwdriver.ogg', 75, 1)
+				if(W.is_screwdriver(user))
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='warning'>[user] unfastens \the [src]'s frame from the floor.</span>", \
 					"<span class='notice'>You unfasten \the [src]'s frame from the floor.</span>")
 					d_state = WINDOWLOOSE
 					anchored = 0
 					update_nearby_tiles() //Needed if it's a full window, since unanchored windows don't link
-					update_nearby_icons()
-					update_icon()
+					relativewall()
+					relativewall_neighbours()
 					if(smartwindow)
-						qdel(smartwindow)
-						smartwindow = null
+						QDEL_NULL(smartwindow)
 						if (opacity)
 							smart_toggle()
 						drop_stack(/obj/item/stack/light_w, get_turf(src), 1, user)
 					//Perform pressure check since window no longer blocks air
-					var/pdiff = performWallPressureCheck(src.loc)
+					var/pdiff = 0
+					if(flow_flags & ON_BORDER)
+						pdiff = performWallPressureCheckFromTurfList(list(get_step(loc, dir), loc))
+					else
+						pdiff = performWallPressureCheck(loc)
 					if(pdiff > 0)
 						message_admins("Window with pdiff [pdiff] deanchored by [user.real_name] ([formatPlayerPanel(user,user.ckey)]) at [formatJumpTo(loc)]!")
 						log_admin("Window with pdiff [pdiff] deanchored by [user.real_name] ([user.ckey]) at [loc]!")
@@ -445,68 +546,67 @@ var/list/one_way_windows
 
 			if(WINDOWLOOSE)
 
-				if(isscrewdriver(W))
-					playsound(loc, 'sound/items/Screwdriver.ogg', 75, 1)
+				if(W.is_screwdriver(user))
+					W.playtoolsound(loc, 75)
 					user.visible_message("<span class='notice'>[user] fastens \the [src]'s frame to the floor.</span>", \
 					"<span class='notice'>You fasten \the [src]'s frame to the floor.</span>")
 					d_state = WINDOWLOOSEFRAME
 					anchored = 1
 					update_nearby_tiles() //Ditto above, but in reverse
-					update_nearby_icons()
-					update_icon()
+					relativewall()
+					relativewall_neighbours()
 					if(smartwindow)
-						qdel(smartwindow)
-						smartwindow = null
+						QDEL_NULL(smartwindow)
 						if (opacity)
 							smart_toggle()
 						drop_stack(/obj/item/stack/light_w, get_turf(src), 1, user)
 					return
 
 				if(iswelder(W))
-					var/obj/item/weapon/weldingtool/WT = W
+					var/obj/item/tool/weldingtool/WT = W
 					user.visible_message("<span class='warning'>[user] starts disassembling \the [src].</span>", \
 						"<span class='notice'>You start disassembling \the [src].</span>")
-					if(WT.do_weld(user, src, 40, 0) && d_state == WINDOWLOOSE) //Extra condition needed to avoid cheesing
-						playsound(src, 'sound/items/Welder.ogg', 100, 1)
+					if(WT.do_weld(user, src, 40, 1) && d_state == WINDOWLOOSE) //Extra condition needed to avoid cheesing
+						WT.playtoolsound(src, 100)
 						user.visible_message("<span class='warning'>[user] disassembles \the [src].</span>", \
 						"<span class='notice'>You disassemble \the [src].</span>")
 						drop_stack(sheet_type, get_turf(src), sheetamount, user)
 						qdel(src)
 						return
 					else
-						to_chat(user, "<span class='warning'>You need more welding fuel to complete this task.</span>")
 						return
 
 	else if(!reinforced) //Normal window steps
 
-		if(isscrewdriver(W))
-			playsound(loc, 'sound/items/Screwdriver.ogg', 75, 1)
+		if(W.is_screwdriver(user))
+			W.playtoolsound(loc, 75)
 			user.visible_message("<span class='[d_state ? "warning":"notice"]'>[user] [d_state ? "un":""]fastens \the [src].</span>", \
 			"<span class='notice'>You [d_state ? "un":""]fasten \the [src].</span>")
 			d_state = !d_state
 			anchored = !anchored
 			update_nearby_tiles() //Ditto above
-			update_nearby_icons()
+			relativewall()
+			relativewall_neighbours()
 			update_icon()
 			return
 
 		if(iswelder(W) && !d_state)
-			var/obj/item/weapon/weldingtool/WT = W
+			var/obj/item/tool/weldingtool/WT = W
 			user.visible_message("<span class='warning'>[user] starts disassembling \the [src].</span>", \
 				"<span class='notice'>You start disassembling \the [src].</span>")
 			if(WT.do_weld(user, src, 40, 0) && d_state == WINDOWLOOSE) //Ditto above
 				user.visible_message("<span class='warning'>[user] disassembles \the [src].</span>", \
 				"<span class='notice'>You disassemble \the [src].</span>")
 				drop_stack(sheet_type, get_turf(src), sheetamount, user)
-				Destroy()
+				qdel(src)
 				return
 
 	user.do_attack_animation(src, W)
 	if(W.damtype == BRUTE || W.damtype == BURN)
 		user.delayNextAttack(10)
-		health -= W.force
 		user.visible_message("<span class='warning'>\The [user] hits \the [src] with \the [W].</span>", \
 		"<span class='warning'>You hit \the [src] with \the [W].</span>")
+		adjustHealthLoss(W.force,W)
 		healthcheck(user)
 		return
 	else
@@ -516,58 +616,33 @@ var/list/one_way_windows
 	return
 
 /obj/structure/window/proc/can_be_reached(mob/user)
-
-
-	if(!is_fulltile())
+	if(!is_fulltile)
 		if(get_dir(user, src) & dir)
 			for(var/obj/O in loc)
 				if(!O.Cross(user, user.loc, 1, 0))
 					return 0
 	return 1
 
-/obj/structure/window/verb/rotate()
-	set name = "Rotate Window Counter-Clockwise"
-	set category = "Object"
-	set src in oview(1)
-
-	if(anchored)
-		to_chat(usr, "<span class='warning'>\The [src] is fastened to the floor, therefore you can't rotate it!</span>")
-		return 0
-
+/obj/structure/window/change_dir(new_dir, changer)
 	update_nearby_tiles() //Compel updates before
-	dir = turn(dir, 90)
+	. = ..()
+	relativewall()
 	update_nearby_tiles()
-	ini_dir = dir
-	return
 
-/obj/structure/window/verb/revrotate()
-	set name = "Rotate Window Clockwise"
-	set category = "Object"
-	set src in oview(1)
-
-	if(anchored)
-		to_chat(usr, "<span class='warning'>\The [src] is fastened to the floor, therefore you can't rotate it!</span>")
-		return 0
-
-	update_nearby_tiles() //Compel updates before
-	dir = turn(dir, 270)
-	update_nearby_tiles()
-	ini_dir = dir
-	return
-
-/obj/structure/window/Destroy(var/brokenup = 0)
-
+/obj/structure/window/Destroy()
 	setDensity(FALSE) //Sanity while we do the rest
 	update_nearby_tiles()
-	update_nearby_icons()
-	if(brokenup) //If the instruction we were sent clearly states we're breaking the window, not deleting it !
-		if(loc)
-			playsound(src, "shatter", 70, 1)
-		spawnBrokenPieces()
+	relativewall_neighbours()
 	if(one_way)
 		one_way_windows.Remove(src)
 		update_oneway_nearby_clients()
 	..()
+
+/obj/structure/window/proc/shatter()
+	if(loc)
+		playsound(src, "shatter", 70, 1)
+	spawnBrokenPieces()
+	qdel(src)
 
 /obj/structure/window/proc/spawnBrokenPieces()
 	if(shardtype)
@@ -578,81 +653,62 @@ var/list/one_way_windows
 /obj/structure/window/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 
 	update_nearby_tiles()
-	..()
-	dir = ini_dir
+	. = ..()
 	update_nearby_tiles()
 
-//This proc has to do with airgroups and atmos, it has nothing to do with smoothwindows, that's update_nearby_icons().
-/obj/structure/window/proc/update_nearby_tiles(var/turf/T)
-
-
-	if(!SS_READY(SSair))
-		return 0
-
-	if(!T)
-		T = get_turf(src)
-
-	if(isturf(T))
-		SSair.mark_for_update(T)
-
-	return 1
-
-//This proc is used to update the icons of nearby windows. It should not be confused with update_nearby_tiles(), which is an atmos proc!
-/obj/structure/window/proc/update_nearby_icons(var/turf/T)
-
-
-	if(!loc)
-		return 0
-	if(!T)
-		T = get_turf(src)
-
-	update_icon()
-
-	for(var/direction in cardinal)
-		for(var/obj/structure/window/W in get_step(T,direction))
-			W.update_icon()
-
-/obj/structure/window/forceMove(atom/destination, no_tp=0, harderforce = FALSE, glide_size_override = 0)
+/obj/structure/window/forceMove(atom/destination, step_x = 0, step_y = 0, no_tp = FALSE, harderforce = FALSE, glide_size_override = 0)
 	var/turf/T = loc
-	..()
-	update_nearby_icons(T)
-	update_nearby_icons()
+	relativewall()
+	relativewall_neighbours()
 	update_nearby_tiles(T)
+	..()
+	relativewall()
+	relativewall_neighbours()
 	update_nearby_tiles()
-
-/obj/structure/window/update_icon()
-
-	return
 
 /obj/structure/window/fire_act(datum/gas_mixture/air, exposed_temperature, exposed_volume)
 
 	if(exposed_temperature > T0C + fire_temp_threshold)
-		health -= round(exposed_volume/fire_volume_mod)
+		adjustHealthLoss(round(exposed_volume/fire_volume_mod))
 		healthcheck(sound = 0)
 	..()
 
 /obj/structure/window/clockworkify()
 	GENERIC_CLOCKWORK_CONVERSION(src, /obj/structure/window/reinforced/clockwork, BRASS_WINDOW_GLOW)
 
+/obj/structure/window/oneway
+	one_way = 1
+
+/obj/structure/window/loose
+	anchored = 0
+	d_state = 0
+
 /obj/structure/window/reinforced
 	name = "reinforced window"
-	desc = "A window with a rod matrice. It looks more solid than the average window."
-	icon_state = "rwindow"
+	desc = "A window with a rod matrix. It looks more solid than the average window."
+	icon_state = "rwindow0"
+	base_state = "rwindow"
 	sheet_type = /obj/item/stack/sheet/glass/rglass
 	health = 40
 	d_state = WINDOWSECURE
 	reinforced = 1
 	penetration_dampening = 3
+	disperse_coeff = 0.8
+	dmg_threshold = 5
+
+/obj/structure/window/reinforced/oneway
+	one_way = 1
 
 /obj/structure/window/reinforced/loose
 	anchored = 0
-	d_state = WINDOWLOOSE
+	d_state = 0
 
 /obj/structure/window/plasma
 
 	name = "plasma window"
 	desc = "A window made out of a plasma-silicate alloy. It looks insanely tough to break and burn through."
-	icon_state = "plasmawindow"
+	icon_state = "plasmawindow0"
+	base_state = "plasmawindow"
 	shardtype = /obj/item/weapon/shard/plasma
 	sheet_type = /obj/item/stack/sheet/glass/plasmaglass
 	health = 120
@@ -660,19 +716,39 @@ var/list/one_way_windows
 
 	fire_temp_threshold = 32000
 	fire_volume_mod = 1000
+	disperse_coeff = 0.75
+	dmg_threshold = 10
+
+/obj/structure/window/plasma/oneway
+	one_way = 1
+
+/obj/structure/window/plasma/loose
+	anchored = 0
+	d_state = 0
 
 /obj/structure/window/reinforced/plasma
 
 	name = "reinforced plasma window"
-	desc = "A window made out of a plasma-silicate alloy and a rod matrice. It looks hopelessly tough to break and is most likely nigh fireproof."
-	icon_state = "plasmarwindow"
+	desc = "A window made out of a plasma-silicate alloy and a rod matrix. It looks hopelessly tough to break and is most likely nigh fireproof."
+	icon_state = "plasmarwindow0"
+	base_state = "plasmarwindow"
 	shardtype = /obj/item/weapon/shard/plasma
 	sheet_type = /obj/item/stack/sheet/glass/plasmarglass
 	health = 160
 	penetration_dampening = 7
+	disperse_coeff = 0.6
+	dmg_threshold = 15
+
+/obj/structure/window/reinforced/plasma/oneway
+	one_way = 1
+
+/obj/structure/window/reinforced/plasma/loose
+	anchored = 0
+	d_state = 0
 
 
 // Used on Packed ; smartglassified roundstart
+// TODO: Remove this snowflake stuff.
 /obj/structure/window/reinforced/plasma/interogation_room/initialize()
 	smartwindow = new(src)
 	smartwindow.id_tag = "InterogationRoomIDTag"
@@ -683,34 +759,120 @@ var/list/one_way_windows
 /obj/structure/window/reinforced/tinted
 
 	name = "tinted window"
-	desc = "A window with a rod matrice. Its surface is completely tinted, making it opaque. Why not a wall ?"
-	icon_state = "twindow"
+	desc = "A window with a rod matrix. Its surface is completely tinted, making it opaque. Why not a wall?"
+	icon_state = "twindow0"
+	base_state = "twindow"
 	opacity = 1
 	sheet_type = /obj/item/stack/sheet/glass/rglass //A glass type for this window doesn't seem to exist, so here's to you
 
 /obj/structure/window/reinforced/tinted/frosted
 
 	name = "frosted window"
-	desc = "A window with a rod matrice. Its surface is completely tinted, making it opaque, and it's frosty. Why not an ice wall ?"
-	icon_state = "fwindow"
+	desc = "A window with a rod matrix. Its surface is completely tinted, making it opaque, and it's frosty. Why not an ice wall?"
+	icon_state = "rwindow0"
+	base_state = "rwindow"
 	health = 30
 	sheet_type = /obj/item/stack/sheet/glass/rglass //Ditto above
 
 /obj/structure/window/reinforced/clockwork
 	name = "brass window"
 	desc = "A paper-thin pane of translucent yet reinforced brass."
-	icon_state = "clockworkwindow"
+	icon_state = "clockworkwindow0"
+	base_state = "clockworkwindow"
 	shardtype = null
 	sheet_type = /obj/item/stack/sheet/brass
 	reinforcetype = /obj/item/stack/sheet/ralloy
 	sheetamount = 2
 	health = 80
 
+/obj/structure/window/reinforced/clockwork/relativewall()
+	// Ignores adjacent anchored window tiles for "merging", since there's only a single brass window sprite
+	// Remove this whenever someone sprites all the required icon states
+	return
+
 /obj/structure/window/reinforced/clockwork/cultify()
 	return
 
 /obj/structure/window/reinforced/clockwork/clockworkify()
 	return
+
+/obj/structure/window/reinforced/clockwork/loose
+	anchored = 0
+	d_state = 0
+
+// Smartglass for mappers, smartglassified on roundstart.
+//the id_tag of the actual pane itself is passed to the smartglass electronics on initialization, it's not used for anything else
+/obj/structure/window/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/full/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/full/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/reinforced/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/reinforced/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/full/reinforced/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/full/reinforced/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/plasma/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/plasma/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/full/plasma/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/full/plasma/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/reinforced/plasma/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/reinforced/plasma/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
+
+/obj/structure/window/full/reinforced/plasma/smart
+	var/id_tag
+	var/frequency = 1449
+
+/obj/structure/window/full/reinforced/plasma/smart/initialize()
+	smartwindow = new(src)
+	smartwindow.id_tag = id_tag
+	smartwindow.frequency = frequency
 
 /obj/structure/window/send_to_past(var/duration)
 	..()
@@ -719,6 +881,7 @@ var/list/one_way_windows
 		"d_state")
 
 	reset_vars_after_duration(resettable_vars, duration)
+
 
 #undef WINDOWLOOSE
 #undef WINDOWLOOSEFRAME

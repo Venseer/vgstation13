@@ -6,12 +6,11 @@
 	var/fire_alert = 0
 	var/pressure_alert = 0
 	base_insulation = 0.5
-	var/temperature_alert = 0
+	var/temperature_alert = TEMP_ALARM_SAFE
 	var/safe_oxygen_min = 16 // Minimum safe partial pressure of O2, in kPa
 
 
 /mob/living/carbon/monkey/Life()
-	set invisibility = 0
 	//set background = 1
 	if(timestopped)
 		return 0 //under effects of time magick
@@ -73,6 +72,7 @@
 
 	if(client)
 		handle_regular_hud_updates()
+		standard_damage_overlay_updates()
 
 	// Grabbing
 	for(var/obj/item/weapon/grab/G in src)
@@ -80,9 +80,11 @@
 
 	if(!client && stat == CONSCIOUS)
 
-		if(prob(33) && canmove && isturf(loc) && !pulledby) //won't move if being pulled
+		if(prob(33) && canmove && isturf(loc) && !pulledby && !(grabbed_by?.len)) //won't move if being pulled
 
+			INVOKE_EVENT(src, /event/before_move)
 			step(src, pick(cardinal))
+			INVOKE_EVENT(src, /event/after_move)
 
 		if(prob(1))
 			passive_emote()
@@ -184,60 +186,12 @@
 					emote("gasp")
 				updatehealth()
 
-// separate proc so we can jump out of it when we've succeeded in spreading disease.
-/mob/living/carbon/monkey/proc/findAirborneVirii()
-	if(blood_virus_spreading_disabled)
-		return 0
-	for(var/obj/effect/decal/cleanable/blood/B in get_turf(src))
-		if(B.virus2.len)
-			for (var/ID in B.virus2)
-				var/datum/disease2/disease/V = B.virus2[ID]
-				if (infect_virus2(src,V, notes="(Airborne from blood)"))
-					return 1
-
-	for(var/obj/effect/decal/cleanable/mucus/M in get_turf(src))
-		if(M.virus2.len)
-			for (var/ID in M.virus2)
-				var/datum/disease2/disease/V = M.virus2[ID]
-				if (infect_virus2(src,V, notes="(Airborne from mucus)"))
-					return 1
-	return 0
-
-/mob/living/carbon/monkey/proc/handle_virus_updates()
-	if(status_flags & GODMODE)
-		return 0	//godmode
-	if(bodytemperature > 406)
-		for(var/datum/disease/D in viruses)
-			D.cure()
-		for (var/ID in virus2)
-			var/datum/disease2/disease/V = virus2[ID]
-			V.cure(src)
-
-	src.findAirborneVirii()
-
-	for (var/ID in virus2)
-		var/datum/disease2/disease/V = virus2[ID]
-		if(isnull(V)) // Trying to figure out a runtime error that keeps repeating
-			CRASH("virus2 nulled before calling activate()")
-		else
-			V.activate(src)
-		// activate may have deleted the virus
-		if(!V)
-			continue
-
-		// check if we're immune
-		if(V.antigen & src.antibodies)
-			V.dead = 1
-
-	return
-
 /mob/living/carbon/monkey/proc/breathe()
 	if(flags & INVULNERABLE)
 		return
 
-	if(reagents)
-		if(reagents.has_reagent(LEXORIN))
-			return
+	if(reagents && reagents.has_any_reagents(LEXORINS))
+		return
 
 	if(!loc)
 		return //probably ought to make a proper fix for this, but :effort: --NeoFite
@@ -272,9 +226,9 @@
 						block = 1
 
 				if(!block)
-					for(var/obj/effect/effect/smoke/chem/smoke in view(1, src))
+					for(var/obj/effect/smoke/chem/smoke in view(1, src))
 						if(smoke.reagents.total_volume)
-							smoke.reagents.reaction(src, INGEST)
+							smoke.reagents.reaction(src, INGEST, amount_override = min(smoke.reagents.total_volume,10)/(smoke.reagents.reagent_list.len))
 							spawn(5)
 								if(smoke)
 									smoke.reagents.copy_to(src, 10) // I dunno, maybe the reagents enter the blood stream through the lungs?
@@ -289,22 +243,6 @@
 	handle_breath(breath)
 	if(breath)
 		loc.assume_air(breath)
-
-
-/mob/living/carbon/monkey/proc/get_breath_from_internal(volume_needed)
-	if(internal)
-		if (!contents.Find(internal))
-			internal = null
-		if (!wear_mask || !(wear_mask.clothing_flags|MASKINTERNALS) )
-			internal = null
-		if(internal)
-			if (internals)
-				internals.icon_state = "internal1"
-			return internal.remove_air_volume(volume_needed)
-		else
-			if (internals)
-				internals.icon_state = "internal0"
-	return null
 
 /mob/living/carbon/monkey/proc/handle_breath(datum/gas_mixture/breath)
 	if((status_flags & GODMODE) || (flags & INVULNERABLE))
@@ -373,7 +311,7 @@
 
 	if(Toxins_pp > safe_toxins_max) // Too much toxins
 		var/ratio = (breath[GAS_PLASMA]/safe_toxins_max) * 10
-		//adjustToxLoss(Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
+		//adjustToxLoss(clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))	//Limit amount of damage toxin exposure can do per second
 		if(wear_mask)
 			if(wear_mask.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
 				if(breath[GAS_PLASMA] > safe_toxins_mask)
@@ -382,7 +320,7 @@
 					ratio = 0
 		if(ratio)
 			if(reagents)
-				reagents.add_reagent(PLASMA, Clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
+				reagents.add_reagent(PLASMA, clamp(ratio, MIN_PLASMA_DAMAGE, MAX_PLASMA_DAMAGE))
 			toxins_alert = max(toxins_alert, 1)
 	else
 		toxins_alert = 0
@@ -401,9 +339,20 @@
 		if(prob(20))
 			to_chat(src, "<span class='warning'>You feel a searing heat in your lungs!</span>")
 		fire_alert = max(fire_alert, 2)
-	else
-		fire_alert = 0
 
+	//breathing diseases
+	var/block = 0
+	var/list/blockers = list(wear_mask,glasses,hat)
+	for (var/item in blockers)
+		var/obj/item/I = item
+		if (!istype(I))
+			continue
+		if (I.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
+			block = 1
+			break
+
+	if(!block)
+		breath_airborne_diseases()
 
 	//Temporary fixes to the alerts.
 
@@ -465,11 +414,27 @@
 			if(thermal_protection < 1)
 				bodytemperature += min((1 - thermal_protection) * ((loc_temp - get_skin_temperature()) / BODYTEMP_HEAT_DIVISOR), BODYTEMP_HEATING_MAX)
 
-	if(stat==DEAD)
+	if(stat!=DEAD)//this is sweating/shiverring, right?....
 		bodytemperature += 0.1*(environment.temperature - bodytemperature)*environment_heat_capacity/(environment_heat_capacity + 270000)
 
-	//Account for massive pressure differences
+	if (status_flags & GODMODE)
+		fire_alert = 0
+		pressure_alert = 0
+		return
 
+	// Slimed carbons are protected against heat damage
+	if (bodytemperature < BODYTEMP_COLD_DAMAGE_LIMIT || (bodytemperature > BODYTEMP_HEAT_DAMAGE_LIMIT))
+		// Update fire/cold overlay
+		var/temp_alert = (bodytemperature < BODYTEMP_COLD_DAMAGE_LIMIT) ? 1 : 2
+		fire_alert = max(fire_alert, temp_alert)
+		if(!(istype(loc, /obj/machinery/atmospherics/unary/cryo_cell)))
+			var/temp_damage = get_body_temperature_damage(bodytemperature)
+			var/temp_weapon = (bodytemperature < BODYTEMP_COLD_DAMAGE_LIMIT) ? WPN_LOW_BODY_TEMP : WPN_HIGH_BODY_TEMP
+			apply_damage(temp_damage, BURN, used_weapon = temp_weapon)
+	else
+		fire_alert = 0
+
+	//Account for massive pressure differences
 	var/pressure = environment.return_pressure()
 	var/adjusted_pressure = calculate_affecting_pressure(pressure) //Returns how much pressure actually affects the mob.
 	switch(adjusted_pressure)
@@ -492,7 +457,7 @@
 					pressure_alert = -1
 
 	return
-
+/*
 /mob/living/carbon/monkey/proc/handle_temperature_damage(body_part, exposed_temperature, exposed_intensity)
 	if(status_flags & GODMODE)
 		return
@@ -503,7 +468,24 @@
 		adjustFireLoss(20.0*discomfort)
 
 	else
-		adjustFireLoss(5.0*discomfort)
+		adjustFireLoss(5.0*discomfort)*/
+
+/mob/living/carbon/monkey/proc/get_body_temperature_damage(var/temperature)
+	var/datum/species/species = all_species[greaterform]
+	if (temperature < species.cold_level_3)
+		return COLD_DAMAGE_LEVEL_3
+	else if (temperature < species.cold_level_2)
+		return COLD_DAMAGE_LEVEL_2
+	else if (temperature < species.cold_level_1)
+		return COLD_DAMAGE_LEVEL_1
+	else if (temperature >= species.heat_level_1)
+		return HEAT_DAMAGE_LEVEL_1
+	else if (temperature >= species.heat_level_2)
+		return HEAT_DAMAGE_LEVEL_2
+	else if (temperature >= species.heat_level_3)
+		return HEAT_DAMAGE_LEVEL_3
+	else
+		return 0
 
 /mob/living/carbon/monkey/proc/handle_chemicals_in_body()
 
@@ -536,12 +518,9 @@
 			sleeping += 1
 			Paralyse(5)
 
-	confused = max(0, confused - 1)
-	// decrement dizziness counter, clamped to 0
-	if(resting)
-		dizziness = max(0, dizziness - 5)
-	else
-		dizziness = max(0, dizziness - 1)
+	remove_confused(1)
+	handle_dizziness()
+	handle_jitteriness()
 
 	updatehealth()
 	return //TODO: DEFERRED
@@ -554,7 +533,7 @@
 		silent = 0
 	else				//ALIVE. LIGHTS ARE ON
 		updatehealth()
-		if(health < config.health_threshold_dead || !has_brain())
+		if((health < config.health_threshold_dead || !has_brain()) && !(status_flags & BUDDHAMODE))
 			death()
 			blinded = 1
 			stat = DEAD
@@ -562,7 +541,7 @@
 			return 1
 
 		//UNCONSCIOUS. NO-ONE IS HOME
-		if( (getOxyLoss() > 25) || (config.health_threshold_crit > health) )
+		if((getOxyLoss() > 25 || config.health_threshold_crit > health) && !(status_flags & BUDDHAMODE))
 			if( health <= 20 && prob(1) )
 				spawn(0)
 					emote("gasp")
@@ -579,7 +558,7 @@
 		if(paralysis)
 			AdjustParalysis(-1)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if(halloss > 0)
 				adjustHalLoss(-3)
 		else if(sleeping)
@@ -587,7 +566,7 @@
 			adjustHalLoss(-3)
 			sleeping = max(sleeping-1, 0)
 			blinded = 1
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 			if( prob(10) && health && !hal_crit )
 				spawn(0)
 					emote("snore")
@@ -596,7 +575,7 @@
 				adjustHalLoss(-3)
 		//CONSCIOUS
 		else if(undergoing_hypothermia() >= SEVERE_HYPOTHERMIA)
-			stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 		else
 			stat = CONSCIOUS
 			if(halloss > 0)
@@ -679,60 +658,44 @@
 		else
 			healths.icon_state = "health7"
 
-
-	if(pressure)
-		pressure.icon_state = "pressure[pressure_alert]"
+	switch(bodytemperature) //310.055 optimal body temp
+		if(345 to INFINITY)
+			temperature_alert = TEMP_ALARM_HEAT_STRONG
+		if(335 to 345)
+			temperature_alert = TEMP_ALARM_HEAT_MILD
+		if(327 to 335)
+			temperature_alert = TEMP_ALARM_HEAT_WEAK
+		if(295 to 327)
+			temperature_alert = TEMP_ALARM_SAFE
+		if(280 to 295)
+			temperature_alert = TEMP_ALARM_COLD_WEAK
+		if(260 to 280)
+			temperature_alert = TEMP_ALARM_COLD_MILD
+		else
+			temperature_alert = TEMP_ALARM_COLD_STRONG
 
 	update_pull_icon()
 
-
-	if (toxin)
-		toxin.icon_state = "tox[toxins_alert ? 1 : 0]"
-	if (oxygen)
-		oxygen.icon_state = "oxy[oxygen_alert ? 1 : 0]"
-	if (fire)
-		fire.icon_state = "fire[fire_alert ? 2 : 0]"
-	//NOTE: the alerts dont reset when youre out of danger. dont blame me,
-	//blame the person who coded them. Temporary fix added.
-
-	if(bodytemp)
-		switch(bodytemperature) //310.055 optimal body temp
-			if(345 to INFINITY)
-				bodytemp.icon_state = "temp4"
-			if(335 to 345)
-				bodytemp.icon_state = "temp3"
-			if(327 to 335)
-				bodytemp.icon_state = "temp2"
-			if(316 to 327)
-				bodytemp.icon_state = "temp1"
-			if(300 to 316)
-				bodytemp.icon_state = "temp0"
-			if(295 to 300)
-				bodytemp.icon_state = "temp-1"
-			if(280 to 295)
-				bodytemp.icon_state = "temp-2"
-			if(260 to 280)
-				bodytemp.icon_state = "temp-3"
-			else
-				bodytemp.icon_state = "temp-4"
-
-	if(stat != DEAD)
-		if(src.eye_blind || blinded)
-			overlay_fullscreen("blind", /obj/abstract/screen/fullscreen/blind)
-		else
-			clear_fullscreen("blind")
-		if (src.disabilities & NEARSIGHTED)
-			overlay_fullscreen("impaired", /obj/abstract/screen/fullscreen/impaired, 2)
-		else
-			clear_fullscreen("impaired")
-		if (src.eye_blurry)
-			overlay_fullscreen("blurry", /obj/abstract/screen/fullscreen/blurry)
-		else
-			clear_fullscreen("blurry")
-		if (src.druggy)
-			overlay_fullscreen("high", /obj/abstract/screen/fullscreen/high)
-		else
-			clear_fullscreen("high")
+	if(pressure_alert)
+		throw_alert(SCREEN_ALARM_PRESSURE, pressure_alert < 0 ? /obj/abstract/screen/alert/carbon/pressure/low : /obj/abstract/screen/alert/carbon/pressure/high, pressure_alert)
+	else
+		clear_alert(SCREEN_ALARM_PRESSURE)
+	if(oxygen_alert)
+		throw_alert(SCREEN_ALARM_BREATH, /obj/abstract/screen/alert/carbon/breath)
+	else
+		clear_alert(SCREEN_ALARM_BREATH)
+	if(toxins_alert)
+		throw_alert(SCREEN_ALARM_TOXINS, /obj/abstract/screen/alert/tox)
+	else
+		clear_alert(SCREEN_ALARM_TOXINS)
+	if(fire_alert)
+		throw_alert(SCREEN_ALARM_FIRE, /obj/abstract/screen/alert/carbon/burn/fire, fire_alert)
+	else
+		clear_alert(SCREEN_ALARM_FIRE)
+	if(temperature_alert)
+		throw_alert(SCREEN_ALARM_TEMPERATURE, temperature_alert < 0 ? /obj/abstract/screen/alert/carbon/temp/cold : /obj/abstract/screen/alert/carbon/temp/hot, temperature_alert)
+	else
+		clear_alert(SCREEN_ALARM_TEMPERATURE)
 
 	if (stat != 2)
 		if (machine)
@@ -749,6 +712,23 @@
 		spawn(0)
 			emote("scratch")
 			return
+
+/**
+ * Returns a number between -2 to 2.
+ * TODO: What's the default return value?
+ */
+/mob/living/carbon/monkey/eyecheck()
+	. = 0
+	var/obj/item/clothing/head/headwear = src.hat
+	var/obj/item/clothing/glasses/eyewear = src.glasses
+
+	if (istype(headwear))
+		. += headwear.eyeprot
+
+	if (istype(eyewear))
+		. += eyewear.eyeprot
+
+	return clamp(., -2, 2)
 
 ///FIRE CODE
 /mob/living/carbon/monkey/handle_fire()

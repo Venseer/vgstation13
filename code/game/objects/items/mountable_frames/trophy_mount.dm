@@ -8,7 +8,7 @@
 	w_type = RECYK_WOOD
 	frame_material = /obj/item/stack/sheet/wood
 	sheets_refunded = 2
-	autoignition_temperature = AUTOIGNITION_WOOD
+	flammable = TRUE
 	var/obj/item/held_item
 	var/list/params_list
 	var/icon/clicked
@@ -19,13 +19,12 @@
 
 /obj/item/mounted/frame/trophy_mount/Destroy()
 	if(held_item)
-		qdel(held_item)
-		held_item = null
+		QDEL_NULL(held_item)
 	..()
 
 /obj/item/mounted/frame/trophy_mount/update_icon()
+	overlays.Cut()
 	if(!held_item)
-		overlays.len = 0
 		name = initial(name)
 		desc = initial(desc)
 	else
@@ -38,8 +37,8 @@
 		if(params_list && params_list.len)
 			var/clamp_x = clicked.Width() / 2
 			var/clamp_y = clicked.Height() / 2
-			temp.pixel_x = Clamp(text2num(params_list["icon-x"]) - clamp_x, -clamp_x, clamp_x)
-			temp.pixel_y = Clamp(text2num(params_list["icon-y"]) - clamp_y, -clamp_y, clamp_y)
+			temp.pixel_x = clamp(text2num(params_list["icon-x"]) - clamp_x, -clamp_x, clamp_x)
+			temp.pixel_y = clamp(text2num(params_list["icon-y"]) - clamp_y, -clamp_y, clamp_y)
 
 		overlays += temp
 
@@ -51,6 +50,9 @@
 		held_item.examine(user, "", FALSE)
 
 /obj/item/mounted/frame/trophy_mount/attackby(obj/item/weapon/W, mob/user, params)
+	if(W.is_wrench(user) && held_item)
+		to_chat(user, "<span class='notice'>\The [held_item] is in the way!</span>")
+		return
 	if(..())
 		return
 	params_list = params2list(params)
@@ -63,13 +65,22 @@
 		mount_item(I, user)
 
 /obj/item/mounted/frame/trophy_mount/proc/mount_item(obj/item/weapon/W, mob/user)
-	if(held_item)
-		to_chat(user, "This [initial(name)] already has \a [held_item] mounted on it.")
+	if(!isturf(loc))
+		if(user)
+			to_chat(user, "<span class = 'warning'>You can't quite mount \the [W] onto \the [src]. Try placing it down on something.</span>")
 		return
-	if(user.drop_item(W, src))
-		user.visible_message("\The [user] mounts \the [W] onto \the [src].", "You mount \the [W] onto \the [src].")
-		held_item = W
-		update_icon()
+	if(held_item)
+		if(user)
+			to_chat(user, "This [initial(name)] already has \a [held_item] mounted on it.")
+		return
+	if(user)
+		if(user.drop_item(W, src))
+			user.visible_message("\The [user] mounts \the [W] onto \the [src].", "You mount \the [W] onto \the [src].")
+		else
+			return
+	held_item = W
+	w_class = max(initial(w_class),held_item.w_class)
+	update_icon()
 
 
 /obj/item/mounted/frame/trophy_mount/attack_self(mob/user)
@@ -78,13 +89,13 @@
 		held_item.forceMove(get_turf(src))
 		user.put_in_hands(held_item)
 		held_item = null
+		w_class = initial(w_class)
 		params_list = list()
 		update_icon()
 		user.visible_message("\The [user] removes \the [I] from \the [src].", "You remove \the [I] from \the [src].")
 
 /obj/item/mounted/frame/trophy_mount/do_build(turf/on_wall, mob/user)
-	if(!user.drop_item(src))
-		to_chat(user, "<span class='warning'>You can't let go of \the [src]!</span>")
+	if(!user.drop_item(src, failmsg = TRUE))
 		return
 	user.visible_message("\The [user] hangs \the [src] on \the [on_wall].", "You hang \the [src] on \the [on_wall].")
 	add_fingerprint(user)
@@ -115,7 +126,9 @@
 	desc = "A wooden trophy mount."
 	icon = 'icons/obj/items.dmi'
 	icon_state = "trophy_mount"
-	autoignition_temperature = AUTOIGNITION_WOOD
+	w_class = W_CLASS_MEDIUM
+	w_type = RECYK_WOOD
+	flammable = TRUE
 	anchored = 1
 	var/obj/item/held_item
 	var/list/params_list
@@ -133,17 +146,15 @@
 			var/obj/item/mounted/frame/trophy_mount/T = new(get_turf(user))
 			if(held_item)
 				held_item.forceMove(T)
-				T.held_item = held_item
+				T.mount_item(held_item)
 				held_item = null
 				T.params_list = params_list
-			T.update_icon()
 			transfer_fingerprints(src, T)
 			qdel(src)
 
 /obj/structure/trophy_mount/Destroy()
 	if(held_item)
-		qdel(held_item)
-		held_item = null
+		QDEL_NULL(held_item)
 	..()
 
 /obj/structure/trophy_mount/examine(mob/user)

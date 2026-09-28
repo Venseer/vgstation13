@@ -27,17 +27,20 @@ In short:
 	if(!T.holy)
 		T.cultify()
 		for(var/obj/machinery/light/L in T.contents)
-			new /obj/structure/cult_legacy/pylon(L.loc)
+			new /obj/structure/cult/pylon(L.loc)
 			qdel(L)
 	return
 
 
 /datum/universal_state/hell/OnTurfChange(var/turf/T)
 	if(T.name == "space")
-		T.overlays += image(icon = T.icon, icon_state = "hell01")
+		T.overlays += image(icon = T.icon, icon_state = "hell01-old")//only visible for those without parallax
 		T.underlays -= "hell01"
+		T.add_particles(PS_SPACE_RUNES)//visible for everyone
+		T.adjust_particles(PVAR_SPAWNING, rand(5,20)/1000 ,PS_SPACE_RUNES)
 	else
-		T.overlays -= image(icon = T.icon, icon_state = "hell01")
+		T.overlays -= image(icon = T.icon, icon_state = "hell01-old")
+		T.remove_particles(PS_SPACE_RUNES)
 
 // Apply changes when entering state
 /datum/universal_state/hell/OnEnter()
@@ -47,7 +50,7 @@ In short:
 	CHECK_TICK
 	suspend_alert = 1
 
-	convert_all_parallax()
+	update_all_parallax()
 	//separated into separate procs for profiling
 	AreaSet()
 	MiscSet()
@@ -96,9 +99,11 @@ In short:
 	set waitfor = FALSE
 	for(var/turf/T in world)
 		if(istype(T, /turf/space))
-			T.overlays += image(icon = T.icon, icon_state = "hell01")
+			T.overlays += image(icon = T.icon, icon_state = "hell01-old")//only visible for those without parallax
+			T.add_particles(PS_SPACE_RUNES)//visible for everyone
+			T.adjust_particles(PVAR_SPAWNING, rand(5,20)/1000 ,PS_SPACE_RUNES)
 		else
-			if(!T.holy && prob(1) && T.z != CENTCOMM_Z)
+			if(!T.holy && prob(1) && T.z != map.zCentcomm)
 				new /obj/effect/gateway/active/cult(T)
 			T.underlays += "hell01"
 		CHECK_TICK
@@ -129,20 +134,7 @@ In short:
 
 /datum/universal_state/hell/proc/KillMobs()
 	for(var/mob/living/simple_animal/M in mob_list)
-		if(M && !M.client)
+		if(!M.client && (M.faction != "cult"))
 			M.death()
 		CHECK_TICK
 
-/datum/universal_state/hell/proc/convert_all_parallax()
-	for(var/client/C in clients)
-		var/obj/abstract/screen/plane_master/parallax_spacemaster/PS = locate() in C.screen
-		if(PS)
-			convert_parallax(PS)
-		CHECK_TICK
-
-/datum/universal_state/hell/convert_parallax(obj/abstract/screen/plane_master/parallax_spacemaster/PS)
-	PS.color = list(
-	0,0,0,0,
-	0,0,0,0,
-	0,0,0,0,
-	1,0,0,1)

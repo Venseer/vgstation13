@@ -3,20 +3,21 @@
 	desc = "This spell triggers a curse on a target, causing them to wield an unremovable horse head mask. They will speak like a horse! Any masks they are wearing will be disintegrated. This spell does not require robes."
 	abbreviation = "HH"
 	user_type = USER_TYPE_WIZARD
+	specialization = SSOFFENSIVE
 
 	school = "transmutation"
-	charge_type = Sp_RECHARGE
-	charge_max = 150
+	charge_type = SP_RECHARGE
+	charge_cooldown_max = 15 SECONDS
 	charge_counter = 0
 	invocation = "KN'A FTAGHU, PUCK 'BTHNK!"
-	invocation_type = SpI_SHOUT
+	invocation_type = SP_INV_SHOUT
 	range = 7
 	max_targets = 1
-	cooldown_min = 30 //30 deciseconds reduction per rank
+	cooldown_min = 3 SECONDS //3 seconds reduction per rank
 	selection_type = "range"
 	spell_flags = WAIT_FOR_CLICK
 
-	compatible_mobs = list(/mob/living/carbon/human, /mob/living/carbon/monkey)
+	valid_targets = list(/mob/living/carbon/human, /mob/living/carbon/monkey)
 
 	hud_state = "wiz_horse"
 

@@ -3,98 +3,6 @@
  *	Feel free to add stuff. Don't forget to add them to the vmachine afterwards.
 */
 
-/obj/item/weapon/coin/trader
-	material=MAT_GOLD
-	name = "trader coin"
-	icon_state = "coin_mythril"
-
-/obj/item/weapon/storage/trader_marauder
-	name = "box of Marauder circuits"
-	desc = "All in one box!"
-	icon = 'icons/obj/storage/smallboxes.dmi'
-	icon_state = "box_of_doom"
-	item_state = "box_of_doom"
-
-/obj/item/weapon/storage/trader_marauder/New() //Because we're good jews, they won't be able to finish the marauder. The box is missing a circuit.
-	..()
-	new /obj/item/weapon/circuitboard/mecha/marauder(src)
-	new /obj/item/weapon/circuitboard/mecha/marauder/peripherals(src)
-	//new /obj/item/weapon/circuitboard/mecha/marauder/targeting(src)
-	new /obj/item/weapon/circuitboard/mecha/marauder/main(src)
-
-/obj/item/weapon/storage/trader_chemistry
-	name = "chemist's pallet"
-	desc = "Everything you need to make art."
-	icon = 'icons/obj/storage/smallboxes.dmi'
-	icon_state = "box_of_doom"
-	item_state = "box_of_doom"
-
-/obj/item/weapon/storage/trader_chemistry/New()
-	..()
-	new /obj/item/weapon/reagent_containers/glass/bottle/peridaxon(src)
-	new /obj/item/weapon/reagent_containers/glass/bottle/rezadone(src)
-	new /obj/item/weapon/reagent_containers/glass/bottle/nanobotssmall(src)
-
-/obj/item/weapon/storage/bluespace_crystal
-	name = "natural bluespace crystals box"
-	desc = "Hmmm... it smells like tomato"
-	icon = 'icons/obj/storage/smallboxes.dmi'
-	icon_state = "box_of_doom"
-	item_state = "box_of_doom"
-
-/obj/item/weapon/storage/bluespace_crystal/New()
-	..()
-	for(var/amount = 1 to 6)
-		new /obj/item/bluespace_crystal(src)
-	new /obj/item/weapon/reagent_containers/food/snacks/grown/bluespacetomato(src)
-
-/obj/structure/closet/secure_closet/wonderful
-	name = "wonderful wardrobe"
-	desc = "Stolen from Space Narnia."
-	req_access = list(access_trade)
-	icon_state = "cabinetdetective_locked"
-	icon_closed = "cabinetdetective"
-	icon_locked = "cabinetdetective_locked"
-	icon_opened = "cabinetdetective_open"
-	icon_broken = "cabinetdetective_broken"
-	icon_off = "cabinetdetective_broken"
-	var/wonder_whitelist = list(
-	/obj/item/clothing/mask/morphing/corgi,
-	/obj/item/clothing/under/rank/vice,
-	/obj/item/clothing/shoes/clown_shoes/advanced,
-	list(/obj/item/clothing/suit/space/clown, /obj/item/clothing/head/helmet/space/clown),
-	/obj/item/clothing/shoes/magboots/magnificent,
-	list(/obj/item/clothing/suit/space/plasmaman/bee, /obj/item/clothing/head/helmet/space/plasmaman/bee),
-	list(/obj/item/clothing/head/wizard/lich, /obj/item/clothing/suit/wizrobe/lich, /obj/item/clothing/suit/wizrobe/skelelich),
-	list(/obj/item/clothing/suit/space/plasmaman/cultist, /obj/item/clothing/head/helmet/space/plasmaman/cultist),
-	list(/obj/item/clothing/head/helmet/space/plasmaman/security/captain, /obj/item/clothing/suit/space/plasmaman/security/captain),
-	/obj/item/clothing/under/skelevoxsuit,
-	list(/obj/item/clothing/suit/wintercoat/ce, /obj/item/clothing/suit/wintercoat/cmo, /obj/item/clothing/suit/wintercoat/security/hos, /obj/item/clothing/suit/wintercoat/hop, /obj/item/clothing/suit/wintercoat/captain, /obj/item/clothing/suit/wintercoat/clown, /obj/item/clothing/suit/wintercoat/slimecoat),
-	list(/obj/item/clothing/head/helmet/space/rig/wizard, /obj/item/clothing/suit/space/rig/wizard, /obj/item/clothing/gloves/purple, /obj/item/clothing/shoes/sandal),
-	list(/obj/item/clothing/head/helmet/space/rig/knight, /obj/item/clothing/head/helmet/space/rig/knight),
-	list(/obj/item/clothing/suit/space/ancient, /obj/item/clothing/suit/space/ancient),
-	list(/obj/item/clothing/shoes/clockwork_boots, /obj/item/clothing/head/clockwork_hood, /obj/item/clothing/suit/clockwork_robes),
-	/obj/item/clothing/mask/necklace/xeno_claw
-	)
-
-/obj/structure/closet/secure_closet/wonderful/spawn_contents()
-	..()
-	for(var/amount = 1 to 10)
-		var/wonder_clothing = pick_n_take(wonder_whitelist)
-		if(islist(wonder_clothing))
-			for(var/i in wonder_clothing)
-				new i(src)
-		else
-			new wonder_clothing(src)
-
-/*/obj/structure/cage/with_random_slime
-	..()
-
-	add_mob
-
-/mob/living/carbon/slime/proc/randomSlime()
-*/
-
 /area/vault/mecha_graveyard
 
 /obj/item/weapon/disk/shuttle_coords/vault/mecha_graveyard
@@ -106,21 +14,25 @@
 	areaname = "mecha graveyard"
 
 /datum/map_element/dungeon/mecha_graveyard
+	name = "Mecha Graveyard"
 	file_path = "maps/randomvaults/dungeons/mecha_graveyard.dmm"
 	unique = TRUE
 
+//Ripley wreckage but with enough parts to rebuild
 /obj/effect/decal/mecha_wreckage/graveyard_ripley
 	name = "Ripley wreckage"
-	desc = "Surprisingly well preserved."
 	icon_state = "ripley-broken"
 
 /obj/effect/decal/mecha_wreckage/graveyard_ripley/New()
 	..()
-	var/list/parts = list(/obj/item/mecha_parts/part/ripley_torso,
+	var/list/parts = list(		/obj/item/mecha_parts/chassis/ripley,
+								/obj/item/mecha_parts/part/ripley_torso,
 								/obj/item/mecha_parts/part/ripley_left_arm,
 								/obj/item/mecha_parts/part/ripley_right_arm,
 								/obj/item/mecha_parts/part/ripley_left_leg,
-								/obj/item/mecha_parts/part/ripley_right_leg)
+								/obj/item/mecha_parts/part/ripley_right_leg,
+								/obj/item/weapon/circuitboard/mecha/ripley/peripherals,
+								/obj/item/weapon/circuitboard/mecha/ripley/main)
 	welder_salvage += parts
 
 	if(prob(80))
@@ -128,62 +40,298 @@
 	else
 		add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/drill/diamonddrill,100)
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/hydraulic_clamp,100)
-	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/jetpack,100)
+	if(prob(50))
+		return
+	switch(rand(1,3))
+		if(1)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/jetpack,100)
+		if(2)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/passive/rack,100)
+		if(3)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/passive/runningboard,100)
 
 /obj/effect/decal/mecha_wreckage/graveyard_clarke
 	name = "Clarke wreckage"
-	desc = "Surprisingly well preserved."
 	icon_state = "clarke-broken"
 
 /obj/effect/decal/mecha_wreckage/graveyard_clarke/New()
 	..()
-	var/list/parts = list(
+	var/list/parts = list(		/obj/item/mecha_parts/chassis/clarke,
 								/obj/item/mecha_parts/part/clarke_torso,
 								/obj/item/mecha_parts/part/clarke_head,
 								/obj/item/mecha_parts/part/clarke_left_arm,
 								/obj/item/mecha_parts/part/clarke_right_arm,
 								/obj/item/mecha_parts/part/clarke_left_tread,
-								/obj/item/mecha_parts/part/clarke_right_tread)
+								/obj/item/mecha_parts/part/clarke_right_tread,
+								/obj/item/weapon/circuitboard/mecha/clarke/peripherals,
+								/obj/item/weapon/circuitboard/mecha/clarke/main)
 	welder_salvage += parts
 
-	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/collector,100)
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/tiler,100)
 	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/switchtool,100)
-
-/obj/item/crackerbox
-	name = "crackerbox"
-	desc = "The greatest invention known to birdkind. Converts unwanted, unneeded cash, into useful, beautiful crackers!"
-	icon = 'icons/obj/toy.dmi'
-	icon_state = "fingerbox"
-	var/status //if true, is in use.
-
-/obj/item/crackerbox/examine(mob/user)
-	..()
-	to_chat(user, "<span class = 'notice'>Currently the conversion rate reads at [get_cash2cracker_rate()] per cracker.</span>")
-
-/obj/item/crackerbox/proc/get_cash2cracker_rate()
-	return round(10, nanocoins_rates)
-
-/obj/item/crackerbox/attackby(obj/item/I, mob/user)
-	if(!status && istype(I, /obj/item/weapon/spacecash) && user.drop_item(I, src))
-		status = TRUE
-		var/obj/item/weapon/spacecash/S = I
-		var/crackers_to_dispense = round((S.worth*S.amount)/get_cash2cracker_rate())
-		playsound(loc, 'sound/items/polaroid2.ogg', 50, 1)
-		if(!crackers_to_dispense)
-			say("Not enough! Never enough!")
-		spawn(3 SECONDS)
-			say("That is enough for [crackers_to_dispense] crackers!")
-			if(crackers_to_dispense > 100)
-				visible_message("<span class = 'warning'>\The [src]'s matter fabrication unit overloads!</span>")
-				explosion(loc, 0, prob(15), 2, 0)
-				qdel(src)
-				return
-			for(var/x = 1 to crackers_to_dispense)
-				var/obj/II = new /obj/item/weapon/reagent_containers/food/snacks/cracker(get_turf(src))
-				II.throw_at(get_turf(pick(orange(7,src))), 1*crackers_to_dispense, 1*crackers_to_dispense)
-				sleep(1)
-			status = FALSE
-		qdel(S)
+	if(prob(50))
 		return
+	switch(rand(1,4))
+		if(1)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/jetpack,100)
+		if(2)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/passive/rack,100)
+		if(3)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/passive/runningboard,100)
+		if(4)
+			add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/collector,100)
+
+/obj/effect/decal/mecha_wreckage/roswell/graveyard/New()
 	..()
+	var/list/parts = list(		/obj/item/weapon/circuitboard/mecha/roswell/peripherals,
+								/obj/item/weapon/circuitboard/mecha/roswell/main,
+								/obj/item/weapon/stock_parts/ayy/abductor,
+								/obj/item/weapon/stock_parts/ayy/gravitator,
+								/obj/item/weapon/stock_parts/ayy/scrambler,
+								/obj/item/weapon/stock_parts/ayy/prober)
+	welder_salvage += parts
+
+	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/ayy/abductor,100)
+	add_salvagable_equipment(new /obj/item/mecha_parts/mecha_equipment/tool/ayy/prober,100)
+
+/mob/living/simple_animal/hostile/asteroid/basilisk/skullbot
+	name = "Mysterious skullbot"
+	desc = "A bizarre robot-like thing."
+	icon = 'icons/mecha/mecha.dmi'
+	icon_state = "skullmech"
+	icon_living = "skullmech"
+	icon_aggro = "skullmech-laugh"
+	icon_dead = "skullmech-broken"
+	icon_gib = null
+	move_to_delay = 5
+	projectiletype = /obj/item/projectile/temp/basilisk
+	projectilesound = 'sound/weapons/pierce.ogg'
+	ranged = 1
+	ranged_message = "laughs"
+	melee_damage_lower = 15
+	melee_damage_upper = 30
+	attacktext = "bites into"
+	attack_sound = 'sound/weapons/spiderlunge.ogg'
+
+/mob/living/simple_animal/hostile/asteroid/basilisk/skullbot/death()
+	visible_message("<span class='danger'>\The [src] shatters before dying, leaving some bones.</span>")
+	drop_stack(/obj/item/stack/sheet/bone, loc, 5)
+	new /obj/effect/decal/mecha_wreckage/skullbot(loc)
+	..(TRUE)
+	qdel(src)
+
+/obj/item/weapon/mech_expansion_kit
+	name = "exosuit expansion kit"
+	desc = "All the equipment you need to replace that useless legroom with a useful bonus equipment slot on your mech."
+	icon = 'icons/obj/device.dmi'
+	icon_state = "modkit"
+	flags = FPRINT
+	siemens_coefficient = 0
+	w_class = W_CLASS_SMALL
+	var/working = FALSE
+
+/obj/item/weapon/mech_expansion_kit/preattack(atom/target, mob/user , proximity)
+	if(!proximity)
+		return
+	if(!istype(target,/obj/mecha))
+		to_chat(user,"<span class='warning'>That isn't an exosuit!</span>")
+		return
+	if(working)
+		to_chat(user,"<span class='warning'>This is already being used to upgrade something!</span>")
+		return
+	var/obj/mecha/M = target
+	if(M.max_equip > initial(M.max_equip))
+		to_chat(user,"<span class='warning'>That exosuit cannot be modified any further. There's no more legroom to eliminate!</span>")
+		return
+	to_chat(user,"<span class='notice'>You begin modifying the exosuit.</span>")
+	working = TRUE
+	if(do_after(user,target,4 SECONDS))
+		to_chat(user,"<span class='notice'>You finish modifying the exosuit!</span>")
+		M.max_equip++
+		qdel(src)
+	else
+		to_chat(user,"<span class='notice'>You stop modifying the exosuit.</span>")
+		working = FALSE
+	return 1
+
+/obj/structure/wetdryvac
+	name = "wet/dry vacuum"
+	desc = "A powerful vacuum cleaner that can collect both trash and fluids."
+	density = TRUE
+	icon = 'icons/obj/objects.dmi'
+	icon_state = "wetdryvac1"
+	var/max_trash = 50
+	var/list/trash = list()
+	var/obj/item/vachandle/myhandle
+
+/obj/structure/wetdryvac/New()
+	..()
+	create_reagents(50)
+	myhandle = new /obj/item/vachandle(src)
+
+/obj/structure/wetdryvac/Destroy()
+	if(myhandle)
+		if(myhandle.loc == src)
+			qdel(myhandle)
+		else
+			myhandle.myvac = null
+		myhandle = null
+	for(var/obj/item/I in trash)
+		qdel(I)
+	trash.Cut()
+	..()
+
+/obj/structure/wetdryvac/examine(mob/user)
+	..()
+	to_chat(user,"<span class='info'>The wet tank gauge reads: [reagents.total_volume]/[reagents.maximum_volume]</span>")
+	to_chat(user,"<span class='info'>The dry storage gauge reads: [trash.len]/[max_trash]</span>")
+
+/obj/structure/wetdryvac/attackby(obj/item/W, mob/user)
+	if(istype(W,/obj/item/vachandle))
+		if(!myhandle)
+			myhandle = W
+		if(myhandle == W)
+			to_chat(user,"<span class='notice'>You insert \the [W] into \the [src].")
+			user.drop_item(W,src)
+			update_icon()
+	else
+		..()
+
+/obj/structure/wetdryvac/attack_hand(mob/user)
+	if(myhandle && myhandle.loc == src)
+		user.put_in_hands(myhandle)
+		update_icon()
+	else
+		..()
+
+/obj/structure/wetdryvac/update_icon()
+	if(myhandle)
+		icon_state = "wetdryvac[myhandle.loc == src]"
+	else
+		icon_state = "wetdryvac0"
+
+/obj/structure/wetdryvac/MouseDropFrom(var/obj/O, src_location, var/turf/over_location, src_control, over_control, params)
+	if(!can_use(usr,O))
+		return
+	if(istype(O,/obj/structure/wc/sink))
+		if(!reagents.total_volume)
+			to_chat(usr,"<span class='warning'>\The [src] wet tank is already empty!</span>")
+			return
+		playsound(src, 'sound/effects/slosh.ogg', 25, 1)
+		reagents.clear_reagents()
+		to_chat(usr, "<span class='notice'>You flush \the [src] wet contents down \the [O].</span>")
+	else if(istype(O,/obj/item/weapon/reagent_containers) && O.is_open_container())
+		if(!reagents.total_volume)
+			to_chat(usr,"<span class='warning'>\The [src] wet tank is already empty!</span>")
+			return
+		playsound(src, 'sound/effects/slosh.ogg', 25, 1)
+		to_chat(usr, "<span class='notice'>You pour \the [src] wet contents into \the [O].</span>")
+		reagents.trans_to(O.reagents,reagents.total_volume)
+	else if(istype(O,/obj/machinery/disposal))
+		if(!contents.len)
+			to_chat(usr,"<span class='warning'>\The [src] dry storage is already empty!</span>")
+			return
+		playsound(src, 'sound/effects/freeze.ogg', 25, 1) //this sounds like trash moving to me
+		for(var/obj/item/I in trash)
+			I.forceMove(O)
+		trash.Cut()
+		to_chat(usr, "<span class='notice'>You dump \the [src] dry contents into \the [O].</span>")
+
+/obj/structure/wetdryvac/MouseDropTo(atom/O, mob/user)
+	if(!can_use(user,O))
+		return
+	whrr(get_turf(O))
+
+/obj/structure/wetdryvac/proc/whrr(var/turf/T)
+	if(!T)
+		return
+	playsound(src, 'sound/effects/vacuum.ogg', 25, 1)
+	for(var/obj/effect/decal/cleanable/C in T)
+		if(C.reagent)
+			if(reagents.is_full())
+				visible_message("<span class='warning'>\The [src] sputters, wet tank full!</span>")
+				break
+			reagents.add_reagent(C.reagent,1)
+		qdel(C)
+	for(var/obj/effect/overlay/puddle/P in T)
+		if(reagents.is_full())
+			visible_message("<span class='warning'>\The [src] sputters, wet tank full!</span>")
+			break
+		if(P.wet == TURF_WET_LUBE)
+			reagents.add_reagent(LUBE,1)
+		else if(P.wet == TURF_WET_WATER)
+			reagents.add_reagent(WATER,1)
+		qdel(P)
+	T.clean_blood()
+	for(var/obj/item/trash/R in T)
+		if(trash.len >= max_trash)
+			visible_message("<span class='warning'>\The [src] sputters, dry storage full!</span>")
+			return
+		R.forceMove(src)
+		trash += R
+
+/obj/structure/wetdryvac/proc/can_use(mob/user, atom/target)
+	if(!ishigherbeing(user) && !isrobot(user) || user.incapacitated() || user.lying)
+		return FALSE
+	if(!Adjacent(user) || !user.Adjacent(target))
+		return FALSE
+	return TRUE
+
+/obj/item/vachandle
+	name = "vacuum handle"
+	desc = "Handy. It doesn't suck per se, it merely conveys suckage."
+	w_class = W_CLASS_MEDIUM
+	icon = 'icons/obj/objects.dmi'
+	icon_state = "vachandle"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/misc_tools.dmi', "right_hand" = 'icons/mob/in-hand/right/misc_tools.dmi')
+	item_state = "vachandle"
+	w_class = W_CLASS_HUGE
+	var/obj/structure/wetdryvac/myvac
+	var/event_key = null
+
+/obj/item/vachandle/New()
+	..()
+	myvac = loc
+
+/obj/item/vachandle/Destroy()
+	myvac.myhandle = null
+	myvac = null
+	..()
+
+/obj/item/vachandle/pickup(mob/user)
+	..()
+	user.register_event(/event/moved, src, nameof(src::mob_moved()))
+
+/obj/item/vachandle/dropped(mob/user)
+	user.unregister_event(/event/moved, src, nameof(src::mob_moved()))
+	if(loc != myvac)
+		retract()
+
+/obj/item/vachandle/throw_at(atom/target, range, speed, override = TRUE, fly_speed = 0, list/whitelist, superthrow = FALSE)
+	retract()
+
+/obj/item/vachandle/proc/mob_moved(atom/movable/mover)
+	if(myvac && get_dist(src,myvac) > 2) //Needs a little leeway because dragging isn't instant
+		retract()
+
+/obj/item/vachandle/proc/retract()
+	if(loc == myvac)
+		return
+	visible_message("<span class='warning'>\The [src] snaps back into \the [myvac]!</span>")
+	if(ismob(loc))
+		var/mob/M = loc
+		M.drop_item(src,myvac)
+	else
+		forceMove(myvac)
+	myvac.update_icon()
+
+/obj/item/vachandle/preattack(atom/target, mob/user , proximity)
+	if(!myvac)
+		to_chat(user, "<span class='warning'>\The [src] isn't attached to a vacuum!</span>")
+		return
+	if(!proximity || !myvac.can_use(user,target))
+		return
+	if(target == myvac)
+		return ..()
+	myvac.whrr(get_turf(target))
+	return 1

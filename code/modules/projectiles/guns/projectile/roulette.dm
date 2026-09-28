@@ -1,3 +1,24 @@
+var/list/restricted_roulette_projectiles = list(
+	/obj/item/projectile,
+	/obj/item/projectile/energy,
+	/obj/item/projectile/bullet/blastwave,
+	/obj/item/projectile/beam/lightning,
+	/obj/item/projectile/beam/procjectile,
+	/obj/item/projectile/beam/lightning/spell,
+	/obj/item/projectile/rocket/nikita,
+	/obj/item/projectile/test,
+	/obj/item/projectile/beam/emitter,
+	/obj/item/projectile/spell_projectile,
+	/obj/item/projectile/stickybomb,
+	/obj/item/projectile/beam/lightlaser,
+	/obj/item/projectile/portalgun,
+	/obj/item/projectile/friendlyCheck,
+	)
+
+var/list/restrict_with_subtypes = list(
+		/obj/item/projectile/hookshot,
+		/obj/item/projectile/meteor/blob, //includes the nodes
+	)
 /obj/item/weapon/gun/projectile/roulette_revolver
 	name = "\improper Roulette Revolver"
 	desc = "A strange-looking revolver. Its construction appears somewhat slapdash."
@@ -19,22 +40,6 @@
 	var/infinite = 0
 	var/time_since_last_recharge = 0
 	var/list/available_projectiles = list()
-	var/list/restricted_projectiles = list(
-		/obj/item/projectile,
-		/obj/item/projectile/energy,
-		/obj/item/projectile/hookshot,
-		/obj/item/projectile/bullet/blastwave,
-		/obj/item/projectile/beam/lightning,
-		/obj/item/projectile/beam/lightning/spell,
-		/obj/item/projectile/nikita,
-		/obj/item/projectile/test,
-		/obj/item/projectile/beam/emitter,
-		/obj/item/projectile/meteor,
-		/obj/item/projectile/spell_projectile,
-		/obj/item/projectile/stickybomb,
-		/obj/item/projectile/beam/lightlaser,
-		/obj/item/projectile/portalgun,
-		)
 
 /obj/item/weapon/gun/projectile/roulette_revolver/New()
 	..()
@@ -60,9 +65,16 @@
 		to_chat(user, "<span class='info'>\The [src] has [shots_left] shots left.</span>")
 
 /obj/item/weapon/gun/projectile/roulette_revolver/proc/choose_projectile()
+	if(bullet_type_override)
+		in_chamber = new bullet_type_override
+		return
 	var/chosen_projectile = pick(available_projectiles)
-	for(var/I in restricted_projectiles)
+	for(var/I in restricted_roulette_projectiles)
 		if(chosen_projectile == I)
+			choose_projectile()
+			return
+	for(var/I in restrict_with_subtypes)
+		if(ispath(chosen_projectile, I))
 			choose_projectile()
 			return
 	var/P = new chosen_projectile()
@@ -71,7 +83,7 @@
 		choose_projectile()
 		return
 
-/obj/item/weapon/gun/projectile/roulette_revolver/afterattack(atom/A as mob|obj|turf|area, mob/living/user as mob|obj, flag, params, struggle = 0)
+/obj/item/weapon/gun/projectile/roulette_revolver/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	if(flag)
 		return //we're placing gun on a table or in backpack
 	if(harm_labeled >= min_harm_label)

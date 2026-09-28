@@ -1,6 +1,6 @@
 /datum/design/basic_cell
 	name = "Basic Power Cell"
-	desc = "A basic power cell that holds 1000 units of energy"
+	desc = "A basic power cell that holds 1000 units of energy."
 	id = "basic_cell"
 	req_tech = list(Tc_POWERSTORAGE = 1)
 	build_type = PROTOLATHE | AUTOLATHE | MECHFAB | PODFAB
@@ -8,9 +8,19 @@
 	build_path = /obj/item/weapon/cell/empty
 	category = "Engineering"
 
+/datum/design/socket_wrench
+	name = "Socket Wrench"
+	desc = "A wrench intended to be wrenchier than other wrenches. It's the wrenchiest."
+	id = "socket_wrench"
+	req_tech = list(Tc_ENGINEERING = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 10000)
+	build_path = /obj/item/tool/wrench/socket
+	category = "Engineering"
+
 /datum/design/high_cell
 	name = "High-Capacity Power Cell"
-	desc = "A power cell that holds 10000 units of energy"
+	desc = "A power cell that holds 10000 units of energy."
 	id = "high_cell"
 	req_tech = list(Tc_POWERSTORAGE = 2)
 	build_type = PROTOLATHE | AUTOLATHE | MECHFAB | PODFAB
@@ -20,7 +30,7 @@
 
 /datum/design/super_cell
 	name = "Super-Capacity Power Cell"
-	desc = "A power cell that holds 20000 units of energy"
+	desc = "A power cell that holds 20000 units of energy."
 	id = "super_cell"
 	req_tech = list(Tc_POWERSTORAGE = 3, Tc_MATERIALS = 2)
 	reliability_base = 75
@@ -31,7 +41,7 @@
 
 /datum/design/hyper_cell
 	name = "Hyper-Capacity Power Cell"
-	desc = "A power cell that holds 30000 units of energy"
+	desc = "A power cell that holds 30000 units of energy."
 	id = "hyper_cell"
 	req_tech = list(Tc_POWERSTORAGE = 5, Tc_MATERIALS = 4)
 	reliability_base = 70
@@ -42,11 +52,11 @@
 
 /datum/design/ultra_cell
 	name = "Ultra-Capacity Power Cell"
-	desc = "A power cell that holds 50000 units of energy"
+	desc = "A power cell that holds 50000 units of energy."
 	id = "ultra_cell"
 	req_tech = list(Tc_POWERSTORAGE = 8, Tc_MATERIALS = 6)
 	reliability_base = 70
-	build_type = PROTOLATHE
+	build_type = PROTOLATHE | MECHFAB | PODFAB
 	materials = list(MAT_IRON = 400, MAT_GOLD = 300, MAT_SILVER = 300, MAT_GLASS = 100)
 	build_path = /obj/item/weapon/cell/ultra/empty
 	category = "Engineering"
@@ -54,11 +64,23 @@
 /datum/design/rad_cell
 	name = "Radio-isotope thermoelectric cell"
 	desc = "A power cell that does not hold much charge, but recharges over time."
+	id = "rad_cell"
 	req_tech = list(Tc_POWERSTORAGE = 7, Tc_MATERIALS = 5)
 	reliability_base = 70
-	build_type = PROTOLATHE
+	build_type = PROTOLATHE | MECHFAB | PODFAB
 	materials = list(MAT_IRON = 400, MAT_GOLD = 300, MAT_SILVER = 300, MAT_GLASS = 100, MAT_URANIUM = 150)
 	build_path = /obj/item/weapon/cell/rad/empty
+	category = "Engineering"
+
+/datum/design/phazon_cell
+	name = "Phazon decay thermoelectic cell"
+	desc = "Using the power of weird science, we've made a cell that uses the rarest material known."
+	id = "phazon_cell"
+	req_tech = list(Tc_POWERSTORAGE = 9, Tc_MATERIALS = 9)
+	reliability_base = 70
+	build_type = PROTOLATHE | MECHFAB | PODFAB
+	materials = list(MAT_IRON = 400, MAT_GOLD = 300, MAT_SILVER = 300, MAT_GLASS = 100, MAT_PHAZON = 200)
+	build_path = /obj/item/weapon/cell/rad/large/empty
 	category = "Engineering"
 
 /datum/design/light_replacer
@@ -92,7 +114,7 @@
 	build_path = /obj/item/clothing/glasses/scanner/night
 
 /datum/design/device_analyser
-	name = "Device Analyser"
+	name = "Device Analyzer"
 	desc = "A device for scanning other devices. Meta."
 	id = "deviceanalyser"
 	req_tech = list(Tc_MAGNETS = 3, Tc_ENGINEERING = 4, Tc_MATERIALS = 4, Tc_PROGRAMMING = 3)
@@ -122,6 +144,26 @@
 	build_type = PROTOLATHE
 	materials = list(MAT_IRON = 7000, MAT_GLASS = 3500, MAT_GOLD = 600)
 	build_path = /obj/item/weapon/storage/bag/gadgets/part_replacer
+	category = "Engineering"
+
+/datum/design/DBRPED
+	name = "Bluespace Rapid Part Exchange Device"
+	desc = "An upgraded RPED that holds twice as many components and doesn't need to open wire panels to function."
+	id = "dbrped"
+	req_tech = list(Tc_ENGINEERING = 5, Tc_MATERIALS = 6, Tc_PROGRAMMING = 3, Tc_BLUESPACE = 5)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 9000, MAT_GLASS = 5500, MAT_GOLD = 1200, MAT_DIAMOND = 3000)
+	build_path = /obj/item/weapon/storage/bag/gadgets/part_replacer/bluespace
+	category = "Engineering"
+
+/datum/design/PED
+	name = "Part Exchange Device"
+	desc = "A tool for replacing components in machines. Requires the user to manually guide and articulate it."
+	id = "ped"
+	req_tech = list(Tc_MATERIALS = 2, Tc_ENGINEERING = 2)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 2000, MAT_GLASS = 500)
+	build_path = /obj/item/weapon/storage/bag/gadgets/part_replacer/basic_PED
 	category = "Engineering"
 
 /datum/design/mat_synth
@@ -191,5 +233,25 @@
 	req_tech = list(Tc_ENGINEERING = 5, Tc_BLUESPACE = 2)
 	build_type = PROTOLATHE
 	materials = list(MAT_IRON = 18750, MAT_GLASS = 9375)
-	build_path = /obj/item/weapon/weldingtool/gatling/empty
+	build_path = /obj/item/tool/weldingtool/gatling/empty
+	category = "Engineering"
+
+/datum/design/pager
+	name = "Station Alerts Pager"
+	desc = "Alerts engineers of any triggered station alarms."
+	id = "pager"
+	req_tech = list(Tc_ENGINEERING = 3, Tc_BLUESPACE = 2)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 500, MAT_GLASS = 200)
+	build_path = /obj/item/device/pager
+	category = "Engineering"
+
+/datum/design/gas_dowser
+	name = "Phasic Gas Dowser"
+	desc = "A handheld device that detects and points towards the nearest natural gas vent on a planet. Essential for locating extractable gas deposits."
+	id = "gas_dowser"
+	req_tech = list(Tc_ENGINEERING = 3, Tc_BLUESPACE = 2, Tc_EXPLORATION = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_IRON = 500, MAT_GLASS = 200, MAT_URANIUM = 100)
+	build_path = /obj/item/weapon/pinpointer/gas_dowser
 	category = "Engineering"

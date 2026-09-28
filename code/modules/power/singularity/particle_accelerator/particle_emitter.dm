@@ -22,7 +22,11 @@
 
 /obj/structure/particle_accelerator/particle_emitter/update_icon()
 	..()
-	return
+	if ((construction_state == 3) && powered)
+		update_moody_light('icons/lighting/moody_lights.dmi', "[reference]p[strength]")
+	else
+		kill_moody_light()
+
 
 /obj/structure/particle_accelerator/particle_emitter/proc/set_delay(var/delay)
 	if(delay && delay >= 0)
@@ -38,13 +42,13 @@
 		var/turf/T = get_turf(src)
 		switch(strength)
 			if(0)
-				A = getFromPool(/obj/effect/accelerated_particle/wide/weak,T,dir)
+				A = new /obj/effect/accelerated_particle/wide/weak(T, dir)
 			if(1)
-				A = getFromPool(/obj/effect/accelerated_particle/wide,T,dir)
+				A = new /obj/effect/accelerated_particle/wide(T, dir)
 			if(2)
-				A = getFromPool(/obj/effect/accelerated_particle/wide/strong,T,dir)
+				A = new /obj/effect/accelerated_particle/wide/strong(T, dir)
 			if(3)
-				A = getFromPool(/obj/effect/accelerated_particle/wide/powerful,T,dir)
+				A = new /obj/effect/accelerated_particle/wide/powerful(T, dir)
 		if(A)
 			A.startMove(1)
 			return 1

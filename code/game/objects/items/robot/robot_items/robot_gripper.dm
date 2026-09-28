@@ -4,6 +4,7 @@
 	var/obj/item/wrapped = null // Item currently being held.
 	var/list/can_hold = list() //Has a list of items that it can hold.
 	var/list/blacklist = list() //This is a list of items that can't be held even if their parent is whitelisted.
+	var/list/valid_containers = list()
 	var/force_holder = null
 
 /obj/item/weapon/gripper/proc/grip_item(obj/item/I as obj, mob/user, var/feedback = TRUE)
@@ -165,19 +166,26 @@
 
 	else if(isitem(target))//Check that we're not pocketing a mob.
 		var/obj/item/I = target
-		if(!isturf(target.loc))//That the item is not in a container.
-			return
-		grip_item(I, user, 1)//And finally.
+		if(isturf(target.loc))
+			grip_item(I, user, 1)
+		else if(is_type_in_list(target.loc,valid_containers))
+			var/obj/O = target.loc
+			grip_item(I, user, 1)
+			O.update_icon()//updating fancy containers
 
 	else if(isrobot(target))//Robots repairing themselves? What can go wrong.
 		var/mob/living/silicon/robot/A = target
-		if(A.opened && A.cell)
-			if(!gripper_safety_check(user, A.cell))//Only allowed if the user pass the safety check.
-				if(grip_item(A.cell, user, FALSE))
-					A.cell.update_icon()
-					A.updateicon()
-					A.cell = null
-					user.visible_message("<span class='danger'>[user] removes the power cell from [A]!</span>", "You remove the power cell.")
+		if(!A.opened)
+			return
+		var/obj/item/weapon/cell/cell = A.get_cell()
+		if(!cell)
+			return
+		if(!gripper_safety_check(user, cell))//Only allowed if the user pass the safety check.
+			if(grip_item(cell, user, FALSE))
+				A.clear_cell()
+				cell.update_icon()
+				A.updateicon()
+				user.visible_message("<span class='danger'>[user] removes \the [cell] from [A]!</span>", "You remove \the [cell].")
 
 /obj/item/weapon/gripper/chemistry //Used to handle glass containers and pills.
 	name = "chemistry gripper"
@@ -187,6 +195,12 @@
 	can_hold = list(
 		/obj/item/weapon/reagent_containers/glass,
 		/obj/item/weapon/reagent_containers/blood,
+		/obj/item/stack/sheet/mineral/plasma,
+		)
+
+	valid_containers = list(
+		/obj/item/weapon/storage/fancy/vials,
+		/obj/item/weapon/storage/lockbox/vials,
 		)
 
 /obj/item/weapon/gripper/organ //Used to handle organs.
@@ -200,15 +214,29 @@
 	/obj/item/weapon/reagent_containers/food/snacks/meat
 	)
 
-/obj/item/weapon/gripper/service //Used to handle food, drinks and seeds.
+/obj/item/weapon/gripper/service //Used to handle food, drinks, and miscellaneous service items (e.g. those found in the rapid service fabricator).
 	name = "service gripper"
 	icon_state = "gripper-old"
-	desc = "A simple grasping tool used to perform tasks in the service sector, such as handling drinks and... fedoras!"
+	desc = "A simple grasping tool used to perform tasks in the service sector, such as handling food, drinks, utensils and toys."
 
 	can_hold = list(
-		/obj/item/weapon/reagent_containers/food/drinks,
+		/obj/item/weapon/reagent_containers/food,
+		/obj/item/weapon/reagent_containers/glass,
 		/obj/item/clothing/head/fedora,
-		/obj/item/trash
+		/obj/item/weapon/broken_bottle,
+		/obj/item/trash,
+		/obj/item/weapon/paper,
+		/obj/item/candle,
+		/obj/item/weapon/storage/pill_bottle/dice,
+		/obj/item/toy,
+		/obj/item/weapon/lighter,
+		/obj/item/weapon/pen,
+		/obj/item/stack/sheet/cardboard,
+		/obj/item/device/camera,
+		/obj/item/device/camera_film,
+		/obj/item/clothing/mask/cigarette,
+		/obj/item/weapon/storage/fancy/cigarettes,
+		/obj/item/weapon/kitchen
 		)
 
 /obj/item/weapon/gripper/service/noir

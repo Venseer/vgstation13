@@ -18,6 +18,9 @@
 	w_type = RECYK_METAL
 	melt_temperature = MELTPOINT_STEEL
 	attack_verb = list("slams", "whacks", "bashes", "thunks", "batters", "bludgeons", "thrashes")
+	slimeadd_message = "You attach the slime extract to the extinguisher's funnel"
+	slimes_accepted = SLIME_BLUE
+	slimeadd_success_message = "It feels much colder now"
 	var/max_water = 50
 	var/last_use = 1.0
 	var/safety = 1
@@ -27,6 +30,10 @@
 	. = ..()
 	create_reagents(max_water)
 	reagents.add_reagent(WATER, max_water)
+
+/obj/item/weapon/extinguisher/empty/New()
+	. = ..()
+	reagents.clear_reagents()
 
 /obj/item/weapon/extinguisher/mini
 	name = "fire extinguisher"
@@ -66,12 +73,7 @@
 /obj/item/weapon/extinguisher/examine(mob/user)
 	..()
 	if(!is_open_container())
-		to_chat(user, "It contains:")
-		if(reagents && reagents.reagent_list.len)
-			for(var/datum/reagent/R in reagents.reagent_list)
-				to_chat(user, "<span class='info'>[R.volume] units of [R.name]</span>")
-		else
-			to_chat(user, "<span class='info'>Nothing</span>")
+		reagents.get_examine(user)
 	for(var/thing in src)
 		to_chat(user, "<span class='warning'>\A [thing] is jammed into the nozzle!</span>")
 
@@ -85,22 +87,21 @@
 /obj/item/weapon/extinguisher/attackby(obj/item/W, mob/user)
 	if(user.stat || user.restrained() || user.lying)
 		return
-	if (iswrench(W))
+	if (W.is_wrench(user))
 		if(!is_open_container())
 			user.visible_message("[user] begins to unwrench the fill cap on \the [src].","<span class='notice'>You begin to unwrench the fill cap on \the [src].</span>")
 			if(do_after(user, src, 25))
 				user.visible_message("[user] removes the fill cap on \the [src].","<span class='notice'>You remove the fill cap on \the [src].</span>")
-				playsound(src,'sound/items/Ratchet.ogg', 100, 1)
+				W.playtoolsound(src, 100)
 				flags |= OPENCONTAINER
 		else
 			user.visible_message("[user] begins to seal the fill cap on \the [src].","<span class='notice'>You begin to seal the fill cap on \the [src].</span>")
 			if(do_after(user, src, 25))
 				user.visible_message("[user] fastens the fill cap on \the [src].","<span class='notice'>You fasten the fill cap on \the [src].</span>")
-				playsound(src,'sound/items/Ratchet.ogg', 100, 1)
+				W.playtoolsound(src, 100)
 				flags &= ~OPENCONTAINER
 		return
-
-	if (istype(W, /obj/item) && !is_open_container() && !istype(src, /obj/item/weapon/extinguisher/foam) && !istype(W, /obj/item/weapon/evidencebag))
+	if (istype(W, /obj/item) && !is_open_container() && !istype(src, /obj/item/weapon/extinguisher/foam) && !istype(W, /obj/item/weapon/storage/evidencebag))
 		if(W.is_open_container())
 			return //We're probably trying to fill it
 		if(W.w_class > W_CLASS_TINY)
@@ -118,6 +119,8 @@
 
 /obj/item/weapon/extinguisher/afterattack(atom/target, mob/user, proximity_flag, click_parameters)
 	if(proximity_flag)
+		if((istype(target, /obj/structure/bed/chair/vehicle/tractor/fire))) //Don't spray while loading!
+			return
 		if((istype(target, /obj/structure/reagent_dispensers)))
 			target.reagents.trans_to(src, 50, log_transfer = TRUE, whodunnit = user)
 			to_chat(user, "<span class='notice'>\The [src] is now refilled</span>")
@@ -142,7 +145,7 @@
 			else if (pack == 1)
 				return
 
-		if (world.time < src.last_use + 20)
+		if (world.time < src.last_use + 2 SECONDS)
 			return
 		user.delayNextAttack(5, 1)
 
@@ -186,7 +189,7 @@
 				var/datum/reagents/R = new/datum/reagents(5)
 				R.my_atom = src
 				reagents.trans_to_holder(R,1)
-				var/obj/effect/effect/water/spray/W = new /obj/effect/effect/water/spray/( get_turf(src))
+				var/obj/effect/water/spray/W = new /obj/effect/water/spray/( get_turf(src))
 				var/ccolor = mix_color_from_reagents(R.reagent_list)
 				if(ccolor)
 					W.color = ccolor
@@ -220,6 +223,8 @@
 
 /obj/item/weapon/extinguisher/foam/afterattack(atom/target, mob/user, proximity_flag, click_parameters)
 	if(proximity_flag)
+		if((istype(target, /obj/structure/bed/chair/vehicle/tractor/fire))) //Don't spray while loading!
+			return
 		if((istype(target, /obj/structure/reagent_dispensers/watertank)))
 			var/obj/o = target
 			o.reagents.trans_to(src, 50)
@@ -236,7 +241,7 @@
 			else if (pack == 1)
 				return
 
-		if (world.time < src.last_use + 20)
+		if (world.time < src.last_use + 2 SECONDS)
 			return
 		user.delayNextAttack(5, 1)
 		src.last_use = world.time
@@ -268,7 +273,11 @@
 				var/datum/reagents/R = new/datum/reagents(5)
 				R.my_atom = src
 				reagents.trans_to_holder(R,1)
-				var/obj/effect/effect/foam/fire/W = new /obj/effect/effect/foam/fire( get_turf(src) , R)
+				var/obj/effect/foam/fire/W
+				if(has_slimes & SLIME_BLUE)
+					W=new /obj/effect/foam/fire/enhanced(get_turf(src),R)
+				else
+					W = new /obj/effect/foam/fire(get_turf(src),R)
 				var/turf/my_target = pick(the_targets)
 				if(!W || !src)
 					return
@@ -285,16 +294,16 @@
 						if(W.reagents.has_reagent(WATER))
 							if(isliving(atm)) // For extinguishing mobs on fire
 								var/mob/living/M = atm                           // Why isn't this handled by the reagent? - N3X
-								M.ExtinguishMob()
+								M.extinguish()
 							if(atm.on_fire) // For extinguishing objects on fire
 								atm.extinguish()
 							if(atm.molten) // Molten shit.
 								atm.molten=0
 								atm.solidify()
 
-					var/obj/effect/effect/foam/fire/F = locate() in oldturf
+					var/obj/effect/foam/fire/F = locate() in oldturf
 					if(!istype(F) && oldturf != get_turf(src))
-						F = new /obj/effect/effect/foam/fire( get_turf(oldturf) , W.reagents)
+						F = new /obj/effect/foam/fire( get_turf(oldturf) , W.reagents)
 					if(W.loc == my_target)
 						break
 					sleep(2)

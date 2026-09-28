@@ -50,22 +50,13 @@
 
 /obj/item/clothing/mask/morphing/attackby(obj/item/weapon/W, mob/user)
 	if(!target_type)
-		var/obj/item/clothing/mask/morphing/T
+		var/chosen_type
 		for(var/i in skin_to_mask)
 			if(istype(W, i))
-				var/chosen_type = skin_to_mask[i]
-				T = new chosen_type(get_turf(src))
-		if(T)
-			to_chat(user, "<span class='notice'>You wrap \the [W] around \the [src].</span>")
-			if(istype(W, /obj/item/stack/sheet/animalhide))
-				var/obj/item/stack/sheet/animalhide/A = W
-				A.use(1)
-			else
-				qdel(W)
-			if(loc == user)
-				user.drop_item(src, force_drop = 1)
-				user.put_in_hands(T)
-			qdel(src)
+				chosen_type = skin_to_mask[i]
+				break
+		if(chosen_type)
+			user.create_in_hands(src,new chosen_type(get_turf(src)),W,msg="<span class='notice'>You wrap \the [W] around \the [src].</span>")
 
 /obj/item/clothing/mask/morphing/proc/toggle_cursed()
 	cursed = !cursed
@@ -128,6 +119,12 @@
 	target_type = /mob/living/carbon/human
 	icon_state = "human_mask"
 
+/obj/item/clothing/mask/morphing/goat
+	name = "mask of the goat"
+	desc = "It appears to be modeled after a goat."
+	target_type = /mob/living/simple_animal/hostile/retaliate/goat
+	icon_state = "goat_mask"
+
 /obj/item/clothing/mask/morphing/amorphous
 	name = "amorphous mask"
 	desc = "You can't really tell what this is supposed to be modeled after."
@@ -137,7 +134,7 @@
 	..()
 	color = rgb(rand(0,255),rand(0,255),rand(0,255))
 	//Remove cockatrices because they're somewhat OP when player controlled
-	target_type = pick(existing_typesof(/mob/living/simple_animal) - (existing_typesof_list(blacklisted_mobs) + existing_typesof_list(boss_mobs)))
+	target_type = pick(existing_typesof(/mob/living/simple_animal) - (existing_typesof_list(blacklisted_mobs) + existing_typesof_list(boss_mobs) + /mob/living/simple_animal/scp_173 + existing_typesof(/mob/living/component) + /mob/living/simple_animal/pollywog))
 /obj/item/clothing/mask/morphing/ghost
 	name = "mask of the phantom"
 	desc = "It appears to be modeled after a ghost. It looks as though it might disappear at any moment."

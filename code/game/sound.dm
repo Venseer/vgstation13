@@ -4,7 +4,11 @@ var/list/small_explosion_sound = list('sound/effects/Explosion_Small1.ogg','soun
 var/list/spark_sound = list('sound/effects/sparks1.ogg','sound/effects/sparks2.ogg','sound/effects/sparks3.ogg','sound/effects/sparks4.ogg')
 var/list/rustle_sound = list('sound/effects/rustle1.ogg','sound/effects/rustle2.ogg','sound/effects/rustle3.ogg','sound/effects/rustle4.ogg','sound/effects/rustle5.ogg')
 var/list/punch_sound = list('sound/weapons/punch1.ogg','sound/weapons/punch2.ogg','sound/weapons/punch3.ogg','sound/weapons/punch4.ogg')
+var/list/kick_sound = list('sound/weapons/kick.ogg')
+var/list/crowbar_hit_sound = list('sound/weapons/cbar_hit1.ogg','sound/weapons/cbar_hit2.ogg')
+var/list/crowbar_hitbod_sound = list('sound/weapons/cbar_hitbod1.ogg','sound/weapons/cbar_hitbod2.ogg','sound/weapons/cbar_hitbod3.ogg')
 var/list/clown_sound = list('sound/effects/clownstep1.ogg','sound/effects/clownstep2.ogg')
+var/list/slap_sound = list('sound/effects/slap1.ogg','sound/effects/slap2.ogg')
 var/list/swing_hit_sound = list('sound/weapons/genhit1.ogg', 'sound/weapons/genhit2.ogg', 'sound/weapons/genhit3.ogg')
 var/list/hiss_sound = list('sound/voice/hiss1.ogg','sound/voice/hiss2.ogg','sound/voice/hiss3.ogg','sound/voice/hiss4.ogg')
 var/list/page_sound = list('sound/effects/pageturn1.ogg', 'sound/effects/pageturn2.ogg','sound/effects/pageturn3.ogg')
@@ -12,8 +16,11 @@ var/list/mechstep_sound = list('sound/mecha/mechstep1.ogg', 'sound/mecha/mechste
 var/list/gib_sound = list('sound/effects/gib1.ogg', 'sound/effects/gib2.ogg', 'sound/effects/gib3.ogg')
 var/list/mommicomment_sound = list('sound/voice/mommi_comment1.ogg', 'sound/voice/mommi_comment2.ogg', 'sound/voice/mommi_comment3.ogg', 'sound/voice/mommi_comment5.ogg', 'sound/voice/mommi_comment6.ogg', 'sound/voice/mommi_comment7.ogg', 'sound/voice/mommi_comment8.ogg')
 var/list/polaroid_sound = list('sound/items/polaroid1.ogg', 'sound/items/polaroid2.ogg')
-var/list/male_scream_sound = list('sound/misc/malescream1.ogg', 'sound/misc/malescream2.ogg', 'sound/misc/malescream3.ogg', 'sound/misc/malescream4.ogg', 'sound/misc/malescream5.ogg')
+var/list/male_scream_sound = list('sound/misc/malescream1.ogg', 'sound/misc/malescream2.ogg', 'sound/misc/malescream3.ogg', 'sound/misc/malescream4.ogg', 'sound/misc/malescream5.ogg', 'sound/misc/wilhelm.ogg', 'sound/misc/goofy.ogg')
 var/list/female_scream_sound = list('sound/misc/femalescream1.ogg', 'sound/misc/femalescream2.ogg', 'sound/misc/femalescream3.ogg', 'sound/misc/femalescream4.ogg', 'sound/misc/femalescream5.ogg')
+var/list/vox_shriek_sound = list('sound/misc/shriek1.ogg')
+var/list/insectoid_chitter_sound = list('sound/misc/hiss1.ogg', 'sound/misc/hiss2.ogg', 'sound/misc/hiss3.ogg')
+var/list/tajaran_scream_sound = list('sound/misc/tom_scream1.mp3','sound/misc/tom_scream2.mp3','sound/misc/tom_scream3.mp3')
 var/list/male_cough_sound = list('sound/misc/cough/cough_m1.ogg', 'sound/misc/cough/cough_m2.ogg', 'sound/misc/cough/cough_m3.ogg', 'sound/misc/cough/cough_m4.ogg')
 var/list/female_cough_sound = list('sound/misc/cough/cough_f1.ogg', 'sound/misc/cough/cough_f2.ogg', 'sound/misc/cough/cough_f3.ogg', 'sound/misc/cough/cough_f4.ogg')
 var/list/lightning_sound = list('sound/effects/lightning/chainlightning1.ogg', 'sound/effects/lightning/chainlightning2.ogg', 'sound/effects/lightning/chainlightning3.ogg', 'sound/effects/lightning/chainlightning4.ogg', 'sound/effects/lightning/chainlightning5.ogg', 'sound/effects/lightning/chainlightning6.ogg', 'sound/effects/lightning/chainlightning7.ogg')
@@ -22,19 +29,30 @@ var/list/fracture_sound = list('sound/effects/bonebreak1.ogg','sound/effects/bon
 var/list/machete_hit_sound = list('sound/weapons/machete_hit01.ogg', 'sound/weapons/machete_hit02.ogg', 'sound/weapons/machete_hit03.ogg', 'sound/weapons/machete_hit04.ogg', 'sound/weapons/machete_hit05.ogg', 'sound/weapons/machete_hit06.ogg', 'sound/weapons/machete_hit07.ogg', 'sound/weapons/machete_hit08.ogg', 'sound/weapons/machete_hit09.ogg', 'sound/weapons/machete_hit10.ogg',)
 var/list/machete_throw_sound = list('sound/weapons/hfmachete_throw01.ogg', 'sound/weapons/hfmachete_throw02.ogg', 'sound/weapons/hfmachete_throw03.ogg')
 var/list/machete_throw_hit_sound = list('sound/weapons/hfmachete_throw_hit01.ogg', 'sound/weapons/hfmachete_throw_hit02.ogg', 'sound/weapons/hfmachete_throw_hit03.ogg')
-
-
+var/list/card_swipe_sound = list('sound/effects/cardswipe1.ogg', 'sound/effects/cardswipe2.ogg')
+var/list/mop_sound = list('sound/effects/mop1.ogg', 'sound/effects/mop2.ogg', 'sound/effects/mop3.ogg', 'sound/effects/mop4.ogg', 'sound/effects/mop5.ogg')
+var/list/voice_human_sound = list('sound/misc/Vocal1.ogg','sound/misc/Vocal2.ogg','sound/misc/Vocal3.ogg','sound/misc/Vocal4.ogg','sound/misc/Vocal5.ogg')
+var/list/voice_vox_sound = list('sound/misc/voxvocal1.ogg','sound/misc/voxvocal2.ogg','sound/misc/voxvocal3.ogg','sound/misc/voxvocal4.ogg','sound/misc/voxvocal5.ogg')
+var/list/voice_silicon_sound = list('sound/misc/silicon-vocal1.ogg','sound/misc/silicon-vocal2.ogg','sound/misc/silicon-vocal3.ogg','sound/misc/silicon-vocal4.ogg')
+var/list/windows_error = list('sound/machines/WXP_error.ogg', 'sound/machines/W95_error.ogg', 'sound/machines/W98_error.ogg', 'sound/machines/W7_error.ogg')
+var/list/fuckup_step = list('sound/effects/fuckupstep1.ogg', 'sound/effects/fuckupstep2.ogg')
+var/list/jingle_sound = list('sound/items/jinglebell1.ogg', 'sound/items/jinglebell2.ogg', 'sound/items/jinglebell3.ogg')
+var/list/disappear_sound = list('sound/effects/disappear_1.ogg', 'sound/effects/disappear_2.ogg', 'sound/effects/disappear_3.ogg')
+var/list/pd_wail_sound = list('sound/voice/pdwail1.ogg', 'sound/voice/pdwail2.ogg', 'sound/voice/pdwail3.ogg')
+var/list/procgun_sound = list('sound/weapons/procgun1.ogg', 'sound/weapons/procgun2.ogg')
+var/list/trayhit_sound = list('sound/items/trayhit1.ogg', 'sound/items/trayhit2.ogg')
+var/list/sand_sound = list('sound/effects/sand_walk1.ogg', 'sound/effects/sand_walk2.ogg')
 //var/list/gun_sound = list('sound/weapons/Gunshot.ogg', 'sound/weapons/Gunshot2.ogg','sound/weapons/Gunshot3.ogg','sound/weapons/Gunshot4.ogg')
 
 //gas_modified controls if a sound is affected by how much gas there is in the atmosphere of the source
 //space sounds have no gas modification, for example. Though >space sounds
-/proc/playsound(var/atom/source, soundin, vol as num, vary, extrarange as num, falloff, var/gas_modified = 1, var/channel = 0,var/wait = FALSE)
+/proc/playsound(var/atom/source, soundin, vol as num, vary = 0, extrarange as num, falloff, var/gas_modified = 1, var/channel = 0,var/wait = FALSE, var/frequency = 0)
 	var/turf/turf_source = get_turf(source)
 
-	ASSERT(!isnull(turf_source))
+	// Things in nullspace (qdel'd, in deep storage, freshly-created) routinely try to play sounds. Silently no-op rather than spamming runtimes.
+	if(isnull(turf_source))
+		return
 	ASSERT(!(isnull(soundin) && channel == 0)) // Unless a channel is specified, prevent null sounds.
-
-	var/frequency = get_rand_frequency() // Same frequency for everybody
 
 /* What's going on in this block?
 	If the proc isn't set to not be modified by air, the following steps occur:
@@ -48,6 +66,13 @@ var/list/machete_throw_hit_sound = list('sound/weapons/hfmachete_throw_hit01.ogg
 		extrarange = 0
 	if(!vol) //don't do that
 		return
+	if(istype(source,/atom/movable))
+		var/atom/movable/AM = source
+		if(AM.silence_sprayed) //shhhh
+			return
+
+	if(turf_source)
+		vol *= turf_source.volume_mult
 
 	if(gas_modified && turf_source && !turf_source.c_airblock(turf_source)) //if the sound is modified by air, and we are on an airflowing tile
 		var/atmosphere = 0
@@ -67,6 +92,10 @@ var/list/machete_throw_hit_sound = list('sound/weapons/hfmachete_throw_hit01.ogg
 
 	var/Dist = world.view + extrarange
 
+	//Area muting
+	if(turf_source.mute_time > world.time)
+		return
+
 	// Looping through the player list has the added bonus of working for mobs inside containers
 	for (var/mob/player in player_list)
 		if(!player || !player.client)
@@ -77,15 +106,22 @@ var/list/machete_throw_hit_sound = list('sound/weapons/hfmachete_throw_hit01.ogg
 
 		var/turf/player_turf = get_turf(player)
 
-		if (player_turf && turf_source && player_turf.z == turf_source.z)
-			if(get_dist(player_turf, turf_source) <= Dist)
-				player.playsound_local(turf_source, soundin, vol, vary, frequency, falloff, gas_modified, channel,wait)
+		for(var/z0 in GetOpenConnectedZlevels(turf_source))
+			if (player_turf && turf_source && player_turf.z == z0)
+				var/turf/portal/P1 = locate(/turf/portal) in player_turf.vis_locs
+				var/turf/portal/P2 = locate(/turf/portal) in turf_source.vis_locs
+				if((get_z_dist(player_turf, turf_source) <= Dist) || (P1 && get_z_dist(P1, turf_source) <= Dist) || (P2 && get_z_dist(player_turf, P2) <= Dist) || (P1 && P2 && get_z_dist(P1, P2) <= Dist))
+					player.playsound_local(turf_source, soundin, vol, vary, frequency, falloff, gas_modified, channel, wait, source)
 
 var/const/FALLOFF_SOUNDS = 1
 var/const/SURROUND_CAP = 7
 
 #define MIN_SOUND_PRESSURE	2 //2 kPa of pressure required to at least hear sound
-/mob/proc/playsound_local(var/turf/turf_source, soundin, vol as num, vary, frequency, falloff, gas_modified, var/channel = 0,var/wait = FALSE)
+
+/mob/proc/playsound_local(var/turf/turf_source, soundin, vol as num, vary, frequency, falloff, gas_modified, var/channel = 0,var/wait = FALSE, var/atom/source)
+	if(loneliness_affected(source,TRUE))
+		return
+
 	if(!src.client)
 		return
 
@@ -111,9 +147,9 @@ var/const/SURROUND_CAP = 7
 
 	soundin = get_sfx(soundin)
 
-	var/sound/S = sound(soundin, 0, wait, channel, vol,)
+	var/sound/S = sound(soundin, 0, wait, channel, vol)
 
-	if (vary)
+	if(vary)
 		if(frequency)
 			S.frequency = frequency
 		else
@@ -124,10 +160,10 @@ var/const/SURROUND_CAP = 7
 		var/turf/T = get_turf(src)
 
 		var/dx = turf_source.x - T.x // Hearing from the right/left
-		S.x = round(Clamp(dx, -SURROUND_CAP, SURROUND_CAP), 1)
+		S.x = round(clamp(dx, -SURROUND_CAP, SURROUND_CAP), 1)
 
 		var/dz = turf_source.y - T.y // Hearing from infront/behind
-		S.z = round(Clamp(dz, -SURROUND_CAP, SURROUND_CAP), 1)
+		S.z = round(clamp(dz, -SURROUND_CAP, SURROUND_CAP), 1)
 
 		// The y value is for above your head, but there is no ceiling in 2d spessmens.
 		S.y = 1
@@ -137,9 +173,9 @@ var/const/SURROUND_CAP = 7
 	src << S
 
 /client/proc/playtitlemusic()
-	if(!ticker || !ticker.login_music)
+	if(!ticker || !ticker.login_music || config.no_lobby_music)
 		return
-	if(prefs.toggles & SOUND_LOBBY)
+	if(prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & SOUND_LOBBY)
 		if(istype(src))
 			src << sound(ticker.login_music, repeat = 0, wait = 0, volume = 85, channel = CHANNEL_LOBBY) // MAD JAMS
 
@@ -162,8 +198,16 @@ var/const/SURROUND_CAP = 7
 				soundin = pick(rustle_sound)
 			if ("punch")
 				soundin = pick(punch_sound)
+			if ("kick")
+				soundin = pick(kick_sound)
+			if ("crowbar_hit")
+				soundin = pick(crowbar_hit_sound)
+			if ("crowbar_hitbod")
+				soundin = pick(crowbar_hitbod_sound)
 			if ("clownstep")
 				soundin = pick(clown_sound)
+			if ("slap")
+				soundin = pick(slap_sound)
 			if ("swing_hit")
 				soundin = pick(swing_hit_sound)
 			if ("hiss")
@@ -196,5 +240,33 @@ var/const/SURROUND_CAP = 7
 				soundin = pick(machete_throw_sound)
 			if ("machete_throw_hit")
 				soundin = pick(machete_throw_hit_sound)
+			if ("card_swipe")
+				soundin = pick(card_swipe_sound)
+			if ("mop")
+				soundin = pick(mop_sound)
+			if ("voice-human")
+				soundin = pick(voice_human_sound)
+			if ("voice-vox")
+				soundin = pick(voice_vox_sound)
+			if ("voice-silicon")
+				soundin = pick(voice_silicon_sound)
+			if ("windows error")
+				soundin = pick(windows_error)
+			if ("fuckupstep")
+				soundin = fuckup_step
+			if ("jinglebell")
+				soundin = jingle_sound
+			if ("disappear_sound")
+				soundin = pick(disappear_sound)
+			if ("pd_wail_sound")
+				soundin = pick(pd_wail_sound)
+			if ("procgun_sound")
+				soundin = pick(procgun_sound)
+			if ("trayhit")
+				soundin = pick(trayhit_sound)
+			if ("sand")
+				soundin = pick(sand_sound)
 			//if ("gunshot") soundin = pick(gun_sound)
+	else if(islist(soundin))
+		soundin = pick(soundin)
 	return soundin

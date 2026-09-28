@@ -1,6 +1,6 @@
 /obj/item/weapon/reagent_containers/glass/jar
 	name = "jar"
-	desc = "A large jar."
+	desc = "A large jar. Holds 250 units."
 	icon = 'icons/obj/chemical.dmi'
 	icon_state = "jar"
 	amount_per_transfer_from_this = 10
@@ -13,14 +13,15 @@
 	melt_temperature = MELTPOINT_GLASS
 	origin_tech = Tc_MATERIALS + "=1"
 	var/obj/held_item = null
+	var/list/forbidden_items = list(/obj/item/weapon/reagent_containers/dropper, /obj/item/weapon/reagent_containers/syringe, \
+		/obj/item/weapon/reagent_containers/glass/jar, /obj/item/weapon/reagent_containers/pill)
 
 /obj/item/weapon/reagent_containers/glass/jar/New()
 	..()
 	processing_objects.Add(src)
 
 /obj/item/weapon/reagent_containers/glass/jar/Destroy()
-	qdel(held_item)
-	held_item = null
+	QDEL_NULL(held_item)
 	processing_objects.Remove(src)
 	..()
 
@@ -56,10 +57,11 @@
 
 /obj/item/weapon/reagent_containers/glass/jar/attackby(obj/item/I, mob/user, params)
 	..()
-	if(I.w_class <= w_class && !held_item)
+	if(!held_item && I.w_class <= w_class && !I.is_open_container() && !is_type_in_list(I, forbidden_items))
 		if(user.drop_item(I, src))
-			to_chat(user, "<span class = 'notice'>You place \the [I] into \the [src]</span>")
+			to_chat(user, "<span class = 'notice'>You place \the [I] into \the [src].</span>")
 			held_item = I
+			reagents.handle_reactions()
 			update_icon()
 
 
@@ -68,6 +70,7 @@
 		to_chat(user, "<span class = 'notice'>You remove \the [held_item] from \the [src].</span>")
 		user.put_in_hands(held_item)
 		held_item = null
+		reagents.handle_reactions()
 		update_icon()
 
 /obj/item/weapon/reagent_containers/glass/jar/examine(mob/user)
@@ -76,12 +79,13 @@
 		to_chat(user, "<span class = 'info'>It has \a [held_item] floating within.</span>")
 		to_chat(user, "<span class = 'info'><a HREF='?src=\ref[user];lookitem=\ref[held_item]'>Take a closer look.</a></span>")
 
-/obj/item/weapon/reagent_containers/glass/jar/recyclable()
+/obj/item/weapon/reagent_containers/glass/jar/recyclable(var/obj/machinery/r_n_d/fabricator/F)
 	if(held_item)
 		return FALSE
 	return TRUE
 
 /obj/item/weapon/reagent_containers/glass/jar/on_reagent_change()
+	..()
 	update_icon()
 
 /obj/item/weapon/reagent_containers/glass/jar/pickup(mob/user)
@@ -111,15 +115,19 @@
 	reagents.reaction(held_item)
 
 /obj/item/weapon/reagent_containers/glass/jar/throw_impact(atom/hit_atom, var/speed, mob/user)
-	..()
-	if(hit_atom)
+	if(!..() && hit_atom)
 		src.visible_message("<span  class='warning'>The [src.name] shatters!</span>","<span  class='warning'>You hear a shatter!</span>")
 		playsound(src, 'sound/effects/hit_on_shattered_glass.ogg', 70, 1)
 		reagents.reaction(loc, TOUCH)
 		if(hit_atom != get_turf(src))
-			reagents.reaction(hit_atom, TOUCH)
+			reagents.reaction(hit_atom, TOUCH, zone_sels = list(user.zone_sel.selecting))
 		if(held_item)
 			held_item.forceMove(loc)
 			held_item = null
-		getFromPool(/obj/item/weapon/shard, loc)
+		new /obj/item/weapon/shard(loc)
 		qdel(src)
+
+/obj/item/weapon/reagent_containers/glass/jar/erlenmeyer
+	name = "comically large erlenmeyer flask"
+	desc = "Careful, they don't even make these anymore. Can hold 250 units."
+	icon_state = "erlenmeyerhuge"

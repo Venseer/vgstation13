@@ -3,7 +3,7 @@
 	density = 1
 	layer = MOB_LAYER
 	animate_movement = 2
-
+	throw_impact_sound = 'sound/effects/bodyfall.ogg'
 	w_type = RECYK_BIOLOGICAL
 
 //	flags = NOREACT
@@ -17,20 +17,14 @@
 	var/obj/abstract/screen/kick_icon = null
 	var/obj/abstract/screen/bite_icon = null
 	var/obj/abstract/screen/visible = null
-	var/obj/abstract/screen/purged = null
 	var/obj/abstract/screen/internals = null
-	var/obj/abstract/screen/oxygen = null
 	var/obj/abstract/screen/i_select = null
 	var/obj/abstract/screen/m_select = null
-	var/obj/abstract/screen/toxin = null
-	var/obj/abstract/screen/fire = null
-	var/obj/abstract/screen/bodytemp = null
 	var/obj/abstract/screen/healths = null
+	var/obj/abstract/screen/healths2 = null
 	var/obj/abstract/screen/throw_icon = null
 	var/obj/abstract/screen/camera_icon = null
 	var/obj/abstract/screen/album_icon = null
-	var/obj/abstract/screen/nutrition_icon = null
-	var/obj/abstract/screen/pressure = null
 	var/obj/abstract/screen/damageoverlay = null
 	var/obj/abstract/screen/pain = null
 	var/obj/abstract/screen/gun/item/item_use_icon = null
@@ -69,7 +63,7 @@
 	var/computer_id = null
 	var/lastattacker = null
 	var/lastattacked = null
-	var/attack_log = list( )
+	var/list/attack_log = list()
 	var/already_placed = 0.0
 	var/obj/machine
 	var/other_mobs = null
@@ -78,10 +72,14 @@
 	var/sdisabilities = 0	//Carbon
 	var/disabilities = 0	//Carbon
 	var/atom/movable/pulling = null
-	var/monkeyizing = null	//Carbon
+	/// Set to TRUE when the mob is being transformed into something else or gibbed.
+	/// Can be checked to avoid running expensive code for mobs that are about to not exist.
+	var/monkeyizing = null
+	var/is_dying = FALSE
 	var/other = 0.0
 	var/eye_blind = null	//Carbon
 	var/eye_blurry = null	//Carbon
+	var/nearsightedness = 0
 	var/ear_deaf = null		//Carbon
 	var/say_mute = null
 	var/ear_damage = null	//Carbon
@@ -97,10 +95,15 @@
 	var/obj/effect/rune/ajourn
 	var/druggy = 0			//Carbon
 	var/confused = 0		//Carbon
+	var/confused_intensity = 0 //Carbon
 	var/sleeping = 0		//Carbon
 	var/resting = 0			//Carbon
+	var/teleportitis = 0	//Carbon
+	var/timeslip = 0	//Carbon
 	var/lying = 0
 	var/lying_prev = 0
+	var/shrunken = 0
+	var/shrunken_prev = 0
 	var/canmove = 1
 	var/candrop = 1
 	var/tazed = 0
@@ -112,7 +115,6 @@
 	//SIZE_BIG for big guys
 	//SIZE_HUGE for even bigger guys
 
-	var/list/callOnFace = list()
 	var/list/pinned = list()            // List of things pinning this creature to walls (see living_defense.dm)
 	var/list/embedded = list()          // Embedded items, since simple mobs don't have organs.
 	var/list/abilities = list()         // For species-derived or admin-given powers.
@@ -126,7 +128,7 @@
 	var/cpr_time = 1.0//Carbon
 
 
-	var/bodytemperature = 310.055	//98.7 F
+	var/bodytemperature = BODYTEMP_DEFAULT
 	var/drowsyness = 0.0//Carbon
 	var/dizziness = 0//Carbon
 	var/jitteriness = 0//Carbon
@@ -140,7 +142,7 @@
 	var/knockdown = 0.0
 	var/losebreath = 0.0//Carbon
 	var/nobreath = 0.0//Carbon, but only used for humans so far
-	var/intent = null//Living
+
 	var/shakecamera = 0
 	var/a_intent = I_HELP//Living
 	var/m_int = null//Living
@@ -164,7 +166,6 @@
 	var/seer = 0 // Legacy Cult
 
 	var/datum/hud/hud_used = null
-	var/datum/ui_icons/gui_icons = null
 
 	var/list/grabbed_by = list()
 	var/list/requests = list()
@@ -213,11 +214,11 @@
 			statpanel("[P.panel]","",P)
 	*/
 
-//The last mob/living/carbon to push/drag/grab this mob (mostly used by slimes friend recognition)
-	var/mob/living/carbon/LAssailant = null
+//The last mob/living/carbon to push/drag/grab/harm this mob
+	var/datum/weakref/lastassailant = null
 
 //Wizard mode, but can be used in other modes thanks to the brand new "Give Spell" badmin button
-	var/spell/list/spell_list = list()
+	var/list/spell/spell_list = list()
 
 //Changlings, but can be used in other modes
 //	var/obj/effect/proc_holder/changpower/list/power_list = list()
@@ -275,53 +276,31 @@
 	penetration_dampening = 7
 
 	var/list/languages[0]
-	var/event/on_spellcast
-	var/event/on_uattack
-	var/event/on_ruattack	//on restrained unarmed attack
-	var/event/on_logout
-	var/event/on_damaged
-	var/event/on_irradiate
-	var/event/on_death
-	// Allows overiding click modifiers and such.
-	var/event/on_clickon
 
 	var/list/alphas = list()
-	var/spell_channeling
+	var/alpha_override = FALSE
+	var/spell/spell_channeling // The spell that's currently being channeled
 
 	var/see_in_dark_override = 0	//for general guaranteed modification of these variables
 	var/see_invisible_override = 0
+	var/dark_plane_alpha_override = 0
 
 	var/obj/transmog_body_container/transmogged_from	//holds a reference to the container holding the mob that this mob used to be before being transmogrified
 	var/mob/transmogged_to		//holds a reference to the mob which holds a reference to this mob in its transmogged_from var
 
-/mob/resetVariables()
-	..("callOnFace", "pinned", "embedded", "abilities", "grabbed_by", "requests", "mapobjs", "mutations", "spell_list", "viruses", "resistances", "radar_blips", "active_genes", \
-	"attack_log", "speak_emote", "alphas", "heard_by", "control_object", "orient_object", "actions", "held_items", "click_delayer", "attack_delayer", "special_delayer", \
-	"clong_delayer", args)
+	var/forced_density = 0 // If the mob was made non-dense by an admin.
+	var/original_density = 1
+	var/old_assigned_role // If they ghosted, what role did they have?
 
-	callOnFace = list()
-	pinned = list()
-	embedded = list()
-	abilities = list()
-	grabbed_by = list()
-	requests = list()
-	mapobjs = list()
-	mutations = list()
-	spell_list = list()
-	viruses = list()
-	resistances = list()
-	radar_blips = list()
-	active_genes = list()
-	attack_log = list()
-	speak_emote = list()
-	alphas = list()
-	heard_by = list()
-	control_object = list()
-	orient_object = list()
-	actions = list()
-	held_items = list()
+	var/list/crit_rampup = list() // damage values keyed by text timestamps
 
-	click_delayer   = new (1,ARBITRARILY_LARGE_NUMBER)
-	attack_delayer  = new (1,ARBITRARILY_LARGE_NUMBER)
-	special_delayer = new (1,ARBITRARILY_LARGE_NUMBER)
-	clong_delayer   = new (10,ARBITRARILY_LARGE_NUMBER)
+	var/list/huds = list() // List of active huds on a mob
+
+	var/is_dexterous = FALSE //allows mobs to be made dextrous, mostly for monkeys
+
+	// Log things.
+	var/datum/weakref/last_bumped_by = null // weakrefs
+	var/last_bumped_by_timestamp = -INFINITY
+
+	var/datum/weakref/last_thrown_by = null // weakrefs
+	var/last_thrown_by_timestamp = -INFINITY

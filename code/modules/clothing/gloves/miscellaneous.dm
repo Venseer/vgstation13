@@ -8,7 +8,7 @@
 	heat_conductivity = SPACESUIT_HEAT_CONDUCTIVITY
 	pressure_resistance = 200 * ONE_ATMOSPHERE
 	max_heat_protection_temperature = GLOVES_MAX_HEAT_PROTECTION_TEMPERATURE
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/centcom
 	desc = "Regal green gloves, with a nice gold trim. Lordy."
@@ -22,34 +22,79 @@
 	max_heat_protection_temperature = GLOVES_MAX_HEAT_PROTECTION_TEMPERATURE
 
 /obj/item/clothing/gloves/cyborg
-	desc = "beep boop borp"
 	name = "cyborg gloves"
+	desc = "Beep boop borp."
 	icon_state = "black"
 	item_state = "black"
 	siemens_coefficient = 1.0
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/swat
-	desc = "These tactical gloves are somewhat fire and impact-resistant."
+	desc = "These fingerless gloves make you look, and feel tactical."
 	name = "\improper SWAT Gloves"
-	icon_state = "black"
-	item_state = "black"
+	icon_state = "swat"
+	item_state = "swat"
 	siemens_coefficient = 0.6
 	permeability_coefficient = 0.05
 	heat_conductivity = INS_GLOVES_HEAT_CONDUCTIVITY
 	max_heat_protection_temperature = GLOVES_MAX_HEAT_PROTECTION_TEMPERATURE
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
+
+/obj/item/clothing/gloves/swat/specops
+	name = "operator gloves"
+	desc = "Once you touch down in the LZ at the FOB, locate the IEDs and don't put up with any FNGs."
+
+/obj/item/clothing/gloves/swat/specops/examine(mob/user)
+	..()
+	if(locate(/obj/item/weapon/implant/loyalty) in user)
+		to_chat(user,"<span class='info'>These gloves can be used to convey messages to other loyalty implanted crew. Use an open hand on yourself while wearing them.</span>")
+
+/obj/item/clothing/gloves/swat/specops/Touch(var/atom/A, mob/living/user, proximity)
+	if(A == user && !user.incapacitated())
+		if(user.is_implanted(/obj/item/weapon/implant/loyalty))
+			var/list/choices = list(
+				list("Stick together!", "radial_group"),
+				list("Split up!", "radial_split"),
+				list("Wait here!", "radial_waithere"),
+				list("Busy, cover!", "radial_busy")
+			)
+
+			var/sign = show_radial_menu(user,user,choices)
+			if(!sign)
+				return 0 //if they don't want to sign, let them check their own status
+			signal(sign,user)
+			return 1 //exit the attack_hand
+	return ..()
+
+/obj/item/clothing/gloves/swat/specops/proc/signal(var/sign, mob/user)
+	if(user.incapacitated())
+		return
+	for(var/mob/living/M in view(7, user))
+		if(!M.client)
+			continue //Don't bother, no one to show it to
+		if(M.isUnconscious() || M.eye_blind || M.blinded)
+			continue //can't perceive this message
+		if(M.is_implanted(/obj/item/weapon/implant/loyalty) || istype(M, /mob/dead/observer))
+			to_chat(M,"[bicon(src)] <span class='info'>[user] signals, <B>[sign]</B></span>")
+			continue
+		else if(isrobot(M))
+			var/mob/living/silicon/robot/robit = M
+			if(HAS_MODULE_QUIRK(robit, MODULE_IS_THE_LAW))
+				to_chat(M,"[bicon(src)] <span class='info'>[user] signals, <B>[sign]</B></span>")
+				continue
+
+		to_chat(M,"<span class='notice'>[user] makes strange hand symbols.</span>")
 
 /obj/item/clothing/gloves/combat //Combined effect of SWAT gloves and insulated gloves
-	desc = "These tactical gloves are somewhat fire and impact resistant."
+	desc = "These combat gloves are somewhat fire and impact resistant."
 	name = "combat gloves"
-	icon_state = "black"
-	item_state = "black"
+	icon_state = "combat"
+	item_state = "combat"
 	siemens_coefficient = 0
 	permeability_coefficient = 0.05
 	heat_conductivity = INS_GLOVES_HEAT_CONDUCTIVITY
 	max_heat_protection_temperature = GLOVES_MAX_HEAT_PROTECTION_TEMPERATURE
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/latex
 	name = "latex gloves"
@@ -59,7 +104,8 @@
 	siemens_coefficient = 0.30
 	permeability_coefficient = 0.01
 	_color = "medical"				//matches cmo stamp
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
+	sterility = 100
 
 /obj/item/clothing/gloves/botanic_leather
 	desc = "These leather gloves protect against thorns, barbs, prickles, spikes and other harmful objects of floral origin."
@@ -68,7 +114,7 @@
 	item_state = "leather"
 	permeability_coefficient = 0.9
 	siemens_coefficient = 0.9
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/batmangloves
 	desc = "Used for handling all things bat related."
@@ -89,28 +135,28 @@
 	name = "DRN-001 Gloves"
 	icon_state = "megagloves"
 	item_state = "megagloves"
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/protogloves
 	desc = "Funcionally identical to the DRN-001 model's, but in red!"
 	name = "Prototype Gloves"
 	icon_state = "protogloves"
 	item_state = "protogloves"
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/megaxgloves
 	desc = "An upgrade to the DRN-001's gauntlets, retains the uncomfortable armor, but comes with white gloves!"
 	name = "Maverick Hunter gloves"
 	icon_state = "megaxgloves"
 	item_state = "megaxgloves"
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/joegloves
 	desc = "Large grey gloves, very similar to the Prototype's."
 	name = "Sniper Gloves"
 	icon_state = "joegloves"
 	item_state = "joegloves"
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/doomguy
 	desc = ""
@@ -123,6 +169,8 @@
 	name = "brass knuckles"
 	icon_state = "knuckles"
 	item_state = "knuckles"
+	w_type = RECYK_METAL
+	flammable = FALSE
 
 	attack_verb = list("punches")
 	bonus_knockout = 17 //Slight knockout chance increase.
@@ -137,6 +185,8 @@
 	desc = "A pair of metal knuckles embedded with dull, but nonetheless painful spikes."
 	icon_state = "knuckles_spiked"
 	item_state = "knuckles_spiked"
+	mech_flags = MECH_SCAN_ILLEGAL
+	origin_tech = Tc_SYNDICATE + "=1"
 
 	bonus_knockout = 25
 	damage_added = 5
@@ -147,7 +197,7 @@
 	desc = "When you're a jerk, everybody loves you."
 	icon_state = "anchorarms"
 	item_state = "anchorarms"
-	species_fit = list(VOX_SHAPED)
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
 
 /obj/item/clothing/gloves/neorussian
 	name = "neo-Russian gloves"
@@ -161,6 +211,7 @@
 	desc = "For these tense combat situations when you just have to pick your nose."
 	icon_state = "nr_fgloves"
 	item_state = "nr_fgloves"
+	species_fit = list(VOX_SHAPED)
 
 //Like powerfist from fallout, but NUCLEAR. It throws people back and adds 50 damage every 15 seconds. Also it irradiates you
 /obj/item/clothing/gloves/powerfist
@@ -189,6 +240,9 @@
 /obj/item/clothing/gloves/powerfist/full
 	vial = /obj/item/weapon/reagent_containers/glass/beaker/vial/uranium
 
+/obj/item/clothing/gloves/powerfist/splashable()
+	return FALSE
+
 /obj/item/clothing/gloves/powerfist/New()
 	..()
 
@@ -198,8 +252,7 @@
 	update_icon()
 
 /obj/item/clothing/gloves/powerfist/Destroy()
-	qdel(vial)
-	vial = null
+	QDEL_NULL(vial)
 
 	..()
 
@@ -263,7 +316,7 @@
 		victim.throw_at(get_edge_target_turf(loc, loc.dir), 5, 1)
 		victim.Stun(stunforce)
 		victim.Knockdown(stunforce)
-		victim.apply_effect(STUTTER, stunforce)
+		victim.apply_effect(stunforce, STUTTER)
 
 		last_punch = world.time
 		update_icon()
@@ -321,6 +374,10 @@
 	hitsound_added = 'sound/weapons/slice.ogg'
 	attack_verb_override = "claws"
 
+/obj/item/clothing/gloves/warping_claws/Destroy()
+	new /datum/artifact_postmortem_data(src)
+	..()
+
 /obj/item/clothing/gloves/warping_claws/dexterity_check()
 	return FALSE
 
@@ -341,6 +398,7 @@
 	desc = "Start 'em up and rock and roll!"
 	icon_state = "rockernaut_gloves"
 	item_state = "rockernaut_gloves"
+	bonus_knockout = 12
 	damage_added = 5
 	hitsound_added = 'sound/weapons/heavysmash.ogg'
 
@@ -348,11 +406,85 @@
 	return FALSE
 
 /obj/item/clothing/gloves/mining/Touch(var/atom/A, mob/user, proximity)
-	if(proximity && istype(A, /turf/unsimulated/mineral) && do_after(user, A, 6))
-		playsound(get_turf(src), hitsound_added, 100, 1, vary = 0)
-		user.do_attack_animation(A, src)
-		var/turf/unsimulated/mineral/T = A
-		T.GetDrilled(0)
+	if(proximity)
+		if(istype(A, /turf/unsimulated/mineral))
+			var/turf/unsimulated/mineral/M = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(M, src)
+			M.GetDrilled(0)
+		else if(istype(A, /obj/structure/table))
+			var/obj/structure/table/T = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(T, src)
+			visible_message("<span class='danger'>[user] smashes \the [T] apart!</span>")
+			user.delayNextAttack(8)
+			T.destroy()
+		else if(istype(A, /obj/structure/rack))
+			var/obj/structure/rack/R = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(R, src)
+			visible_message("<span class='danger'>[user] smashes \the [R] apart!</span>")
+			R.destroy()
+		else if(istype(A, /obj/structure/window))
+			var/obj/structure/window/W = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(W, src)
+			visible_message("<span class='danger'>[user] smashes \the [W]!</span>")
+			if(!W.adjustHealthLoss(25))
+				user.visible_message("<span class='danger'>[user]'s punch [pick("bounces","gleams")] off \the [W] harmlessly.</span>")
+			W.healthcheck()
+			user.delayNextAttack(8)
+		else if(istype(A, /turf/simulated/wall))
+			var/turf/simulated/wall/WL = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(WL, src)
+			if(prob(100 - WL.hardness) || WL.rotting)
+				WL.dismantle_wall(1)
+				user.visible_message("<span class='danger'>[user] smashes through \the [WL].</span>", \
+				"<span class='notice'>You smash through \the [WL].</span>")
+			else
+				user.visible_message("<span class='warning'>[user] punches \the [WL].</span>", \
+				"<span class='notice'>You punch \the [WL].</span>")
+		else if(istype(A, /turf/simulated/floor/glass))
+			var/turf/simulated/floor/glass/G = A
+			playsound(src, hitsound_added, 100, 1, vary = 0)
+			user.do_attack_animation(G, src)
+			user.visible_message("<span class='danger'>[user] smashes \the [G]!</span>")
+			G.health -= 25
+			G.healthcheck(user, TRUE, "attack_hand hulk")
+			user.delayNextAttack(8)
 
 /obj/item/clothing/gloves/mining/attack_icon()
 	return image(icon = 'icons/mob/attackanims.dmi', icon_state = "rockernaut")
+
+/obj/item/clothing/gloves/mittens
+	name = "mittens"
+	desc = "These mittens are quite comfortable, and will keep you warm!"
+	icon_state = "mittens"
+	item_state = "mittens"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/linencrafts.dmi', "right_hand" = 'icons/mob/in-hand/right/linencrafts.dmi')
+	species_fit = list(VOX_SHAPED, INSECT_SHAPED)
+	heat_conductivity = INS_GLOVES_HEAT_CONDUCTIVITY
+
+	color = COLOR_LINEN
+	clothing_flags = COLORS_OVERLAY
+
+/obj/item/clothing/gloves/hunter
+	name = "leather glove & handwraps"
+	desc = "Cloth handwraps and a tough leather glove for your (hopefully dominant) right hand. Provides a comfortable grip when handling holy weaponry."
+	icon_state = "hunter_gloves"
+	item_state = "hunter_gloves"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/clothing_castlevania.dmi', "right_hand" = 'icons/mob/in-hand/right/clothing_castlevania.dmi')
+
+/obj/item/clothing/gloves/hunter/offenseTackleBonus()
+	return 3
+
+/obj/item/clothing/gloves/hunter/rangeTackleBonus()
+	return 1
+
+/obj/item/clothing/gloves/sonicman
+	name = "sonicman gloves"
+	desc = "A pair of gloves, hand-stitched with a custom logo."
+	icon_state = "sonicmangloves"
+	item_state = "sonicmangloves"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/gloves.dmi', "right_hand" = 'icons/mob/in-hand/right/gloves.dmi')

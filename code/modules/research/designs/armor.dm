@@ -1,22 +1,32 @@
 /datum/design/xcomsquaddiearmor
 	name = "Squaddie Armor"
-	desc = "A set of armor good against ballistics and laser weaponry.."
+	desc = "An old armor design from a shadow organization. It offers respectable protection against ballistics."
 	id = "xcomsquaddiearmor"
-	req_tech = list(Tc_MATERIALS = 3)
+	req_tech = list(Tc_COMBAT = 3, Tc_MATERIALS = 3)
 	build_type = PROTOLATHE
-	materials = list(MAT_IRON = 5000, MAT_GLASS = 1000)
+	materials = list(MAT_IRON = 5000, MAT_GLASS = 1250, MAT_PLASTIC = 750)
 	category = "Armor"
 	build_path = /obj/item/clothing/suit/armor/xcomsquaddie
 
 /datum/design/xcomoriginalarmor
-	name = "Original Armor"
-	desc = "A set of armor good against ballistics and laser weaponry.."
+	name = "Personal Armor"
+	desc = "An old armor design from a shadow organization. It offers respectable protection against laser and energy weaponry."
 	id = "xcomoriginalarmor"
-	req_tech = list(Tc_MATERIALS = 3)
+	req_tech = list(Tc_COMBAT = 3, Tc_MATERIALS = 3)
 	build_type = PROTOLATHE
-	materials = list(MAT_IRON = 5000, MAT_GLASS = 1000)
+	materials = list(MAT_IRON = 5000, MAT_GLASS = 1250, MAT_PLASMA = 750)
 	category = "Armor"
 	build_path = /obj/item/clothing/suit/armor/xcomarmor
+
+/datum/design/xcomoriginalarmor_helmet
+	name = "Personal Armor Helmet"
+	desc = "An old armored balaclava design from a shadow organization. It offers respectable protection against laser and energy weaponry."
+	id = "xcomoriginalarmor_helmet"
+	req_tech = list(Tc_COMBAT = 3, Tc_MATERIALS = 3)
+	build_type = PROTOLATHE
+	materials = list (MAT_IRON = 1750, MAT_GLASS = 500)
+	category = "Armor"
+	build_path = /obj/item/clothing/head/helmet/xcom
 
 /*
 /datum/design/security_hud
@@ -39,7 +49,7 @@
 	build_type = PROTOLATHE
 	materials = list(MAT_IRON = 50, MAT_GLASS = 50)
 	category = "Armor"
-	build_path = /obj/item/clothing/glasses/sunglasses/sechud
+	build_path = /obj/item/clothing/glasses/hud/security/sunglasses
 	locked = 1
 	req_lock_access = list(access_security)
 
@@ -84,3 +94,13 @@
 	materials = list(MAT_DIAMOND = 2000, MAT_IRON = 3000, MAT_URANIUM = 3750)
 	category = "Armor"
 	build_path = /obj/item/clothing/suit/armor/reactive
+
+/datum/design/emshield_projector
+	name = "Emergency Shield Projector"
+	desc = "A handheld device that generates a temporary shield barrier surrounding the user, blocking incoming attacks."
+	id = "emshield_projector"
+	req_tech = list(Tc_BLUESPACE = 4, Tc_MAGNETS = 3, Tc_EXPLORATION = 1)
+	build_type = PROTOLATHE
+	materials = list(MAT_DIAMOND = 2000, MAT_IRON = 2000, MAT_URANIUM = 1000)
+	category = "Armor"
+	build_path = /obj/item/device/emshield_projector

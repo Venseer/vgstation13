@@ -68,15 +68,11 @@
 	..()
 	if(beaker)
 		to_chat(user, "[bicon(beaker)] There is \a [beaker] in \the [src]'s auxiliary chamber.")
-		to_chat(user, "It contains:")
 		var/obj/item/weapon/reagent_containers/glass/B = beaker
-		if(B.reagents.reagent_list.len)
-			for(var/datum/reagent/R in B.reagents.reagent_list)
-				to_chat(user, "<span class='info'>[R.volume] units of [R.name]</span>")
-		else
-			to_chat(user, "<span class='info'>Nothing.</span>")
+		B.reagents.get_examine(user)
 
 /obj/item/weapon/reagent_containers/chempack/on_reagent_change()
+	..()
 	update_icon()
 
 /obj/item/weapon/reagent_containers/chempack/update_icon()
@@ -149,7 +145,7 @@
 	to_chat(usr, "<span class='notice'>You flush the contents of \the [src].</span>")
 	src.update_icon()
 
-obj/item/weapon/reagent_containers/chempack/verb/set_fill()
+/obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 	set name = "Set fill amount"
 	set category = "Object"
 	set src in usr
@@ -196,7 +192,7 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 		else
 			return
 
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		if (stage)
 			to_chat(user, "<span class='warning'>You need to secure the maintenance panel before you can access the auxiliary chamber bolts!</span>")
 			return
@@ -219,7 +215,7 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 
 	switch(stage) //Handles the different stages of overriding the chemical pack's safeties. This can be done completely with a standard set of tools.
 		if(0)
-			if(isscrewdriver(W) && user.back == src)
+			if(W.is_screwdriver(user) && user.back == src)
 				to_chat(user, "<span class='warning'>You can't perform maintenance on \the [src] while you're wearing it!</span>")
 				return
 			else
@@ -238,10 +234,10 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 				else if (iscrowbar(W) && src.beaker && !auxiliary)
 					to_chat(user, "<span class='warning'>The beaker is held tight by the bolts of the auxiliary chamber!</span>")
 					return
-				if (isscrewdriver(W) && src.beaker)
+				if (W.is_screwdriver(user) && src.beaker)
 					to_chat(user, "<span class='warning'>You can't reach the maintenance panel with the beaker in the way!</span>")
 					return
-				else if (isscrewdriver(W))
+				else if (W.is_screwdriver(user))
 					stage = 1
 					slot_flags = null
 					to_chat(user, "<span class='notice'>You unscrew the maintenance panel of \the [src].</span>")
@@ -258,7 +254,7 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 				icon_state = "[initial(icon_state)]2"
 				user.update_inv_hands()
 				return
-			else if (isscrewdriver(W))
+			else if (W.is_screwdriver(user))
 				stage = 0
 				slot_flags = SLOT_BACK
 				to_chat(user, "<span class='notice'>You secure the maintenance panel of \the [src].</span>")
@@ -270,7 +266,7 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 					user.update_inv_hands()
 				return
 		if(2)
-			if (iswirecutter(W))
+			if (W.is_wirecutter(user))
 				stage = 3
 				primed = 1
 				to_chat(user, "<span class='notice'>You reroute the connections within \the [src].</span>")
@@ -282,7 +278,7 @@ obj/item/weapon/reagent_containers/chempack/verb/set_fill()
 				user.update_inv_hands()
 				return
 		if(3)
-			if (ismultitool(W))
+			if (W.is_multitool(user))
 				if (safety == 0)
 					to_chat(user, "<span class='warning'>You activate the manual safety override of \the [src]!</span>")
 					to_chat(user, "<span class='warning'>The bolts for the auxiliary chamber of \the [src] have been exposed!</span>")

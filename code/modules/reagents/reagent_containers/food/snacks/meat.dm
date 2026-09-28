@@ -6,29 +6,31 @@
 	icon_state = "meat"
 	food_flags = FOOD_MEAT | FOOD_SKELETON_FRIENDLY
 	var/subjectname = ""
-	var/subjectjob = null
+	var/meatword = "meat"
 
 	var/obj/item/poisonsacs = null //This is what will contain the poison
-	New()
-		..()
-		reagents.add_reagent(NUTRIMENT, 3)
-		src.bitesize = 3
+
+	var/meatcolor //If set, the meat will be colored accordingly (hex string). This can be used to add colored meats for various species without making a new sprite.
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/New(atom/A, var/mob/M)
-	..(A)
+	..()
+	reagents.add_reagent(NUTRIMENT, 3)
+	bitesize = 3
 	if(M)
 		if(uppertext(M.name) != "UNKNOWN")
-			name = "[M.name] meat"
+			name = "[M.name] [meatword]"
 		subjectname = M.name
-		if(istype(M, /mob/living/carbon/human))
-			var/mob/living/carbon/human/H = M
-			subjectjob = H.job
+
+	if(meatcolor) //If meatcolor is set, set the icon_state to meat_colorless and modify the tone.
+		icon_state = "meat_colorless"
+		var/icon/original = icon(icon, icon_state)
+		original.ColorTone(meatcolor)
+		icon = original
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/Destroy()
-	..()
 	if(poisonsacs)
-		qdel(poisonsacs)
-		poisonsacs = null
+		QDEL_NULL(poisonsacs)
+	return ..()
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/animal //This meat spawns when an animal is butchered, and its name is set to '[animal.species_name] meat' (like "cat meat")
 	var/animal_name = "animal"
@@ -36,6 +38,12 @@
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/animal/monkey
 	name = "monkey meat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/monkey/New(atom/A, var/mob/M)
+	..()
+
+	if(M)
+		name = "[initial(M.name)] [meatword]"
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/animal/corgi
 	desc = "Tastes like the tears of the station. Gives off the faint aroma of a valid salad. Just like mom used to make. This revelation horrifies you greatly."
@@ -53,32 +61,87 @@
 /obj/item/weapon/reagent_containers/food/snacks/meat/human
 	name = "human meat"
 
+/obj/item/weapon/reagent_containers/food/snacks/meat/human/New(atom/A, var/mob/M)
+	..()
+	if(ishuman(M))
+		if(uppertext(M.name) == "UNKNOWN")
+			var/mob/living/carbon/human/H = M
+			name = "[lowertext(H.species.name)] [meatword]"
+
+
 /obj/item/weapon/reagent_containers/food/snacks/meat/human/after_consume(var/mob/user, var/datum/reagents/reagentreference)
 	if(!user)
 		return
-	if(ishuman(user))
-		var/mob/living/carbon/human/H = user
-		if(isgrue(H))
-			H.adjustOxyLoss(-50)
-			H.heal_organ_damage(50, 0)
-			H.heal_organ_damage(0, 50)
-			H.adjustToxLoss(-50)
 	..()
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/human/on_vending_machine_spawn()
+	reagents.chem_temp = FRIDGETEMP_FROZEN
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/diona
 	name = "leafy meat"
 	desc = "It's got an awful lot of protein for a vegetable."
 	icon_state = "diona_meat"
+	food_flags = FOOD_SKELETON_FRIENDLY
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/nymphmeat // Can also be used to make veggie burgers like normal diona meat.
+	name = "nymph meat"
+	desc = "A chunk of meat from a diona nymph. It looks dense and fibrous."
+	icon_state = "nymphmeat"
+	food_flags = FOOD_SKELETON_FRIENDLY
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/grey
+	name = "grey meat"
+	desc = "A slab of greyish meat, slightly acidic in taste."
+	icon_state = "greymeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/grey/New()
+	..()
+	reagents.add_reagent(SACID, 3)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/polyp
+	name = "polyp meat"
+	desc = "A lump of meat from the top of a polyp's bell. Somewhat salty in taste, but quite nutritious."
+	icon_state = "raw_jellyfish"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/polyp/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 2)
+	reagents.add_reagent(POLYPGELATIN, 5)
+	bitesize = 1
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/insectoid
+	name = "insectoid meat"
+	desc = "A slab of gooey, white meat. It's still got traces of hardened chitin."
+	icon_state = "insectoidmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/insectoid/New()
+	..()
+	reagents.add_reagent(LITHOTORCRAZINE, 5)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/rawchicken/vox
+	name = "vox meat"
+	desc = "Considering its Avian origin, tastes unsurprisingly like chicken."
+	icon_state = "meat_vox"
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/rawchicken
 	name = "chicken meat"
 	desc = "This better be delicious."
 	icon_state = "raw_chicken"
+	bitesize = 1
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/rawchicken/New()
 	..()
 	reagents.add_reagent(NUTRIMENT, 3)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/rawchicken/raw_vox_chicken
+	name = "vox chicken meat"
+	desc = "Vox, man. No discussion."
+	icon_state = "raw_vox_chicken"
 	bitesize = 1
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/rawchicken/raw_vox_chicken/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 3)
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/crabmeat
 	name = "crab meat"
@@ -92,67 +155,74 @@
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/carpmeat
 	name = "carp fillet"
-	desc = "A fillet of spess carp meat"
+	desc = "A fillet of space carp meat."
 	icon_state = "fishfillet"
-	New()
-		..()
-		poisonsacs = new /obj/item/weapon/reagent_containers/food/snacks/carppoisongland
-		eatverb = pick("bite","chew","choke down","gnaw","swallow","chomp")
-		reagents.add_reagent(NUTRIMENT, 3)
-		reagents.add_reagent(CARPOTOXIN, 3)
-		bitesize = 6
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/carpmeat/New()
+	..()
+	poisonsacs = new /obj/item/weapon/reagent_containers/food/snacks/carppoisongland
+	eatverb = pick("bite","chew","choke down","gnaw","swallow","chomp")
+	reagents.add_reagent(NUTRIMENT, 3)
+	reagents.add_reagent(CARPOTOXIN, 3)
+	bitesize = 6
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/carpmeat/imitation
 	name = "imitation carp fillet"
 	desc = "Almost just like the real thing, kinda."
 
+/obj/item/weapon/reagent_containers/food/snacks/meat/carpmeat/imitation/on_vending_machine_spawn()
+	reagents.chem_temp = FRIDGETEMP_FROZEN
+
 /obj/item/weapon/reagent_containers/food/snacks/carppoisongland
 	name = "venomous spines"
 	desc = "The toxin-filled spines of a space carp."
 	icon_state = "toxicspine"
-	New()
-		..()
-		reagents.add_reagent(CARPOTOXIN, 3)
-		bitesize = 3
+/obj/item/weapon/reagent_containers/food/snacks/carppoisongland/New()
+	..()
+	reagents.add_reagent(CARPOTOXIN, 3)
+	bitesize = 3
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/xenomeat
 	name = "xenomeat"
-	desc = "A slab of xeno meat"
+	desc = "A slab of xeno meat."
 	icon_state = "xenomeat"
-	New()
-		..()
-		reagents.add_reagent(NUTRIMENT, 3)
-		src.bitesize = 6
+/obj/item/weapon/reagent_containers/food/snacks/meat/xenomeat/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 3)
+	src.bitesize = 6
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/spidermeat
 	name = "spider meat"
 	desc = "A slab of spider meat."
 	icon_state = "spidermeat"
-	New()
-		..()
-		poisonsacs = new /obj/item/weapon/reagent_containers/food/snacks/spiderpoisongland
-		reagents.add_reagent(NUTRIMENT, 3)
-		reagents.add_reagent(TOXIN, 3)
-		bitesize = 3
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/spidermeat/New()
+	..()
+	poisonsacs = new /obj/item/weapon/reagent_containers/food/snacks/spiderpoisongland
+	reagents.add_reagent(NUTRIMENT, 3)
+	reagents.add_reagent(TOXIN, 3)
+	bitesize = 3
 
 /obj/item/weapon/reagent_containers/food/snacks/spiderpoisongland
 	name = "venomous spittle sac"
 	desc = "The toxin-filled poison sac of a giant spider."
 	icon_state = "toxicsac"
-	New()
-		..()
-		reagents.add_reagent(TOXIN, 3)
-		bitesize = 3
+
+/obj/item/weapon/reagent_containers/food/snacks/spiderpoisongland/New()
+	..()
+	reagents.add_reagent(TOXIN, 3)
+	bitesize = 3
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/bearmeat
 	name = "bear meat"
 	desc = "A very manly slab of meat."
 	icon_state = "bearmeat"
-	New()
-		..()
-		reagents.add_reagent(NUTRIMENT, 12)
-		reagents.add_reagent(HYPERZINE, 5)
-		src.bitesize = 3
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/bearmeat/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 12)
+	reagents.add_reagent(HYPERZINE, 5)
+	src.bitesize = 3
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/roach
 	name = "cockroach meat"
@@ -165,14 +235,52 @@
 	reagents.add_reagent(ROACHSHELL, rand(2,6))
 	bitesize = 5
 
+/obj/item/weapon/reagent_containers/food/snacks/meat/roach/on_vending_machine_spawn()
+	reagents.chem_temp = FRIDGETEMP_FROZEN
+
 /obj/item/weapon/reagent_containers/food/snacks/meat/roach/big
+	name = "mutated cockroach meat"
 	desc = "A chunk of meat from an above-average sized cockroach."
 	icon_state = "bigroachmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/roach/big/isopod
+	name = "Isopod meat"
+	desc = "A chunk of meat from an isopod."
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/roach/big/New()
 	..()
 	reagents.add_reagent(NUTRIMENT, 5)
 	reagents.add_reagent(ROACHSHELL, 16)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket
+	name = "cricket meat"
+	desc = "Tastes a bit like nuts, very earthy. Not much of a serving, though."
+	icon_state = "roachmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket/New()
+	..()
+	reagents.add_reagent(FLOUR, rand(4,10))
+	bitesize = 5
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket/big
+	name = "creatine cricket meat"
+	desc = "An oddly large slab of cricket meat. Tastes like nuts and protein. Very earthy and chewy."
+	icon_state = "bigroachmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket/big/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 5)
+	reagents.add_reagent(FLOUR, 32)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket/king
+	name = "cricket king meat"
+	desc = "A royal bloodline was felled to make this. Tastes like regicide."
+	icon_state = "bigroachmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/cricket/king/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 25)
+	reagents.add_reagent(FLOUR, 75)
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/mimic
 	name = "mimic meat"
@@ -191,6 +299,7 @@
 	shapeshift()
 
 /obj/item/weapon/reagent_containers/food/snacks/meat/mimic/bless()
+	..()
 	visible_message("<span class='info'>\The [src] starts fizzling!</span>")
 	spawn(10)
 		shapeshift(/obj/item/weapon/storage/bible) //Turn into a bible
@@ -223,7 +332,7 @@ var/global/list/valid_random_food_types = existing_typesof(/obj/item/weapon/reag
 
 	return ..()
 
-/obj/item/weapon/reagent_containers/food/snacks/meat/mimic/forceMove(atom/destination, no_tp=0, harderforce = FALSE, glide_size_override = 0)
+/obj/item/weapon/reagent_containers/food/snacks/meat/mimic/forceMove(atom/destination, step_x = 0, step_y = 0, no_tp = FALSE, harderforce = FALSE, glide_size_override = 0)
 	if(transformed && istype(destination, /obj/machinery/cooking))
 		revert()
 
@@ -300,4 +409,195 @@ var/global/list/valid_random_food_types = existing_typesof(/obj/item/weapon/reag
 /obj/item/weapon/reagent_containers/food/snacks/meat/wendigo/consume(mob/living/carbon/eater, messages = 0)
 	. = ..()
 	if(ishuman(eater))
-		eater.contract_disease(new /datum/disease/wendigo_transformation)
+		var/mob/living/carbon/human/H = eater
+		H.infect_disease2_predefined(DISEASE_WENDIGO, 1, "Wendigo Meat")
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/slime
+	name = "gelatin"
+	desc = "A slab of gelatin. It has a similar composition to regular meat but with a bit more jelly."
+	icon_state = "slime_meat"
+	meatword = "gelatin"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/slime/New()
+	..()
+	reagents.add_reagent(SLIMEJELLY, 10)
+
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/snail
+	icon_state = "snail_meat"
+	name = "snail meat"
+	desc = "How uncivilised! You cannot be expected to eat that without cooking it, mon Dieu!"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/food.dmi', "right_hand" = 'icons/mob/in-hand/right/food.dmi')
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/snail/New()
+	. = ..()
+	reagents.add_reagent(NUTRIMENT,5)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/gingerbroodmother
+	name = "Royal Gingjelly"
+	icon_state = "royal_gingjelly"
+	desc = "The sickly sweet smell wafting from this sticky glob triggers some primal fear. You absolutely should not eat this."
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/gingerbroodmother/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 10)
+	reagents.add_reagent (CARAMEL, 10)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/gingerbroodmother/consume(mob/living/carbon/eater, messages = 0)
+
+	if(ishuman(eater))
+
+		var/mob/living/carbon/C = eater
+
+		if(C.monkeyizing)
+			return
+		to_chat(eater, "<span class='warning'>Your flesh hardens and your blood turns to frosting. This is agony!</span>")
+		sleep (30)
+		C.monkeyizing = 1
+		C.canmove = 0
+		C.icon = null
+		C.overlays.len = 0
+		C.invisibility = 101
+		for(var/obj/item/W in C)
+			if(istype(W, /obj/item/weapon/implant))
+				var/obj/item/weapon/implant/I = W
+				if(I.imp_in == C)
+					qdel(W)
+					continue
+			W.reset_plane_and_layer()
+			W.forceMove(C.loc)
+			W.dropped(C)
+		var/mob/living/simple_animal/hostile/ginger/gingerbomination/new_mob = new /mob/living/simple_animal/hostile/ginger/gingerbomination(C.loc)
+		new_mob.a_intent = I_HURT
+		if(C.mind)
+			C.mind.transfer_to(new_mob)
+		else
+			new_mob.key = C.key
+		C.transferBorers(new_mob)
+		qdel(C)
+		playsound(src, 'sound/effects/evolve.ogg', 100, 1)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/plasmaman
+	name = "plasmaman meat"
+	desc = "A charred, dry piece of what you think is meant to be meat. It smells burnt."
+	icon_state = "plasmaman_meat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/plasmaman/New()
+	..()
+	reagents.remove_reagent(NUTRIMENT, 2.5)
+	reagents.add_reagent(PLASMA, 5)
+	bitesize = 1
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/grue/
+	name = "grue meat"
+	desc = "Considered a delicacy by some, the edibility of this meat has long been a subject of debate amongst discerning gourmands."
+	meatcolor = GRUE_BLOOD
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/grue/New()
+	..()
+	reagents.add_reagent(GRUE_BILE, 5)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/dan
+	name = "meat"
+	desc = "A slab of \"meat\". Something's a little strange about this one."
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/dan/New(atom/A, var/mob/M)
+	..()
+	//A new blend of meat in every slab! Can be better than or worse than normal meat.
+	reagents.clear_reagents()
+	//No room for normal meat chems in here. We're going full DAN
+	for(var/blendedmeat = 1 to 3)
+		switch(rand(1,3))
+			if(1)
+				reagents.add_reagent(NUTRIMENT, 1) //15 nutrition
+			if(2)
+				reagents.add_reagent(BEFF,rand(3,8)) //6-16
+			if(3)
+				reagents.add_reagent(HORSEMEAT,rand(3,6)) //9-18
+	reagents.add_reagent(BONEMARROW,rand(0,3)) //0-3
+	if(prob(5))
+		reagents.add_reagent(ROACHSHELL,1) //Sometimes a roach gets in. No nutritional value
+	//Total ranging from 18 to 57 nutrition. Normal meat provides 45.
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/animal/dan/on_vending_machine_spawn()
+	reagents.chem_temp = FRIDGETEMP_FROZEN
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/blob
+	name = "blob meat"
+	desc = "A slab of glowing meat hacked off of a greater part. It has a spongy feel to it."
+	icon_state = "blob_meat"
+	origin_tech = Tc_BIOTECH + "=2"
+	throw_impact_sound = 'sound/effects/attackblob.ogg'
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/blob/New()
+	..()
+	reagents.add_reagent(BLOBANINE, 5)
+	reagents.add_reagent(NUTRIMENT, 5)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/blob/blob_act()
+	// Blobs ignore their own parts
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/blob/core
+	name = "blob core meat"
+	desc = "A piece of a blob's core. It pulsates wildly."
+	icon_state = "blob_core_meat"
+	origin_tech = Tc_BIOTECH + "=6"
+	throw_impact_sound = 'sound/effects/attackblob.ogg'
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/blob/core/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 10)
+	reagents.add_reagent(BLOB_ESSENCE, 1)
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/scraps
+	name = "meat scraps"
+	desc = "Some leftover scraps of meat, probably trimmed off a bigger slab."
+	icon_state = "meat_scraps"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/scraps/New()
+	..()
+	reagents.remove_reagent(NUTRIMENT, 1) // A bit less nutriment
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/borer
+	name = "borer"
+	desc = "It's still twitching slightly."
+	icon_state = "slug0"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/mob_holders.dmi', "right_hand" = 'icons/mob/in-hand/right/mob_holders.dmi')
+	item_state = "borer"
+	crumb_icon = "dribbles"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/borer/New()
+	..()
+	reagents.add_reagent(GREYGOO, 1)
+	reagents.add_reagent(PERIDAXON, 1) //yes you will eat the slugs for their valuable nutrients
+	bitesize = 2
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/borer/after_consume(mob/user, datum/reagents/reagentreference)
+	..()
+	icon_state = "slug[min(bitecount,2)]"
+	if(bitecount == 1)
+		desc = pick("Whichever nerves were keeping it wriggling have been ripped off by now.", "It's a lot more foul smelling once you bite into it.", "There's some slimy substance leaking out of it.", "Was this really a good idea?")
+	else
+		desc = pick("There's barely anything left of it.", "It could have lived happily in your brain, you know.", "It was only here to help.", "Poor thing.", "You monster.", "At least it's nutritious.")
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/bullmeat
+	name = "carne de lidia"
+	desc = "En algunos lugares, la tauromaquia es incruenta. Aqui no."
+	icon_state = "bearmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/bullmeat/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 12)
+	reagents.add_reagent(BICARIDINE, 5)
+	bitesize = 3
+
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/oogabooga 
+	name = "prehistoric meat"
+	desc = "Ooga booga, boo. booga ooga ooga booga."
+	icon_state = "bearmeat"
+
+/obj/item/weapon/reagent_containers/food/snacks/meat/oogabooga/New()
+	..()
+	reagents.add_reagent(NUTRIMENT, 12)
+	reagents.add_reagent(GRUGZONE, 4)

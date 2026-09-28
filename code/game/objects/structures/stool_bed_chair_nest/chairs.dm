@@ -1,13 +1,22 @@
+//standardized colors for couches/comfy chairs
+#define CHAIR_BEIGE "#cac3ad"
+#define CHAIR_LIME "#aecf79"
+#define CHAIR_BROWN "#ae774c"
+#define CHAIR_TEAL "#63e4e4"
+#define CHAIR_BLACK "#81807c"
+#define CHAIR_RED "#e75555"
+
 /obj/structure/bed/chair
 	name = "chair"
 	desc = "You sit in this. Either by will or force."
 	icon_state = "chair"
 	sheet_amt = 1
+	verb_rotates = TRUE
+	ghost_can_rotate = TRUE
 	var/image/buckle_overlay = null // image for overlays when a mob is buckled to the chair
 	var/image/secondary_buckle_overlay = null // for those really complicated chairs
-	var/noghostspin = 0 //Set it to 1 if ghosts should NEVER be able to spin this
-
-	lock_type = /datum/locking_category/buckle/chair
+	rotates_anchored = TRUE
+	mob_lock_type = /datum/locking_category/buckle/chair
 
 /obj/structure/bed/chair/New()
 	..()
@@ -28,7 +37,7 @@
 
 /obj/structure/bed/chair/update_icon()
 	..()
-	if(is_locking(lock_type))
+	if(is_locking(mob_lock_type))
 		if (buckle_overlay)
 			overlays += buckle_overlay
 		if (secondary_buckle_overlay)
@@ -38,11 +47,6 @@
 		overlays -= secondary_buckle_overlay
 
 	handle_layer() 				         // part of layer fix
-
-/obj/structure/bed/chair/can_spook()
-	. = ..()
-	if(.)
-		return !noghostspin
 
 /obj/structure/bed/chair/attackby(var/obj/item/weapon/W, var/mob/user)
 	if(istype(W, /obj/item/assembly/shock_kit))
@@ -57,8 +61,13 @@
 			qdel(src)
 			return
 
-	if(iswrench(W))
-		playsound(src, 'sound/items/Ratchet.ogg', 50, 1)
+	if(W.is_wrench(user))
+		if (locked_atoms && locked_atoms.len)
+			for (var/mob/living/L in locked_atoms)
+				visible_message("<span class='warning'>\The [L] slips from the chair!</span>'")
+				L.unlock_from(src)
+				L.Stun(2)
+		W.playtoolsound(src, 50)
 		drop_stack(sheet_type, loc, sheet_amt, user)
 		qdel(src)
 		return
@@ -128,57 +137,50 @@
 	else
 		plane = OBJ_PLANE
 
-/obj/structure/bed/chair/proc/spin(var/mob/M)
-	change_dir(turn(dir, 90))
-
-/obj/structure/bed/chair/verb/rotate()
+/obj/structure/bed/chair/verb/rotate_chair()
 	set name = "Rotate Chair"
-	set category = "Object"
+	set hidden = TRUE
 	set src in oview(1)
 
-	if(!usr || !isturf(usr.loc))
-		return
-
-	if(!config.ghost_interaction || !can_spook())
-		if(usr.isUnconscious() || usr.restrained())
-			return
-
-	if(isobserver(usr))
-		var/mob/dead/observer/ghost = usr
-		if(ghost.lastchairspin <= world.time - 5) //do not spam this
-			investigation_log(I_GHOST, "|| was rotated by [key_name(ghost)][ghost.locked_to ? ", who was haunting [ghost.locked_to]" : ""]")
-		ghost.lastchairspin = world.time
-
-	spin(usr)
+	rotate_ccw()
 
 /obj/structure/bed/chair/relayface(var/mob/living/user, direction) //ALSO for vehicles!
-	if(!config.ghost_interaction || !can_spook())
-		if(user.isUnconscious() || user.restrained())
-			return
+	if(!rotates_anchored || user.incapacitated())
+		return
 	change_dir(direction)
 	return 1
 
+/obj/structure/bed/chair/AltClick(mob/user as mob)
+	buckle_chair(user,user, 0) // Require to stand on the chair in order to do that
+
 /obj/structure/bed/chair/MouseDropTo(mob/M as mob, mob/user as mob)
+	buckle_chair(M,user)
+
+/obj/structure/bed/chair/proc/buckle_chair(mob/M as mob, mob/user as mob, var/override_buckle_range = null)
 	if(!istype(M))
-		return ..()
+		return
+
+	var/effective_buckle_range = (isnull(override_buckle_range) ? buckle_range : override_buckle_range)
+
 	var/mob/living/carbon/human/target = null
 	if(ishuman(M))
 		target = M
+
+	if(user!=M && (!user.Adjacent(M) || !user.Adjacent(src)))
+		return
+
+	if(get_dist(src,user) > effective_buckle_range)
+		return
+
 	if(target && target.op_stage.butt == 4 && Adjacent(target) && user.Adjacent(src) && !user.incapacitated()) //Butt surgery is at stage 4
 		if(!M.knockdown)	//Spam prevention
-			if(M == usr)
-				M.visible_message(\
-					"<span class='notice'>[M.name] has no butt, and slides right out of [src]!</span>",\
-					"Having no butt, you slide right out of the [src]",\
-					"You hear metal clanking.")
-
-			else
-				M.visible_message(\
-					"<span class='notice'>[M.name] has no butt, and slides right out of [src]!</span>",\
-					"Having no butt, you slide right out of the [src]",\
-					"You hear metal clanking.")
+			M.visible_message(\
+				"<span class='notice'>[M.name] has no butt, and slides right out of [src]!</span>",\
+				"Having no butt, you slide right out of the [src].",\
+				"You hear metal clanking.")
 
 			M.Knockdown(5)
+			M.Stun(5)
 		else
 			to_chat(user, "You can't buckle [M.name] to [src], They just fell out!")
 
@@ -187,10 +189,13 @@
 	if(material_type)
 		material_type.on_use(src,M,user)
 
+
 // Chair types
 /obj/structure/bed/chair/wood
-	autoignition_temperature = AUTOIGNITION_WOOD
-	fire_fuel = 1
+	w_class = W_CLASS_LARGE
+	w_type = RECYK_WOOD
+	flammable = TRUE
+
 	// TODO:  Special ash subtype that looks like charred chair legs
 
 	sheet_type = /obj/item/stack/sheet/wood
@@ -206,7 +211,7 @@
 	desc = "Uncomfortable."
 	sheet_amt = 2
 	anchored = 1
-	noghostspin = 1
+	rotates_anchored = FALSE
 
 /obj/structure/bed/chair/wood/pew/left
 	icon_state = "bench_left"
@@ -216,7 +221,6 @@
 
 /obj/structure/bed/chair/wood/pew/mid/ // mid refers to a straight couch part
 	icon_state = "bench_mid"
-
 
 /obj/structure/bed/chair/wood/wings
 	icon_state = "wooden_chair_wings"
@@ -244,7 +248,7 @@
 /obj/structure/bed/chair/wood/throne/New()
 	..()
 	buckle_overlay = image("icons/obj/stools-chairs-beds.dmi", "[icon_state]_arm", CHAIR_ARMREST_LAYER)
-	buckle_overlay.plane = ABOVE_HUMAN_PLANE
+	buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
 
 /obj/structure/bed/chair/holowood/normal
 	icon_state = "wooden_chair"
@@ -260,24 +264,31 @@
 	return
 
 //Comfy chairs
-
 /obj/structure/bed/chair/comfy
 	name = "comfy chair"
 	desc = "It looks comfy."
-	icon_state = "comfychair_black"
-
-
+	icon_state = "comfychair"
+	var/image/legs
+	color = null
 	sheet_amt = 1
-
 
 /obj/structure/bed/chair/comfy/New()
 	..()
 	buckle_overlay = image("icons/obj/objects.dmi", "[icon_state]_armrest", CHAIR_ARMREST_LAYER)
-	buckle_overlay.plane = ABOVE_HUMAN_PLANE
+	buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
+	legs = image("icons/obj/objects.dmi", "[icon_state]_legs", CHAIR_LEG_LAYER)
+	legs.plane = FLOAT_PLANE
+	legs.appearance_flags = RESET_COLOR
+	overlays += legs
+	..()
+	overlays += buckle_overlay
 
+/obj/structure/bed/chair/comfy/turn/handle_layer()
+	layer = OBJ_LAYER
+	plane = OBJ_PLANE
 
 /obj/structure/bed/chair/comfy/attackby(var/obj/item/W, var/mob/user)
-	if (iswrench(W))
+	if (W.is_wrench(user))
 		for (var/atom/movable/AM in src)
 			AM.forceMove(loc)
 
@@ -290,13 +301,48 @@
 
 		if (user.drop_item(W, src))
 			to_chat(user, "You hide \the [W] between \the [src]'s cushions.")
+			if(arcanetampered)
+				var/area/thearea
+				var/area/prospective = pick(areas)
+				while(!thearea)
+					if(prospective.type != /area)
+						var/turf/T = pick(get_area_turfs(prospective.type))
+						if(T.z == user.z)
+							thearea = prospective
+							break
+					prospective = pick(areas)
+				var/list/L = list()
+				for(var/turf/T in get_area_turfs(thearea.type))
+					if(!T.density)
+						var/clear = 1
+						for(var/obj/O in T)
+							if(O.density)
+								clear = 0
+								break
+						if(clear)
+							L+=T
+				if(!L.len)
+					return
+
+				var/list/backup_L = L
+				var/attempt = null
+				var/success = 0
+				while(L.len)
+					attempt = pick(L)
+					success = W.Move(attempt)
+					if(!success)
+						L.Remove(attempt)
+					else
+						break
+				if(!success)
+					W.forceMove(pick(backup_L))
 
 		return TRUE
 
 	return ..()
 
 /obj/structure/bed/chair/comfy/attack_hand(var/mob/user, params, proximity)
-	if(is_locking(lock_type))
+	if(is_locking(mob_lock_type))
 		return ..()
 	if(proximity)
 		for (var/obj/item/I in src)
@@ -304,22 +350,24 @@
 			to_chat(user, "You pull out \the [I] between \the [src]'s cushions.")
 
 /obj/structure/bed/chair/comfy/brown
-	icon_state = "comfychair_brown"
+	color = CHAIR_BROWN
 
 /obj/structure/bed/chair/comfy/beige
-	icon_state = "comfychair_beige"
+	color = CHAIR_BEIGE
 
 /obj/structure/bed/chair/comfy/teal
-	icon_state = "comfychair_teal"
+	color = CHAIR_TEAL
 
 /obj/structure/bed/chair/comfy/black
-	icon_state = "comfychair_black"
+	color = CHAIR_BLACK
 
 /obj/structure/bed/chair/comfy/lime
-	icon_state = "comfychair_lime"
+	color = CHAIR_LIME
+
+/obj/structure/bed/chair/comfy/red
+	color = CHAIR_RED
 
 //Office chairs
-
 /obj/structure/bed/chair/office
 	icon_state = "officechair_white"
 	sheet_amt = 1
@@ -329,11 +377,10 @@
 /obj/structure/bed/chair/office/New()
 	..()
 	buckle_overlay = image("icons/obj/objects.dmi", "[icon_state]-overlay", CHAIR_ARMREST_LAYER)
-	buckle_overlay.plane = ABOVE_HUMAN_PLANE
-
+	buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
 
 /obj/structure/bed/chair/office/handle_layer() // Fixes layer problem when and office chair is buckled and facing north
-	if(dir == NORTH && !is_locking(lock_type))
+	if(dir == NORTH && !is_locking(mob_lock_type))
 		layer = CHAIR_ARMREST_LAYER
 		plane = ABOVE_HUMAN_PLANE
 	else
@@ -386,54 +433,35 @@
 /obj/structure/bed/chair/office/dark
 	icon_state = "officechair_dark"
 
-
-
 // Subtype only for seperation purposes.
 /datum/locking_category/buckle/chair
 
-
 // Couches, offshoot of /comfy/ so that the armrest code can be used easily
-
 /obj/structure/bed/chair/comfy/couch
 	name = "couch"
 	desc = "Looks really comfy."
 	sheet_amt = 2
 	anchored = 1
-	noghostspin = 1
-	var/image/legs
 	color = null
 
 // layer stuff
-
 /obj/structure/bed/chair/comfy/couch/New()
-
 	legs = image("icons/obj/objects.dmi", "[icon_state]_legs", CHAIR_LEG_LAYER)		// since i dont want the legs colored they are a separate overlay
-	legs.plane = OBJ_PLANE															//
+	legs.plane = FLOAT_PLANE														//
 	legs.appearance_flags = RESET_COLOR												//
 	overlays += legs
 	secondary_buckle_overlay = image("icons/obj/objects.dmi", "[icon_state]_armrest_legs", CHAIR_ARMREST_LAYER)		// since i dont want the legs colored they are a separate overlay
-	secondary_buckle_overlay.plane = ABOVE_HUMAN_PLANE																//
+	secondary_buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)												//
 	secondary_buckle_overlay.appearance_flags = RESET_COLOR
 	..()
 	overlays += buckle_overlay
 	handle_layer()
 
-
 /obj/structure/bed/chair/comfy/couch/turn/handle_layer() // makes sure mobs arent buried under certain chair sprites
 	layer = OBJ_LAYER
 	plane = OBJ_PLANE
 
-
-
-
-
-
-
-
-
 // Grey base couch
-
-
 /obj/structure/bed/chair/comfy/couch/left
 	icon_state = "couch_left"
 
@@ -449,87 +477,79 @@
 /obj/structure/bed/chair/comfy/couch/turn/outward/
 	icon_state = "couch_turn_out"
 
-
 // #cbcab9 beige
-
 /obj/structure/bed/chair/comfy/couch/left/beige
-	color = "#cbcab9"
+	color = CHAIR_BEIGE
 /obj/structure/bed/chair/comfy/couch/right/beige
-	color = "#cbcab9"
+	color = CHAIR_BEIGE
 /obj/structure/bed/chair/comfy/couch/mid/beige
-	color = "#cbcab9"
+	color = CHAIR_BEIGE
 /obj/structure/bed/chair/comfy/couch/turn/inward/beige
-	color = "#cbcab9"
+	color = CHAIR_BEIGE
 /obj/structure/bed/chair/comfy/couch/turn/outward/beige
-	color = "#cbcab9"
+	color = CHAIR_BEIGE
 
 // #bab866 lime
 /obj/structure/bed/chair/comfy/couch/left/lime
-	color = "#bab866"
+	color = CHAIR_LIME
 /obj/structure/bed/chair/comfy/couch/right/lime
-	color = "#bab866"
+	color = CHAIR_LIME
 /obj/structure/bed/chair/comfy/couch/mid/lime
-	color = "#bab866"
+	color = CHAIR_LIME
 /obj/structure/bed/chair/comfy/couch/turn/inward/lime
-	color = "#bab866"
+	color = CHAIR_LIME
 /obj/structure/bed/chair/comfy/couch/turn/outward/lime
-
+	color = CHAIR_LIME
 
 // #ae774c brown
-
 /obj/structure/bed/chair/comfy/couch/left/brown
-	color = "#ae774c"
+	color = CHAIR_BROWN
 /obj/structure/bed/chair/comfy/couch/right/brown
-	color = "#ae774c"
+	color = CHAIR_BROWN
 /obj/structure/bed/chair/comfy/couch/mid/brown
-	color = "#ae774c"
+	color = CHAIR_BROWN
 /obj/structure/bed/chair/comfy/couch/turn/inward/brown
-	color = "#ae774c"
+	color = CHAIR_BROWN
 /obj/structure/bed/chair/comfy/couch/turn/outward/brown
-	color = "#ae774c"
+	color = CHAIR_BROWN
 
 // #66baba teal
-
 /obj/structure/bed/chair/comfy/couch/left/teal
-	color = "#66baba"
+	color = CHAIR_TEAL
 /obj/structure/bed/chair/comfy/couch/right/teal
-	color = "#66baba"
+	color = CHAIR_TEAL
 /obj/structure/bed/chair/comfy/couch/mid/teal
-	color = "#66baba"
+	color = CHAIR_TEAL
 /obj/structure/bed/chair/comfy/couch/turn/inward/teal
-	color = "#66baba"
+	color = CHAIR_TEAL
 /obj/structure/bed/chair/comfy/couch/turn/outward/teal
-	color = "#66baba"
+	color = CHAIR_TEAL
 
 // #81807c black
-
 /obj/structure/bed/chair/comfy/couch/left/black
-	color = "#81807c"
+	color = CHAIR_BLACK
 /obj/structure/bed/chair/comfy/couch/right/black
-	color = "#81807c"
+	color = CHAIR_BLACK
 /obj/structure/bed/chair/comfy/couch/mid/black
-	color = "#81807c"
+	color = CHAIR_BLACK
 /obj/structure/bed/chair/comfy/couch/turn/inward/black
-	color = "#81807c"
+	color = CHAIR_BLACK
 /obj/structure/bed/chair/comfy/couch/turn/outward/black
-	color = "#81807c"
-
+	color = CHAIR_BLACK
 
 // #c94c4c red
-
 /obj/structure/bed/chair/comfy/couch/left/red
-	color = "#c94c4c"
+	color = CHAIR_RED
 /obj/structure/bed/chair/comfy/couch/right/red
-	color = "#c94c4c"
+	color = CHAIR_RED
 /obj/structure/bed/chair/comfy/couch/mid/red
-	color = "#c94c4c"
+	color = CHAIR_RED
 /obj/structure/bed/chair/comfy/couch/turn/inward/red
-	color = "#c94c4c"
+	color = CHAIR_RED
 /obj/structure/bed/chair/comfy/couch/turn/outward/red
-	color = "#c94c4c"
+	color = CHAIR_RED
 
 //Folding chair
-
 /obj/structure/bed/chair/folding
 	name = "folding chair"
 	icon_state = "folding_chair"
@@ -547,8 +567,7 @@
 /obj/structure/bed/chair/folding/Destroy()
 	if(folded)
 		folded.unfolded = null
-		qdel(folded)
-		folded = null
+		QDEL_NULL(folded)
 	..()
 
 /obj/item/folding_chair
@@ -556,6 +575,7 @@
 	desc = "A collapsed folding chair that can be carried around."
 	icon = 'icons/obj/stools-chairs-beds.dmi'
 	icon_state = "folded_chair"
+	force = 13
 	w_class = W_CLASS_LARGE
 	var/obj/structure/bed/chair/folding/unfolded
 
@@ -570,8 +590,19 @@
 /obj/item/folding_chair/Destroy()
 	if(unfolded)
 		unfolded.folded = null
-		qdel(unfolded)
-		unfolded = null
+		QDEL_NULL(unfolded)
+	..()
+
+/obj/item/folding_chair/attack(mob/living/M, mob/living/user, def_zone, originator)
+	if(user.is_wearing_item(/obj/item/weapon/storage/belt/champion))
+		force *= 2 //Shitcode! There's no proc where the amount of force can be modified at least temporarily.
+		..()
+		force /= 2
+		return
+	..()
+
+/obj/item/folding_chair/on_attack(atom/attacked, mob/user)
+	hitsound = "trayhit"
 	..()
 
 /obj/item/folding_chair/attack_self(mob/user)
@@ -587,7 +618,7 @@
 		if(!ishigherbeing(usr) || usr.incapacitated() || usr.lying)
 			return
 
-		if(is_locking(lock_type))
+		if(is_locking(mob_lock_type))
 			return 0
 
 		visible_message("[usr] folds up \the [src].")
@@ -603,20 +634,20 @@
 	anchored = 1
 
 /obj/structure/bed/chair/shuttle/attackby(var/obj/item/W, var/mob/user)
-	var/mob/M = locate() in loc//so attacking people isn't made harder by the seats' bulkiness
-	if (M)
+	var/mob/living/M = locate() in loc //so attacking people isn't made harder by the seats' bulkiness
+	if (M && M != user)
 		return M.attackby(W,user)
 	if(istype(W, /obj/item/assembly/shock_kit))
 		to_chat(user,"<span class='warning'>\The [W] cannot be rigged onto \the [src].</span>")
 		return
-	if(iswrench(W))
+	if(W.is_wrench(user))
 		to_chat(user,"<span class='warning'>You cannot find any bolts to unwrench on \the [src].</span>")
 		return
 	if (iswelder(W))
 		if (locked_atoms && locked_atoms.len > 0)
 			to_chat(user,"<span class='warning'>You cannot downgrade a seat with someone buckled on it.</span>")
 			return
-		var/obj/item/weapon/weldingtool/WT = W
+		var/obj/item/tool/weldingtool/WT = W
 		to_chat(user, "You start welding the plasteel off \the [src]")
 		if (WT.do_weld(user, src, 50, 3))
 			if(gcDestroyed)
@@ -635,13 +666,10 @@
 		return
 	..()
 
-/obj/structure/bed/chair/shuttle/spin(var/mob/M)
-	to_chat(M,"<span class='warning'>\The [src] is firmly secured to \the [loc], you cannot spin it.</span>")
-
 /obj/structure/bed/chair/shuttle/New()
 	..()
 	buckle_overlay = image("icons/obj/stools-chairs-beds.dmi", "[icon_state]_buckle", CHAIR_ARMREST_LAYER)
-	buckle_overlay.plane = ABOVE_HUMAN_PLANE
+	buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
 
 /obj/structure/bed/chair/shuttle/red
 	icon_state = "shuttleseat_red"
@@ -661,18 +689,97 @@
 	..()
 	if (seat_color)
 		var/image/I1 = image("icons/obj/stools-chairs-beds.dmi", "shuttleseat_color", layer)
-		I1.plane = plane
+		I1.plane = FLOAT_PLANE
 		I1.color = seat_color
 		overlays += I1
 
 		var/image/I2 = image("icons/obj/stools-chairs-beds.dmi", "shuttleseat_color_buckle", CHAIR_ARMREST_LAYER)
 		I2.color = seat_color
 		secondary_buckle_overlay = I2
-		secondary_buckle_overlay.plane = ABOVE_HUMAN_PLANE
+		secondary_buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
 
 /obj/structure/bed/chair/shuttle/gamer
 	desc = "Ain't got nothing to compensate."
 	icon_state = "shuttleseat_GAMER"
 
-/obj/structure/bed/chair/shuttle/gamer/spin(var/mob/M)
-	change_dir(turn(dir, 90))
+//Plastic chairs
+/obj/structure/bed/chair/plastic
+	sheet_type = /obj/item/stack/sheet/mineral/plastic
+	sheet_amt = 3
+	anchored = 0
+
+/obj/structure/bed/chair/plastic/plastic_chair
+	icon_state = "plastic_chair"
+	name = "plastic chair"
+	desc = "All ready for the barbecue."
+
+/obj/structure/bed/chair/plastic/plastic_chair/New()
+	..()
+	buckle_overlay = image("icons/obj/stools-chairs-beds.dmi", "[icon_state]_armrest", CHAIR_ARMREST_LAYER)
+	buckle_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
+
+/obj/structure/bed/chair/handrail
+	name = "handrail"
+	desc = "A handrail with a built-in buckle used to prevent standing shuttle passengers from falling over during takeoff and landing."
+	icon = 'icons/obj/structures.dmi'
+	icon_state = "handrail"
+	sheet_amt = 2
+	anchored = 1
+
+/obj/structure/bed/chair/handrail/attackby(var/obj/item/weapon/W, var/mob/user)
+	if(W.is_wrench(user))
+		if(locked_atoms && locked_atoms.len)
+			to_chat(user, "<span class='warning'>You cannot [anchored ? "unsecure" : "secure"] \the [src] while someone is buckled to it.</span>")
+			return
+		W.playtoolsound(src, 50)
+		anchored = !anchored
+		user.visible_message("<span class='notice'>\The [user] [anchored ? "secures" : "unsecures"] \the [src] [anchored ? "to" : "from"] the floor.</span>", \
+			"<span class='notice'>You [anchored ? "secure" : "unsecure"] \the [src] [anchored ? "to" : "from"] the floor.</span>")
+		return
+	if(iswelder(W))
+		if(anchored)
+			to_chat(user, "<span class='warning'>\The [src] is bolted down. Unwrench it first.</span>")
+			return
+		if(locked_atoms && locked_atoms.len)
+			to_chat(user, "<span class='warning'>You cannot cut \the [src] apart while someone is buckled to it.</span>")
+			return
+		var/obj/item/tool/weldingtool/WT = W
+		to_chat(user, "<span class='notice'>You start slicing \the [src] apart.</span>")
+		if(WT.do_weld(user, src, 30, 1))
+			if(gcDestroyed)
+				return
+			if(locked_atoms && locked_atoms.len)
+				return
+			user.visible_message("<span class='warning'>\The [user] slices \the [src] apart.</span>", \
+				"<span class='notice'>You slice \the [src] apart.</span>", \
+				"<span class='warning'>You hear welding.</span>")
+			drop_stack(sheet_type, loc, sheet_amt, user)
+			qdel(src)
+		return
+	. = ..()
+
+/obj/structure/bed/chair/handrail/AltClick(mob/user as mob)
+	if(!Adjacent(user) || user.incapacitated())
+		return
+	rotate_ccw()
+
+/obj/structure/bed/chair/handrail/buckle_chair(mob/M,mob/user)
+	..()
+	var/y_shift = 0
+	var/x_shift = 0
+	switch(dir)
+		if(NORTH)
+			y_shift = -4
+		if(SOUTH)
+			y_shift = 4
+		if(EAST)
+			x_shift = -4
+		if(WEST)
+			x_shift = 4
+	M.pixel_x = initial(M.pixel_x) + x_shift
+	M.pixel_y = initial(M.pixel_y) + y_shift
+
+/obj/structure/bed/chair/handrail/unlock_atom(var/atom/movable/AM)
+	. = ..()
+	AM.pixel_x = initial(AM.pixel_x)
+	AM.pixel_y = initial(AM.pixel_y)

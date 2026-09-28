@@ -1,10 +1,14 @@
-// So you can be all 10 SECONDS
+#define MILLISECONDS * 0.01
 #define SECONDS * 10
 #define MINUTES * 600
 #define HOURS   * 36000
 
+#define MIDNIGHT_ROLLOVER_CHECK (rollovercheck_last_timeofday != world.timeofday ? update_midnight_rollover() : midnight_rollovers)
+#define MIDNIGHT_ROLLOVER		864000	//number of deciseconds in a day
+#define REALTIMEOFDAY (world.timeofday + (MIDNIGHT_ROLLOVER * MIDNIGHT_ROLLOVER_CHECK))
+
+
 #define TimeOfGame (get_game_time())
-#define TimeOfTick (world.tick_usage*0.01*world.tick_lag)
 
 /proc/get_game_time()
 	var/global/time_offset = 0
@@ -22,11 +26,27 @@
 
 	return wtime + (time_offset + wusage) * world.tick_lag
 
+/proc/game_start_elapsed_time(give_seconds = FALSE)
+	if(!ticker || ticker.current_state < GAME_STATE_PLAYING)
+		return
+	if(!give_seconds)
+		return time2text(world.time - (ticker.gamestart_time*10), "hh:mm", 0)
+	else
+		return time2text(world.time - (ticker.gamestart_time*10), "hh:mm:ss", 0)
+
 //Returns the world time in english
 /proc/worldtime2text(timestamp = world.time, give_seconds = FALSE)
-	return "[(round(timestamp / 36000) + 12) % 24]:[(timestamp / 600 % 60) < 10 ? add_zero(timestamp / 600 % 60, 1) : timestamp / 600 % 60]\
-	[give_seconds ? ":[(timestamp / 10 % 60) < 10 ? add_zero(timestamp / 10 % 60, 1) : timestamp / 10 % 60]" : ""]"
+	if(timestamp == world.time)
+		if(ticker && ticker.current_state < GAME_STATE_PLAYING)
+			return "12:00[give_seconds ? ":00" : ""]"
+		timestamp = max(0,get_round_time())
+	return "[add_zero((round(timestamp / 36000) + 12) % 24, 2)]:[add_zero(round(timestamp / 600) % 60, 2)]\
+	[give_seconds ? ":[add_zero(round(timestamp / 10) % 60, 2)]" : ""]"
 
+var/admin_time_offset = 0
+
+/proc/get_round_time()
+	return (world.time - time_taken_to_init - time_taken_in_lobby) + admin_time_offset
 
 /proc/formatTimeDuration(var/deciseconds)
 	var/m = round(deciseconds / 600)
@@ -39,9 +59,9 @@
 		. += "[(m<10)?"0":""][m]:"
 	. += "[(s<10)?"0":""][s]"
 
-/proc/altFormatTimeDuration(var/deciseconds)
+/proc/altFormatTimeDuration(var/deciseconds, var/show_seconds = TRUE)
 	var/m = round(deciseconds / 600)
-	var/s = (deciseconds % 600)/10
+	var/s = round((deciseconds % 600)/10)
 	var/h = round(m / 60)
 	m = m % 60
 	if(h > 0)
@@ -50,11 +70,14 @@
 		. += "[m]m "
 	. += "[s]s"
 
+/proc/getShiftDuration()
+	return altFormatTimeDuration(world.time - roundstart_timestamp)
+
 /proc/time_stamp()
 	return time2text(world.timeofday, "hh:mm:ss")
 
 /* Preserving this so future generations can see how fucking retarded some people are
-/proc/time_stamp()
+//proc/time_stamp()
 	var/hh = text2num(time2text(world.timeofday, "hh")) // Set the hour
 	var/mm = text2num(time2text(world.timeofday, "mm")) // Set the minute
 	var/ss = text2num(time2text(world.timeofday, "ss")) // Set the second
@@ -98,3 +121,32 @@
 //returns timestamp in a sql and ISO 8601 friendly format
 /proc/SQLtime()
 	return time2text(world.realtime, "YYYY-MM-DD hh:mm:ss")
+
+//Returns time as a "slot", a predefined type of time, see dates.dm for defines
+/proc/getTimeslot()
+	switch(text2num(time2text(world.timeofday, "hh")))
+		if(SLEEPTIME_HOURS)
+			return SLEEPTIME
+		if(EUROTIME_HOURS)
+			return EUROTIME
+		if(DAYTIME_HOURS)
+			return DAYTIME
+		if(PRIMETIME_HOURS)
+			return PRIMETIME
+		if(LATETIME_HOURS)
+			return LATETIME
+	CRASH("getTimeslot: Hour not found.")
+
+var/global/obj/effect/statclick/time/time_statclick
+/proc/timeStatEntry()
+	if(!time_statclick)
+		time_statclick = new /obj/effect/statclick/time("loading...")
+	stat("Station Time:", time_statclick.update("[worldtime2text()]"))
+
+var/midnight_rollovers = 0
+var/rollovercheck_last_timeofday = 0
+/proc/update_midnight_rollover()
+	if (world.timeofday < rollovercheck_last_timeofday) //TIME IS GOING BACKWARDS!
+		midnight_rollovers++
+	rollovercheck_last_timeofday = world.timeofday
+	return midnight_rollovers

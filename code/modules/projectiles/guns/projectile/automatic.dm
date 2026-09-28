@@ -16,6 +16,7 @@
 	var/burstfiring = 0
 	load_method = 2
 	mag_type = "/obj/item/ammo_storage/magazine/smg9mm"
+	silencer_offset = list(22,6)
 
 
 /obj/item/weapon/gun/projectile/automatic/isHandgun()
@@ -34,30 +35,19 @@
 
 /obj/item/weapon/gun/projectile/automatic/update_icon()
 	..()
-	icon_state = "[initial(icon_state)][stored_magazine ? "-[stored_magazine.max_ammo]" : ""][silenced ? "-silencer":""][chambered ? "" : "-e"]"
+	icon_state = "[initial(icon_state)][stored_magazine ? "-[stored_magazine.max_ammo]" : ""][chambered ? "" : "-e"]"
 	return
 
-/obj/item/weapon/gun/projectile/automatic/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0)
+/obj/item/weapon/gun/projectile/automatic/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	if(burstfire == TRUE)
 		if(!ready_to_fire())
 			return 1
-		var/shots_fired = 0 //haha, I'm so clever
 		var/to_shoot = min(burst_count, getAmmo())
-		if(defective && prob(20))
-			to_shoot = getAmmo()
 		for(var/i = 1 to to_shoot)
 			..()
 			burstfiring = 1
-			shots_fired++
 			if(!user.contents.Find(src) || jammed)
 				break
-			if(defective && shots_fired > burst_count)
-				recoil = 1 + min(shots_fired - burst_count, 6)
-			if(defective && prob(max(0, shots_fired - burst_count * 4)))
-				to_chat(user, "<span class='danger'>\The [src] explodes!.</span>")
-				explosion(get_turf(loc), -1, 0, 2)
-				user.drop_item(src, force_drop = 1)
-				qdel(src)
 		recoil = initial(recoil)
 		burstfiring = 0
 		return 1
@@ -71,13 +61,14 @@
 	return ..()
 
 /obj/item/weapon/gun/projectile/automatic/lockbox
-	mag_type = "/obj/item/ammo_storage/magazine/smg9mm/empty"
+	max_shells = 0
+	spawn_mag = FALSE
 
 /obj/item/weapon/gun/projectile/automatic/uzi
 	name = "\improper Uzi"
 	desc = "A lightweight, fast firing gun for when you definitely want someone dead. Uses .45 rounds."
 	icon_state = "mini-uzi"
-	item_state = null
+	item_state = "mini-uzi"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
 	w_class = W_CLASS_MEDIUM
 	max_shells = 10
@@ -86,22 +77,52 @@
 	origin_tech = Tc_COMBAT + "=5;" + Tc_MATERIALS + "=2;" + Tc_SYNDICATE + "=8"
 	ammo_type = "/obj/item/ammo_casing/c45"
 	mag_type = "/obj/item/ammo_storage/magazine/uzi45"
+	recoil = 2
+	silencer_offset = list(23,10)
 
 /obj/item/weapon/gun/projectile/automatic/uzi/isHandgun()
 	return TRUE
 
-/obj/item/weapon/gun/projectile/automatic/uzi/micro
+/obj/item/weapon/gun/projectile/automatic/uzi/update_icon()
+	..()
+	var/MS = FALSE
+	if(stored_magazine)
+		if(stored_magazine.max_ammo > 16)
+			MS = "ext"
+		else
+			MS = "S"
+		icon_state = chambered ? "[initial(icon_state)]["-[MS]-"][round(getAmmo(), 4)]" : "[initial(icon_state)]["-[MS]-e"]"
+	else
+		icon_state = "[initial(icon_state)][chambered ? "" : "-e"]"
+
+/obj/item/weapon/gun/projectile/automatic/uzi/bigmag
+	mag_type = "/obj/item/ammo_storage/magazine/uzi45/extended"
+
+/obj/item/weapon/gun/projectile/automatic/microuzi
+	//micro uzi is 9mm :)
 	name = "\improper Micro Uzi"
-	desc = "A concealable rapid-fire machine pistol for filling a target with lead. Chambered for .45 rounds. Has mounting for a silencer."
-	icon_state = "microsmg"
-	item_state = "microuzi"
+	desc = "A concealable rapid-fire machine pistol for filling a target with lead. Chambered for 9mm rounds. Has mounting for a silencer."
+	icon_state = "micro-uzi"
+	item_state = "micro-uzi"
+	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guninhands_left.dmi', "right_hand" = 'icons/mob/in-hand/right/guninhands_right.dmi')
+	origin_tech = Tc_COMBAT + "=5;" + Tc_MATERIALS + "=2;" + Tc_SYNDICATE + "=8"
 	gun_flags = EMPTYCASINGS | SILENCECOMP
 	w_class = W_CLASS_SMALL
+	ammo_type = "/obj/item/ammo_casing/c9mm"
+	mag_type = "/obj/item/ammo_storage/magazine/microuzi9"
+	silencer_offset = list(20,8)
+
+/obj/item/weapon/gun/projectile/automatic/microuzi/isHandgun()
+	return TRUE
+
+/obj/item/weapon/gun/projectile/automatic/microuzi/update_icon()
+	..()
+	icon_state = "micro-uzi[stored_magazine ? "" : "-e"]"
 
 
 /obj/item/weapon/gun/projectile/automatic/c20r
 	name = "\improper C-20r SMG"
-	desc = "A lightweight, fast firing gun for when you REALLY want someone dead. Uses 12mm rounds. Has a \"Scarborough Arms - Per falcis, per pravitas\" buttstamp."
+	desc = "A lightweight, fast firing gun for when you REALLY want someone dead. Uses 12mm SPECIAL rounds. Has a \"Scarborough Arms - Per falcis, per pravitas\" buttstamp."
 	icon_state = "c20r"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guns.dmi', "right_hand" = 'icons/mob/in-hand/right/guns.dmi')
 	item_state = "c20r"
@@ -116,7 +137,8 @@
 	mag_drop_sound = 'sound/weapons/smg_empty_alarm.ogg'
 	automagdrop_delay_time = 0
 	load_method = 2
-
+	recoil = 2
+	silencer_offset = list(27,5)
 	gun_flags = AUTOMAGDROP | EMPTYCASINGS
 
 /obj/item/weapon/gun/projectile/automatic/c20r/isHandgun()
@@ -145,19 +167,21 @@
 	mag_type = "/obj/item/ammo_storage/magazine/a12mm"
 	fire_sound = 'sound/weapons/Gunshot_c20.ogg'
 	load_method = 2
+	recoil = 2
 	gun_flags = AUTOMAGDROP | EMPTYCASINGS
+	silencer_offset = list(26,5)
 
 /obj/item/weapon/gun/projectile/automatic/xcom/isHandgun()
 	return FALSE
 
 /obj/item/weapon/gun/projectile/automatic/xcom/lockbox
-	mag_type = "/obj/item/ammo_storage/magazine/a12mm/empty"
-
+	max_shells = 0
+	spawn_mag = FALSE
 
 
 /obj/item/weapon/gun/projectile/automatic/l6_saw
 	name = "\improper L6 SAW"
-	desc = "A rather traditionally made light machine gun with a pleasantly lacquered wooden pistol grip. Has 'Aussec Armoury- 2531' engraved on the reciever"
+	desc = "A rather traditionally made light machine gun with a pleasantly lacquered wooden pistol grip. It has 'Aussec Armoury- 2531' engraved on the receiver."
 	icon_state = "l6closed100"
 	inhand_states = list("left_hand" = 'icons/mob/in-hand/left/guns.dmi', "right_hand" = 'icons/mob/in-hand/right/guns.dmi')
 	item_state = "l6closedmag"
@@ -171,12 +195,17 @@
 	mag_type = "/obj/item/ammo_storage/magazine/a762"
 	fire_sound = 'sound/weapons/Gunshot_smg.ogg'
 	load_method = 2
+	recoil = 2
+	silencer_offset = list(27,6)
 	var/cover_open = 0
 
 /obj/item/weapon/gun/projectile/automatic/l6_saw/isHandgun()
 	return FALSE
 
 /obj/item/weapon/gun/projectile/automatic/l6_saw/attack_self(mob/user as mob)
+	if(silenced)
+		RemoveAttach(user)
+		return
 	cover_open = !cover_open
 	to_chat(user, "<span class='notice'>You [cover_open ? "open" : "close"] [src]'s cover.</span>")
 	update_icon()
@@ -193,7 +222,7 @@
 		return 0
 
 
-/obj/item/weapon/gun/projectile/automatic/l6_saw/afterattack(atom/target as mob|obj|turf, mob/living/user as mob|obj, flag, params, struggle = 0) //what I tried to do here is just add a check to see if the cover is open or not and add an icon_state change because I can't figure out how c-20rs do it with overlays
+/obj/item/weapon/gun/projectile/automatic/l6_saw/afterattack(atom/A, mob/living/user, flag, params, struggle = 0) //what I tried to do here is just add a check to see if the cover is open or not and add an icon_state change because I can't figure out how c-20rs do it with overlays
 	if(can_discharge())
 		..()
 		update_icon()
@@ -211,16 +240,16 @@
 		to_chat(user, "<span class='notice'>You remove the magazine from [src].</span>")
 
 
-/obj/item/weapon/gun/projectile/automatic/l6_saw/attackby(obj/item/ammo_storage/magazine/a762/A as obj, mob/user as mob)
-	if(!cover_open)
-		to_chat(user, "<span class='notice'>[src]'s cover is closed! You can't insert a new mag!</span>")
-		return
-	else if(cover_open)
-		..()
+/obj/item/weapon/gun/projectile/automatic/l6_saw/attackby(var/obj/item/A, mob/user)
+	if(istype(A,/obj/item/ammo_storage/magazine))
+		if(!cover_open)
+			to_chat(user, "<span class='notice'>[src]'s cover is closed! You can't insert a new mag!</span>")
+			return
+	..()
 
 /obj/item/weapon/gun/projectile/automatic/l6_saw/force_removeMag() //special because of its cover
 	if(!cover_open)
-		to_chat(usr, "<span class='rose'>The [src]'s cover has to be open to do that!</span>")
+		to_chat(usr, "<span class='rose'>\The [src]'s cover has to be open to do that!</span>")
 		return
 	..()
 
@@ -240,6 +269,8 @@
 	fire_sound = 'sound/weapons/Gunshot_c20.ogg'
 	burst_count = 2
 	origin_tech = Tc_COMBAT + "=5;" + Tc_MATERIALS + "=1"
+	starting_materials = list(MAT_IRON = 6250, MAT_GLASS = 1500, MAT_PLASTIC = 2500)
+	silencer_offset = list(25,4)
 	var/receiver
 
 /obj/item/weapon/gun/projectile/automatic/vector/isHandgun()
@@ -279,7 +310,7 @@
 		return FALSE
 
 /obj/item/weapon/gun/projectile/automatic/vector/attackby(obj/item/used_item, mob/user)
-	if(isscrewdriver(used_item) && receiver)
+	if(used_item.is_screwdriver(user) && receiver)
 		if(stored_magazine)
 			to_chat(user, "<span class='warning'>You need to remove the magazine first!</span>")
 		else
@@ -320,6 +351,10 @@
 		mag_type = null
 	update_icon()
 
+/obj/item/weapon/gun/projectile/automatic/vector/lockbox
+	max_shells = 0
+	spawn_mag = FALSE
+
 //Vector receivers.
 /obj/item/weapon/vectorreceiver
 	name = "vector receiver"
@@ -331,6 +366,8 @@
 	var/caliber = ".380AUTO" //Its not a list but IT WORKS ON MY MACHINE.
 	var/ammo_type = "/obj/item/ammo_casing/c380auto"
 	var/mag_type = "/obj/item/ammo_storage/magazine/m380auto"
+	var/list/mag_blacklist = list(/obj/item/ammo_storage/magazine/lawgiver, /obj/item/ammo_storage/magazine/a12ga, /obj/item/ammo_storage/magazine/a357, /obj/item/ammo_storage/magazine/a75, /obj/item/ammo_storage/magazine/uzi45, /obj/item/ammo_storage/magazine/c45, /obj/item/ammo_storage/magazine/a50, /obj/item/ammo_storage/magazine/a762)
+	//Insert unacceptable mags here ^^. The lawgiver makes error gas so always exclude it.
 
 /obj/item/weapon/vectorreceiver/New()
 	..()
@@ -342,7 +379,7 @@
 /obj/item/weapon/vectorreceiver/attackby(obj/item/used_item, mob/user)
 	..()
 	if(istype(used_item, /obj/item/ammo_storage/magazine) && !istype(used_item, text2path(mag_type)))
-		if(!istype(used_item, /obj/item/ammo_storage/magazine/lawgiver)) //Insert unacceptable mags here.
+		if(!is_type_in_list(used_item, mag_blacklist))
 			to_chat(user, "<span class='notice'>You insert \the [used_item] into \the [src] for a moment and it begins calibrating.</span>")
 			if (do_after(user, src, 10 SECONDS))
 				if(!src)
@@ -359,6 +396,17 @@
 		else
 			to_chat(user, "<span class='warning'>You're unable to insert \the [used_item] into \the [src]!</span>")
 
+//Unrestricted versions.
+/obj/item/weapon/gun/projectile/automatic/vector/unlimited
+
+/obj/item/weapon/gun/projectile/automatic/vector/unlimited/New()
+	..()
+	qdel(receiver)
+	receiver = new /obj/item/weapon/vectorreceiver/unlimited(src)
+	update_receiver()
+
+/obj/item/weapon/vectorreceiver/unlimited
+	mag_blacklist = list(/obj/item/ammo_storage/magazine/lawgiver)
 
 /* The thing I found with guns in ss13 is that they don't seem to simulate the rounds in the magazine in the gun.
    Afaik, since projectile.dm features a revolver, this would make sense since the magazine is part of the gun.

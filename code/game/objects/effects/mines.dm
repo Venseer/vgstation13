@@ -19,7 +19,7 @@
 		trigger(AM)
 
 /obj/effect/mine/proc/trigger(mob/living/carbon/AM)
-	explosion(loc, 0, 1, 2, 3)
+	explosion(loc, 0, 1, 2, 3, whodunnit = AM)
 	qdel(src)
 
 /obj/effect/mine/dnascramble
@@ -39,7 +39,7 @@
 	for(var/turf/simulated/floor/target in range(1,src))
 		if(!target.blocks_air)
 			target.zone.air.adjust_gas(GAS_PLASMA, 30)
-			target.hotspot_expose(1000, CELL_VOLUME)
+			try_hotspot_expose(1000, FULL_FLAME, 1)
 	qdel(src)
 
 /obj/effect/mine/kick
@@ -56,5 +56,6 @@
 /obj/effect/mine/stun/trigger(mob/AM)
 	if(ismob(AM))
 		AM.Knockdown(10)
+		AM.Stun(10)
 	spark(src)
 	qdel(src)

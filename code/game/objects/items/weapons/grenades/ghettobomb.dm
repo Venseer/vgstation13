@@ -2,17 +2,15 @@
 
 //iedcasing assembly crafting//
 /obj/item/weapon/reagent_containers/food/drinks/soda_cans/attackby(var/obj/item/I, mob/user as mob)
-    if(istype(I, /obj/item/device/assembly/igniter))
-        var/obj/item/device/assembly/igniter/G = I
-        var/obj/item/weapon/grenade/iedcasing/W = new /obj/item/weapon/grenade/iedcasing
-        user.before_take_item(G)
-        user.before_take_item(src)
-        user.put_in_hands(W)
-        to_chat(user, "<span  class='notice'>You stuff the [I] into the [src], emptying the contents beforehand.</span>")
-        W.underlays += image(src.icon, icon_state = src.icon_state)
-        qdel(I)
-        I = null
-        qdel(src)
+	if(istype(I, /obj/item/device/assembly/igniter))
+		var/obj/item/weapon/grenade/iedcasing/W = new /obj/item/weapon/grenade/iedcasing(loc)
+		W.underlays += image(src.icon, icon_state = src.icon_state)
+		user.create_in_hands(src, W, I, msg = "<span class='notice'>You stuff the [I] into the [src], emptying the contents beforehand.</span>")
+	else if(I.is_wirecutter(user))
+		I.playtoolsound(user, 50)
+		user.create_in_hands(src, /obj/item/weapon/aluminum_cylinder, msg = "You cut out the top and bottom of \the [src] with \the [I].")
+	else
+		return ..()
 
 
 /obj/item/weapon/grenade/iedcasing
@@ -37,12 +35,11 @@
 
 /obj/item/weapon/grenade/iedcasing/afterattack(atom/target, mob/user , flag) //Filling up the can
 	if(assembled == 0)
-		if(istype(target, /obj/structure/reagent_dispensers/fueltank) && target.Adjacent(user))
-			if(target.reagents.total_volume < 50)
+		if(istype(target, /obj/structure/reagent_dispensers) && !target.is_open_container() && target.Adjacent(user))
+			if(target.reagents.get_reagent_amount(FUEL) < 50)
 				to_chat(user, "<span  class='notice'>There's not enough fuel left to work with.</span>")
 				return
-			var/obj/structure/reagent_dispensers/fueltank/F = target
-			F.reagents.remove_reagent(FUEL, 50, 1)//Deleting 50 fuel from the welding fuel tank,
+			target.reagents.remove_reagent(FUEL, 50, 1)//Deleting 50 fuel from the welding fuel tank,
 			assembled = 1
 			to_chat(user, "<span  class='notice'>You've filled the makeshift explosive with welding fuel.</span>")
 			playsound(src, 'sound/effects/refill.ogg', 50, 1, -6)
@@ -102,8 +99,20 @@
 				var/mob/living/carbon/C = user
 				C.throw_mode_on()
 			spawn(det_time)
-				prime()
+				if(!gcDestroyed)
+					prime()
 
+/obj/item/weapon/grenade/iedcasing/suicide_act(var/mob/living/user)
+	if (!active) //no explosion with no active ied, dummy
+		return
+
+	var/message_say = user.handle_suicide_bomb_cause(src)
+	if(!message_say)
+		return
+	to_chat(viewers(user), "<span class='danger'>[user] activates the [src] and holds it above \his head! It looks like \he's going out with a bang!</span>")
+	user.say(message_say)
+	attack_self(user)
+	return SUICIDE_ACT_BRUTELOSS
 
 /obj/item/weapon/grenade/iedcasing/proc/add_shrapnel(var/obj/item/I, mob/user as mob)
 
@@ -122,13 +131,13 @@
 			to_chat(user, "<span  class='notice'>There is no room for \the [I] in the improvised explosive!.</span>")
 
 
-/obj/item/weapon/grenade/iedcasing/prime() //Blowing that can up
+/obj/item/weapon/grenade/iedcasing/prime(var/mob/user) //Blowing that can up
 	update_mob()
-	explosion(get_turf(src.loc),-1,0,2)
 	process_shrapnel()
+	explosion(get_turf(src.loc),-1,0,2, whodunnit = user)
 
-	if(istype(loc, /obj/item/weapon/legcuffs/beartrap))
-		var/obj/item/weapon/legcuffs/beartrap/boomtrap = loc
+	if(istype(loc, /obj/item/weapon/beartrap))
+		var/obj/item/weapon/beartrap/boomtrap = loc
 		if(istype(boomtrap.loc, /mob/living/carbon/human))
 			var/mob/living/carbon/human/H = loc.loc
 			if(H.legcuffed == boomtrap)
@@ -136,8 +145,9 @@
 				if(leg && !(leg.status & ORGAN_DESTROYED))
 					leg.droplimb(1,0)
 
-				qdel(H.legcuffed)
-				H.legcuffed = null
+				QDEL_NULL(H.legcuffed)
+				unlock_atom(H)
+				boomtrap.IED = null
 	qdel(src)
 
 
@@ -189,6 +199,7 @@
 
 /obj/item/weapon/grenade/iedcasing/preassembled/New()
     ..()
+    underlays += image('icons/obj/drinks.dmi', icon_state = "greyshitvodka")
     det_time = rand(30,80)
     overlays += image('icons/obj/grenade.dmi', icon_state = "improvised_grenade_filled")
     overlays += image('icons/obj/grenade.dmi', icon_state = "improvised_grenade_wired")

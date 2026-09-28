@@ -64,9 +64,6 @@
 		blade.dir = get_dir(starting,target)
 	shadow_matrix = turn(matrix(),target_angle+45)
 	transform = shadow_matrix
-	//var/matrix/base_matrix = turn(matrix(),target_angle)
-	//var/image/I = image('icons/obj/cult_64x64.dmi',"[icon_state]_spin")
-	//I.transform = base_matrix
 	if (shade)
 		icon_state = "soulbullet_spin"
 		plane = HUD_PLANE
@@ -75,13 +72,6 @@
 		icon_state = "soulbullet-empty_spin"
 	spawn(5)
 		leave_shadows = 0
-		/*
-		if( !("[icon_state]_angle[target_angle]" in bullet_master) )
-			var/image/I = new('icons/obj/cult_64x64.dmi',"[icon_state]")
-			//I.transform = base_matrix
-			bullet_master["[icon_state]_angle[target_angle]"] = I
-		src.icon = bullet_master["[icon_state]_angle[target_angle]"]
-		*/
 		if (shade)
 			icon_state = "soulbullet"
 		else
@@ -92,7 +82,7 @@
 	if (shade && leave_shadows >= 0)
 		leave_shadows++
 		if ((leave_shadows%3)==0)
-			anim(target = loc, a_icon = 'icons/obj/cult_64x64.dmi', flick_anim = "soulblade-shadow", lay = NARSIE_GLOW, offX = pixel_x, offY = pixel_y, plane = LIGHTING_PLANE, trans = shadow_matrix)
+			anim(target = loc, a_icon = 'icons/obj/cult_64x64.dmi', flick_anim = "soulblade-shadow", lay = NARSIE_GLOW, offX = pixel_x, offY = pixel_y, plane = ABOVE_LIGHTING_PLANE, trans = shadow_matrix)
 	if(..())
 		return 2
 	else
@@ -102,11 +92,20 @@
 	if (shade)
 		if (ismob(A))
 			var/mob/M = A
-			if (!iscultist(M))
+			if (!iscultist(M) && (M != shade.master))
 				A.attackby(blade,shade)
-			else if (!M.get_active_hand())//cultists can catch the blade on the fly
+			else if (!M.get_active_hand())//cultists and the blade's master can catch the blade on the fly
 				blade.forceMove(loc)
 				blade.attack_hand(M)
+				to_chat(M, "<span class='warning'>Your hand moves by itself and catches \the [blade] out of the air.</span>")
+				blade = null
+				qdel(src)
+			else if (!M.get_inactive_hand())
+				blade.forceMove(loc)
+				M.swap_hand() // guarrantees
+				blade.attack_hand(M)
+				to_chat(M, "<span class='warning'>Your hand moves by itself and catches \the [blade] out of the air.</span>")
+				M.swap_hand()
 				blade = null
 				qdel(src)
 		else
@@ -116,6 +115,20 @@
 			var/mob/M = A
 			if (!iscultist(M))
 				A.hitby(blade)
+			else if (!M.get_active_hand())//cultists can catch the blade on the fly
+				blade.forceMove(loc)
+				blade.attack_hand(M)
+				to_chat(M, "<span class='warning'>Your hand moves by itself and catches \the [blade] out of the air.</span>")
+				blade = null
+				qdel(src)
+			else if (!M.get_inactive_hand())
+				blade.forceMove(loc)
+				M.swap_hand()
+				blade.attack_hand(M)
+				to_chat(M, "<span class='warning'>Your hand moves by itself and catches \the [blade] out of the air.</span>")
+				M.swap_hand()
+				blade = null
+				qdel(src)
 		else
 			A.hitby(blade)
 	if(isliving(A))
@@ -188,7 +201,7 @@
 //////////////////////////////
 
 /obj/item/projectile/bloodslash
-	name = "soul blade"
+	name = "blood slash"
 	icon = 'icons/obj/projectiles_experimental.dmi'
 	icon_state = "bloodslash"
 	damage = 15
@@ -230,7 +243,7 @@
 
 //////////////////////////////
 //                          //
-//       BLOOD DAGGER       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//        BLOOD NAIL        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                          //Used when a cultist throws a blood dagger
 //////////////////////////////
 
@@ -260,7 +273,26 @@
 		forceMove(A.loc)
 		var/mob/living/M = A
 		if (!iscultist(M))
-			..()
+			setDensity(FALSE)
+			invisibility = 101
+			kill_count = 0
+			var/obj/effect/rooting_trap/bloodnail/nail = new (A.loc)
+			nail.transform = transform
+			if (color)
+				nail.color = color
+			else
+				nail.color = DEFAULT_BLOOD
+			if(isliving(A))
+				nail.stick_to(A)
+				var/mob/living/L = A
+				L.take_overall_damage(damage,0)
+				to_chat(L, "<span class='warning'>\The [src] stabs your body, sticking you in place.</span>")
+				to_chat(L, "<span class='danger'>Resist or click the nail to dislodge it.</span>")
+			else if(loc)
+				var/turf/T = get_turf(src)
+				nail.stick_to(T,get_dir(src,A))
+			bullet_die()
+			return
 		else if (ishuman(M))
 			var/mob/living/carbon/human/H = M
 			var/datum/reagent/blood/B = get_blood(H.vessel)
@@ -285,6 +317,13 @@
 		if (M.stat == DEAD)
 			return 0
 	return 1
+
+
+/obj/item/projectile/blooddagger/bump_original_check()
+	if(!bumped)
+		if(loc == get_turf(original))
+			if(!(original in permutated))
+				to_bump(original)
 
 /obj/item/projectile/blooddagger/cultify()
 	return

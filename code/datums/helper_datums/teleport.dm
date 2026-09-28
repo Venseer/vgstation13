@@ -1,14 +1,17 @@
 //wrapper
 /proc/do_teleport(ateleatom, adestination, aprecision=FALSE, afteleport=TRUE, aeffectin=null, aeffectout=null, asoundin=null, asoundout=null, aijamming=FALSE)
-	new /datum/teleport/instant/science(arglist(args))
+	if (isobserver(ateleatom)) // ghosts teleport without making sounds nor sparks
+		new /datum/teleport/instant(ateleatom, adestination, aprecision, afteleport, aeffectin, aeffectout, null, null, aijamming)
+	else
+		new /datum/teleport/instant/science(arglist(args))
 	return
 
 /datum/teleport
 	var/atom/movable/teleatom //atom to teleport
 	var/atom/destination //destination to teleport to
 	var/precision = FALSE //teleport precision
-	var/datum/effect/effect/system/effectin //effect to show right before teleportation
-	var/datum/effect/effect/system/effectout //effect to show right after teleportation
+	var/datum/effect/system/effectin //effect to show right before teleportation
+	var/datum/effect/system/effectout //effect to show right after teleportation
 	var/soundin //soundfile to play before teleportation
 	var/soundout //soundfile to play after teleportation
 	var/force_teleport = TRUE //if false, teleport will use Move() proc (dense objects will prevent teleportation)
@@ -28,6 +31,8 @@
 		return FALSE
 	if(!setPrecision(aprecision))
 		return FALSE
+	var/turf/T = get_turf(adestination)
+	log_debug("TELEPORTATION: ateleatom: [ateleatom], adestination: [adestination][T ? "([T.x],[T.y],[T.z])" : ""]")
 	setEffects(aeffectin,aeffectout)
 	setForceTeleport(afteleport)
 	setIgnoreJamming(aijamming)
@@ -60,7 +65,7 @@
 
 	//custom effects must be properly set up first for instant-type teleports
 	//optional
-/datum/teleport/proc/setEffects(datum/effect/effect/system/aeffectin=null,datum/effect/effect/system/aeffectout=null)
+/datum/teleport/proc/setEffects(datum/effect/system/aeffectin=null,datum/effect/system/aeffectout=null)
 	effectin = istype(aeffectin) ? aeffectin : null
 	effectout = istype(aeffectout) ? aeffectout : null
 	return TRUE
@@ -85,7 +90,7 @@
 /datum/teleport/proc/teleportChecks()
 	return TRUE
 
-/datum/teleport/proc/playSpecials(atom/location,datum/effect/effect/system/effect,sound)
+/datum/teleport/proc/playSpecials(atom/location,datum/effect/system/effect,sound)
 	if(location)
 		if(effect)
 			spawn(-1)
@@ -101,6 +106,10 @@
 /datum/teleport/proc/isValidTurf(turf/T)
 	if(istype(T, /turf/unsimulated/wall/supermatter))
 		return FALSE //Don't teleport into supermatter turfs
+	if(T.turf_flags & NOJAUNT)
+		return FALSE //Don't teleport into vlevel border tiles and other no-teleport turfs
+	if(T.get_virtual_z() != destination.get_virtual_z())
+		return FALSE //Don't let teleport scatter land outside the destination's vlevel
 
 	return TRUE
 
@@ -111,12 +120,13 @@
 	var/area/destarea = get_area(destination)
 	if(precision)
 		var/list/posturfs = circlerangeturfs(destination,precision)
-		if(!posturfs || !posturfs.len)
-			return FALSE
-
-		do
-			destturf = pick_n_take(posturfs)
-		while(!isValidTurf(destturf) && posturfs.len)
+		while(posturfs?.len)
+			var/turf/potential_turf = pick_n_take(posturfs)
+			if(isValidTurf(potential_turf))
+				destturf = potential_turf
+				break
+		if(!destturf)
+			destturf = get_turf(destination) //no valid turf in scatter range, land on target
 	else
 		destturf = get_turf(destination)
 
@@ -124,6 +134,8 @@
 		return FALSE
 
 	playSpecials(curturf,effectin,soundin)
+	if (!isobserver(teleatom))
+		teleatom.unlock_from()
 
 	if(istype(teleatom,/obj/item/projectile))
 		var/Xchange = destturf.x - curturf.x
@@ -134,14 +146,15 @@
 		P.override_target_X += Xchange
 		P.override_target_Y += Ychange
 		P.reflected = TRUE//you can now get hit by the projectile you just fired. Careful with portals!
+		P.teleport_act()
 
-	if(curturf.z != destturf.z)
-		INVOKE_EVENT(teleatom.on_z_transition, list("user" = teleatom, "from_z" = curturf.z, "to_z" = destturf.z))
-		for(var/atom/AA in recursive_type_check(teleatom))
-			INVOKE_EVENT(AA.on_z_transition, list("user" = AA, "from_z" = curturf.z, "to_z" = destturf.z))
+	if(curturf.get_virtual_z() != destturf.get_virtual_z())
+		INVOKE_EVENT(teleatom, /event/v_transition, "user" = teleatom, "from_v" = curturf.get_virtual_z(), "to_v" = destturf.get_virtual_z())
+		for(var/atom/movable/AA in recursive_type_check(teleatom))
+			INVOKE_EVENT(AA, /event/v_transition, "user" = AA, "from_v" = curturf.get_virtual_z(), "to_v" = destturf.get_virtual_z())
 
 	if(force_teleport)
-		teleatom.forceMove(destturf,TRUE)
+		teleatom.forceMove(destturf, no_tp = 1)
 		playSpecials(destturf,effectout,soundout)
 	else
 		if(teleatom.Move(destturf))
@@ -167,12 +180,15 @@
 
 /datum/teleport/instant/science
 
-/datum/teleport/instant/science/setEffects(datum/effect/effect/system/aeffectin,datum/effect/effect/system/aeffectout)
+/datum/teleport/instant/science/setEffects(datum/effect/system/aeffectin,datum/effect/system/aeffectout)
 	if(!aeffectin || !aeffectout)
-		var/datum/effect/effect/system/spark_spread/aeffect = new
+		//De-activated sparks by order of Pomf. Too easily exploited to create lag machines.
+		/*
+		var/datum/effect/system/spark_spread/aeffect = new
 		aeffect.set_up(5, TRUE, teleatom)
 		effectin = effectin || aeffect
 		effectout = effectout || aeffect
+		*/
 		return TRUE
 	else
 		return ..()
@@ -191,6 +207,9 @@
 	return TRUE
 
 /datum/teleport/instant/science/teleportChecks(var/ignore_jamming = FALSE)
+	if(istype(teleatom, /obj/effect/sparks)) // Don't teleport sparks or the server dies
+		return FALSE
+
 	if(istype(teleatom, /obj/item/weapon/disk/nuclear)) // Don't let nuke disks get teleported --NeoFite
 		teleatom.visible_message("<span class='danger'>\The [teleatom] bounces off of the portal!</span>")
 		return FALSE
@@ -205,18 +224,21 @@
 			teleatom.visible_message("<span class='danger'>\The [teleatom] bounces off of the portal!</span>")
 		return FALSE
 
+	// Block teleportation to/from/within z-level 7 (procedurally-generated planets)
+	var/turf/curturf = get_turf(teleatom)
+	if(!curturf)
+		return FALSE
 	if(destination.z == map.zCentcomm) //centcomm z-level
 		if(istype(teleatom, /obj/mecha) && (universe.name != "Supermatter Cascade"))
 			var/obj/mecha/MM = teleatom
 			to_chat(MM.occupant, "<span class='danger'>The mech would not survive the jump to a location so far away!</span>")//seriously though, why? who wrote that?
-
 			return FALSE
 		if(!isemptylist(teleatom.search_contents_for(/obj/item/weapon/storage/backpack/holding)))
 			teleatom.visible_message("<span class='danger'>The Bag of Holding bounces off of the portal!</span>")
 			return FALSE
 
-	var/datum/zLevel/L = get_z_level(destination)
-	if (L.teleJammed && !ignore_jamming)
+	var/datum/virtual_z/vz = destination.get_virtual_z()
+	if (vz?.teleJammed == VZ_TELEPORTATION_FORBIDDEN && !ignore_jamming)
 		return FALSE
 
 	for (var/mob/M in recursive_type_check(teleatom, /mob))
@@ -228,11 +250,30 @@
 
 		if(istype(M, /mob/living))
 			var/mob/living/MM = M
-			if(MM.locked_to_z != FALSE && destination.z != MM.locked_to_z)
+			if(MM.locked_to_v && vz != MM.locked_to_v)
 				MM.visible_message("<span class='danger'>\The [teleatom] bounces off the portal!</span>", "<span class='warning'>You're unable to go to that destination!</span>")
 				return FALSE
 
-	if(!isemptylist(recursive_type_check(teleatom, /obj/item/clothing/head/tinfoil)))
-		return FALSE
-
 	return TRUE
+
+/datum/teleport/instant/science/doTeleport()
+	if(..())
+		if(isliving(teleatom)) // Limit telefrags to living mobs only
+			var/mob/living/ourself = teleatom
+			var/turf/outturf = get_turf(ourself)
+			var/obj/item/beacon/I = locate() in outturf
+			if(I && I.emagged) // If safety checks are off on beacons.
+				for(var/mob/living/L in outturf)
+					if(L != ourself && ourself.lying == L.lying) // Don't get ourselves or mobs lying down while we aren't, or vice versa
+						playsound(outturf,'sound/effects/telefrag.ogg',50,0)
+						if(L.size <= ourself.size) // If the same size as us or smaller
+							add_attacklogs(L,ourself,"has been telefragged by", admin_warn = 1)
+							ourself.visible_message("<span class='danger'>[ourself] collides with [L] during teleportation and mangles them to bits!</span>","<span class='danger'>You collide with [L] during teleportation and mangle them to bits!</span>","<span class='danger'>You hear squelching noises below you.</span>")
+							L.gib(1) // Telefrag'd
+						else
+							add_attacklogs(ourself,L,"has been telefragged by", admin_warn = 1)
+							L.visible_message("<span class='danger'>[ourself] collides with [L] during teleportation and gets mangled to bits!</span>","<span class='danger'>You collide with [ourself] during their teleportation and mangle them to bits!</span>","<span class='danger'>You hear squelching noises below you.</span>")
+							ourself.gib(1) // Otherwise we played ourself
+							return TRUE
+		return TRUE
+	return FALSE

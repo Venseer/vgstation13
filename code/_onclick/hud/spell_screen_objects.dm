@@ -25,10 +25,6 @@
 			spell_holder.client.screen -= src
 		spell_holder = null
 
-/obj/abstract/screen/movable/spell_master/resetVariables()
-	..("spell_objects", args)
-	spell_objects = list()
-
 /obj/abstract/screen/movable/spell_master/MouseDrop()
 	if(showing)
 		return
@@ -36,14 +32,15 @@
 	return ..()
 
 /obj/abstract/screen/movable/spell_master/MouseEntered(location,control,params)
-	openToolTip(usr,src,params,title = name,content = "Click and drag while closed to move this around the screen")
+	//openToolTip(usr,src,params,title = name,content = "Click and drag while closed to move this around the screen")
+	usr.client?.tooltips.show(src, mouse=params, title=name, content="Click and drag while closed to move this around the screen")
 
 /obj/abstract/screen/movable/spell_master/MouseExited()
-	closeToolTip(usr)
+	usr.client?.tooltips.hide()
 
 /obj/abstract/screen/movable/spell_master/Click()
 	if(!spell_objects.len)
-		returnToPool(src)
+		qdel(src)
 		return
 
 	toggle_open()
@@ -94,6 +91,8 @@
 	if(!spell)
 		return
 
+	if(spell.spell_flags & NO_BUTTON) //no button to add if we don't get one
+		return
 	if(spell.connected_button) //we have one already, for some reason
 		if(spell.connected_button in spell_objects)
 			return
@@ -102,10 +101,7 @@
 			toggle_open(2)
 			return
 
-	if(spell.spell_flags & NO_BUTTON) //no button to add if we don't get one
-		return
-
-	var/obj/abstract/screen/spell/newscreen = getFromPool(/obj/abstract/screen/spell)
+	var/obj/abstract/screen/spell/newscreen = new /obj/abstract/screen/spell
 	newscreen.spellmaster = src
 	newscreen.spell = spell
 	newscreen.icon = src.icon
@@ -134,14 +130,14 @@
 	toggle_open(2)
 
 /obj/abstract/screen/movable/spell_master/proc/remove_spell(var/spell/spell)
-	returnToPool(spell.connected_button)
+	qdel(spell.connected_button)
 
 	spell.connected_button = null
 
-	if(spell_objects.len)
+	if(spell_objects?.len)
 		toggle_open(showing + 1)
 	else
-		returnToPool(src)
+		qdel(src)
 
 /obj/abstract/screen/movable/spell_master/proc/silence_spells(var/amount)
 	for(var/obj/abstract/screen/spell/spell in spell_objects)
@@ -179,9 +175,18 @@
 	screen_loc = ui_alien_master
 	length = 9
 
+/obj/abstract/screen/movable/spell_master/grue
+	name = "Grue Abilities"
+	icon_state = "grue_spell_ready"
+
+	open_state = "grue_open"
+	closed_state = "grue_closed"
+
+	screen_loc = ui_alien_master
+
 /obj/abstract/screen/movable/spell_master/malf
 	name = "Malfunction Modules"
-	icon_state = "grey_spell_ready"
+	icon_state = "malf_spell_ready"
 
 	open_state = "malf_open"
 	closed_state = "malf_closed"
@@ -213,6 +218,13 @@
 	open_state = "cult_open"
 	closed_state = "cult_closed"
 
+/obj/abstract/screen/movable/spell_master/spider
+	name = "Spider"
+	icon_state = "spider_spell_ready"
+
+	open_state = "spider_open"
+	closed_state = "spider_closed"
+
 /obj/abstract/screen/movable/spell_master/mech
 	name = "Mech Modules"
 	icon_state = "mech_spell_ready"
@@ -220,6 +232,24 @@
 
 	//open and close states are defined later
 	override_icon = 'icons/mecha/mecha.dmi'
+	screen_loc = ui_alien_master
+
+/obj/abstract/screen/movable/spell_master/changeling
+	name = "Changeling Abilities"
+	icon_state = "changeling_spell_ready"
+
+	open_state = "ling-open"
+	closed_state = "ling-closed"
+
+	screen_loc = ui_alien_master
+
+/obj/abstract/screen/movable/spell_master/pulse_demon
+	name = "Pulse Demon Abilities"
+	icon_state = "pulsedemon_spell_ready"
+
+	open_state = "pd_open"
+	closed_state = "pd_closed"
+
 	screen_loc = ui_alien_master
 
 //////////////ACTUAL SPELLS//////////////
@@ -241,28 +271,12 @@
 /obj/abstract/screen/spell/MouseEntered(location,control,params)
 	if(!spell)
 		return
-	var/dat = ""
-	if(spell.charge_type & Sp_RECHARGE)
-		dat += "<br>Cooldown: [spell.charge_max/10] second\s"
-	if(spell.charge_type & Sp_CHARGES)
-		dat += "<br>Has [spell.charge_counter] charge\s left"
-	if(spell.charge_type & Sp_HOLDVAR)
-		dat += "<br>Requires [spell.holder_var_amount] [spell.holder_var_type]"
-	switch(spell.range)
-		if(1)
-			dat += "<br>Range: Adjacency"
-		if(2 to INFINITY)
-			dat += "<br>Range: [spell.range]"
-		if(GLOBALCAST)
-			dat += "<br>Range: Global"
-		if(SELFCAST)
-			dat += "<br>Range: Self"
-	if(spell.desc)
-		dat += "<br>Desc: [spell.desc]"
-	openToolTip(usr,src,params,title = name,content = dat)
+	var/dat = spell.generate_tooltip()
+	//openToolTip(usr,src,params,title = name,content = dat)
+	usr.client?.tooltips.show(src, mouse=params, title=name, content=dat)
 
 /obj/abstract/screen/spell/MouseExited()
-	closeToolTip(usr)
+	usr.client?.tooltips.hide()
 
 /obj/abstract/screen/spell/Destroy()
 	..()
@@ -274,12 +288,12 @@
 			spellmaster.spell_holder.client.screen -= src
 			remove_channeling()
 	if(spellmaster && !spellmaster.spell_objects.len)
-		returnToPool(spellmaster)
+		qdel(spellmaster)
 	spellmaster = null
 
 /obj/abstract/screen/spell/proc/update_charge(var/forced_update = 0)
 	if(!spell)
-		returnToPool(src)
+		qdel(src)
 		return
 
 	if((last_charge == spell.charge_counter || !handle_icon_updates) && !forced_update)
@@ -292,12 +306,12 @@
 		spell_icon = spell.hud_state
 	overlays -= spell_icon
 
-	if((spell.charge_type & Sp_RECHARGE) || (spell.charge_type & Sp_CHARGES) || (spell.charge_type & Sp_GRADUAL))
-		if(spell.charge_counter < spell.charge_max)
+	if((spell.charge_type & SP_RECHARGE) || (spell.charge_type & SP_CHARGES) || (spell.charge_type & SP_GRADUAL))
+		if(spell.charge_counter < spell.charge_cooldown_max)
 			icon_state = "[spell_base]_spell_base"
 			if(spell.charge_counter > 0)
 				var/icon/partial_charge = icon(src.icon, "[spell_base]_spell_ready")
-				partial_charge.Crop(1, 1, partial_charge.Width(), round(partial_charge.Height() * spell.charge_counter / spell.charge_max))
+				partial_charge.Crop(1, 1, partial_charge.Width(), round(partial_charge.Height() * spell.charge_counter / spell.charge_cooldown_max))
 				overlays += partial_charge
 				if(last_charged_icon)
 					overlays -= last_charged_icon
@@ -321,7 +335,11 @@
 
 /obj/abstract/screen/spell/Click(location, control, params)
 	if(!usr || !spell)
-		returnToPool(src)
+		qdel(src)
+		return
+
+	if(usr.is_pacified() && (spell.spell_flags & IS_HARMFUL))
+		to_chat(usr, "<span class='notice'>You really don't feel like casting that spell right now...</span>")
 		return
 
 	var/list/param_list = params2list(params)

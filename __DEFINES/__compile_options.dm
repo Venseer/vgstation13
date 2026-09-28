@@ -22,22 +22,45 @@
 //#define MAP_OVERRIDE 3
 // roidstation.dm
 //#define MAP_OVERRIDE 4
-// test_box.dm:
-//#define MAP_OVERRIDE 5
 // test_tiny.dm:
 //#define MAP_OVERRIDE 6
 // tgstation.dm:
 //#define MAP_OVERRIDE 7
-
+// snaxi.dm
+//#define MAP_OVERRIDE 8
+// nrvhorizon.dm
+//#define MAP_OVERRIDE 9
+// synergy.dm
+//#define MAP_OVERRIDE 10
+// waystation.dm
+//#define MAP_OVERRIDE 11
+// lowfatbagel.dm
+//#define MAP_OVERRIDE 12
+// line.dm
+//#define MAP_OVERRIDE 13
+// test_very_tiny.dm
+//#define MAP_OVERRIDE 14
+// test_vault.dm
+//#define MAP_OVERRIDE 15
+// wheelstation.dm
+//#define MAP_OVERRIDE 16
+// tgstation-sec.dm
+//#define MAP_OVERRIDE 17
+// junglestation.dm
+//#define MAP_OVERRIDE 18
+// odyssey.dm
+//#define MAP_OVERRIDE 19
+// theseus.dm
+//#define MAP_OVERRIDE 20
 
 // Toggles several features, explained in their respective comments.
 // You can turn those on and off manually if you prefer, instead of setting this
 #define DEVELOPER_MODE 0
 
 // If 1, unit tests will be compiled
-#define UNIT_TESTS_ENABLED DEVELOPER_MODE
+#define UNIT_TESTS_ENABLED 0
 // If 1, unit tests run automatically
-#define UNIT_TESTS_AUTORUN DEVELOPER_MODE
+#define UNIT_TESTS_AUTORUN 0
 // If 1, the server stops after the tests are done
 #define UNIT_TESTS_STOP_SERVER_WHEN_DONE 0
 
@@ -50,3 +73,10 @@
 
 // I wonder what this does
 #define SHOW_CHANGELOG_ON_NEW_PLAYER_LOGIN !DEVELOPER_MODE
+
+#define AUXTOOLS_DEBUGGER DEVELOPER_MODE
+
+// Enable the byond-tracy profiler
+#define TRACY_ENABLED FALSE
+// Run the profiler on startup
+#define TRACY_RUN_ON_STARTUP FALSE

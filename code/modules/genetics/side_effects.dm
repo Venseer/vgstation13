@@ -21,7 +21,7 @@
 	duration = 30 SECONDS
 
 /datum/genetics/side_effect/genetic_burn/start(mob/living/carbon/human/H)
-	H.emote("me", 1, "starts turning very red..")
+	H.emote("me", 1, "starts turning very red.")
 
 /datum/genetics/side_effect/genetic_burn/finish(mob/living/carbon/human/H)
 	if(!H.reagents.has_reagent(DEXALIN))
@@ -53,7 +53,7 @@
 	symptom = "Subject starts drooling uncontrollably."
 	treatment = "Inject small dose of dylovene."
 	effect = "Subject turns into monkey."
-	duration = 10*90
+	duration = 90 SECONDS
 
 	start(mob/living/carbon/human/H)
 		H.emote("me", 1, "has drool running down from his mouth.")
@@ -67,7 +67,7 @@
 	symptom = "Subject starts drooling uncontrollably."
 	treatment = "Inject small dose of dylovene."
 	effect = "Subject becomes confused."
-	duration = 10*30
+	duration = 30 SECONDS
 
 /datum/genetics/side_effect/confuse/start(mob/living/carbon/human/H)
 	H.emote("me", 1, "has drool running down from his mouth.")
@@ -76,7 +76,7 @@
 	if(!H.reagents.has_reagent(ANTI_TOXIN))
 		H.confused += 100
 
-proc/trigger_side_effect(mob/living/carbon/human/H)
+/proc/trigger_side_effect(mob/living/carbon/human/H)
 	spawn
 		if(!istype(H))
 			return
@@ -87,7 +87,9 @@ proc/trigger_side_effect(mob/living/carbon/human/H)
 		spawn(20)
 			if(!istype(H))
 				return
-			H.Knockdown(rand(0, S.duration / 50))
+			var/incapacitation_duration = rand(0, S.duration / 50)
+			H.Knockdown(incapacitation_duration)
+			H.Stun(incapacitation_duration)
 		sleep(S.duration)
 
 		if(!istype(H))

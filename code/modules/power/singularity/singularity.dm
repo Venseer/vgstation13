@@ -1,16 +1,5 @@
-//This file was auto-corrected by findeclaration.exe on 25.5.2012 20:42:33
-
-//Added spess ghoasts/cameras to this so they don't add to the lag. - N3X.
-
-//Added a singuloCanEat proc to atoms. This list is now kinda obsolete.
-//Removed singuloCanEat proc from the repo.  This is now here ironically - Probe 4/30/16
-//var/global/list/uneatable = list(
-//	/obj/effect/overlay,
-//	/mob/dead,
-//	/mob/camera,
-//	/mob/new_player,
-//	)
-
+var/list/obj/machinery/singularity/global_singularity_pool
+var/list/obj/machinery/singularity/white_hole_candidates
 
 /obj/machinery/singularity
 	name = "gravitational singularity" //Lower case
@@ -22,8 +11,10 @@
 	layer = SINGULARITY_LAYER
 	plane = EFFECTS_PLANE
 	luminosity = 6
-	use_power = 0
+	use_power = MACHINE_POWER_USE_NONE
 
+	var/obj/machinery/singularity/wormhole_out = null
+	var/obj/machinery/singularity/wormhole_in = null
 	var/current_size = 1
 	var/allowed_size = 1
 	var/contained = 1 //Are we going to move around?
@@ -40,11 +31,15 @@
 	var/last_movement_dir = 0 //Log the singularity's last movement to produce biased movement (singularity prefers constant movement due to inertia)
 	var/last_failed_movement = 0 //Will not move in the same dir if it couldnt before, will help with the getting stuck on fields thing.
 	var/last_warning
-	appearance_flags = LONG_GLIDE
+	appearance_flags = LONG_GLIDE|TILE_MOVER
 	var/chained = 0 //Adminbus chain-grab
+	var/modifier = "" //for memes
+	var/repels = FALSE //For pushing stuff out the other end
+	var/list/speech_messages = list() //Time is occuring in random pockets. The laws of causality no longer apply.
 
 /obj/machinery/singularity/New(loc, var/starting_energy = 50, var/temp = 0)
 	//CARN: admin-alert for chuckle-fuckery.
+	icon_state = modifier + icon_state
 	admin_investigate_setup()
 	energy = starting_energy
 
@@ -59,6 +54,94 @@
 		if(singubeacon.active)
 			target = singubeacon
 			break
+	if(!global_singularity_pool)
+		global_singularity_pool = list()
+	global_singularity_pool += src
+	if(!white_hole_candidates)
+		white_hole_candidates = list()
+	if(!repels && !(src in white_hole_candidates))
+		white_hole_candidates += src
+	if(prob(1) && white_hole_candidates.len > 1)
+		link_a_wormhole()
+
+/obj/machinery/singularity/arcane_act(mob/user, recursive)
+	if(current_size <= 1)
+		var/obj/item/toy/spinningtoy/T = new(loc)
+		T.arcane_act(user,recursive)
+		qdel(src)
+		return
+	else if(!wormhole_in)
+		name = "white hole"
+		desc = "Every action has an equal and opposite reaction. A black hole sucks time and matter out of the universe, a white hole returns it."
+		repels = TRUE
+		color= list(-1,0,0,
+					0,-1,0,
+					0,0,-1,
+					1,1,1) //Invert it
+	else
+		name = initial(name)
+		desc = initial(desc)
+		repels = FALSE
+		color= initial(color)
+	return ..()
+
+/obj/machinery/singularity/bless() // yeah good luck doing this
+	if(!wormhole_in)
+		name = initial(name)
+		desc = initial(desc)
+		repels = FALSE
+		color= initial(color)
+	..()
+
+/obj/machinery/singularity/proc/seeks_beacon()
+	return TRUE
+
+/obj/machinery/singularity/proc/link_a_wormhole()
+	var/obj/machinery/singularity/other = null
+	do
+		other = pick(white_hole_candidates)
+	while(white_hole_candidates.len > 1 && other == src)
+	if(other && other != src)
+		if(prob(50))
+			link_wormhole(other)
+		else
+			other.link_wormhole(src)
+
+/obj/machinery/singularity/proc/link_wormhole(var/obj/machinery/singularity/other)
+	if(other)
+		visible_message("<span class='notice'>[src] pulsates as a distinctive [get_area(other) ? "[get_area(other)]": "place"] becomes visible.</span>")
+		other.visible_message("<span class='notice'>[other] pulsates as a distinctive [get_area(src) ? "[get_area(src)]": "place"] becomes visible.</span>")
+		other.name = "white hole"
+		other.desc = "Every action has an equal and opposite reaction. A black hole sucks time and matter out of the universe, a white hole returns it."
+		other.repels = TRUE
+		other.energy = src.energy
+		other.color= list(-1,0,0,
+					0,-1,0,
+					0,0,-1,
+					1,1,1) //Invert it
+		wormhole_out = other
+		other.wormhole_in = src
+		if(other in white_hole_candidates)
+			white_hole_candidates -= other
+
+/obj/machinery/singularity/proc/unlink_wormholes()
+	if(wormhole_out)
+		visible_message("<span class='warning'>[get_area(wormhole_out) ? "[get_area(wormhole_out)]": "The strange place"] is no longer visible as [src] closes its path to it.</span>")
+		wormhole_out.name = initial(wormhole_out.name)
+		wormhole_out.desc = initial(wormhole_out.desc)
+		wormhole_out.repels = FALSE
+		wormhole_out.color= initial(wormhole_out.color)
+		if(!(wormhole_out in white_hole_candidates))
+			white_hole_candidates += wormhole_out
+		wormhole_out = null
+	if(wormhole_in)
+		visible_message("<span class='warning'>[get_area(wormhole_in) ? "[get_area(wormhole_in)]": "The strange place"] is no longer visible as [src] closes its path to it.</span>")
+		name = initial(name)
+		repels = FALSE
+		color = initial(color)
+		if(!(src in white_hole_candidates))
+			white_hole_candidates += src
+		wormhole_in = null
 
 /obj/machinery/singularity/attack_hand(mob/user as mob)
 	consume(user)
@@ -67,8 +150,11 @@
 /obj/machinery/singularity/blob_act(severity)
 	return
 
+/obj/machinery/singularity/supermatter_act(atom/source, severity)
+	return
+
 /obj/machinery/singularity/ex_act(severity)
-	if(current_size == 11) //IT'S UNSTOPPABLE
+	if(current_size > 10) //IT'S UNSTOPPABLE
 		return
 	switch(severity)
 		if(1.0)
@@ -81,9 +167,6 @@
 		if(2.0 to 3.0)
 			energy += round((rand(20, 60)/2), 1)
 			return
-
-/obj/machinery/singularity/bullet_act(obj/item/projectile/P)
-	return 0 //Will there be an impact? Who knows. Will we see it? No.
 
 /obj/machinery/singularity/to_bump(atom/A)
 	consume(A)
@@ -126,6 +209,12 @@
 					L.forceMove(get_turf(user))
 					animate(L, alpha = 255, time = 3 SECONDS)
 
+/obj/machinery/singularity/Hear(var/datum/speech/speech, var/rendered_message="")
+	if(repels && ismob(speech.speaker))
+		var/mob/M = speech.speaker
+		if(M.dna) // Wait a minute... I missed a discussion!
+			speech_messages[M.dna] = speech.message // We all did
+
 /obj/machinery/singularity/process()
 	dissipate()
 	check_energy()
@@ -136,6 +225,13 @@
 		if(prob(event_chance)) //Chance for it to run a special event TODO: Come up with one or two more that fit.
 			event()
 	eat()
+	if(repels && speech_messages.len) // I've never seen one before, no one has, but I'm guessing it's a white hole.
+		for(var/mob/M in viewers(src)) // A white hole?
+			if((M.dna in speech_messages) && prob(10))
+				if(prob(90)) // So that thing's spewing time? Back into the universe?
+					M.say(speech_messages[M.dna])
+				else
+					M.say("So what is it?") //Only joking
 
 /obj/machinery/singularity/attack_ai() //To prevent AIs from gibbing themselves when they click on one.
 	return
@@ -160,7 +256,7 @@
 		dissipate_track++
 
 /obj/machinery/singularity/proc/expand(var/force_size = 0, var/growing = 1)
-	if(current_size == 11) //If this is happening, this is an error
+	if(current_size > 10 && !force_size) //If this is happening, this is an error
 		message_admins("expand() was called on a super singulo. This should not happen.")
 		return
 	var/temp_allowed_size = allowed_size
@@ -175,7 +271,6 @@
 		if(STAGE_ONE)
 			current_size = 1
 			icon = 'icons/obj/singularity.dmi'
-			icon_state = "singularity_s1"
 			pixel_x = 0
 			pixel_y = 0
 			bound_width = WORLD_ICON_SIZE
@@ -194,7 +289,6 @@
 		if(STAGE_TWO)
 			current_size = 3
 			icon = 'icons/effects/96x96.dmi'
-			icon_state = "singularity_s3"
 			pixel_x = -32 * PIXEL_MULTIPLIER
 			pixel_y = -32 * PIXEL_MULTIPLIER
 			bound_width = 3 * WORLD_ICON_SIZE
@@ -216,7 +310,6 @@
 		if(STAGE_THREE)
 			current_size = 5
 			icon = 'icons/effects/160x160.dmi'
-			icon_state = "singularity_s5"
 			pixel_x = -64 * PIXEL_MULTIPLIER
 			pixel_y = -64 * PIXEL_MULTIPLIER
 			bound_width = 5 * WORLD_ICON_SIZE
@@ -238,7 +331,6 @@
 		if(STAGE_FOUR)
 			current_size = 7
 			icon = 'icons/effects/224x224.dmi'
-			icon_state = "singularity_s7"
 			pixel_x = -96 * PIXEL_MULTIPLIER
 			pixel_y = -96 * PIXEL_MULTIPLIER
 			bound_width = 7 * WORLD_ICON_SIZE
@@ -260,7 +352,6 @@
 		if(STAGE_FIVE)
 			current_size = 9
 			icon = 'icons/effects/288x288.dmi'
-			icon_state = "singularity_s9"
 			pixel_x = -128 * PIXEL_MULTIPLIER
 			pixel_y = -128 * PIXEL_MULTIPLIER
 			bound_width = 9 * WORLD_ICON_SIZE
@@ -285,7 +376,6 @@
 			desc = "The final form of Lord Singuloth. <b>It has the power to destroy worlds.</b> It can most likely still be used to power arcades too, <b>if you dare.</b>"
 			current_size = 11
 			icon = 'icons/effects/352x352.dmi'
-			icon_state = "singularity_s11" //Uh, whoever drew that, you know that black holes are supposed to look dark right? What's this, the clown's singulo?
 			pixel_x = -160 * PIXEL_MULTIPLIER
 			pixel_y = -160 * PIXEL_MULTIPLIER
 			bound_width = 11 * WORLD_ICON_SIZE
@@ -300,10 +390,26 @@
 				overlays += image(icon = icon, icon_state = "chain_s9")
 			visible_message("<span class='sinister'><font size='3'>You witness the creation of a destructive force that cannot possibly be stopped by human hands.</font></span>")
 
+		if(STAGE_SSGSS) //SUPER SINGULO GOD SUPER SINGULO
+			name = "[name] god [name]" //it gets worse
+			desc = "The true final form of Lord Singuloth. <b>It has the power to destroy galaxies.</b> It can most likely still be used to power arcades too, <b>if you dare.</b>"
+			current_size = 13
+			icon = 'icons/effects/384x384.dmi'
+			pixel_x = -192 * PIXEL_MULTIPLIER
+			pixel_y = -192 * PIXEL_MULTIPLIER
+			bound_width = 13 * WORLD_ICON_SIZE
+			bound_x = -6 * WORLD_ICON_SIZE
+			bound_height = 13 * WORLD_ICON_SIZE
+			bound_y = -6 * WORLD_ICON_SIZE
+			grav_pull = 24
+			consume_range = 5
+			plane = 21
+			visible_message("<span class='sinister'><font size='3'>You witness the creation of a destructive force that challenges that of the very gods.</font></span>")
+
 	if(current_size == allowed_size)
 		investigation_log(I_SINGULO,"<font color='red'>grew to size [current_size].</font>")
 		return 1
-	else if(current_size < (--temp_allowed_size) && current_size != 11)
+	else if(current_size < (--temp_allowed_size) && current_size < 11)
 		expand(temp_allowed_size)
 	else
 		return 0
@@ -326,50 +432,44 @@
 		if(2000 to INFINITY)
 			allowed_size = 9
 
-	if(current_size != allowed_size && current_size != 11)
+	if(current_size != allowed_size && current_size < 11)
 		if(current_size > allowed_size)
 			expand(null, 0)
 		else
 			expand(null, 1)
+	if(icon_state != modifier + "singularity_s[current_size]")
+		icon_state = modifier + "singularity_s[current_size]"
 	return 1
 
 /obj/machinery/singularity/proc/eat()
-	// This is causing issues. Do not renable - N3X
-	// Specifically, eat() builds up in the background from taking too long and eventually crashes the singo.
-	//set background = BACKGROUND_ENABLED
-	//var/ngrabbed=0
-	for(var/atom/X in orange(grav_pull, src))
-		if(X.type == /atom/movable/lighting_overlay)//since there's one on every turf
-			continue
-		// Caps grabbing shit at 100 items.
-		//if(ngrabbed==100)
-			//warning("Singularity eat() capped at [ngrabbed]")
-			//return
-		//if(!isturf(X))//a stage five singularity has a grav pull of 10, that means it covers 441 turfs (21x21) at every ticks.
-			//ngrabbed++
-		try
-			var/dist = get_dist(X, src)
-			var/obj/machinery/singularity/S = src
-			if(!istype(src))
-				return
-			if(dist > consume_range)
-				X.singularity_pull(S, current_size)
-			else if(dist <= consume_range)
-				consume(X)
-		catch(var/exception/e)
-			error("Singularity eat() caught exception:")
-			error(e)
+	var/ngrabbed=0
+	var/turf/T = get_turf(src)
+	for(var/z0 in GetOpenConnectedZlevels(T))
+		var/z_dist = abs(z0 - T.z)
+		if(z_dist <= grav_pull)
+			for(var/atom/X in orange(grav_pull - z_dist, z0 == T.z ? src : locate(T.x,T.y,z0)))
+				if(X.type == /atom/movable/lighting_overlay)//since there's one on every turf
+					continue
+				if (current_size > 11 && X.type == /turf/unsimulated/wall/supermatter) // galaxy end ongoing
+					continue
+				try
+					var/dist = get_z_dist(X, src)
+					if(dist > consume_range || repels)
+						X.singularity_pull(src, current_size, repels)
+					else if(dist <= consume_range)
+						if(consume(X))
+							ngrabbed++
+				catch(var/exception/e)
+					error("Singularity eat() caught exception:")
+					error(e)
 
-			spawn(0) //So the following line doesn't stop execution
-				throw e //So ALL debug information is sent to the runtime log
+					spawn(0) //So the following line doesn't stop execution
+						throw e //So ALL debug information is sent to the runtime log
 
-			continue
+					continue
+	if(ngrabbed)
+		investigation_log(I_SINGULO, "at ([src.x],[src.y],[src.z]) ([get_area(src)]) eat() ate [ngrabbed] item[ngrabbed != 1 ? "s" : ""].")
 
-	//for(var/turf/T in trange(grav_pull, src)) // TODO: Create a similar trange for orange to prevent snowflake of self check.
-	//	consume(T)
-
-	//testing("Singularity eat() ate [ngrabbed] items.")
-	return
 /*
  * Singulo optimization.
  * Jump out whenever we've made a decision.
@@ -381,10 +481,29 @@
 
 	return 0
 
+/obj/machinery/singularity/proc/isGodSingulo()
+	if(current_size == STAGE_SSGSS)
+		return 1
+	return 0
+
+/obj/machinery/singularity/proc/makeSuperMatterSea(atom/A)
+	if(isturf(A.loc))
+		var/turf/newsea = A.loc
+		if(!istype(newsea, /turf/unsimulated/wall/supermatter))
+			newsea.ChangeTurf(/turf/unsimulated/wall/supermatter)
+
 /obj/machinery/singularity/proc/consume(const/atom/A)
-	var/gain = A.singularity_act(current_size,src)
-	src.energy += gain
-	return
+	if(A?.reagents?.has_reagent(HOLYWATER)) // for removing arcane tampers
+		bless()
+	if(repels && !(istype(A,/obj/item/bluespace_crystal)))
+		return
+	if(wormhole_out && !(istype(A,/obj/item/bluespace_crystal)))
+		var/turf/T = get_turf(wormhole_out)
+		do_teleport(A, T)
+	else
+		var/gain = A.singularity_act(current_size,src)
+		src.energy += gain
+		return gain
 
 /*
  * Some modifications have been done in here. The Singularity's movement is now biased instead of truly random
@@ -392,7 +511,7 @@
  * In general, it's last movement has a 3/4th chance of being the next
  */
 /obj/machinery/singularity/proc/move(var/force_move = 0)
-	if(!move_self)
+	if(!move_self && !force_move)
 		return 0
 
 	var/movement_dir = pick(alldirs - last_failed_movement)
@@ -414,12 +533,16 @@
 			step(src, movement_dir)
 		spawn(SS_WAIT_MACHINERY/2)
 			step(src, movement_dir)
+		if(isGodSingulo())
+			makeSuperMatterSea(src)
 		return 1
 	else if(check_turfs_in(movement_dir))
 		last_failed_movement = 0 //Reset this because we moved
 		spawn(0)
 			set_glide_size(DELAY2GLIDESIZE(SS_WAIT_MACHINERY), min = 0)
 			step(src, movement_dir)
+		if(isGodSingulo())
+			makeSuperMatterSea(src)
 		return 1
 	else
 		last_failed_movement = movement_dir
@@ -527,7 +650,7 @@
 			mezzer()
 		else
 			return 0
-	if(current_size == 11)
+	if(current_size > 9)
 		smwave()
 	return 1
 
@@ -554,17 +677,17 @@
 		if(M.stat == CONSCIOUS)
 			if(istype(M,/mob/living/carbon/human))
 				var/mob/living/carbon/human/H = M
-				if(istype(H.glasses,/obj/item/clothing/glasses/scanner/meson) && current_size != 11)
+				if((H.hasHUD(HUD_MESON) || istype(H.glasses, /obj/item/clothing/glasses/scanner/meson) || istype(H.glasses, /obj/item/clothing/glasses/scanner/dual/chiefengineer)) && current_size < 11)
 					to_chat(H, "<span class='notice'>You stare directly into \the [src], good thing you had your protective eyewear on!</span>")
 					return
 				else
 					to_chat(H, "<span class='warning'>You stare directly into \the [src] but your eyewear does absolutely nothing to protect you from it!</span>")
 				M.visible_message("<span class='danger'>[M] stares blankly at \the [src]!</span>", \
-				"<span class='danger'>You stare directly into \the [src] and feel [current_size == 11 ? "helpless" : "weak"].</span>")
+				"<span class='danger'>You stare directly into \the [src] and feel [current_size > 9 ? "helpless" : "weak"].</span>")
 				M.apply_effect(3, STUN)
 
 /obj/machinery/singularity/proc/emp_area()
-	if(current_size != 11)
+	if(current_size < 11)
 		empulse(src, 8, 10)
 	else
 		empulse(src, 12, 16)
@@ -629,8 +752,11 @@
 */ //Fuck you centcomm
 
 /obj/machinery/singularity/Destroy()
+	unlink_wormholes()
 	..()
 	power_machines -= src
+	global_singularity_pool -= src
+	white_hole_candidates -= src
 
 /obj/machinery/singularity/bite_act(mob/user)
 	consume(user)
@@ -638,10 +764,263 @@
 /obj/machinery/singularity/kick_act(mob/user)
 	consume(user)
 
-/obj/machinery/singularity/acidable()
+/obj/machinery/singularity/dissolvable()
 	return 0
 
 /obj/machinery/singularity/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	if(timestopped)
 		return 0
 	return forceMove(get_step(src,Dir))
+
+
+////////////This singularity is upgraded to be controlled by deadchat. God save us all.
+
+/datum/deadchat_listener/singulo_listener
+	name = "deadchat-controlled singularity listener"
+	var/obj/machinery/singularity/deadchat_controlled/parent
+
+/datum/deadchat_listener/singulo_listener/deadchat_event(var/ckey, var/message)
+	parent.process_deadchat(ckey,message)
+
+/obj/machinery/singularity/deadchat_controlled
+	desc = "The destructive, murderous Lord Singuloth, patron saint of Engineering. This one seems... unstable. Oh god."
+	var/deadchat_mode = "Anarchy"
+	var/list/ckey_to_cooldown = list()
+	var/datum/deadchat_listener/singulo_listener/listener
+	move_self = 0
+
+	var/input_cooldown = 60 //In deca-seconds
+	var/democracy_cooldown = 120
+	var/list/inputs = list("UP","DOWN","LEFT","RIGHT")
+	var/deadchat_active = 1
+	appearance_flags = TILE_MOVER
+
+/obj/machinery/singularity/deadchat_controlled/Destroy()
+	..()
+	var/message = "<span class='recruit'>The deadchat-played singularity has been destroyed. Good job, retards."
+	deadchat_active=0
+	for(var/mob/M in player_list)
+		if(istype(M, /mob/new_player) || !M.client)
+			continue
+		if(M.client && M.client.holder && M.client.holder.rights & R_ADMIN && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+			to_chat(M, message)
+		else if(M.client && M.stat == DEAD && !istype(M, /mob/dead/observer/deafmute) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+			to_chat(M, message)
+		else if(M.client && istype(M,/mob/living/carbon/brain) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+			var/mob/living/carbon/brain/B = M
+			if(B.brain_dead_chat())
+				to_chat(M, message)
+	global_deadchat_listeners -= listener
+	global_singularity_pool -= src
+	qdel(listener)
+
+/obj/machinery/singularity/deadchat_controlled/New(loc, var/starting_energy = 50, var/temp = 0)
+	..()
+	listener = new /datum/deadchat_listener/singulo_listener
+	listener.parent = src
+	global_deadchat_listeners += listener
+	global_singularity_pool -= src
+
+
+/obj/machinery/singularity/deadchat_controlled/proc/process_deadchat(var/ckey, var/message)
+	if(deadchat_mode == "Anarchy")
+		var/cooldown = ckey_to_cooldown[ckey]
+		if(!cooldown)
+			ckey_to_cooldown[ckey] = 0
+			cooldown = 0
+		if(cooldown > 0)
+			return
+		var/direction
+		message = uppertext(message)
+		switch(message) //*shrug
+			if("UP")
+				direction = NORTH
+			if("DOWN")
+				direction = SOUTH
+			if("LEFT")
+				direction = WEST
+			if("RIGHT")
+				direction = EAST
+		if(direction)
+			set_glide_size(DELAY2GLIDESIZE(0.1 SECONDS))
+			forceMove(get_step(src,direction))
+			eat_no_pull()
+			ckey_to_cooldown[ckey] = 1
+			spawn(input_cooldown)
+				ckey_to_cooldown[ckey] = 0
+	else if(deadchat_mode == "Democracy")
+		var/vote = ckey_to_cooldown[ckey]
+		if(!vote)
+			ckey_to_cooldown[ckey] = 0
+			vote = -1
+		message = uppertext(message)
+		if(inputs.Find(message))
+			ckey_to_cooldown[ckey] = message
+
+/obj/machinery/singularity/deadchat_controlled/proc/eat_no_pull() //Copied from proc/eat() and altered
+	for(var/atom/X in orange(consume_range, src))
+		if(X.type == /atom/movable/lighting_overlay)
+			continue
+		if(current_size > 11 && X.type == /turf/unsimulated/wall/supermatter)
+			continue
+		consume(X)
+
+/obj/machinery/singularity/deadchat_controlled/proc/begin_democracy_loop()
+	if(democracy_cooldown < 1)
+		democracy_cooldown = 1 //setting it to 0 kills the serb so let's not ever let that happen again
+	spawn(democracy_cooldown)
+		if(!deadchat_active) //Bit gunky but I'm not entirely certain how src/self works in byond, would if(src == null) work?
+			return
+		var/result = count_democracy_votes()
+		if(result != 5)
+			set_glide_size(DELAY2GLIDESIZE(0.1 SECONDS))
+			forceMove(get_step(src,result))
+			eat()
+			var/direction_name = "up"
+			switch(result)
+				if(2)
+					direction_name = "down"
+				if(3)
+					direction_name = "left"
+				if(4)
+					direction_name = "right"
+			var/message = "<span class='recruit'>The singularity moved [direction_name]!.<br>New vote started. It will end in [democracy_cooldown/10] seconds." //There should really be a proc for sending messages to deadchat but I'm too lazy to copy/paste it
+			for(var/mob/M in player_list)
+				if(istype(M, /mob/new_player) || !M.client)
+					continue
+				if(M.client && M.client.holder && M.client.holder.rights & R_ADMIN && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD)) //admins can toggle deadchat on and off. This is a proc in admin.dm and is only give to Administrators and above
+					to_chat(M, message)
+				else if(M.client && M.stat == DEAD && !istype(M, /mob/dead/observer/deafmute) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+					to_chat(M, message)
+				else if(M.client && istype(M,/mob/living/carbon/brain) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+					var/mob/living/carbon/brain/B = M
+					if(B.brain_dead_chat())
+						to_chat(M, message)
+		else
+			var/message = "<span class='recruit'>No votes were cast this cycle. Remember, type UP, DOWN, LEFT, or RIGHT to cast a vote!"
+			for(var/mob/M in player_list)
+				if(istype(M, /mob/new_player) || !M.client)
+					continue
+				if(M.client && M.client.holder && M.client.holder.rights & R_ADMIN && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD)) //admins can toggle deadchat on and off. This is a proc in admin.dm and is only give to Administrators and above
+					to_chat(M, message)
+				else if(M.client && M.stat == DEAD && !istype(M, /mob/dead/observer/deafmute) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+					to_chat(M, message)
+				else if(M.client && istype(M,/mob/living/carbon/brain) && (M.client.prefs.get_pref(/datum/preference_setting/binary_flag/toggles) & CHAT_DEAD))
+					var/mob/living/carbon/brain/B = M
+					if(B.brain_dead_chat())
+						to_chat(M, message)
+		begin_democracy_loop()
+
+/obj/machinery/singularity/deadchat_controlled/proc/count_democracy_votes()	//Will return 5 if empty list
+	var/list/votes = list(0,0,0,0)
+	var/found_vote = 0
+	for(var/vote in ckey_to_cooldown)
+		switch(ckey_to_cooldown[vote])
+			if("UP")
+				votes[1]++
+			if("DOWN")
+				votes[2]++
+			if("LEFT")
+				votes[3]++
+			if("RIGHT")
+				votes[4]++
+		if(ckey_to_cooldown[vote] != -1)
+			found_vote = 1
+		ckey_to_cooldown[vote] = -1
+	if(!found_vote)
+		return 5
+	if(votes[1] >= votes[2] && votes[1] >= votes[3] && votes[1] >= votes[4])
+		return NORTH
+	else if(votes[2] >= votes[3] && votes[2] >= votes[4])
+		return SOUTH
+	else if(votes[3] >= votes[4])
+		return WEST
+	else
+		return EAST
+
+
+/client/proc/deadchat_singularity()
+	set category = "Fun"
+	set name = "Spawn Deadchat-Controlled Singularity"
+	if(!src.holder)
+		return 0
+	if(!global_singularity_pool.len)
+		return 0
+	if(!holder.rights || !check_rights(R_FUN,0))
+		to_chat(holder, "They (you) do it for free, yet they (you) still don't have R_FUN perms... sad!")
+		return 0
+	var/list/organized_list = list()
+	for(var/obj/machinery/singularity/singularity in global_singularity_pool)
+		var/organized_hash = "[singularity] - [singularity.x], [singularity.y], [singularity.z]"
+		organized_list[organized_hash] = singularity
+	if(!global_singularity_pool.len)
+		to_chat(holder, "There are no singularities to be transformed into a deadchat-controlled one. Spawn one first... if you dare.")
+		return 0
+	var/singulo_name = input(src,"Select a singularity.", "Confirm", null) as null|anything in organized_list
+	var/obj/machinery/singularity/target_singulo = organized_list[singulo_name]
+	if(target_singulo)
+		var/list/singulo_options = list("Democracy","Anarchy")
+		var/option_chosen = input(src,"Choose a mode.", "Confirm", null) as null|anything in singulo_options
+		if(option_chosen == "Anarchy")
+			var/cooldown = input("Please enter the cooldown each player has in seconds.", "Cooldown") as num
+			if(!cooldown)
+				return 0
+			cooldown *= 10 //Decasecond conversion
+			log_admin("[src] just turned the [singulo_name] into a deadchat-controlled one.")
+			message_admins("[src] just turned the [singulo_name] into a deadchat-controlled one.")
+			target_singulo.investigation_log(I_SINGULO,"<font color='red'>[src] just turned the [singulo_name] into a deadchat-controlled one. It is on anarchy mode, cooldown [cooldown] decaseconds. If you're reading this, god save the deadmin.</font>.")
+
+			var/obj/machinery/singularity/deadchat_controlled/new_singulo = new /obj/machinery/singularity/deadchat_controlled(get_turf(target_singulo))
+			new_singulo.energy = target_singulo.energy
+			new_singulo.allowed_size = target_singulo.allowed_size
+			new_singulo.expand(null, 0)
+			new_singulo.input_cooldown = cooldown
+			if(target_singulo.current_size >= STAGE_SUPER)
+				new_singulo.expand(target_singulo.current_size, 1)
+			qdel(target_singulo)
+
+			var/message = "<span class='recruit'>An admin has begun DEADCHAT-CONTROLLED SINGULARITY!<br>It is on <b>ANARCHY</b> mode.<br>Simply type UP, DOWN, LEFT, or RIGHT to move the singularity.<br>Cooldown per person is currently [new_singulo.input_cooldown/10] seconds.<br>"
+			for(var/mob/M in get_deadchat_hearers())
+				to_chat(M, message + formatFollow(new_singulo))
+		else if(option_chosen == "Democracy")
+			var/interval = input("Please enter the interval that the singulo makes a move in seconds.", "Interval") as num
+			if(!interval)
+				return 0
+			interval *= 10 //Decasecond conversion
+			if(interval < 10)
+				interval = 10
+			log_admin("[src] just turned the [singulo_name] into a deadchat-controlled one.")
+			message_admins("[src] just turned the [singulo_name] into a deadchat-controlled one.")
+			target_singulo.investigation_log(I_SINGULO,"<font color='red'>[src] just turned the [singulo_name] into a deadchat-controlled one. It is on democracy mode, cooldown [interval] decaseconds. If you're reading this, god save the deadmin.</font>.")
+
+			var/obj/machinery/singularity/deadchat_controlled/new_singulo = new /obj/machinery/singularity/deadchat_controlled(get_turf(target_singulo))
+			new_singulo.energy = target_singulo.energy
+			new_singulo.allowed_size = target_singulo.allowed_size
+			new_singulo.expand(null, 0)
+			new_singulo.democracy_cooldown = interval
+			new_singulo.deadchat_mode = "Democracy"
+			new_singulo.begin_democracy_loop()
+			if(target_singulo.current_size >= STAGE_SUPER)
+				new_singulo.expand(target_singulo.current_size, 1)
+			qdel(target_singulo)
+
+			var/message = "<span class='recruit'>An admin has begun DEADCHAT-CONTROLLED SINGULARITY!<br>It is on <b>DEMOCRACY</b> mode.<br>Simply type UP, DOWN, LEFT, or RIGHT to cast a vote on which direction it should move. Your vote will be your latest message.<br>The singulo will move every [new_singulo.democracy_cooldown/10] seconds. Votes start now!<br>"
+			for(var/mob/M in get_deadchat_hearers())
+				to_chat(M, message + formatFollow(new_singulo))
+
+/obj/machinery/singularity/special
+	name = "specialarity"
+	modifier = "special_"
+
+/obj/machinery/singularity/scrungulartiy
+	name = "grabibational scrungulartiy"
+	modifier = "scrung_"
+
+/obj/machinery/singularity/soutgularity
+	name = "white hole"
+	desc = "Every action has an equal and opposite reaction. A black hole sucks time and space out of the universe, a white hole returns it."
+	repels = TRUE
+	color= list(-1,0,0,
+				0,-1,0,
+				0,0,-1,
+				1,1,1) //Invert it

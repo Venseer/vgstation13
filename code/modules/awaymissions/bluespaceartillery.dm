@@ -28,7 +28,7 @@
 		<B>Charge progress: [reload]/180:</B><BR>
 		<A href='byond://?src=\ref[src];fire=1'>Open Fire</A><BR>
 		Deployment of weapon authorized by <br>Nanotrasen Naval Command<br><br>Remember, friendly fire is grounds for termination of your contract and life.<HR>"}
-	user << browse(dat, "window=scroll")
+	user << browse(HTML_SKELETON(dat), "window=scroll")
 	onclose(user, "scroll")
 	return
 
@@ -50,7 +50,7 @@
 			for(var/turf/T in get_area_turfs(thearea.type))
 				L+=T
 			var/loc = pick(L)
-			explosion(loc,2,5,11)
+			explosion(loc,2,5,11, whodunnit = usr)
 			reload = 0
 
 /*mob/proc/openfire()

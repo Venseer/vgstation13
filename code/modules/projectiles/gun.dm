@@ -1,8 +1,15 @@
+#define UNCLOWN 1
+#define CLOWNABLE 2
+#define CLOWNED 3
+#define SILENCER_OFFSET_X 1
+#define SILENCER_OFFSET_Y 2
+
 /obj/item/weapon/gun
 	name = "gun"
 	desc = "Its a gun. It's pretty terrible, though."
 	icon = 'icons/obj/gun.dmi'
 	icon_state = "detective"
+	var/clowned = UNCLOWN //UNCLOWN, CLOWNABLE, or CLOWNED
 	item_state = "gun"
 	flags = FPRINT
 	siemens_coefficient = 1
@@ -20,13 +27,17 @@
 	min_harm_label = 20
 	harm_label_examine = list("<span class='info'>A label is stuck to the trigger, but it is too small to get in the way.</span>", "<span class='warning'>A label firmly sticks the trigger to the guard!</span>")
 	ghost_read = 0
-
+	hitsound = 'sound/weapons/smash.ogg'
+	on_armory_manifest = TRUE
 	var/fire_sound = 'sound/weapons/Gunshot.ogg'
+	var/fire_action = "fire"
 	var/empty_sound = 'sound/weapons/empty.ogg'
 	var/fire_volume = 50 //the volume of the fire_sound
 	var/obj/item/projectile/in_chamber = null
 	var/list/caliber //the ammo the gun will accept. Now multiple types (make sure to set them to =1)
 	var/silenced = 0
+	var/list/silencer_offset = list() //x,y coords to bump silencer overlay to FROM (4,13) (use barrel end pixel position)
+	var/list/gun_part_overlays = list() //holds copy of overlays to allow for sane manipulation
 	var/recoil = 0
 	var/ejectshell = 1
 
@@ -37,12 +48,12 @@
 	var/nymph_check = 1					//Whether the gun disallows diona nymphs from firing it.
 	var/hulk_check = 1					//Whether the gun disallows hulks from firing it.
 	var/golem_check = 1					//Whether the gun disallows golems from firing it.
+	var/manifested_check = 1			//Whether the gun disallows manifested ghosts from firing it.
 
 	var/tmp/list/mob/living/target //List of who yer targeting.
 	var/tmp/lock_time = -100
 	var/mouthshoot = 0 ///To stop people from suiciding twice... >.>
 	var/automatic = 0 //Used to determine if you can target multiple people.
-	var/tmp/mob/living/last_moved_mob //Used to fire faster at more than one person.
 	var/tmp/told_cant_shoot = 0 //So that it doesn't spam them with the fact they cannot hit them.
 	var/firerate = 1 	// 0 for one bullet after tarrget moves and aim is lowered,
 						//1 for keep shooting until aim is lowered
@@ -54,11 +65,37 @@
 	var/jammed = 0
 
 	var/projectile_color = null
+	var/projectile_color_shift = null
 
 	var/pai_safety = TRUE	//To allow the pAI to activate or deactivate firing capability
 
 	// Tells is_honorable() which special_roles to respect.
-	var/honorable = HONORABLE_BOMBERMAN | HONORABLE_HIGHLANDER
+	var/honorable = HONORABLE_BOMBERMAN | HONORABLE_HIGHLANDER | HONORABLE_NINJA
+	var/kick_fire_chance = 5
+
+	//Affects the accuracy of the weapon
+	var/gun_excessive_missing //If toggled on, projectiles that fail to hit a specified zone will always miss
+	var/gun_miss_chance_value //Additive miss chance
+	var/gun_miss_message //Message that shows up as an addition to the message text
+	var/gun_miss_message_replace //If toggled on, will cause gun_miss_message to replace the entire missing message
+
+	//This is a list that allows admins to alter projectile properties mid-round via assoc list.
+	//Usage: vv the gun, C a new list, add text variable equal to the variable name you want to change,
+	//Then set an associative value equal to the new value you want to change it to.
+	//aka if you want to change the damage to 25, add a list with entry: text damage and associated value num 25
+	var/list/bullet_overrides
+	//And this overrides whatever's in the chamber.
+	var/bullet_type_override
+
+/obj/item/weapon/gun/New()
+	..()
+	if(isHandgun())
+		quick_equip_priority |= list(slot_w_uniform) // for holsters
+
+/obj/item/weapon/gun/Destroy()
+	if(in_chamber)
+		QDEL_NULL(in_chamber)
+	..()
 
 /obj/item/weapon/gun/proc/ready_to_fire()
 	if(world.time >= last_fired + fire_delay)
@@ -83,7 +120,7 @@
 /obj/item/weapon/gun/proc/can_discharge() //because process_chambered() is an atrocity
 	return 0
 
-/obj/item/weapon/gun/afterattack(atom/A as mob|obj|turf|area, mob/living/user as mob|obj, flag, params, struggle = 0)
+/obj/item/weapon/gun/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
 	if(flag)
 		return //we're placing gun on a table or in backpack
 	if(harm_labeled >= min_harm_label)
@@ -101,28 +138,34 @@
 	else
 		Fire(A,user,params, "struggle" = struggle) //Otherwise, fire normally.
 
-/obj/item/weapon/gun/proc/isHandgun()
+/obj/item/weapon/proc/isHandgun()
 	return FALSE //Make this proc return TRUE for handgun-shaped weapons (or in general, small enough weapons I guess)
 
 /obj/item/weapon/gun/proc/play_firesound(mob/user, var/reflex)
-	if(silenced)
+	if(istype(silenced, /obj/item/gun_part/silencer))
+		var/obj/item/gun_part/silencer/A = silenced
 		if(fire_sound)
-			playsound(user, fire_sound, fire_volume/5, 1)
+			playsound(user, fire_sound, fire_volume/A.volume_mult, 1)
 		else if (in_chamber.fire_sound)
-			playsound(user, in_chamber.fire_sound, fire_volume/5, 1)
+			playsound(user, in_chamber.fire_sound, fire_volume/A.volume_mult, 1)
+		if(A.volume_mult <= 1)
+			user.visible_message("<span class='warning'>[user] fires [src][reflex ? " by reflex":""]!</span>", \
+			"<span class='warning'>You [fire_action] [src][reflex ? " by reflex":""]!</span>", \
+			"You hear a [istype(in_chamber, /obj/item/projectile/beam) ? "laser blast" : "gunshot"]!")
 	else
 		if(fire_sound)
 			playsound(user, fire_sound, fire_volume, 1)
 		else if (in_chamber.fire_sound)
 			playsound(user, in_chamber.fire_sound, fire_volume, 1)
-		user.visible_message("<span class='warning'>[user] fires [src][reflex ? " by reflex":""]!</span>", \
-		"<span class='warning'>You fire [src][reflex ? "by reflex":""]!</span>", \
-		"You hear a [istype(in_chamber, /obj/item/projectile/beam) ? "laser blast" : "gunshot"]!")
+		if(!silenced)
+			user.visible_message("<span class='warning'>[user] fires [src][reflex ? " by reflex":""]!</span>", \
+			"<span class='warning'>You [fire_action] [src][reflex ? "by reflex":""]!</span>", \
+			"You hear a [istype(in_chamber, /obj/item/projectile/beam) ? "laser blast" : "gunshot"]!")
 
 /obj/item/weapon/gun/proc/can_Fire(mob/user, var/display_message = 0)
 	var/firing_dexterity = 1
 	if(advanced_tool_user_check)
-		if (!user.IsAdvancedToolUser())
+		if (!user.dexterity_check())
 			firing_dexterity = 0
 	if(MoMMI_check)
 		if(isMoMMI(user))
@@ -149,22 +192,36 @@
 				if(display_message)
 					to_chat(user, "<span class='warning'>Your fat fingers don't fit in the trigger guard!</span>")
 				return 0
+		if(manifested_check)
+			if(ismanifested(H))
+				if(display_message)
+					to_chat(user, "<span class='warning'>It would dishonor the master to use anything but his unholy blade!</span>")
+				return 0
 		var/datum/organ/external/a_hand = H.get_active_hand_organ()
 		if(!a_hand.can_use_advanced_tools())
 			if(display_message)
-				to_chat(user, "<span class='warning'>Your [a_hand] doesn't have the dexterity to do this!</span>")
+				to_chat(user, "<span class='warning'>Your [a_hand.display_name] doesn't have the dexterity to do this!</span>")
 			return 0
 	return 1
 
-/obj/item/weapon/gun/proc/Fire(atom/target as mob|obj|turf|area, mob/living/user as mob|obj, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)//TODO: go over this
+/obj/item/weapon/gun/proc/Fire(atom/target, mob/living/user, params, reflex = 0, struggle = 0, var/use_shooter_turf = FALSE)
 	//Exclude lasertag guns from the M_CLUMSY check.
+	. = reset_point_blank_shot()
+
+	if(!can_Fire(user, 1))
+		return
+
 	var/explode = FALSE
 	var/dehand = FALSE
 	if(istype(user, /mob/living))
 		var/mob/living/M = user
+		var/honor = is_honorable(M, honorable)
+		if(honor_check && honor == MERELY_HONORABLE) //Merely honorable people simply cannot use guns
+			to_chat(M, "<span class='notice'>You are too honorable to use such weapons!</span>")
+			return
 		if(clumsy_check && clumsy_check(M) && prob(50))
 			explode = TRUE
-		if(honor_check && is_honorable(M, honorable))
+		if(honor_check && honor == VERY_HONORABLE)
 			explode = TRUE
 			dehand = TRUE
 		if(explode)
@@ -180,9 +237,6 @@
 			qdel(src)
 			return
 
-	if(!can_Fire(user, 1))
-		return
-
 	add_fingerprint(user)
 	var/atom/originaltarget = target
 
@@ -192,10 +246,6 @@
 	var/turf/targloc = get_turf(target)
 	if (!istype(targloc) || !istype(curloc))
 		return
-
-	if(defective)
-		target = get_inaccuracy(originaltarget, 1+recoil)
-		targloc = get_turf(target)
 
 	if(!special_check(user))
 		return
@@ -208,11 +258,12 @@
 	if(!process_chambered() || jammed) //CHECK
 		return click_empty(user)
 
+	if(bullet_type_override && ispath(bullet_type_override, /obj/item/projectile))
+		in_chamber = new bullet_type_override
+
 	if(!in_chamber)
 		return
-	if(defective)
-		if(!failure_check(user))
-			return
+
 	if(!istype(src, /obj/item/weapon/gun/energy/tag))
 		log_attack("[user.name] ([user.ckey]) fired \the [src] (proj:[in_chamber.name]) at [originaltarget] [ismob(target) ? "([originaltarget:ckey])" : ""] ([originaltarget.x],[originaltarget.y],[originaltarget.z])[struggle ? " due to being disarmed." :""]" )
 	in_chamber.firer = user
@@ -224,15 +275,14 @@
 
 	if(targloc == curloc)
 		target.bullet_act(in_chamber)
-		qdel(in_chamber)
-		in_chamber = null
+		QDEL_NULL(in_chamber)
 		update_icon()
 		play_firesound(user, reflex)
 		return
 
 	if(recoil)
 		spawn()
-			shake_camera(user, recoil + 1, recoil)
+			directional_recoil(user, recoil, get_angle(user, target))
 		if(user.locked_to && isobj(user.locked_to) && !user.locked_to.anchored )
 			var/direction = get_dir(user,target)
 			spawn()
@@ -258,8 +308,6 @@
 
 		user.apply_inertia(get_dir(target, user))
 
-	play_firesound(user, reflex)
-
 	in_chamber.original = target
 	in_chamber.forceMove(get_turf(user))
 	in_chamber.starting = get_turf(user)
@@ -273,12 +321,30 @@
 	in_chamber.inaccurate = (istype(user.locked_to, /obj/structure/bed/chair/vehicle))
 	if(projectile_color)
 		in_chamber.apply_projectile_color(projectile_color)
+	if(projectile_color_shift)
+		in_chamber.apply_projectile_color_shift(projectile_color_shift)
 	if(params)
 		var/list/mouse_control = params2list(params)
 		if(mouse_control["icon-x"])
 			in_chamber.p_x = text2num(mouse_control["icon-x"])
 		if(mouse_control["icon-y"])
 			in_chamber.p_y = text2num(mouse_control["icon-y"])
+	if(gun_excessive_missing)
+		in_chamber.excessive_missing = gun_excessive_missing
+	if(gun_miss_chance_value)
+		in_chamber.projectile_miss_chance = gun_miss_chance_value
+	if(gun_miss_message)
+		in_chamber.projectile_miss_message = gun_miss_message
+	if(gun_miss_message_replace)
+		in_chamber.projectile_miss_message_replace = gun_miss_message_replace
+
+	if(bullet_overrides)
+		for(var/bvar in in_chamber.vars)
+			for(var/o in bullet_overrides)
+				if(bvar == o)
+					in_chamber.vars[bvar] = bullet_overrides[o]
+
+	play_firesound(user, reflex)
 
 	spawn()
 		if(in_chamber)
@@ -290,16 +356,14 @@
 
 	user.update_inv_hand(user.active_hand)
 
-	if(defective && recoil && prob(3))
-		var/throwturf = get_ranged_target_turf(user, pick(alldirs), 7)
-		user.drop_item()
-		user.visible_message("\The [src] jumps out of [user]'s hands!","\The [src] jumps out of your hands!")
-		throw_at(throwturf, rand(3, 6), 3)
-		return 1
-
 	return 1
 
-/obj/item/weapon/gun/proc/can_fire()
+/obj/item/weapon/gun/proc/reset_point_blank_shot()
+	if(in_chamber && in_chamber.point_blank)
+		in_chamber.point_blank = FALSE
+		in_chamber.damage = in_chamber.damage/1.3
+
+/obj/item/weapon/gun/proc/canbe_fired()
 	return process_chambered()
 
 /obj/item/weapon/gun/proc/can_hit(var/mob/living/target as mob, var/mob/living/user as mob)
@@ -330,28 +394,31 @@
 		if (process_chambered())
 			user.visible_message("<span class = 'warning'>[user] pulls the trigger.</span>")
 			if(silenced)
+				var/obj/item/gun_part/silencer/A = silenced
 				if(fire_sound)
-					playsound(user, fire_sound, fire_volume/5, 1)
+					playsound(user, fire_sound, fire_volume/A.volume_mult, 1)
 				else if (in_chamber.fire_sound)
-					playsound(user, in_chamber.fire_sound, fire_volume/5, 1)
+					playsound(user, in_chamber.fire_sound, fire_volume/A.volume_mult, 1)
 			else
 				if(fire_sound)
 					playsound(user, fire_sound, fire_volume, 1)
 				else if (in_chamber.fire_sound)
 					playsound(user, in_chamber.fire_sound, fire_volume, 1)
+			in_chamber.firer = M
 			in_chamber.on_hit(M)
-			if (!in_chamber.nodamage)
+			if(in_chamber.has_special_suicide)
+				in_chamber.custom_mouthshot(user)
+			else if (!in_chamber.nodamage)
 				user.apply_damage(in_chamber.damage*2.5, in_chamber.damage_type, LIMB_HEAD, used_weapon = "Point blank shot in the mouth with \a [in_chamber]")
 				user.death()
 				var/suicidesound = pick('sound/misc/suicide/suicide1.ogg','sound/misc/suicide/suicide2.ogg','sound/misc/suicide/suicide3.ogg','sound/misc/suicide/suicide4.ogg','sound/misc/suicide/suicide5.ogg','sound/misc/suicide/suicide6.ogg')
-				playsound(src, pick(suicidesound), 10, channel = 125)
+				playsound(src, pick(suicidesound), 30, channel = 125)
 				log_attack("<font color='red'>[key_name(user)] committed suicide with \the [src].</font>")
 				user.attack_log += "\[[time_stamp()]\] <font color='red'> [user.real_name] committed suicide with \the [src]</font>"
 			else
 				to_chat(user, "<span class = 'notice'>Ow...</span>")
 				user.apply_effect(110,AGONY,0)
-			qdel(in_chamber)
-			in_chamber = null
+			QDEL_NULL(in_chamber)
 			mouthshoot = 0
 			return
 		else
@@ -366,11 +433,12 @@
 				to_chat(user, "<span class='notice'>[pick("Hey that's dangerous...wouldn't want hurting people.","You don't feel like firing \the [src] at \the [M].","Peace, my [user.gender == FEMALE ? "girl" : "man"]...")]</span>")
 				return
 			user.visible_message("<span class='danger'> \The [user] fires \the [src] point blank at [M]!</span>")
-			if (process_chambered()) //Load whatever it is we fire
+			if (process_chambered() && !in_chamber.point_blank) //Load whatever it is we fire
 				in_chamber.damage *= 1.3 //Some guns don't work with damage / chambers, like dart guns!
+				in_chamber.point_blank = TRUE
 			src.Fire(M,user,0,0,1)
 			return
-		else if(target && M in target)
+		else if(target && (M in target))
 			process_chambered()
 			src.Fire(M,user,0,0,1) ///Otherwise, shoot!
 			return
@@ -410,12 +478,33 @@
 /obj/item/weapon/gun/attackby(var/obj/item/A, mob/user)
 	if(istype(A, /obj/item/weapon/gun))
 		var/obj/item/weapon/gun/G = A
-		if(isHandgun() && G.isHandgun())
-			var/obj/item/weapon/gun/akimbo/AA = new /obj/item/weapon/gun/akimbo(get_turf(src),src,G)
-			if(user.drop_item(G, AA) && user.drop_item(src, AA))
-				user.put_in_hands(AA)
-				AA.update_icon(user)
-			else
-				to_chat(user, "<span class = 'warning'>You can not combine \the [G] and \the [src].</span>")
-				qdel(AA)
+		if(!isHandgun() || !G.isHandgun() || !user.create_in_hands(src, new /obj/item/weapon/gun/akimbo(loc, src, G), G, move_in = TRUE))
+			to_chat(user, "<span class = 'warning'>You can not combine \the [G] and \the [src].</span>")
+	if(clowned == CLOWNABLE && istype(A,/obj/item/toy/crayon/rainbow))
+		to_chat(user, "<span class = 'notice'>You begin modifying \the [src].</span>")
+		if(do_after(user, src, 4 SECONDS))
+			to_chat(user, "<span class = 'notice'>You finish modifying \the [src]!</span>")
+			clowned = CLOWNED
+			update_icon()
 	..()
+
+/obj/item/weapon/gun/decontaminate()
+	..()
+	if(clowned == CLOWNED)
+		clowned = CLOWNABLE
+		update_icon()
+
+/obj/item/weapon/gun/update_icon()
+	icon_state = initial(icon_state) + "[clowned == CLOWNED ? "c" : ""]"
+
+/obj/item/weapon/gun/proc/bullet_hitting(var/obj/item/projectile/P,var/atom/atarget)
+	return
+
+/obj/item/weapon/gun/kick_act(mob/living/carbon/human/H)
+	. = ..()
+	if(prob(kick_fire_chance))
+		var/list/targets = list()
+		for(var/turf/t in oview(6))
+			targets += t
+		var/target = pick(targets)
+		src.Fire(target,H,0,0,1)

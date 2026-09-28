@@ -5,10 +5,7 @@
 	var/Discipline = 0 // if a slime has been hit with a freeze gun, or wrestled/attacked off a human, they become disciplined and don't attack anymore for a while
 	var/SStun = 0 // stun variable
 
-
-
 /mob/living/carbon/slime/Life()
-	set invisibility = 0
 	//set background = 1
 	if(timestopped)
 		return 0 //under effects of time magick
@@ -27,11 +24,9 @@
 
 		handle_targets()
 
-
 	var/datum/gas_mixture/environment // Added to prevent null location errors-- TLE
 	if(src.loc)
 		environment = loc.return_air()
-
 
 	//Apparently, the person who wrote this code designed it so that
 	//blinded get reset each cycle and then get activated later in the
@@ -41,6 +36,7 @@
 
 	// Basically just deletes any screen objects :<
 	regular_hud_updates()
+	standard_damage_overlay_updates()
 
 	//Handle temperature/pressure differences between body and environment
 	if(environment)
@@ -49,10 +45,16 @@
 	//Status updates, death etc.
 	handle_regular_status_updates()
 
-
+//Causes the slime to be hungry if it has a preferred food in range, which for now is just monkeys
+//Helps facilitate a faster xenobio by having the slimes eat sooner instead of waiting until they are hungry again
+/mob/living/carbon/slime/proc/preferred_food_in_vicinity()
+	for(var/mob/living/L in view(5, src))
+		if(is_type_in_list(L, preferred_food))
+			if(!(L.health <= -70)) //If the target can still be fed upon by the slime
+				return 1
+	return 0
 
 /mob/living/carbon/slime/proc/AIprocess()  // the master AI process
-
 
 //	to_chat(world, "AI proc started.")
 	if(AIproc || stat == DEAD || client)
@@ -60,7 +62,7 @@
 
 	var/hungry = 0
 	var/starving = 0
-	if(istype(src, /mob/living/carbon/slime/adult))
+	if(slime_lifestage == SLIME_ADULT)
 		switch(nutrition)
 			if(400 to 1100)
 				hungry = 1
@@ -73,6 +75,8 @@
 			if(0 to 149)
 				starving = 1
 	AIproc = 1
+	if(!hungry && !starving) //Not hungry nor starving, make it hungry if it has a preferred food in range
+		hungry = preferred_food_in_vicinity()
 //	to_chat(world, "AIproc [AIproc] && stat != 2 [stat] && (attacked > 0 [attacked] || starving [starving] || hungry [hungry] || Victim [Victim] || Target [Target]")
 	while(AIproc && stat != 2 && (attacked > 0 || starving || hungry || Victim))
 		if(Victim) // can't eat AND have this little process at the same time
@@ -82,7 +86,6 @@
 		if(!Target || client)
 //			to_chat(world, "break 2")
 			break
-
 
 		if(Target.health <= -70 || Target.isDead())
 			Target = null
@@ -174,7 +177,8 @@
 		var/turf/heat_turf = get_turf(src)
 		loc_temp = heat_turf.temperature
 	else if(istype(loc, /obj/machinery/atmospherics/unary/cryo_cell))
-		loc_temp = loc:air_contents.temperature
+		var/obj/machinery/atmospherics/unary/cryo_cell/tube = loc
+		loc_temp = tube.air_contents.temperature
 	else
 		loc_temp = environment.temperature
 
@@ -188,8 +192,6 @@
 
 		// handle_temperature_damage(HEAD, environment.temperature, environment_heat_capacity*transfer_coefficient)
 	*/
-
-
 
 	/*
 	if(stat==2)
@@ -216,12 +218,9 @@
 	else // a hot place
 		bodytemperature += adjust_body_temperature(bodytemperature, loc_temp, 1)
 
-
 	updatehealth()
 
-
 	return //TODO: DEFERRED
-
 
 /mob/living/carbon/slime/proc/adjust_body_temperature(current, loc_temp, boost)
 	var/temperature = current
@@ -242,7 +241,6 @@
 
 /mob/living/carbon/slime/proc/handle_chemicals_in_body()
 
-
 	if(reagents)
 		reagents.metabolize(src)
 
@@ -251,17 +249,13 @@
 
 	return //TODO: DEFERRED
 
-
 /mob/living/carbon/slime/proc/handle_regular_status_updates()
 
 
-	if(istype(src, /mob/living/carbon/slime/adult))
+	if(slime_lifestage == SLIME_ADULT)
 		health = 200 - (getOxyLoss() + getToxLoss() + getFireLoss() + getBruteLoss() + getCloneLoss())
 	else
 		health = 150 - (getOxyLoss() + getToxLoss() + getFireLoss() + getBruteLoss() + getCloneLoss())
-
-
-
 
 	if(health < config.health_threshold_dead && stat != 2)
 		death()
@@ -275,7 +269,7 @@
 			src.adjustOxyLoss(10)
 
 		if(src.stat != DEAD)
-			src.stat = UNCONSCIOUS
+			stat = status_flags & BUDDHAMODE ? CONSCIOUS : UNCONSCIOUS
 
 	if(prob(30))	//I think this is meant to allow slimes to starve to death -Deity Link
 		adjustOxyLoss(-1)
@@ -283,7 +277,6 @@
 		adjustFireLoss(-1)
 		adjustCloneLoss(-1)
 		adjustBruteLoss(-1)
-
 
 	if (src.stat == DEAD)
 
@@ -339,12 +332,10 @@
 
 	return 1
 
-
 /mob/living/carbon/slime/proc/handle_nutrition()
 
-
 	if(prob(20))
-		if(istype(src, /mob/living/carbon/slime/adult))
+		if(slime_lifestage == SLIME_ADULT)
 			burn_calories(rand(4,6))
 		else
 			burn_calories(rand(2,3))
@@ -356,7 +347,7 @@
 			adjustToxLoss(rand(0,5))
 
 	else
-		if(istype(src, /mob/living/carbon/slime/adult))
+		if(slime_lifestage == SLIME_ADULT)
 			if(nutrition >= 1000)
 				if(prob(40))
 					amount_grown++
@@ -367,16 +358,18 @@
 					amount_grown++
 
 	if(amount_grown >= 10 && !Victim && !Target)
-		if(istype(src, /mob/living/carbon/slime/adult))
+		if(slime_lifestage == SLIME_ADULT)
 			if(!client)
-				for(var/i=1,i<=4,i++)
+				for(var/i = 1 to 4)
 					var/newslime
-					if(prob(70))
-						newslime = primarytype
-					else
-						newslime = slime_mutation[rand(1,4)]
-					if(i == 4)
-						newslime = slime_mutation[rand(1,4)]
+					switch(i)
+						if(1 to 2)
+							newslime = slime_mutation[rand(1,maxcolorcount)]
+						if(3)
+							newslime = primarytype
+						if(4)
+							newslime = slime_mutation[rand(1,(maxcolorcount-1))]
+//For an explination on how and why this is what it is go to 'code\modules\mob\living\carbon\slime\subtypes.dm' and see the READ ME at the top.
 
 					var/mob/living/carbon/slime/M = new newslime(loc)
 					M.powerlevel = round(powerlevel/4)
@@ -392,7 +385,7 @@
 			if(!client)
 				if(adulttype == null)
 					return
-				var/mob/living/carbon/slime/adult/A = new adulttype(src.loc)
+				var/mob/living/carbon/slime/A = new adulttype(src.loc)
 				A.nutrition = nutrition
 //				A.nutrition += 100
 				A.powerlevel = max(0, powerlevel-1)
@@ -401,7 +394,6 @@
 				transferImplantsTo(A)
 				transferBorers(A)
 				qdel(src)
-
 
 /mob/living/carbon/slime/proc/handle_targets()
 	if(Tempstun)
@@ -443,10 +435,9 @@
 		if(AIproc && SStun)
 			return
 
-
 		var/hungry = 0 // determines if the slime is hungry
 		var/starving = 0 // determines if the slime is starving-hungry
-		if(istype(src, /mob/living/carbon/slime/adult)) // 1200 max nutrition
+		if(slime_lifestage == SLIME_ADULT) // 1200 max nutrition
 			switch(nutrition)
 				if(601 to 900)
 					if(prob(25))
@@ -457,7 +448,7 @@
 					starving = 1
 
 		else
-			switch(nutrition)			// 1000 max nutrition
+			switch(nutrition)			// 1200 max nutrition
 				if(501 to 700)
 					if(prob(25))
 						hungry = 1
@@ -474,7 +465,8 @@
 
 		if(!Target)
 			var/list/targets = list()
-
+			if(!hungry && !starving)
+				hungry = preferred_food_in_vicinity()
 			if(hungry || starving) //Only add to the list if we need to
 				for(var/mob/living/L in view(7,src))
 
@@ -483,7 +475,7 @@
 						continue
 
 					if(issilicon(L))
-						if(!istype(src, /mob/living/carbon/slime/adult)) //Non-starving diciplined adult slimes wont eat things
+						if(slime_lifestage != SLIME_ADULT) //Non-starving disciplined adult slimes wont eat things
 							if(!starving && Discipline > 0)
 								continue
 
@@ -499,7 +491,7 @@
 							if(isslimeperson(H))
 								continue
 
-						if(!istype(src, /mob/living/carbon/slime/adult)) //Non-starving diciplined adult slimes wont eat things
+						if(slime_lifestage != SLIME_ADULT) //Non-starving diciplined adult slimes wont eat things
 							if(!starving && Discipline > 0)
 								continue
 
@@ -520,10 +512,8 @@
 
 						targets += L //Possible target found!
 
-
-
 			if((hungry || starving) && targets.len > 0)
-				if(!istype(src, /mob/living/carbon/slime/adult))
+				if(slime_lifestage != SLIME_ADULT)
 					if(!starving)
 						for(var/mob/living/carbon/C in targets)
 							if(!Discipline && prob(5))
@@ -549,7 +539,6 @@
 				if(attacked > 0 )
 					Target = targets[1] //closest mob probably attacked it, so override Target and attack the nearest!
 
-
 		if(!Target)
 			if(hungry || starving)
 				if(canmove && isturf(loc) && prob(50))
@@ -566,8 +555,6 @@
 	if(client)
 		update_pull_icon()
 
-		var/severity = 0
-
 		var/healthpercent = (health/maxHealth) * 100
 
 		switch(healthpercent)
@@ -575,27 +562,16 @@
 				healths.icon_state = "slime_health0"
 			if(80 to 100)
 				healths.icon_state = "slime_health1"
-				severity = 1
 			if(60 to 80)
 				healths.icon_state = "slime_health2"
-				severity = 2
 			if(40 to 60)
 				healths.icon_state = "slime_health3"
-				severity = 3
 			if(20 to 40)
 				healths.icon_state = "slime_health4"
-				severity = 4
 			if(0 to 20)
 				healths.icon_state = "slime_health5"
-				severity = 5
 			if(-99 to 0)
 				healths.icon_state = "slime_health6"
-				severity = 6
 			else
 				healths.icon_state = "slime_health7"
-				severity = 6
 
-		if(severity > 0)
-			overlay_fullscreen("brute", /obj/abstract/screen/fullscreen/brute, severity)
-		else
-			clear_fullscreen("brute")

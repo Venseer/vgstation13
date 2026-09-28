@@ -28,7 +28,7 @@
 	var/lit = 0	//on or off
 	var/operating = 0//cooldown
 	var/turf/previousturf = null
-	var/obj/item/weapon/weldingtool/weldtool = null
+	var/obj/item/tool/weldingtool/weldtool = null
 	var/obj/item/device/assembly/igniter/igniter = null
 	var/obj/item/weapon/tank/plasma/ptank = null
 	var/window_open = 0
@@ -38,14 +38,11 @@
 
 /obj/item/weapon/gun/projectile/flamethrower/Destroy()
 	if(weldtool)
-		qdel(weldtool)
-		weldtool = null
+		QDEL_NULL(weldtool)
 	if(igniter)
-		qdel(igniter)
-		igniter = null
+		QDEL_NULL(igniter)
 	if(ptank)
-		qdel(ptank)
-		ptank = null
+		QDEL_NULL(ptank)
 	..()
 	return
 
@@ -60,7 +57,7 @@
 		if(M.is_holding_item(src))
 			location = M.loc
 	if(isturf(location)) //start a fire if possible
-		location.hotspot_expose(700, 2,surfaces=istype(loc,/turf))
+		try_hotspot_expose(700, SMALL_FLAME, 1)
 	return
 
 
@@ -77,14 +74,14 @@
 		item_state = "flamethrower_0"
 	return
 
-/obj/item/weapon/gun/projectile/flamethrower/afterattack(atom/target, mob/user, flag)
-	if (istype(target, /obj/item/weapon/storage/backpack ))
+/obj/item/weapon/gun/projectile/flamethrower/afterattack(atom/A, mob/living/user, flag, params, struggle = 0)
+	if (istype(A, /obj/item/weapon/storage/backpack ))
 		return
 
-	else if (target.loc == user.loc)
+	else if (A.loc == user.loc)
 		return
 
-	else if (target.loc == user)
+	else if (A.loc == user)
 		return
 
 	else if (locate (/obj/structure/table, src.loc))
@@ -129,7 +126,7 @@
 	B.jet_pressure = pressure * (throw_percent/100)
 	B.gas_jet = tank_gas.remove_ratio(throw_percent/100)
 
-	if(Fire(target,user))
+	if(Fire(A,user))
 		user.visible_message("<span class='danger'>[user] shoots a jet of gas from \his [src.name]!</span>","<span class='danger'>You shoot a jet of gas from your [src.name]!</span>")
 		playsound(user, 'sound/weapons/flamethrower.ogg', 50, 1)
 		src.updateUsrDialog()
@@ -138,7 +135,7 @@
 /obj/item/weapon/gun/projectile/flamethrower/attackby(obj/item/W as obj, mob/user as mob)
 	if(user.stat || user.restrained() || user.lying)
 		return
-	if(iswrench(W) && !status)//Taking this apart
+	if(W.is_wrench(user) && !status)//Taking this apart
 		var/turf/T = get_turf(src)
 		if(weldtool)
 			weldtool.forceMove(T)
@@ -149,11 +146,11 @@
 		if(ptank)
 			ptank.forceMove(T)
 			ptank = null
-		getFromPool(/obj/item/stack/rods, T)
+		new /obj/item/stack/rods(T)
 		qdel(src)
 		return
 
-	if(isscrewdriver(W) && igniter && !lit)
+	if(W.is_screwdriver(user) && igniter && !lit)
 		status = !status
 		to_chat(user, "<span class='notice'>[igniter] is now [status ? "secured" : "unsecured"]!</span>")
 		update_icon()
@@ -201,7 +198,7 @@
 	if(window_open)
 		user.set_machine(src)
 		var/dat = text("<TT><B>Flamethrower (<A HREF='?src=\ref[src];light=1'>[lit ? "<font color='red'>Lit</font>" : "Unlit"]</a>)</B><BR>\n Tank Pressure: [ptank ? "[ptank.air_contents.return_pressure()]" : "No tank loaded."]<BR>\nPercentage to throw: <A HREF='?src=\ref[src];amount=-100'>-</A> <A HREF='?src=\ref[src];amount=-10'>-</A> <A HREF='?src=\ref[src];amount=-1'>-</A> [throw_percent] <A HREF='?src=\ref[src];amount=1'>+</A> <A HREF='?src=\ref[src];amount=10'>+</A> <A HREF='?src=\ref[src];amount=100'>+</A><BR>\n<A HREF='?src=\ref[src];remove=1'>Remove plasmatank</A> - <A HREF='?src=\ref[src];close=1'>Close</A></TT>")
-		user << browse(dat, "window=flamethrower;size=600x300")
+		user << browse(HTML_SKELETON(dat), "window=flamethrower;size=600x300")
 		onclose(user, "flamethrower", src)
 
 /obj/item/weapon/gun/projectile/flamethrower/Topic(href,href_list[])
@@ -239,9 +236,14 @@
 		C.update_inv_hands()
 	return
 
+/obj/item/weapon/gun/projectile/flamethrower/extinguish()
+	lit = 0
+	update_icon()
+	..()
+
 /obj/item/weapon/gun/projectile/flamethrower/full/New(var/loc)
 	..()
-	weldtool = new /obj/item/weapon/weldingtool(src)
+	weldtool = new /obj/item/tool/weldingtool(src)
 	weldtool.status = 0
 	igniter = new /obj/item/device/assembly/igniter(src)
 	igniter.secured = 0

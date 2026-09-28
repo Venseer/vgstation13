@@ -1,5 +1,4 @@
 /mob/living/carbon/brain/Life()
-	set invisibility = 0
 	//set background = 1
 	if(timestopped)
 		return 0 //under effects of time magick
@@ -114,12 +113,9 @@
 	if(reagents)
 		reagents.metabolize(src)
 
-	confused = max(0, confused - 1)
-	// decrement dizziness counter, clamped to 0
-	if(resting)
-		dizziness = max(0, dizziness - 5)
-	else
-		dizziness = max(0, dizziness - 1)
+	remove_confused(1)
+	handle_dizziness()
+	handle_jitteriness()
 
 	updatehealth()
 
@@ -149,7 +145,7 @@
 				if(31 to INFINITY)
 					emp_damage = 30//Let's not overdo it
 				if(21 to 30)//High level of EMP damage, unable to see, hear, or speak
-					eye_blind = 1
+					eye_blind = 11
 					blinded = 1
 					ear_deaf = 1
 					silent = 1
@@ -243,24 +239,16 @@
 			healths.icon_state = "health7"
 
 	update_pull_icon()
-	if (client)
 
-		if(src.eye_blind || blinded)
-			overlay_fullscreen("blind", /obj/abstract/screen/fullscreen/blind)
-		else
-			clear_fullscreen("blind")
-		if (src.disabilities & NEARSIGHTED)
-			overlay_fullscreen("impaired", /obj/abstract/screen/fullscreen/impaired)
-		else
-			clear_fullscreen("impaired")
-		if (src.eye_blurry)
-			overlay_fullscreen("blurry", /obj/abstract/screen/fullscreen/blurry)
-		else
-			clear_fullscreen("blurry")
-		if (src.druggy)
-			overlay_fullscreen("high", /obj/abstract/screen/fullscreen/high)
-		else
-			clear_fullscreen("high")
+	if (client)
+		//not like it'd make sense to have those enabled on a brain
+		if (perception_filters.enabled_filters & P_FILTER_IMPAIRED_VISION)
+			disable_nearsightedness()
+
+		if (perception_filters.enabled_filters & P_FILTER_BLURRY_VISION)
+			disable_blurriness()
+
+		disable_druggy_overlays()//although...
 
 	if (stat != 2)
 		if (machine)

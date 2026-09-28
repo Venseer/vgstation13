@@ -3,6 +3,9 @@
 	var/time_failed = 0
 	var/obj/machinery/message_server/useMS
 
+/datum/event/pda_spam/can_start()
+	return 50
+
 /datum/event/pda_spam/setup()
 	time_failed = world.time
 	for(var/obj/machinery/message_server/MS in message_servers)
@@ -24,12 +27,7 @@
 		if(prob(2))
 			// /obj/machinery/message_server/proc/send_pda_message(var/recipient = "",var/sender = "",var/message = "")
 			var/obj/item/device/pda/P
-			var/list/viables = list()
-			for(var/obj/item/device/pda/check_pda in sortNames(PDAs))
-				if(!check_pda.owner||check_pda.toff||check_pda == src||check_pda.hidden)
-					continue
-				viables.Add(check_pda)
-
+			var/list/viables = get_viewable_pdas()
 			if(!viables.len)
 				return
 			P = pick(viables)
@@ -57,11 +55,11 @@
 				if(3)
 					sender = pick("Galactic Payments Association", "Better Business Bureau", "Tau Ceti E-Payments", "Nanotrasen Finance Department", "Luxury Replicas")
 					message = pick("Luxury watches for Blowout sale prices!", \
-					"Watches, Jewelry & Accessories, Bags & Wallets !", \
+					"Watches, Jewelry & Accessories, Bags & Wallets!", \
 					"Deposit 100$ and get 300$ totally free!", \
 					" 100K NT.|WOWGOLD �nly $89            <HOT>", \
 					"We have been filed with a complaint from one of your customers in respect of their business relations with you.", \
-					"We kindly ask you to open the COMPLAINT REPORT (attached) to reply on this complaint..")
+					"We kindly ask you to open the COMPLAINT REPORT (attached) to reply on this complaint.")
 				if(4)
 					sender = pick("Buy Dr. Maxman", "Having dysfuctional troubles?")
 					message = pick("DR MAXMAN: REAL Doctors, REAL Science, REAL Results!", \
@@ -75,12 +73,12 @@
 					"We are happy to inform you that due to the delay, we have been instructed to IMMEDIATELY deposit all funds into your account", \
 					"Dear fund beneficiary, We have please to inform you that overdue funds payment has finally been approved and released for payment", \
 					"Due to my lack of agents I require an off-world financial account to immediately deposit the sum of 1 POINT FIVE MILLION credits.", \
-					"Greetings sir, I regretfully to inform you that as I lay dying here due to my lack ofheirs I have chosen you to recieve the full sum of my lifetime savings of 1.5 billion credits")
+					"Greetings sir, I regretfully to inform you that as I lay dying here due to my lack ofheirs I have chosen you to receive the full sum of my lifetime savings of 1.5 billion credits")
 				if(6)
 					sender = pick("Nanotrasen Morale Divison", "Feeling Lonely?", "Bored?", "www.wetskrell.nt")
 					message = pick("The Nanotrasen Morale Division wishes to provide you with quality entertainment sites.", \
 					"WetSkrell.nt is a xenophillic website endorsed by NT for the use of male crewmembers among it's many stations and outposts.", \
-					"Wetskrell.nt only provides the higest quality of male entertaiment to Nanotrasen Employees.", \
+					"Wetskrell.nt only provides the highest quality of male entertaiment to Nanotrasen Employees.", \
 					"Simply enter your Nanotrasen Bank account system number and pin. With three easy steps this service could be yours!")
 				if(7)
 					sender = pick("You have won free tickets!","Click here to claim your prize!","You are the 1000th vistor!","You are our lucky grand prize winner!")
@@ -106,14 +104,17 @@
 					if(ai.aiPDA != P && ai.aiPDA != src)
 						ai.show_message("<i>Intercepted message from <b>[sender]</b></i> (Unknown) <i>to <b>[P:owner]</b>: [message]</i>")
 
-			P.tnote += "<i><b>&larr; From [sender] (Unknown):</b></i><br>[message]<br>"
+			var/datum/pda_app/messenger/message_app = locate(/datum/pda_app/messenger) in P.applications
+			if(message_app) //If no messenger app these get ignored, lucky
+				message_app.tnote["msg_id"] = "<i><b>&larr; From [sender] (Unknown):</b></i><br>[message]<br>"
+				msg_id++
 
 			if(!filter_app || (filter_app.function == 0)) //Checking if the PDA has the spam filtering app installed
-				if(!P.silent)
+				if(message_app && !message_app.silent)
 					playsound(P.loc, 'sound/machines/twobeep.ogg', 50, 1)
 				for(var/mob/O in hearers(3, P.loc))
-					if(!P.silent)
-						O.show_message(text("[bicon(P)] *[P.ttone]*"))
+					if(message_app && !message_app.silent)
+						O.show_message(text("[bicon(P)] *[message_app.ttone]*"))
 			//Search for holder of the PDA.
 			var/mob/living/L = null
 			if(P.loc && isliving(P.loc))

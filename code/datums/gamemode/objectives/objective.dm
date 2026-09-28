@@ -6,10 +6,10 @@
 	var/name = ""
 
 	var/flags = 0 // Objective flags.
-
-/datum/objective/target/New(var/text,var/auto_target = TRUE, var/mob/user = null)
-	if(text)
-		explanation_text = text
+	/*
+		FREEFORM_OBJECTIVE	No display of whether the objective was accomplished or failed. A role that only has freeform objectives won't be marked as being successful or having failed.
+		FACTION_OBJECTIVE	When adding this objective using the admin panel, you'll be prompted to select a faction on which to attach the objective
+	*/
 
 /datum/objective/target/Destroy()
 	owner = null
@@ -21,8 +21,14 @@
 	Return: TRUE if succesful, FALSE otherwise
 */
 
+/datum/objective/proc/extraInfo()
+	return
+
 /datum/objective/proc/PostAppend()
 	return TRUE
+
+//1 is station, 2 is centcom
+/datum/objective/proc/ShuttleDocked(state)
 
 /datum/objective/proc/IsFulfilled()
 	if(force_success)
@@ -30,6 +36,8 @@
 	return FALSE
 
 /datum/objective/proc/feedbackText()
+
+/datum/objective/proc/format_explanation()
 
 /datum/objective_holder
 	var/list/datum/objective/objectives = list()
@@ -63,7 +71,7 @@
 		for(var/datum/objective/O in objectives)
 			var/current_completion = O.IsFulfilled()
 			dat += {"<b>Objective #[obj_count++]</b>: [O.explanation_text]
-				[admin_edit ? " - <a href='?src=\ref[M];obj_delete=\ref[O];obj_holder=\ref[src]'>(remove)</a> - <a href='?src=\ref[M];obj_completed=\ref[O];obj_holder=\ref[src]'>(toggle:[current_completion ? "<font color='green'>SUCCESS" : "<font color='red'>FAILURE" ]</font>)</a>" : ""]
+				[admin_edit ? " - <a href='?src=\ref[M];obj_delete=\ref[O];obj_holder=\ref[src]'>(remove)</a> - <a href='?src=\ref[M];obj_completed=\ref[O];obj_holder=\ref[src]'>(toggle:[current_completion ? "<font color='green'>SUCCESS</font>" : "<font color='red'>FAILURE" ]</font>)</a>" : ""]
 				<br>"}
 			if(check_success)
 				dat += {"<BR>[current_completion ? "Success" : "Failed"]"}
@@ -71,7 +79,8 @@
 		if (owner)
 			dat += "<a href='?src=\ref[M];obj_add=1;obj_holder=\ref[src]'>(add personal objective)</a> <br/>"
 		else if (faction)
+			dat += "<b> Manage faction: </b> <br/>"
 			dat += "<a href='?src=\ref[M];obj_add=1;obj_holder=\ref[src]'>(add faction objective)</a> <br/>"
-		dat += "<a href='?src=\ref[M];obj_gen=1;obj_holder=\ref[src];[faction?"obj_owner=\ref[faction]":"obj_owner=\ref[R]"]'>(generate objectives)</a> <br/>"
-		dat += "<a href='?src=\ref[M];obj_announce=1'>(annouce objectives)</a><br/>"
+		dat += "<a href='?src=\ref[M];obj_gen=1;obj_holder=\ref[src];obj_owner=[faction?"\ref[faction]":"\ref[R]"]'>(generate objectives)</a> <br/>"
+		dat += "<a href='?src=\ref[M];obj_announce=1;obj_owner=[faction?"\ref[faction]":"\ref[R]"]'>(annouce objectives)</a><br/>"
 	return dat

@@ -31,7 +31,7 @@ var/const/tk_maxrange = 15
 		..()
 		return
 
-	var/obj/item/tk_grab/O = new(src)
+	var/obj/item/tk_grab/O = new(user)
 	if(user.put_in_hands(O))
 		O.host = user
 		O.focus_object(src)
@@ -43,7 +43,7 @@ var/const/tk_maxrange = 15
 	if(user.stat || !isturf(loc))
 		return
 	if((M_TK in user.mutations) && !user.get_active_hand()) // both should already be true to get here
-		var/obj/item/tk_grab/O = new(src)
+		var/obj/item/tk_grab/O = new(user)
 		if(user.put_in_hands(O))
 			O.host = user
 			O.focus_object(src)
@@ -64,7 +64,7 @@ var/const/tk_maxrange = 15
 */
 /obj/item/tk_grab
 	name = "The Force"
-	desc = "Magic"
+	desc = "Magic!"
 	icon = 'icons/obj/magic.dmi'//Needs sprites
 	icon_state = "2"
 	flags = NO_ATTACK_MSG

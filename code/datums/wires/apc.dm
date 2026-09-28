@@ -19,7 +19,7 @@ var/const/APC_WIRE_AI_CONTROL = 8
 /datum/wires/apc/GetInteractWindow()
 	var/obj/machinery/power/apc/A = holder
 	. += ..()
-	. += text("<br>\n[(A.locked ? "The APC is locked." : "The APC is unlocked.")]<br>\n[(A.shorted ? "The APCs power has been shorted." : "The APC is working properly!")]<br>\n[(A.aidisabled ? "The 'AI control allowed' light is off." : "The 'AI control allowed' light is on.")]")
+	. += text("<br>\n[(A.locked ? "The APC is locked." : "The APC is unlocked.")]<br>\n[(A.shorted ? "The APCs power has been shorted." : "The APC is working properly!")]<br>\n[(A.stat & NOAICONTROL ? "The 'AI control allowed' light is off." : "The 'AI control allowed' light is on.")]")
 
 
 /datum/wires/apc/CanUse(var/mob/living/L)
@@ -31,7 +31,7 @@ var/const/APC_WIRE_AI_CONTROL = 8
 	return 0
 
 /datum/wires/apc/UpdatePulsed(var/index)
-
+	..()
 	var/obj/machinery/power/apc/A = holder
 
 	switch(index)
@@ -56,18 +56,17 @@ var/const/APC_WIRE_AI_CONTROL = 8
 						A.updateDialog()
 
 		if (APC_WIRE_AI_CONTROL)
-			if (A.aidisabled == 0)
-				A.aidisabled = 1
+			A.disable_AI_control(disrupt = FALSE)
 
-				spawn(10)
-					if(A && !IsIndexCut(APC_WIRE_AI_CONTROL))
-						A.aidisabled = 0
-						A.updateDialog()
+			spawn(10)
+				if(A && !IsIndexCut(APC_WIRE_AI_CONTROL))
+					A.enable_AI_control()
 
 	A.updateDialog()
 
 /datum/wires/apc/UpdateCut(var/index, var/mended, var/mob/user)
 	var/obj/machinery/power/apc/A = holder
+	..()
 	var/obj/I = user.get_active_hand()
 	switch(index)
 		if(APC_WIRE_MAIN_POWER1, APC_WIRE_MAIN_POWER2)
@@ -82,10 +81,6 @@ var/const/APC_WIRE_AI_CONTROL = 8
 
 		if(APC_WIRE_AI_CONTROL)
 
-			if(!mended)
-				if (A.aidisabled == 0)
-					A.aidisabled = 1
-			else
-				if (A.aidisabled == 1)
-					A.aidisabled = 0
+			mended ? A.enable_AI_control() : A.disable_AI_control()
+
 	A.updateDialog()

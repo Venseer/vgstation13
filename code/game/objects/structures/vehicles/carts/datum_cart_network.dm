@@ -11,6 +11,7 @@
 	for(var/obj/machinery/cart/M in members) //Edges are a subset of members
 		if(M.train_net == src)
 			M.train_net = null
+	..()
 
 /datum/train/proc/connect_train(obj/machinery/cart/base, obj/machinery/cart/connecting, mob/user)
 	if (connecting.train_net == src)
@@ -32,8 +33,7 @@
 	for(var/obj/machinery/cart/C in merged_net.members)
 		C.train_net = src
 		members += C
-	qdel(merged_net)
-	merged_net = null
+	QDEL_NULL(merged_net)
 
 /datum/train/proc/train_rebuild(obj/machinery/cart/base)
 	var/list/possible_expansions = list(base)

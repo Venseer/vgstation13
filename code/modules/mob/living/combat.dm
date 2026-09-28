@@ -9,7 +9,7 @@
 		to_chat(src, "<span class='notice'>You cannot grab \the [target], \he is buckled in!</span>")
 		return
 
-	var/obj/item/weapon/grab/G = getFromPool(/obj/item/weapon/grab, src, target)
+	var/obj/item/weapon/grab/G = new /obj/item/weapon/grab(src, target)
 	if(!G)	//the grab will delete itself in New if affecting is anchored
 		return
 
@@ -17,8 +17,8 @@
 	target.grabbed_by += G
 
 	G.synch()
-	target.LAssailant = src
 	target.grabbed_by(src)
+	target.assaulted_by(src)
 
 	playsound(loc, 'sound/weapons/thudswoosh.ogg', 50, 1, -1)
 	visible_message("<span class='warning'>[src] grabs [target] passively!</span>")
@@ -38,8 +38,7 @@
 		if(G.affecting)
 			visible_message("<span class='danger'>[src] has broken [target]'s grip on [G.affecting]!</span>")
 		spawn(1)
-			qdel(G)
-			G = null
+			QDEL_NULL(G)
 
 		. = TRUE
 
@@ -82,7 +81,7 @@
 	if(miss_sound)
 		playsound(loc, miss_sound, 25, 1, -1)
 
-	visible_message("<span class='danger'>[src] misses [target]!</span>")
+	visible_message("<span class='borange'>[src] misses [target]!</span>")
 	return TRUE
 
 /mob/living/proc/get_attack_message(mob/living/target, attack_verb)
@@ -100,6 +99,7 @@
 
 	if(!damage)
 		if(miss_unarmed_attack(target))
+			target.on_dodge(src)
 			return
 
 	var/zone = ran_zone(get_unarmed_damage_zone(target))
@@ -123,13 +123,12 @@
 		damage += sharpness
 		damage_done = target.apply_damage(damage, damage_type, affecting, armor_block)
 
-	if(target.BrainContainer)
-		target.BrainContainer.SendSignal(COMSIG_ATTACKEDBY, list("assailant"=src,"damage"=damage_done))
 	target.unarmed_attacked(src, damage, damage_type, zone)
-	after_unarmed_attack(target, damage, damage_type, affecting, armor_block)
+	after_unarmed_attack(target, damage_done, damage_type, affecting, armor_block)
+
+	INVOKE_EVENT(src, /event/unarmed_attack, "attacker" = target, "attacked" = src)
 
 	add_logs(src, target, "attacked ([damage_done]dmg)", admin = (src.ckey && target.ckey) ? TRUE : FALSE) //Only add this to the server logs if both mobs were controlled by player
-
 	return damage_done
 
 /mob/living/proc/after_unarmed_attack(mob/living/target, damage, damage_type, organ, armor)
@@ -142,3 +141,43 @@
 //Chance is multiplied by the returned value
 /mob/living/proc/knockout_chance_modifier()
 	return 0
+
+/mob/living/proc/calcTackleForce()
+	return 0
+
+/mob/living/proc/calcTackleDefense()
+	return 0
+
+/mob/living/proc/calcTackleRange()
+	return 0
+
+//Attacker accuracy will decrease the miss chance
+//Defender accuracy will increase the miss chance
+//Used in /mob/living/carbon/proc/attacked_by(), in /code/modules/mob/living/carbon/combat.dm
+/proc/get_total_accuracy_modifier(var/mob/living/carbon/attacker, var/mob/living/carbon/defender)
+	var/total_accuracy = 0
+	var/attacker_accuracy_modifier = attacker.get_attacker_accuracy_increase()
+	var/defender_accuracy_modifier = defender.get_defender_accuracy_decrease()
+	total_accuracy = total_accuracy - attacker_accuracy_modifier + defender_accuracy_modifier
+	return total_accuracy
+
+/mob/living/proc/get_attacker_accuracy_increase()
+	return 0
+
+/mob/living/proc/get_defender_accuracy_decrease()
+	return 0
+
+/mob/living/proc/attacked_by(var/obj/item/I, var/mob/living/user, var/def_zone, var/originator = null, var/crit = FALSE, var/flavor, var/force)
+	if(!I || !user)
+		return FALSE
+	switch(I.damtype)
+		if("brute")
+			take_organ_damage(force)
+			if (prob(33) && I.force) // Added blood for whacking non-humans too
+				var/turf/simulated/location = loc
+				if (istype(location))
+					location.add_blood_floor(src)
+		if("fire")
+			if (!(M_RESIST_COLD in mutations))
+				take_organ_damage(0, force)
+	return TRUE

@@ -1,3 +1,6 @@
+//how long we keep proc call results (datums and lists)
+#define PROC_RESULT_KEEP_TIME 5 MINUTES
+
 /client/proc/Debug2()
 	set category = "Debug"
 	set name = "Debug-Game"
@@ -14,7 +17,6 @@
 		log_admin("[key_name(src)] toggled debugging on.")
 
 	feedback_add_details("admin_verb","DG2") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-
 
 
 /* 21st sept 2010
@@ -34,7 +36,7 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 		return
 
 	spawn(0)
-		var/target = null
+		var/datum/target = null
 		var/targetselected = 0
 		var/lst[] // List reference
 		lst = new/list() // Make the list
@@ -67,8 +69,22 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 		if(!procname)
 			return
 
+		// absolutely not
+		if(findtextEx(trim(lowertext(procname)), "rustg"))
+			message_admins("<span class='userdanger'>[key_name_admin(src)] attempted to proc call rust-g procs ([strip_html_properly(procname)]). Inform the host <i>at once</i>.</span>")
+			log_admin("[key_name(src)] attempted to proc call rust-g procs. Inform the host at once.")
+			send2admindiscord("[key_name(src)] attempted to proc call rustg things. Inform the host at once.", TRUE)
+			return
+
+		// Do not make this a global reference. Global references can be cleared out.
+		if (istype(target, /datum/subsystem/dbcore/))
+			to_chat(usr, "<span class='red'>Never use atom proc call to inject SQL.</span>")
+			message_admins("[key_name(usr)] used atom proc call on the db controller.")
+			log_admin("[key_name(usr)] used atom proc call on the db controller.")
+			return
+
 		if(target && !hascall(target, procname))
-			to_chat(usr, "<span style='color: red;'>Error: callproc(): target has no such call [procname].</span>")
+			to_chat(usr, "<span class='red'>Error: callproc(): target has no such call [procname].</span>")
 			return
 
 		var/argnum = input("Number of arguments","Number:",0) as num|null
@@ -86,7 +102,7 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 
 		if(targetselected)
 			if(!target)
-				to_chat(usr, "<font color='red'>Error: callproc(): owner of proc no longer exists.</font>")
+				to_chat(usr, "<span class='red'>Error: callproc(): owner of proc no longer exists.</span>")
 				return
 
 			log_admin("[key_name(src)] called [target]'s [procname]() with [lst.len ? "the arguments [list2params(lst)]":"no arguments"].")
@@ -100,7 +116,7 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 			returnval = "null"
 		else if(returnval == "")
 			returnval = "\"\" (empty string)"
-		to_chat(usr, "<font color='blue'>[procname] returned: [returnval]</font>")
+		to_chat(usr, "<span class='notice'>[procname] returned: [returnval]</span>")
 		feedback_add_details("admin_verb","APC") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/callatomproc(var/datum/target as anything)
@@ -120,7 +136,8 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 			return
 
 		if(!hascall(target, procname))
-			to_chat(usr, "<span style='color: red;'>Error: callatomproc(): target has no such call [procname].</span>")
+			to_chat(usr, "<span class='red'>Error: callatomproc(): target has no such call [procname].</span>")
+			return
 
 		var/argnum = input("Number of arguments","Number:",0) as num|null
 		if(!argnum && (argnum!=0))
@@ -142,9 +159,19 @@ But you can call procs that are of type /mob/living/carbon/human/proc/ for that 
 			returnval = "null"
 		else if(returnval == "")
 			returnval = "\"\" (empty string)"
-		to_chat(usr, "<font color='blue'>[procname] returned: [returnval]</font>")
-		feedback_add_details("admin_verb","APC") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
+		var/returntext = returnval
+		if(istype(returnval, /datum))
+			returntext = "[returnval] <a href='?_src_=vars;Vars=\ref[returnval]'>\[VV\]</A>"
+			spawn(PROC_RESULT_KEEP_TIME)
+				returnval = null
+		else if(istype(returnval, /list))
+			returntext = "<a href='?_src_=vars;List=\ref[returnval]'>\[List\]</A>"
+			spawn(PROC_RESULT_KEEP_TIME)
+				returnval = null
+
+		to_chat(usr, "<span class='notice'>[procname] returned: [returntext]</span>")
+		feedback_add_details("admin_verb","APC") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/Cell()
 	set category = "Debug"
@@ -253,10 +280,11 @@ Pressure: [env.pressure]"}
 		alert("Wait until the game starts")
 		return
 	if(ishuman(M))
-		log_admin("[key_name(src)] has alienized [M.key].")
+		var/mob/living/carbon/human/H = M
+		log_admin("[key_name(src)] has alienized [H.key].")
 		spawn(10)
 			feedback_add_details("admin_verb","MKAL") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-			return M:Alienize()
+			H.Alienize()
 
 		log_admin("[key_name(usr)] made [key_name(M)] into an alien.")
 		message_admins("<span class='notice'>[key_name_admin(usr)] made [key_name(M)] into an alien.</span>", 1)
@@ -271,10 +299,12 @@ Pressure: [env.pressure]"}
 		alert("Wait until the game starts")
 		return
 	if(ishuman(M))
-		log_admin("[key_name(src)] has slimeized [M.key].")
+		var/mob/living/carbon/human/H = M
+		log_admin("[key_name(src)] has slimeized [H.key].")
 		spawn(10)
 			feedback_add_details("admin_verb","MKMET") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
-			return M:slimeize()
+			H.slimeize()
+
 		log_admin("[key_name(usr)] made [key_name(M)] into a slime.")
 		message_admins("<span class='notice'>[key_name_admin(usr)] made [key_name(M)] into a slime.</span>", 1)
 	else
@@ -374,13 +404,16 @@ Pressure: [env.pressure]"}
 */
 
 //TODO: merge the vievars version into this or something maybe mayhaps
-/client/proc/cmd_debug_del_all()
+/client/proc/cmd_debug_del_all(target as text)
 	set category = "Debug"
 	set name = "Del-All"
+	set desc = "Delete all atoms of a type. Finish path with a period to hide subtypes."
 
+	if(!istext(target))
+		return
 	// to prevent REALLY stupid deletions
-	var/blocked = list(/obj, /mob, /mob/living, /mob/living/carbon, /mob/living/carbon/human, /mob/dead, /mob/dead/observer, /mob/living/silicon, /mob/living/silicon/robot, /mob/living/silicon/ai)
-	var/hsbitem = input(usr, "Choose an object to delete.", "Delete:") as null|anything in typesof(/obj) + typesof(/mob) - blocked
+	var/blocked = list(/atom/movable/lighting_overlay, /atom/movable/border_dummy, /obj, /mob, /mob/living, /mob/living/carbon, /mob/living/carbon/human, /mob/dead, /mob/dead/observer, /mob/living/silicon, /mob/living/silicon/robot, /mob/living/silicon/ai)
+	var/hsbitem = filter_typelist_input("Choose an object to delete.", "Delete:", get_matching_types(target,/atom/movable) - blocked)
 	if(hsbitem)
 		for(var/atom/O in world)
 			if(istype(O, hsbitem))
@@ -485,7 +518,7 @@ Pressure: [env.pressure]"}
 		if(A && !(A.type in areas_with_air_alarm))
 			areas_with_air_alarm.Add(A.type)
 
-	for(var/obj/machinery/requests_console/RC in allConsoles)
+	for(var/obj/machinery/requests_console/RC in requests_consoles)
 		var/area/A = get_area(RC)
 		if(A && !(A.type in areas_with_RC))
 			areas_with_RC.Add(A.type)
@@ -495,12 +528,12 @@ Pressure: [env.pressure]"}
 		if(A && !(A.type in areas_with_light))
 			areas_with_light.Add(A.type)
 
-	for(var/obj/machinery/light_switch/LS in world)
+	for(var/obj/machinery/light_switch/LS in lightswitches)
 		var/area/A = get_area(LS)
 		if(A && !(A.type in areas_with_LS))
 			areas_with_LS.Add(A.type)
 
-	for(var/obj/item/device/radio/intercom/I in world)
+	for(var/obj/item/device/radio/intercom/I in radio_list)
 		var/area/A = get_area(I)
 		if(A && !(A.type in areas_with_intercom))
 			areas_with_intercom.Add(A.type)
@@ -518,33 +551,37 @@ Pressure: [env.pressure]"}
 	var/list/areas_without_intercom = areas_all - areas_with_intercom
 	var/list/areas_without_camera = areas_all - areas_with_camera
 
-	to_chat(world, "<b>AREAS WITHOUT AN APC:</b>")
+	var/error_str = "<h1>AREAS WITHOUT AN APC:</h1>"
 	for(var/areatype in areas_without_APC)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT AN AIR ALARM:</b>")
+	error_str += "<h1>AREAS WITHOUT AN AIR ALARM:</h1>"
 	for(var/areatype in areas_without_air_alarm)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT A REQUEST CONSOLE:</b>")
+	error_str += "<h1>AREAS WITHOUT A REQUEST CONSOLE:</h1>"
 	for(var/areatype in areas_without_RC)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT ANY LIGHTS:</b>")
+	error_str += "<h1>AREAS WITHOUT ANY LIGHTS:</h1>"
 	for(var/areatype in areas_without_light)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT A LIGHT SWITCH:</b>")
+	error_str += "<h1>AREAS WITHOUT A LIGHT SWITCH:</h1>"
 	for(var/areatype in areas_without_LS)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT ANY INTERCOMS:</b>")
+	error_str += "<h1>AREAS WITHOUT ANY INTERCOMS:</h1>"
 	for(var/areatype in areas_without_intercom)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
 
-	to_chat(world, "<b>AREAS WITHOUT ANY CAMERAS:</b>")
+	error_str += "<h1>AREAS WITHOUT ANY CAMERAS:</h1>"
 	for(var/areatype in areas_without_camera)
-		to_chat(world, "* [areatype]")
+		error_str += "* [areatype]<br>"
+
+	var/datum/browser/popup = new(usr, "Area issues", usr.name, 300, 400)
+	popup.set_content(error_str)
+	popup.open()
 
 /client/proc/startSinglo()
 	set category = "Debug"
@@ -625,7 +662,7 @@ Pressure: [env.pressure]"}
 		var/obj/machinery/power/battery/smes/infinite/magic = new(T)
 		// Manually set up our powernets since stupid seems to reign in the powernet code.
 		magic.connect_to_network()
-		magic.output=200000 // AKA rape
+		magic.outputlevel=200000 // AKA rape
 		magic.online=1
 
 //	to_chat(world, "<b>LET THERE BE JUICE</b>")
@@ -690,28 +727,13 @@ Pressure: [env.pressure]"}
 	else
 		alert("Invalid mob")
 
-
-/client/proc/cmd_admin_dump_instances()
-	set category = "Debug"
-	set name = "Dump Instance Counts"
-	set desc = "MEMORY PROFILING IS TOO HIGH TECH"
-	var/date_string = time2text(world.realtime, "YYYY-MM-DD")
-	var/F=file("data/logs/profiling/[date_string]_instances.csv")
-	fdel(F)
-	F << "Types,Number of Instances"
-	for(var/key in type_instances)
-		F << "[key],[type_instances[key]]"
-
-	to_chat(usr, "<span class='notice'>Dumped to [F]</span>")
-
 /client/proc/cmd_admin_find_bad_blood_tracks()
 	set category = "Debug"
 	set name = "Find broken blood tracks"
 	if(!holder)
 		return
 	message_admins("[src] used find broken blood tracks")
-	var/date_string = time2text(world.realtime, "YYYY-MM-DD")
-	var/F =file("data/logs/profiling/[date_string]_broken_blood.log")
+	var/F = file("data/logs/profiling/[date_string]_broken_blood.log")
 	fdel(F)
 	for(var/obj/effect/decal/cleanable/blood/tracks/T in blood_list)
 		if(!T.loc)
@@ -738,8 +760,7 @@ Pressure: [env.pressure]"}
 	if(!machines.len && !power_machines.len)
 		to_chat(usr, "Machines has no length!")
 		return
-	var/date_string = time2text(world.realtime, "YYYY-MM-DD")
-	var/F =file("data/logs/profiling/[date_string]_machine_instances.csv")
+	var/F = file("data/logs/profiling/[date_string]_machine_instances.csv")
 	fdel(F)
 	F << "type,count"
 	var/list/machineinstances = list()
@@ -752,7 +773,7 @@ Pressure: [env.pressure]"}
 		F << "[T],[count]"
 
 	to_chat(usr, "<span class='notice'>Dumped to [F].</span>")
-	F =file("data/logs/profiling/[date_string]_power_machine_instances.csv")
+	F = file("data/logs/profiling/[date_string]_power_machine_instances.csv")
 	fdel(F)
 	F << "type,count"
 	machineinstances.len = 0
@@ -771,8 +792,7 @@ Pressure: [env.pressure]"}
 	set category = "Debug"
 	set name = "Dump Del Profiling"
 
-	var/date_string = time2text(world.realtime, "YYYY-MM-DD")
-	var/F =file("data/logs/profiling/[date_string]_del_profiling.csv")
+	var/F = file("data/logs/profiling/[date_string]_del_profiling.csv")
 	fdel(F)
 	F << "type,deletes"
 	for(var/typepath in del_profiling)
@@ -780,7 +800,7 @@ Pressure: [env.pressure]"}
 		F << "[typepath],[ns]"
 
 	to_chat(usr, "<span class='notice'>Dumped to [F].</span>")
-	F =file("data/logs/profiling/[date_string]_gdel_profiling.csv")
+	F = file("data/logs/profiling/[date_string]_gdel_profiling.csv")
 	fdel(F)
 	F << "type,soft deletes"
 	for(var/typepath in gdel_profiling)
@@ -789,7 +809,7 @@ Pressure: [env.pressure]"}
 
 	to_chat(usr, "<span class='notice'>Dumped to [F].</span>")
 
-	F =file("data/logs/profiling/[date_string]_ghdel_profiling.csv")
+	F = file("data/logs/profiling/[date_string]_ghdel_profiling.csv")
 	fdel(F)
 	F << "type,hard deletes"
 	for(var/typepath in ghdel_profiling)
@@ -840,21 +860,31 @@ var/global/blood_virus_spreading_disabled = 0
 	config.world_style_config = world_style
 	message_admins("The style sheet has been reset by [src.ckey]")
 
-/client/proc/cmd_admin_cluwneize(var/mob/M in mob_list)
-	set category = "Fun"
-	set name = "Make Cluwne"
+/client/proc/cmd_admin_cluwneize(var/mob/M)
 	if(!ticker)
 		alert("Wait until the game starts")
 		return
 	if(ishuman(M))
-		return M:Cluwneize()
 		message_admins("<span class='notice'>[key_name_admin(usr)] made [key_name(M)] into a cluwne.</span>", 1)
 		feedback_add_details("admin_verb","MKCLU") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 		log_admin("[key_name(src)] has cluwne-ified [M.key].")
+		return M.Cluwneize()
 	else
 		alert("Invalid mob, needs to be a human.")
 
-client/proc/make_invulnerable(var/mob/M in mob_list)
+/client/proc/cmd_admin_boxify(var/mob/living/carbon/M)
+	if(!ticker)
+		alert("Wait until the game starts")
+		return
+	if(iscarbon(M))
+		message_admins("<span class='notice'>[key_name_admin(usr)] made [key_name(M)] into a cult coffer.</span>", 1)
+		feedback_add_details("admin_verb","MKBOX") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+		log_admin("[key_name(src)] has box-ified [M.key].")
+		return M.boxify()
+	else
+		alert("Invalid mob, needs to be a human.")
+
+/client/proc/make_invulnerable(var/mob/M in mob_list)
 	set name = "Toggle Invulnerability"
 	set desc = "Make the target atom invulnerable to all form of damage."
 	set category = "Fun"
@@ -876,7 +906,7 @@ client/proc/make_invulnerable(var/mob/M in mob_list)
 	log_admin("[ckey(key)]/([mob]) has toggled [M]'s invulnerability [(M.flags & INVULNERABLE) ? "on" : "off"]")
 	message_admins("[ckey(key)]/([mob]) has toggled [M]'s invulnerability [(M.flags & INVULNERABLE) ? "on" : "off"]")
 
-client/proc/delete_all_adminbus()
+/client/proc/delete_all_adminbus()
 	set name = "Delete every Adminbus"
 	set desc = "When the world cannot handle them anymore."
 	set category = "Fun"
@@ -887,7 +917,7 @@ client/proc/delete_all_adminbus()
 	for(var/obj/structure/bed/chair/vehicle/adminbus/AB in world)
 		AB.Adminbus_Deletion()
 
-client/proc/delete_all_bomberman()
+/client/proc/delete_all_bomberman()
 	set name = "Remove all that Bomberman shit"
 	set desc = "4th wall ointment."
 	set category = "Fun"
@@ -943,7 +973,7 @@ client/proc/delete_all_bomberman()
 	for(var/obj/structure/powerup/O in bombermangear)
 		qdel(O)
 
-client/proc/create_bomberman_arena()
+/client/proc/create_bomberman_arena()
 	set name = "Create a Bomberman Arena"
 	set desc = "Create a customizable Bomberman-type arena."
 	set category = "Fun"
@@ -956,7 +986,7 @@ client/proc/create_bomberman_arena()
 		"15x15 (4 players)",
 		"39x23 (10 players)",
 		)
-	var/arena_type = input("What size for the arena?", "Arena Construction") in arena_sizes | null
+	var/arena_type = input("What size for the arena?", "Arena Construction") as null|anything in arena_sizes
 
 	if(!arena_type)
 		return
@@ -965,7 +995,7 @@ client/proc/create_bomberman_arena()
 	var/datum/bomberman_arena/A = new /datum/bomberman_arena(T, arena_type, src.mob)
 	arenas += A
 
-client/proc/control_bomberman_arena()
+/client/proc/control_bomberman_arena()
 	set name = "Arena Control Panel"
 	set desc = "Control or Remove an existing Bomberman-type arena."
 	set category = "Fun"
@@ -1049,7 +1079,7 @@ client/proc/control_bomberman_arena()
 
 
 
-client/proc/mob_list()
+/client/proc/mob_list()
 	set name = "show mob list"
 	set category = "Debug"
 
@@ -1068,7 +1098,7 @@ client/proc/mob_list()
 		to_chat(usr, "Found [foundnull] null entries in the mob list, running null clearer.")
 		listclearnulls(mob_list)
 
-client/proc/check_bomb()
+/client/proc/check_bomb()
 	set name = "Check Bomb Impact"
 	set category = "Debug"
 
@@ -1137,9 +1167,9 @@ client/proc/check_bomb()
 
 /client/proc/set_teleport_pref()
 	set name = "Set Teleport-Here Preferences"
-	set category = "Debug"
+	set category = "Fun"
 
-	teleport_here_pref = alert("Do you want to teleport atoms in a flashy way or a discret way?","Teleport-Here Preferences", "Flashy","Stealthy")
+	teleport_here_pref = alert("Do you want to teleport atoms in a flashy way or a discreet way?","Teleport-Here Preferences", "Flashy","Stealthy")
 
 	switch(teleport_here_pref)
 		if("Flashy")
@@ -1147,7 +1177,7 @@ client/proc/check_bomb()
 		if("Stealthy")
 			stealthy_level = input("How long do you want the fade-in to last? (in tenth of seconds)","Stealthy Preferences") as num
 
-client/proc/cure_disease()
+/client/proc/cure_disease()
 	set name = "Cure Disease"
 	set category = "Debug"
 	if(!holder)
@@ -1187,7 +1217,7 @@ client/proc/cure_disease()
 	log_admin("[src]/([ckey(src.key)] Cured all mobs of [disease_name == "-Cure All-" ? "all diseases." : "[disease_name]"]")
 	message_admins("[src]/([ckey(src.key)] Cured all mobs of [disease_name == "-Cure All-" ? "all diseases." : "[disease_name]"]")
 
-client/proc/check_convertables()
+/client/proc/check_convertables()
 	set name = "Check Convertables (Cult v2.0)"
 	set category = "Debug"
 	if(!holder || !ticker || !ticker.mode)
@@ -1210,6 +1240,28 @@ client/proc/check_convertables()
 
 	to_chat(usr, dat)
 
+
+/client/proc/toggle_convertibles()
+	set name = "Toggle Convertibles HUD (Cult 3.0+)"
+	set category = "Debug"
+	set desc = "Displays a marker over crew members showing their propension to get converted."
+
+	var/mob/dead/observer/adminmob = mob
+	if (!isobserver(adminmob))
+		alert("Only observers can use this functionality")
+		return
+
+	var/datum/visioneffect/cult_conversion/detected_hud = null
+	for(var/datum/visioneffect/cult_conversion/H in adminmob.huds)
+		detected_hud = H
+		break
+	if(detected_hud)
+		adminmob.remove_hud(detected_hud)
+		to_chat(src, "<span class='notice'><B>Conversion HUD disabled.</B></span>")
+	else
+		adminmob.apply_hud(new /datum/visioneffect/cult_conversion)
+		to_chat(src, "<span class='notice'><B>Conversion HUD enabled.</B></span>")
+
 /client/proc/spawn_datum(var/object as text)
 	set category = "Debug"
 	set desc = "(datum path) Spawn a datum (turfs NOT supported)"
@@ -1229,19 +1281,26 @@ client/proc/check_convertables()
 		object = copytext(object, 1, variables_start)
 
 
-	var/list/matches = get_matching_types(object, /datum) - typesof(/turf, /area) //Exclude non-movable atoms
-
-	if(matches.len == 0)
-		to_chat(usr, "Unable to find any matches.")
+	//Exclude non-movable atoms
+	var/chosen = filter_typelist_input("Select a datum type", "Spawn Datum", get_matching_types(object, /datum) - typesof(/turf, /area, /datum/admins))
+	if(!chosen)
 		return
 
-	var/chosen
-	if(matches.len == 1)
-		chosen = matches[1]
+	/*
+	var/list/lst = list()
+	var/argnum = input("Number of arguments","Number:",0) as num|null
+	if(!argnum && (argnum!=0))
+		return
+
+	for(var/i = 1 to argnum) // Lists indexed from 1 forwards in byond
+		var/data = variable_set(src)
+		lst += data
+
+	if (argnum > 0)
+		holder.marked_datum = new chosen(arglist(lst))
 	else
-		chosen = input("Select a datum type", "Spawn Datum", matches[1]) as null|anything in matches
-		if(!chosen)
-			return
+		holder.marked_datum = new chosen
+	*/
 
 	holder.marked_datum = new chosen
 
@@ -1250,7 +1309,7 @@ client/proc/check_convertables()
 	feedback_add_details("admin_verb","SD") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 	if(varchanges.len)
-		_preloader = new(varchanges, chosen)
+		_preloader.setup(varchanges, chosen)
 		//_preloaded calls load() automatically on atom/New(). However, this proc can also create datums, which don't do that - call load() manually
 		_preloader.load(holder.marked_datum)
 
@@ -1274,11 +1333,7 @@ client/proc/check_convertables()
 
 	var/turf/epicenter = get_turf(usr)
 	var/max_range = input("Set the max range") as num
-	var/inward = alert("Which way?","Spiral Block", "Inward","Outward")
-	if(inward == "Inward")
-		spiral_block(epicenter,max_range,1,1)
-	else
-		spiral_block(epicenter,max_range,0,1)
+	spiral_block(epicenter,max_range,1)
 
 /client/proc/check_striketeams()
 	set name = "Check StrikeTeams"
@@ -1302,6 +1357,18 @@ client/proc/check_convertables()
 
 	error_cache.show_to(src)
 
+/client/proc/add_centcomm_order()
+	set category = "Fun"
+	set name = "Central Command Request"
+	set desc = "Send a Central Command Request"
+
+	if (!check_rights(R_FUN))
+		return
+
+	var/ordertype = input("Select a Request.","Central Command Request",1) as null|anything in (subtypesof(/datum/centcomm_order) - /datum/centcomm_order/per_unit)
+	if (ordertype)
+		SSsupply_shuttle.add_centcomm_order(new ordertype)
+
 /client/proc/emergency_shuttle_panel()
 	set name = "Emergency Shuttle Panel"
 	set category = "Debug"
@@ -1309,14 +1376,75 @@ client/proc/check_convertables()
 		holder.emergency_shuttle_panel()
 		log_admin("[key_name(usr)] checked the Emergency Shuttle Panel.")
 	feedback_add_details("admin_verb","ESP")
-	return
+
+/client/proc/bee_count()
+	set category = "Debug"
+	set name = "Check Bee Count"
+	set desc = "Check how many bee datums or mobs currently exist in the world."
+
+	var/contained_bees = 0
+	for (var/obj/machinery/apiary/A in apiaries_list)
+		contained_bees += A.worker_bees_inside
+		contained_bees += A.queen_bees_inside
+	to_chat(usr, "<span class='notice'>There are currently [bees_count] bee datums, spread between [bee_mobs_count] swarms (or possibly held in bug nets).</span>")
+	to_chat(usr, "<span class='notice'>Additionally, there are [contained_bees] bees currently contained within apiaries.</span>")
+
+
+/client/proc/diseases_panel()
+	set name = "Diseases Panel"
+	set category = "Admin"
+	if(holder)
+		holder.diseases_panel()
+		log_admin("[key_name(usr)] checked the Diseases Panel.")
+	feedback_add_details("admin_verb","DIS")
+
+/client/proc/artifacts_panel()
+	set name = "Artifacts Panel"
+	set category = "Admin"
+	if(holder)
+		holder.artifacts_panel()
+		log_admin("[key_name(usr)] checked the Artifacts Panel.")
+	feedback_add_details("admin_verb","ART")
+
+/client/proc/body_archive_panel()
+	set name = "Body Archive Panel"
+	set category = "Admin"
+	if(holder)
+		holder.body_archive_panel()
+		log_admin("[key_name(usr)] checked the Body Archive Panel.")
+	feedback_add_details("admin_verb","BAP")
+
+/client/proc/climate_panel()
+	set name = "Climate Panel"
+	set category = "Admin"
+	if(holder)
+		holder.climate_panel()
+		log_admin("[key_name(usr)] checked the Climate Panel.")
+	feedback_add_details("admin_verb","CLI")
+
+/client/proc/admin_arena_panel()
+	set name = "Admin Arena Panel"
+	set category = "Admin"
+	if(holder)
+		holder.admin_arena_panel()
+		log_admin("[key_name(usr)] checked the Admin Arena Panel.")
+	feedback_add_details("admin_verb","AAP")
+
+/client/proc/level_manager()
+	set name = "Level Manager"
+	set category = "Admin"
+	if(holder)
+		holder.level_manager()
+		log_admin("[key_name(usr)] checked the Level Manager.")
+	feedback_add_details("admin_verb","LVM")
+
 
 /client/proc/start_line_profiling()
 	set category = "Profile"
 	set name = "Start line profiling"
 	set desc = "Starts tracking line by line profiling for code lines that support it"
 
-	PROFILE_START
+	LINE_PROFILE_START
 
 	message_admins("<span class='adminnotice'>[key_name_admin(src)] started line by line profiling.</span>")
 	feedback_add_details("admin_verb","Start line profiling")
@@ -1327,7 +1455,7 @@ client/proc/check_convertables()
 	set name = "Stop line profiling"
 	set desc = "Stops tracking line by line profiling for code lines that support it"
 
-	PROFILE_STOP
+	LINE_PROFILE_STOP
 
 	message_admins("<span class='adminnotice'>[key_name_admin(src)] stopped line by line profiling.</span>")
 	feedback_add_details("admin_verb","Stop line profiling")
@@ -1348,3 +1476,142 @@ client/proc/check_convertables()
 		return
 	sort = sortlist[sort]
 	profile_show(src, sort)
+
+var/blend_calling = FALSE
+var/obj/blend_test = null
+
+/client/proc/spam_blend_calls()
+	set category = "Debug"
+	set name = "Spam Blend Calls"
+	set desc = "There is no testing like stress testing."
+
+	if (!check_rights(R_DEBUG))
+		return
+	blend_calling = FALSE
+	var/blendlist = list(
+		"ICON_ADD"		=	ICON_ADD,
+		"ICON_SUBTRACT"	=	ICON_SUBTRACT,
+		"ICON_MULTIPLY"	=	ICON_MULTIPLY,
+		"ICON_OVERLAY"		=	ICON_OVERLAY,
+		"ICON_AND"	=	ICON_AND,
+		"ICON_OR"	=	ICON_OR,
+		"ICON_UNDERLAY"	=	ICON_UNDERLAY
+	)
+	var/blendmode = input(src, "Blend type?", "Blend Type", "ICON_ADD") as null|anything in blendlist
+	if (!blendmode)
+		return
+	blend_calling = TRUE
+	if (!blend_test || blend_test.gcDestroyed)
+		blend_test = new (mob.loc)
+	blend_test.loc = mob.loc
+	message_admins("<span class='adminnotice'>[key_name_admin(src)] started spamming icon.Blend() calls with blend mode [blendmode].</span>")
+	feedback_add_details("admin_verb","Start blend spamming")
+	log_admin("[key_name(src)] started blend spamming.")
+	blendmode = blendlist[blendmode]
+	spawn()
+		while(blend_calling)
+			var/icon/I = icon('icons/debug.dmi',"first")
+			var/icon/J = icon('icons/debug.dmi',"second")
+			I.Blend(J,blendmode,rand(-3,3),rand(-3,3))
+			blend_test.icon = I
+			sleep(1)
+		message_admins("<span class='adminnotice'>icon.Blend() spamming ended.</span>")
+		feedback_add_details("admin_verb","Finish blend spamming")
+		log_admin("[key_name(src)] finished blend spamming.")
+
+/client/proc/edit_motd()
+	set category = "Server"
+	set name = "Edit MotD"
+	set desc = "Appears to players upon lobby entry."
+
+	if(!check_rights(R_SERVER))
+		return
+	if(alert("You are about to edit the MotD, which is displayed to anyone who enters the lobby. All changes persist across rounds. Continue?", "Warning", "Yes", "Cancel") == "Cancel")
+		return
+
+	var/oldmotd = return_file_text("config/motd.txt")
+	message_admins("[key_name(usr)] has begun editing the message of the day. An archive of what the MotD was beforehand has been printed to the server logs in case a mistake was made.")
+	log_admin("[key_name(usr)] has begun editing the message of the day. An archive of the old MotD is as follows: [oldmotd]")
+
+	var/newmotd = input(usr, "These changes will be persistent across shifts!", "Edit MotD", "[oldmotd]") as message|null
+	if(!newmotd)
+		return
+	fdel("config/motd.txt")
+	text2file(newmotd, "config/motd.txt")
+	join_motd = newmotd	//Sets the current round's motd
+	log_admin("[key_name(usr)] has edited the message of the day. The new text is as follows: [newmotd].")
+	feedback_add_details("admin_verb", "Edit MotD")
+	message_admins("[key_name(usr)] has edited the message of the day. Check the game log for the full text.")
+
+/client/proc/force_next_map()
+	set category = "Debug"
+	set name = "Force Next Map"
+	set desc = "Sets the next map and skips the map vote."
+
+	if(!check_rights(R_FUN))
+		return
+
+	var/list/all_maps = get_all_maps()
+	all_maps += "RESET"
+	to_chat(usr,"<span class='warning'>This needs to be done BEFORE a map vote is called otherwise use the vote rigging option!</div>")
+	var/rigged_choice = input(usr, "Pick a map.") as null|anything in all_maps
+	if(!rigged_choice)
+		return
+	if(rigged_choice == "RESET")
+		log_admin("[key_name(usr)] has reset the forced map.")
+		feedback_add_details("admin_verb", "Force Next Map")
+		message_admins("[key_name(usr)] has reset the forced map.")
+		vote.forced_map = null
+		return
+	log_admin("[key_name(usr)] has forced the next map. The new map is: [rigged_choice].")
+	feedback_add_details("admin_verb", "Force Next Map")
+	message_admins("[key_name(usr)] has forced the next map. The new map is: [rigged_choice].")
+
+	vote.forced_map = rigged_choice
+
+/client/proc/check_for_unconnected_atmos()
+	set category = "Debug"
+	set name = "Check Vent/Scrubber Connections"
+	set desc = "Outputs a list of all vents and scrubbers that aren't connected to the main station's pipe network."
+
+	if(!check_rights(R_DEBUG))
+		return
+
+	var/search_entire_world = 0
+	if(alert(usr, "Search the entire world, or just the station z-level?", "Specify scope of search", "Entire world!", "Just the station.") == "Entire world!")
+		search_entire_world = 1
+
+/* If search_entire_world is set, search all pumps and scrubbers. Otherwise, only search pumps and scrubbers on the map's designated main station z-level. */
+	var/list/unconnected_atmos = list()
+	for(var/obj/machinery/atmospherics/unary/vent_pump/V in atmos_machines)
+		if(istype(V) && (search_entire_world ? search_entire_world : V.z == map.zMainStation) && !V.node1)
+			unconnected_atmos.Add(V)
+	for(var/obj/machinery/atmospherics/unary/vent_scrubber/S in atmos_machines)
+		if(istype(S) && (search_entire_world ? search_entire_world : S.z == map.zMainStation) && !S.node1)
+			unconnected_atmos.Add(S)
+
+	var/output = ""
+	for(var/atom/found in unconnected_atmos)
+		output += "<a href='?_src_=vars;Vars=\ref[found]'>\ref[found]</a>"
+		if(found.loc && found.loc.x)
+			output += ": [found] in [found.loc] at ([found.loc.x], [found.loc.y], [found.loc.z])<br>"
+		else if (found.x)
+			output += ": [found] at ([found.x], [found.y], [found.z])<br>"
+		else
+			output += ": [found] at (no loc found (nullspace?))<br>"
+
+	if(!output)
+		output = "No unconnected vents/scrubbers found."
+
+	usr << browse (output, "window=unconnected-atmos-search")
+
+/client/proc/rig_crew_score()
+	set category = "Debug"
+	set name = "Rig crew score"
+	set desc = "Manually adjust round-end crew score."
+
+	if(!check_rights(R_FUN))
+		return
+
+	score.badmin_score = input(usr,"What score do you want?","Badmin score",score.badmin_score) as num
+	score.badmin_override = alert(usr,"Override or add to the round-end score?","Badmin score","Override","Add") == "Override"

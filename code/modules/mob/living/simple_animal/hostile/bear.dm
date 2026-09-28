@@ -27,6 +27,10 @@
 	melee_damage_upper = 30
 	size = SIZE_BIG
 	speak_override = TRUE
+	treadmill_speed = 2
+	var/obj/item/weapon/reagent_containers/food/snacks/burger = null
+	var/hates_fast_food = FALSE //no burgers for me.
+	var/failed_geometry_class=FALSE //what you don't know can't hurt you
 
 	//Space bears aren't affected by atmos.
 	min_oxy = 0
@@ -41,6 +45,18 @@
 	var/stance_step = 0
 
 	faction = "russian"
+	avoids_poisonous=TRUE
+
+
+/mob/living/simple_animal/hostile/bear/Destroy()
+	if(burger)
+		var/turf/T = get_turf(src)
+		if (T)
+			burger.forceMove(T)
+		else
+			qdel(burger)
+		burger = null
+	..()
 
 //SPACE BEARS! SQUEEEEEEEE~     OW! FUCK! IT BIT MY HAND OFF!!
 /mob/living/simple_animal/hostile/bear/Hudson
@@ -63,9 +79,27 @@
 	melee_damage_lower=10
 	melee_damage_upper=35
 
+/mob/living/simple_animal/hostile/bear/panda/get_butchering_products()
+	return list(/datum/butchering_product/skin/bear/panda, /datum/butchering_product/teeth/lots)
+
+/mob/living/simple_animal/hostile/bear/brownbear
+	name = "brown bear"
+	desc = "Does it shit in the woods?"
+	icon_state = "brownbear"
+	icon_living = "brownbear"
+	icon_dead = "brownbear_dead"
+	default_icon_floor = "brownbear"
+	default_icon_space = "brownbear"
+
+	faction = "forest"
+
+/mob/living/simple_animal/hostile/bear/brownbear/get_butchering_products()
+	return list(/datum/butchering_product/skin/bear/brownbear, /datum/butchering_product/teeth/lots)
+
+
 /mob/living/simple_animal/hostile/bear/polarbear
 	name = "space polar bear"
-	desc = "You would think that space would be considered cold enough for regular space bears, well these are adapted for colder climates"
+	desc = "You'd think that space would be considered cold enough for regular space bears, well these are adapted for even colder climates!"
 	icon_state = "polarbear"
 	icon_living = "polarbear"
 	icon_dead = "polarbear_dead"
@@ -75,6 +109,36 @@
 	health = 75
 	melee_damage_lower=10
 	melee_damage_upper=40
+	faction = "mining"
+
+/mob/living/simple_animal/hostile/bear/polarbear/get_butchering_products()
+	return list(/datum/butchering_product/skin/bear/polarbear, /datum/butchering_product/teeth/lots)
+
+/mob/living/simple_animal/hostile/bear/spare
+	name = "spare bear"
+	desc = "This bear has adapted a form of camouflage from generations of natural selection in which the omnivores scavenge from space stations and their dumpsters. Its golden skin fools card scanners into opening the door."
+	health = 300
+	maxHealth = 300
+	melee_damage_lower = 15
+	melee_damage_upper = 35
+	icon_state = "sparebear"
+	icon_dead = "sparebear_dead"
+	default_icon_floor = "sparebear"
+	default_icon_space = "sparebear"
+
+/mob/living/simple_animal/hostile/bear/spare/getarmor(var/def_zone, var/type)
+	if(type == "laser")
+		return 80
+	return 10
+
+/mob/living/simple_animal/hostile/bear/spare/getarmorabsorb()
+	return 25
+
+/mob/living/simple_animal/hostile/bear/spare/GetAccess()
+	return get_all_accesses()
+
+/mob/living/simple_animal/hostile/bear/spare/get_butchering_products()
+	return list(/datum/butchering_product/skin/bear/spare, /datum/butchering_product/teeth/lots)
 
 /mob/living/simple_animal/hostile/bear/Move(NewLoc, Dir = 0, step_x = 0, step_y = 0, glide_size_override = 0)
 	..()
@@ -84,6 +148,8 @@
 		else
 			icon_state = default_icon_floor
 
+/mob/living/simple_animal/hostile/bear/get_butchering_products()
+	return list(/datum/butchering_product/skin/bear, /datum/butchering_product/teeth/lots)
 
 /mob/living/simple_animal/hostile/bear/Life()
 	if(timestopped)
@@ -98,7 +164,7 @@
 			stop_automated_movement = 1
 			stance_step++
 			if(stance_step >= 10) //rests for 10 ticks
-				if(target && target in ListTargets())
+				if(target && (target in ListTargets()))
 					stance = HOSTILE_STANCE_ATTACK //If the mob he was chasing is still nearby, resume the attack, otherwise go idle.
 				else
 					stance = HOSTILE_STANCE_IDLE
@@ -106,7 +172,7 @@
 		if(HOSTILE_STANCE_ALERT)
 			stop_automated_movement = 1
 			var/found_mob = 0
-			if(target && target in ListTargets())
+			if(target && (target in ListTargets()))
 				if(CanAttack(target))
 					stance_step = max(0, stance_step) //If we have not seen a mob in a while, the stance_step will be negative, we need to reset it to 0 as soon as we see a mob again.
 					stance_step++
@@ -154,9 +220,10 @@
 
 /mob/living/simple_animal/hostile/bear/CanAttack(var/atom/the_target)
 	. = ..()
-	for(var/obj/effect/decal/cleanable/crayon/C in get_turf(the_target))
-		if(!C.on_wall && C.name == "o") //drawing a circle around yourself is the only way to ward off space bears!
-			return 0
+	if(!failed_geometry_class)
+		for(var/obj/effect/decal/cleanable/crayon/C in get_turf(the_target))
+			if(!C.on_wall && C.name == "o") //drawing a circle around yourself is the only way to ward off space bears!
+				return 0
 
 /mob/living/simple_animal/hostile/bear/FindTarget()
 	. = ..()
@@ -169,3 +236,65 @@
 
 /mob/living/simple_animal/hostile/bear/attack_icon()
 	return image(icon = 'icons/mob/attackanims.dmi', icon_state = "bear")
+
+/mob/living/simple_animal/hostile/bear/hitby(var/atom/movable/AM)
+	. = ..()
+	if(.)
+		return
+	if(istype(AM,/obj/item/weapon/reagent_containers/food/snacks) && AM.icon_state == "hburger" && !hates_fast_food)
+		if (burger)
+			burger.forceMove(get_turf(src))
+		visible_message("<span class='danger'>\The [src] catches \the [AM] mid-flight, a jovial look on its face.</span>")
+		burger = AM
+		burger.forceMove(src)
+		update_icon()
+		LostTarget()
+	else if (prob(50))
+		dropBurger()
+
+/mob/living/simple_animal/hostile/bear/adjustBruteLoss(damage)
+	if (damage>0 && prob(50))
+		dropBurger()
+	..()
+
+/mob/living/simple_animal/hostile/bear/proc/dropBurger(var/alive = TRUE)
+	if (burger)
+		burger.forceMove(get_turf(src))
+		visible_message("<span class='danger'>\The [src] loses hold of \the [burger][alive ? ", a mean look on its face" : "as it breaths its last."].</span>")
+		burger = null
+		update_icon()
+
+/mob/living/simple_animal/hostile/bear/update_icon()
+	overlays.len = 0
+	if(stat == DEAD)
+		icon_state = icon_dead
+		return
+	if (burger)
+		overlays += image(icon, "bearburger")
+	if (istype(locked_to,/obj/item/weapon/beartrap))
+		overlays += image(icon, "beartrapped")
+
+/mob/living/simple_animal/hostile/bear/death()
+	dropBurger(FALSE)
+	update_icon()
+	..()
+
+/mob/living/simple_animal/hostile/bear/is_pacified()
+	if (burger)
+		return TRUE
+	if (istype(locked_to,/obj/item/weapon/beartrap))
+		return TRUE
+	return ..()
+
+/mob/living/simple_animal/hostile/bear/beartrap_act(var/obj/item/weapon/beartrap/trap)
+	trap.trapped = 1
+	trap.trappedbear = src
+	LostTarget()
+	dir = SOUTH
+	trap.armed = 0
+	playsound(trap, 'sound/effects/snap.ogg', 60, 1)
+	trap.lock_atom(src, /datum/locking_category/beartrap)
+	adjustBruteLoss(20)
+	update_canmove()
+	update_icon()
+	return TRUE

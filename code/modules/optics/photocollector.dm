@@ -32,7 +32,7 @@ var/list/obj/machinery/power/photocollector/photocollector_list = list()
 
 /obj/machinery/power/photocollector/process()
 	last_power = 0
-	if(!anchored || beams.len == 0)
+	if(!anchored || !beams || !beams.len)
 		return
 	var/avail_energy = 0
 	for(var/obj/effect/beam/emitter/EB in beams)
@@ -43,7 +43,7 @@ var/list/obj/machinery/power/photocollector/photocollector_list = list()
 		add_avail(power_produced)
 		last_power = power_produced
 
-/obj/machinery/power/photocollector/wrenchAnchor(var/mob/user)
+/obj/machinery/power/photocollector/wrenchAnchor(var/mob/user, var/obj/item/I)
 	. = ..()
 	if(!.)
 		return
@@ -64,7 +64,7 @@ var/list/obj/machinery/power/photocollector/photocollector_list = list()
 
 /obj/machinery/power/photocollector/proc/update_icons()
 	overlays.len = 0
-	if(stat & (NOPOWER|BROKEN))
+	if(stat & (FORCEDISABLE | NOPOWER|BROKEN))
 		return
 	if(anchored && beams.len>0)
 		overlays += image(icon = icon, icon_state = "lasergen-on")

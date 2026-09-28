@@ -32,8 +32,7 @@
 
 /obj/item/weapon/blunderbuss/Destroy()
 	if(loaded_item)
-		qdel(loaded_item)
-		loaded_item = null
+		QDEL_NULL(loaded_item)
 	..()
 
 /obj/item/weapon/blunderbuss/proc/update_verbs()
@@ -67,7 +66,6 @@
 	if(!loaded_item)
 		return
 	else
-		loaded_item.forceMove(usr.loc)
 		usr.put_in_hands(loaded_item)
 		loaded_item = null
 		to_chat(usr, "You remove \the [loaded_item] from \the [src].")
@@ -101,11 +99,10 @@
 		if(istype(W, /obj/item/stack))
 			var/obj/item/stack/S = W
 			S.use(1)
-			var/Y = new W.type(src)
+			var/Y = new W.type(src, 1)
 			loaded_item = Y
 		else
-			if(!user.drop_item(W, src))
-				to_chat(user, "<span class='warning'>You can't let go of \the [W]!</span>")
+			if(!user.drop_item(W, src, failmsg = TRUE))
 				return 1
 			loaded_item = W
 		user.visible_message("[user] jams \the [W] into the muzzle of the [src].","You jam \the [W] into the muzzle of \the [src].")
@@ -259,7 +256,7 @@
 	to_chat(user, "<span class='danger'>\The [src]'s firing mechanism fails!</span>")
 	loaded_item.forceMove(user.loc)
 	loaded_item = null
-	explosion(user, -1, 0, 2)
+	explosion(user, -1, 0, 2, whodunnit = user)
 	qdel(src)
 	return
 

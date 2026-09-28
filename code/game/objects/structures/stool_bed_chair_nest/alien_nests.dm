@@ -6,7 +6,7 @@
 	desc = "It's a gruesome pile of thick, sticky resin shaped like a nest."
 	icon = 'icons/mob/alien.dmi'
 	icon_state = "nest"
-	var/health = 100
+	health = 100
 
 /obj/structure/bed/nest/New()
 	..()
@@ -16,10 +16,15 @@
 	nest_locations -= src
 	..()
 
-/obj/structure/bed/nest/manual_unbuckle(mob/user as mob)
+/obj/structure/bed/nest/manual_unbuckle(mob/user, var/resisting = FALSE)
+	if(istype(user, /mob/living/silicon/pai)) //added istype(user, /mob/living/silicon/pai) cause it was in buckle_mob, dunno why tho
+		return
+
 	if(is_locking(/datum/locking_category/buckle/bed/nest))
 		var/mob/M = get_locked(/datum/locking_category/buckle/bed/nest)[1]
 		if(M != user)
+			if(user.restrained())
+				return
 			M.visible_message(\
 				"<span class='notice'>[user.name] pulls [M.name] free from the sticky nest!</span>",\
 				"<span class='notice'>[user.name] pulls you free from the gelatinous resin.</span>",\
@@ -77,7 +82,7 @@
 
 /obj/structure/bed/nest/bullet_act(var/obj/item/projectile/Proj)
 	health -= Proj.damage
-	..()
+	. = ..()
 	healthcheck()
 
 /obj/structure/bed/nest/fire_act(datum/gas_mixture/air, exposed_temperature, exposed_volume)
@@ -104,7 +109,7 @@
 		if(!gcDestroyed && is_locking(/datum/locking_category/buckle/bed/nest))
 			stabilize()
 
-/obj/structure/bed/nest/acidable()
+/obj/structure/bed/nest/dissolvable()
 	return 0
 
 #undef ALIEN_NEST_LOCKED_Y_OFFSET
